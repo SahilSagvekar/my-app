@@ -38,6 +38,7 @@ export async function POST(req) {
       { expiresIn: "1h" }
     );
 
+
     return NextResponse.json({ token, user: { email: user.email, role: user.role } });
   } catch (err) {
     console.error("Login error:", err);

@@ -50,6 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+      console.log("src/componenets/auth/AuthContext.tsx");
 
       const data = await res.json();
 
@@ -57,10 +58,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(data.message || 'Login failed');
       }
 
-      if (data.requires2FA) {
-        setLoading(false);
-        throw new Error('2FA_REQUIRED');
-      }
+      // if (data.requires2FA) {
+      //   setLoading(false);
+      //   throw new Error('2FA_REQUIRED');
+      // }
 
       setUser(data.user);
       setIsAuthenticated(true);
