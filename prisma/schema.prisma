@@ -30,7 +30,15 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+model Notification {
+  id        String   @id @default(cuid())
+  userId    Int
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 
+  user User @relation(fields: [userId], references: [id])
+}
 
 
 model Task {
@@ -46,12 +54,4 @@ model Task {
   updatedAt   DateTime @updatedAt
 }
 
-model Notification {
-  id        String   @id @default(cuid())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  message   String
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
-}
 

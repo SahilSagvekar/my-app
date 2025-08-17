@@ -83,55 +83,53 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  e.preventDefault();
+  if (!validateForm()) return;
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const token = localStorage.getItem("token"); // moved inside so it's always fresh
-      if (!token) throw new Error("You are not logged in"); 
+  try {
+    const res = await fetch("/api/admin/tasks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include", // ✅ ensures cookies are sent with the request
+      body: JSON.stringify({
+        title: formData.title,
+        description: formData.description,
+        taskType: formData.type,
+        dueDate: formData.dueDate,
+        assignedTo: formData.assignedTo,
+      }),
+    });
 
-      const res = await fetch("/api/admin/tasks", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          description: formData.description,
-          taskType: formData.type,
-          dueDate: formData.dueDate,
-          assignedTo: formData.assignedTo,
-        }),
-      });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to create task");
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to create task");
+    onTaskCreated?.(data);
 
-      onTaskCreated?.(data);
+    setFormData({
+      title: "",
+      description: "",
+      type: "",
+      assignedTo: "",
+      dueDate: "",
+      estimatedHours: "",
+      projectId: "",
+    });
+    setOpen(false);
+  } catch (error) {
+    console.error("Error creating task:", error);
+    setErrors((prev) => ({
+      ...prev,
+      submit: (error as Error).message,
+    }));
+  } finally {
+    setLoading(false);
+  }
+};
 
-      setFormData({
-        title: "",
-        description: "",
-        type: "",
-        assignedTo: "",
-        dueDate: "",
-        estimatedHours: "",
-        projectId: "",
-      });
-      setOpen(false);
-    } catch (error) {
-      console.error("Error creating task:", error);
-      setErrors((prev) => ({
-        ...prev,
-        submit: (error as Error).message,
-      }));
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getAvailableMembers = () => {
     if (!formData.type) return teamMembers;

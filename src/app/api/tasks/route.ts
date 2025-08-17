@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
     }
 
+     // 1. Create the task
     const task = await prisma.task.create({
       data: {
         title,
@@ -29,11 +30,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Optionally, create a notification
-    await prisma.notification.create({
+    // 2. Create a notification for the assigned user
+    const notification = await prisma.notification.create({
       data: {
         userId: assignedTo,
-        message: `New task assigned: ${title}`,
+        message: `You have been assigned a new task: ${title}`,
       },
     });
 

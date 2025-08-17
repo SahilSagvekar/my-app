@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   }
 
   const user = await requireAdmin(req);
+  console.log('user', user);
   if (!user) return NextResponse.json({ message: 'Oops' }, { status: 401 });
   try {
     const task = await prisma.task.create({
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
         description,
         taskType,
         dueDate: new Date(dueDate),
-        assignedTo,
+        assignedTo: 5,  //temporary hardcoded value
         createdBy: user.id,
       },
     });

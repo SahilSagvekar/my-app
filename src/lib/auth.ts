@@ -25,31 +25,29 @@ const prisma = new PrismaClient();
 // }
 
 export async function requireAdmin(req: NextRequest) {
+  console.log("requireAdmin called");
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) return null;
-
-    const token = authHeader.replace('Bearer ', '');
+    // ✅ Get token from cookie instead of Authorization header
+    const token = req.cookies.get("authToken")?.value;
     if (!token) return null;
+    console.log("JWT Token:", token);
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    console.log('Decoded JWT:', decoded);
-    //     const user = await prisma.user.findUnique({
-    //   where: { id: decoded.userId }, // matches your token payload
-    // });
-
+    console.log("Decoded JWT:", decoded);
 
     const user = await prisma.user.findUnique({
       where: { email: decoded.email },
     });
-
+    console.log("User from DB:", user);
 
     // Allow both admin and manager
-    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return null;
+    if (!user || (user.role !== "admin" && user.role !== "manager")) {
+      return null;
+    }
 
     return user; // return the user object
   } catch (err) {
-    console.error('requireAdmin error:', err);
+    console.error("requireAdmin error:", err);
     return null;
   }
 }

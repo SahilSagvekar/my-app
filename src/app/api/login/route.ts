@@ -1,4 +1,4 @@
-// src/app/api/login/route.js
+// src/app/api/login/route.ts
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -11,17 +11,10 @@ export async function POST(req) {
     const { email, password } = await req.json();
 
     if (!email || !password) {
-      return NextResponse.json(
-        { message: "Email and password are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Email and password are required" }, { status: 400 });
     }
 
-    // Find user in Prisma
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
@@ -31,15 +24,24 @@ export async function POST(req) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    // Generate JWT token
+    // Generate JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || "your_jwt_secret", // use env var in production
+      process.env.JWT_SECRET || "your_jwt_secret",
       { expiresIn: "1h" }
     );
 
+    // Set secure httpOnly cookie
+    const response = NextResponse.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+    response.cookies.set("authToken", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "development",
+      sameSite: "strict",
+      maxAge: 60 * 60, // 1 hour
+      path: "/",
+    });
 
-    return NextResponse.json({ token, user: { email: user.email, role: user.role } });
+    return response;
   } catch (err) {
     console.error("Login error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
