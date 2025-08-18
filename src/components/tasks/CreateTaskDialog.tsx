@@ -37,17 +37,10 @@ const taskTypes = [
   { value: "schedule", label: "Schedule Planning", roles: ["scheduler"] },
   { value: "copywriting", label: "Copywriting", roles: ["editor"] },
   { value: "audit", label: "Content Audit", roles: ["qc_specialist"] },
-  {
-    value: "coordination",
-    label: "Project Coordination",
-    roles: ["scheduler"],
-  },
+  { value: "coordination", label: "Project Coordination", roles: ["scheduler"] },
 ];
 
-export function CreateTaskDialog({
-  trigger,
-  onTaskCreated,
-}: CreateTaskDialogProps) {
+export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
@@ -57,26 +50,23 @@ export function CreateTaskDialog({
     dueDate: "",
     estimatedHours: "",
     projectId: "",
+    files: [] as File[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
-
   const [availableMembers, setAvailableMembers] = useState<any[]>([]);
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.title.trim()) newErrors.title = "Task title is required";
     if (!formData.type) newErrors.type = "Task type is required";
-    if (!formData.assignedTo)
-      newErrors.assignedTo = "Please assign this task to someone";
+    if (!formData.assignedTo) newErrors.assignedTo = "Please assign this task to someone";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -87,17 +77,10 @@ export function CreateTaskDialog({
       setAvailableMembers([]);
       return;
     }
-
     try {
       const res = await fetch(`/api/roles?taskType=${formData.type}`);
-      if (!res.ok) {
-        console.error("Failed to fetch members:", res.statusText);
-        setAvailableMembers([]);
-        return;
-      }
-
+      if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
-      // Accept both possible response shapes
       setAvailableMembers(data.roleUsers || data.users || []);
     } catch (error) {
       console.error("Error fetching members:", error);
@@ -116,17 +99,20 @@ export function CreateTaskDialog({
 
     setLoading(true);
     try {
+      const body = new FormData();
+      body.append("title", formData.title);
+      body.append("description", formData.description);
+      body.append("taskType", formData.type);
+      body.append("dueDate", formData.dueDate);
+      body.append("assignedTo", String(formData.assignedTo));
+      if (formData.estimatedHours) body.append("estimatedHours", formData.estimatedHours);
+      if (formData.projectId) body.append("projectId", formData.projectId);
+      formData.files.forEach((file) => body.append("files", file));
+
       const res = await fetch("/api/admin/tasks", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          title: formData.title,
-          description: formData.description,
-          taskType: formData.type,
-          dueDate: formData.dueDate,
-          assignedTo: Number(formData.assignedTo), // ensure int
-        }),
+        body,
       });
 
       const data = await res.json();
@@ -142,6 +128,7 @@ export function CreateTaskDialog({
         dueDate: "",
         estimatedHours: "",
         projectId: "",
+        files: [],
       });
       setAvailableMembers([]);
       setOpen(false);
@@ -153,9 +140,7 @@ export function CreateTaskDialog({
     }
   };
 
-  const selectedMember = availableMembers.find(
-    (m) => m.id === formData.assignedTo
-  );
+  const selectedMember = availableMembers.find((m) => String(m.id) === String(formData.assignedTo));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -170,8 +155,7 @@ export function CreateTaskDialog({
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
           <DialogDescription>
-            Assign a task to your team members. Choose the appropriate role
-            based on the task type.
+            Assign a task to your team members. Choose the appropriate role based on the task type.
           </DialogDescription>
           {user && (
             <div className="text-xs text-muted-foreground">
@@ -181,9 +165,7 @@ export function CreateTaskDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {errors.submit && (
-            <p className="text-sm text-destructive">{errors.submit}</p>
-          )}
+          {errors.submit && <p className="text-sm text-destructive">{errors.submit}</p>}
 
           {/* Task Title */}
           <div className="space-y-2">
@@ -195,9 +177,7 @@ export function CreateTaskDialog({
               onChange={(e) => handleInputChange("title", e.target.value)}
               className={errors.title ? "border-destructive" : ""}
             />
-            {errors.title && (
-              <p className="text-sm text-destructive">{errors.title}</p>
-            )}
+            {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
           </div>
 
           {/* Description */}
@@ -222,9 +202,7 @@ export function CreateTaskDialog({
                 handleInputChange("assignedTo", "");
               }}
             >
-              <SelectTrigger
-                className={errors.type ? "border-destructive" : ""}
-              >
+              <SelectTrigger className={errors.type ? "border-destructive" : ""}>
                 <SelectValue placeholder="Select task type" />
               </SelectTrigger>
               <SelectContent>
@@ -235,13 +213,11 @@ export function CreateTaskDialog({
                 ))}
               </SelectContent>
             </Select>
-            {errors.type && (
-              <p className="text-sm text-destructive">{errors.type}</p>
-            )}
+            {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
           </div>
 
+          {/* Dates & Hours */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Due Date */}
             <div className="space-y-2">
               <Label htmlFor="dueDate">Due Date</Label>
               <Input
@@ -252,12 +228,9 @@ export function CreateTaskDialog({
                 className={errors.dueDate ? "border-destructive" : ""}
                 min={new Date().toISOString().split("T")[0]}
               />
-              {errors.dueDate && (
-                <p className="text-sm text-destructive">{errors.dueDate}</p>
-              )}
+              {errors.dueDate && <p className="text-sm text-destructive">{errors.dueDate}</p>}
             </div>
 
-            {/* Estimated Hours */}
             <div className="space-y-2">
               <Label htmlFor="estimatedHours">Estimated Hours</Label>
               <Input
@@ -265,13 +238,23 @@ export function CreateTaskDialog({
                 type="number"
                 placeholder="e.g. 8"
                 value={formData.estimatedHours}
-                onChange={(e) =>
-                  handleInputChange("estimatedHours", e.target.value)
-                }
+                onChange={(e) => handleInputChange("estimatedHours", e.target.value)}
                 min="0.5"
                 step="0.5"
               />
             </div>
+          </div>
+
+          {/* Attachments */}
+          <div className="space-y-2">
+            <Label htmlFor="attachments">Attachments</Label>
+            <Input
+              id="attachments"
+              type="file"
+              accept="image/*,video/*,audio/*"
+              multiple
+              onChange={(e) => handleInputChange("files", e.target.files ? Array.from(e.target.files) : [])}
+            />
           </div>
 
           {/* Assign To */}
@@ -284,11 +267,11 @@ export function CreateTaskDialog({
                     <Card
                       key={member.id}
                       className={`cursor-pointer transition-colors ${
-                        formData.assignedTo === member.id
+                        String(formData.assignedTo) === String(member.id)
                           ? "border-primary bg-primary/5"
                           : "hover:bg-accent"
                       }`}
-                      onClick={() => handleInputChange("assignedTo", member.id)}
+                      onClick={() => handleInputChange("assignedTo", String(member.id))}
                     >
                       <CardContent className="p-3">
                         <div className="flex items-center justify-between">
@@ -296,27 +279,18 @@ export function CreateTaskDialog({
                             <Avatar className="h-8 w-8">
                               <AvatarImage src={member.avatarUrl || ""} />
                               <AvatarFallback>
-                                {member?.avatar ||
-                                  member?.name?.charAt(0) ||
-                                  "?"}
+                                {member?.avatar || member?.name?.charAt(0) || "?"}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <h4 className="text-sm font-medium">
-                                {member.name}
-                              </h4>
+                              <h4 className="text-sm font-medium">{member.name}</h4>
                               <p className="text-xs text-muted-foreground">
-                                {member.department} • {member.currentTasks}{" "}
-                                active tasks
+                                {member.department} • {member.currentTasks} active tasks
                               </p>
                             </div>
                           </div>
                           <Badge
-                            variant={
-                              member.availability === "available"
-                                ? "default"
-                                : "secondary"
-                            }
+                            variant={member.availability === "available" ? "default" : "secondary"}
                             className="text-xs"
                           >
                             {member.availability}
@@ -326,16 +300,10 @@ export function CreateTaskDialog({
                     </Card>
                   ))}
                 </div>
-                {errors.assignedTo && (
-                  <p className="text-sm text-destructive">
-                    {errors.assignedTo}
-                  </p>
-                )}
+                {errors.assignedTo && <p className="text-sm text-destructive">{errors.assignedTo}</p>}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Select a task type first to see available team members.
-              </p>
+              <p className="text-sm text-muted-foreground">Select a task type first to see available team members.</p>
             )}
           </div>
 
@@ -343,31 +311,22 @@ export function CreateTaskDialog({
           {selectedMember && (
             <Card className="border-primary/20 bg-primary/5">
               <CardContent className="p-4">
-                <h4 className="text-sm font-medium mb-2">
-                  Task Assignment Summary
-                </h4>
+                <h4 className="text-sm font-medium mb-2">Task Assignment Summary</h4>
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={selectedMember.avatarUrl || ""} />
                     <AvatarFallback>
-                      {selectedMember?.avatar ||
-                        selectedMember?.name?.charAt(0) ||
-                        "?"}
+                      {selectedMember?.avatar || selectedMember?.name?.charAt(0) || "?"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <p className="font-medium">{selectedMember.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {selectedMember.department} • Currently has{" "}
-                      {selectedMember.currentTasks} active tasks
+                      {selectedMember.department} • Currently has {selectedMember.currentTasks} active tasks
                     </p>
                   </div>
                   <Badge
-                    variant={
-                      selectedMember.availability === "available"
-                        ? "default"
-                        : "secondary"
-                    }
+                    variant={selectedMember.availability === "available" ? "default" : "secondary"}
                   >
                     {selectedMember.availability}
                   </Badge>
@@ -377,12 +336,7 @@ export function CreateTaskDialog({
           )}
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={loading}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>

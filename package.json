@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "prisma": {
-  "seed": "ts-node-esm prisma/seed.ts"
+    "seed": "ts-node-esm prisma/seed.ts"
   },
   "dependencies": {
     "@aws-amplify/ui-react-core": "^3.4.3",
@@ -29,6 +29,7 @@
     "aws-amplify": "^6.15.5",
     "bcrypt": "^6.0.0",
     "class-variance-authority": "^0.7.1",
+    "googleapis": "^156.0.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.539.0",
     "next": "15.4.6",

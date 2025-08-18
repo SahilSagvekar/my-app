@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from '@prisma/client'; // make sure prisma client is exported from lib/prisma.ts
-import { getCurrentUser } from "@/lib/auth"; // a function to decode JWT and get user
+import { PrismaClient } from "@prisma/client";
+import { getCurrentUser } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getCurrentUser(req); // your auth function
-    if (!user || user.role !== "admin") {
+    const user = await getCurrentUser(req);
+    if (!user || (user.role !== "admin" && user.role !== "manager")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -18,20 +18,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
     }
 
-     // 1. Create the task
     const task = await prisma.task.create({
       data: {
         title,
         description,
-        taskType,
+        taskType: taskType,
         dueDate: new Date(dueDate),
-        assignedTo,
         createdBy: user.id,
+        assignedTo: assignedTo,
       },
     });
 
-    // 2. Create a notification for the assigned user
-    const notification = await prisma.notification.create({
+    await prisma.notification.create({
       data: {
         userId: assignedTo,
         message: `You have been assigned a new task: ${title}`,
@@ -45,3 +43,22 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function GET() {
+  try {
+    const tasks = await prisma.task.findMany({
+      include: {
+        // assignee: {
+        //   select: { id: true, name: true, avatar: true, role: true },
+        // },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return NextResponse.json(tasks);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 });
+  }
+}
