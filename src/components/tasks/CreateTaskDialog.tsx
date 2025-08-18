@@ -50,7 +50,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     dueDate: "",
     estimatedHours: "",
     projectId: "",
-    files: [] as File[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -99,20 +98,21 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
     setLoading(true);
     try {
-      const body = new FormData();
-      body.append("title", formData.title);
-      body.append("description", formData.description);
-      body.append("taskType", formData.type);
-      body.append("dueDate", formData.dueDate);
-      body.append("assignedTo", String(formData.assignedTo));
-      if (formData.estimatedHours) body.append("estimatedHours", formData.estimatedHours);
-      if (formData.projectId) body.append("projectId", formData.projectId);
-      formData.files.forEach((file) => body.append("files", file));
-
       const res = await fetch("/api/admin/tasks", {
         method: "POST",
         credentials: "include",
-        body,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          taskType: formData.type,
+          dueDate: formData.dueDate,
+          assignedTo: formData.assignedTo,
+          estimatedHours: formData.estimatedHours,
+          projectId: formData.projectId,
+        }),
       });
 
       const data = await res.json();
@@ -128,7 +128,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         dueDate: "",
         estimatedHours: "",
         projectId: "",
-        files: [],
       });
       setAvailableMembers([]);
       setOpen(false);
@@ -243,18 +242,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                 step="0.5"
               />
             </div>
-          </div>
-
-          {/* Attachments */}
-          <div className="space-y-2">
-            <Label htmlFor="attachments">Attachments</Label>
-            <Input
-              id="attachments"
-              type="file"
-              accept="image/*,video/*,audio/*"
-              multiple
-              onChange={(e) => handleInputChange("files", e.target.files ? Array.from(e.target.files) : [])}
-            />
           </div>
 
           {/* Assign To */}

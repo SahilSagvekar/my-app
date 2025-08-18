@@ -123,8 +123,8 @@ export function RecentTasksCard({
           {loading ? (
             <p className="text-center text-muted-foreground">Loading...</p>
           ) : tasks.length > 0 ? (
-            // 3️⃣ Slice tasks to show only first 6 unless showAll is true
-            (showAll ? tasks : tasks.slice(0, 6)).map((task) => (
+            // 3️⃣ Slice tasks to show only first 5 unless showAll is true
+            (showAll ? tasks : tasks.slice(0, 5)).map((task) => (
               <div
                 key={task.id}
                 className="flex items-start gap-3 p-3 rounded-lg border"
