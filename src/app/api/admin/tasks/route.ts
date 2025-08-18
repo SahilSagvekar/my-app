@@ -5,6 +5,7 @@ import { requireAdmin } from '../../../../lib/auth';
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { title, description, taskType, dueDate, assignedTo } = body;
+  console.log('Received task data:', { assignedTo });
 
   if (!title || !description || !taskType || !dueDate || !assignedTo) {
     return NextResponse.json({ message: 'All fields are required' }, { status: 400 });
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
         description,
         taskType,
         dueDate: new Date(dueDate),
-        assignedTo: 5,  //temporary hardcoded value
+        assignedTo,  //temporary hardcoded value
         createdBy: user.id,
       },
     });

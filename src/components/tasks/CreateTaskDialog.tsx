@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import {
@@ -30,27 +30,24 @@ interface CreateTaskDialogProps {
   onTaskCreated?: (task: any) => void;
 }
 
-const teamMembers = [
-  { id: "2", name: "Sarah Wilson", role: "editor", avatar: "SW", department: "Creative", availability: "available", currentTasks: 3 },
-  { id: "ed2", name: "Mike Johnson", role: "editor", avatar: "MJ", department: "Creative", availability: "busy", currentTasks: 5 },
-  { id: "3", name: "Lisa Davis", role: "qc", avatar: "LD", department: "Quality", availability: "available", currentTasks: 2 },
-  { id: "ed3", name: "Tom Brown", role: "editor", avatar: "TB", department: "Creative", availability: "available", currentTasks: 1 },
-  { id: "4", name: "Mike Johnson", role: "scheduler", avatar: "MJ", department: "Operations", availability: "busy", currentTasks: 4 },
-  { id: "qc2", name: "Alex Chen", role: "qc", avatar: "AC", department: "Quality", availability: "available", currentTasks: 2 },
-  { id: "sch2", name: "David Kim", role: "scheduler", avatar: "DK", department: "Operations", availability: "available", currentTasks: 2 },
-];
-
 const taskTypes = [
   { value: "design", label: "Design Work", roles: ["editor"] },
   { value: "video", label: "Video Production", roles: ["editor"] },
-  { value: "review", label: "Quality Review", roles: ["qc"] },
+  { value: "review", label: "Quality Review", roles: ["qc_specialist"] },
   { value: "schedule", label: "Schedule Planning", roles: ["scheduler"] },
   { value: "copywriting", label: "Copywriting", roles: ["editor"] },
-  { value: "audit", label: "Content Audit", roles: ["qc"] },
-  { value: "coordination", label: "Project Coordination", roles: ["scheduler"] },
+  { value: "audit", label: "Content Audit", roles: ["qc_specialist"] },
+  {
+    value: "coordination",
+    label: "Project Coordination",
+    roles: ["scheduler"],
+  },
 ];
 
-export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogProps) {
+export function CreateTaskDialog({
+  trigger,
+  onTaskCreated,
+}: CreateTaskDialogProps) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
@@ -65,6 +62,8 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
+  const [availableMembers, setAvailableMembers] = useState<any[]>([]);
+
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
@@ -76,71 +75,87 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     const newErrors: Record<string, string> = {};
     if (!formData.title.trim()) newErrors.title = "Task title is required";
     if (!formData.type) newErrors.type = "Task type is required";
-    if (!formData.assignedTo) newErrors.assignedTo = "Please assign this task to someone";
+    if (!formData.assignedTo)
+      newErrors.assignedTo = "Please assign this task to someone";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!validateForm()) return;
+  const fetchMembers = async () => {
+    if (!formData.type) {
+      setAvailableMembers([]);
+      return;
+    }
 
-  setLoading(true);
+    try {
+      const res = await fetch(`/api/roles?taskType=${formData.type}`);
+      if (!res.ok) {
+        console.error("Failed to fetch members:", res.statusText);
+        setAvailableMembers([]);
+        return;
+      }
 
-  try {
-    const res = await fetch("/api/admin/tasks", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include", // ✅ ensures cookies are sent with the request
-      body: JSON.stringify({
-        title: formData.title,
-        description: formData.description,
-        taskType: formData.type,
-        dueDate: formData.dueDate,
-        assignedTo: formData.assignedTo,
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to create task");
-
-    onTaskCreated?.(data);
-
-    setFormData({
-      title: "",
-      description: "",
-      type: "",
-      assignedTo: "",
-      dueDate: "",
-      estimatedHours: "",
-      projectId: "",
-    });
-    setOpen(false);
-  } catch (error) {
-    console.error("Error creating task:", error);
-    setErrors((prev) => ({
-      ...prev,
-      submit: (error as Error).message,
-    }));
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-  const getAvailableMembers = () => {
-    if (!formData.type) return teamMembers;
-    const selectedTaskType = taskTypes.find((t) => t.value === formData.type);
-    if (!selectedTaskType) return teamMembers;
-    return teamMembers.filter((member) =>
-      selectedTaskType.roles.includes(member.role)
-    );
+      const data = await res.json();
+      // Accept both possible response shapes
+      setAvailableMembers(data.roleUsers || data.users || []);
+    } catch (error) {
+      console.error("Error fetching members:", error);
+      setAvailableMembers([]);
+    }
   };
 
-  const selectedMember = teamMembers.find((m) => m.id === formData.assignedTo);
+  useEffect(() => {
+    fetchMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.type]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          taskType: formData.type,
+          dueDate: formData.dueDate,
+          assignedTo: Number(formData.assignedTo), // ensure int
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to create task");
+
+      onTaskCreated?.(data);
+
+      setFormData({
+        title: "",
+        description: "",
+        type: "",
+        assignedTo: "",
+        dueDate: "",
+        estimatedHours: "",
+        projectId: "",
+      });
+      setAvailableMembers([]);
+      setOpen(false);
+    } catch (error) {
+      console.error("Error creating task:", error);
+      setErrors((prev) => ({ ...prev, submit: (error as Error).message }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedMember = availableMembers.find(
+    (m) => m.id === formData.assignedTo
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -166,7 +181,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Error Message */}
           {errors.submit && (
             <p className="text-sm text-destructive">{errors.submit}</p>
           )}
@@ -186,7 +200,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
             )}
           </div>
 
-          {/* Task Description */}
+          {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
@@ -266,7 +280,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
             {formData.type ? (
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
-                  {getAvailableMembers().map((member) => (
+                  {availableMembers.map((member) => (
                     <Card
                       key={member.id}
                       className={`cursor-pointer transition-colors ${
@@ -280,20 +294,29 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-8 w-8">
-                              <AvatarImage src="" />
-                              <AvatarFallback>{member.avatar}</AvatarFallback>
+                              <AvatarImage src={member.avatarUrl || ""} />
+                              <AvatarFallback>
+                                {member?.avatar ||
+                                  member?.name?.charAt(0) ||
+                                  "?"}
+                              </AvatarFallback>
                             </Avatar>
                             <div>
                               <h4 className="text-sm font-medium">
                                 {member.name}
                               </h4>
                               <p className="text-xs text-muted-foreground">
-                                {member.department} • {member.currentTasks} active tasks
+                                {member.department} • {member.currentTasks}{" "}
+                                active tasks
                               </p>
                             </div>
                           </div>
                           <Badge
-                            variant={member.availability === "available" ? "default" : "secondary"}
+                            variant={
+                              member.availability === "available"
+                                ? "default"
+                                : "secondary"
+                            }
                             className="text-xs"
                           >
                             {member.availability}
@@ -325,8 +348,12 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                 </h4>
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src="" />
-                    <AvatarFallback>{selectedMember.avatar}</AvatarFallback>
+                    <AvatarImage src={selectedMember.avatarUrl || ""} />
+                    <AvatarFallback>
+                      {selectedMember?.avatar ||
+                        selectedMember?.name?.charAt(0) ||
+                        "?"}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <p className="font-medium">{selectedMember.name}</p>
@@ -336,7 +363,11 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                     </p>
                   </div>
                   <Badge
-                    variant={selectedMember.availability === "available" ? "default" : "secondary"}
+                    variant={
+                      selectedMember.availability === "available"
+                        ? "default"
+                        : "secondary"
+                    }
                   >
                     {selectedMember.availability}
                   </Badge>

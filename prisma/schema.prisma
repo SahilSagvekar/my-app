@@ -47,6 +47,7 @@ model Task {
   title       String
   description String
   taskType    String
+  status      String   // "pending" | "in_progress" | "completed"
   dueDate     DateTime
   assignedTo  Int      // <-- must match User.id type 
   createdBy   Int      // <-- must match User.id type

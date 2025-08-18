@@ -1,37 +1,40 @@
-import { NextApiRequest, NextApiResponse } from "next";
+// src/app/api/roles/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 const taskTypeRoleMap: Record<string, string[]> = {
-  quality_review: ["qc", "qc_specialist"],
-  video_editing: ["editor", "videographer"],
-  management: ["admin", "manager"],
+  design: ["admin"],
+  video: ["editor"],
+  review: ["qc_specialist"],
+  schedule: ["scheduler"],
+  copywriting: ["editor"],
+  audit: ["qc_specialist"],
+  coordination: ["scheduler"],
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const taskType = searchParams.get("taskType");
 
-  const { taskType } = req.query;
-
-  if (!taskType || typeof taskType !== "string") {
-    return res.status(400).json({ error: "taskType is required" });
+  if (!taskType) {
+    return NextResponse.json({ error: "taskType is required" }, { status: 400 });
   }
 
   try {
     const allowedRoles = taskTypeRoleMap[taskType] || [];
 
-    // Fetch users with these roles
+    console.log("Received allowedRoles:", allowedRoles);
+
     const roleUsers = await prisma.user.findMany({
       where: { role: { in: allowedRoles } },
       select: { id: true, name: true, email: true, role: true },
     });
 
-    return res.status(200).json({ allowedRoles, roleUsers });
+    return NextResponse.json({ allowedRoles, roleUsers }, { status: 200 });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
