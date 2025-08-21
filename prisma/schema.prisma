@@ -1,15 +1,17 @@
+// Existing generator & datasource
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql" // or your database provider
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// Roles
 enum Role {
   admin
-  manager 
+  manager
   editor
   videographer
   qc_specialist
@@ -17,20 +19,20 @@ enum Role {
   client
 }
 
-
-// prisma/schema.prisma
+// Users
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String?
-  email     String   @unique
-  password  String
-  role      Role
-  tasks     Task[]   @relation("AssignedTasks")
+  id            Int            @id @default(autoincrement())
+  name          String?
+  email         String         @unique
+  password      String
+  role          Role
+  tasks         Task[]         @relation("AssignedTasks")
   notifications Notification[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
+// Notifications
 model Notification {
   id        String   @id @default(cuid())
   userId    Int
@@ -41,21 +43,56 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 }
 
+// **New Client model**
+model Client {
+  id                 String   @id @default(cuid())
+  name               String   
+  email              String?
+  company            String?
+  phone              String?
+  longFormVideos     Int      @default(0)
+  shortFormClips     Int      @default(0)
+  socialPosts        Int      @default(0)
+  customDeliverables String?  
+  driveFolderId      String
+  rawFolderId        String
+  essentialsFolderId String
+  tasks              Task[]
+  assets             Asset[] 
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
 
+
+
+// Tasks
 model Task {
   id          String   @id @default(cuid())
   title       String
   description String
   taskType    String
-  status      String?   @default("pending")
+  status      String?  @default("pending")
   dueDate     DateTime
   assignedTo  Int
   createdBy   Int
+  clientId    String? // Link task to client
   user        User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  client      Client?  @relation(fields: [clientId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  attachments Json?    // Stores array of uploaded file metadata
+  attachments Json? // Optional JSON of uploaded files
+  assets      Asset[] // <-- back-relation for assets
 }
 
-
-
+// Optional: Store individual file info for more control
+model Asset {
+  id          String   @id @default(cuid())
+  taskId      String
+  clientId    String
+  folderType  String // "RAW" or "ESSENTIALS"
+  fileName    String
+  driveFileId String
+  createdAt   DateTime @default(now())
+  task        Task     @relation(fields: [taskId], references: [id])
+  client      Client   @relation(fields: [clientId], references: [id])
+}

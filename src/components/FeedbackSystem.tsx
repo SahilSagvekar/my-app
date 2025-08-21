@@ -6,6 +6,8 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Avatar, AvatarFallback } from './ui/avatar';
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+
 import { 
   Send, 
   MessageSquare, 
@@ -360,7 +362,9 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Submit Feedback</DialogTitle>
+                <VisuallyHidden>
+                  <DialogTitle>Submit Feedback</DialogTitle>
+                </VisuallyHidden>
                 <DialogDescription>
                   Send feedback, suggestions, or report issues to the admin and management team.
                 </DialogDescription>

@@ -14,6 +14,7 @@ import { FullScreenReviewModal } from '../client/FullScreenReviewModal';
 import { useNotifications } from '../NotificationContext';
 import { toast } from 'sonner';
 import { Toaster } from '../ui/sonner';
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 const pendingApprovals = [
   {
@@ -355,7 +356,9 @@ Please address these concerns and re-submit for approval.
         <DialogHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div>
+              <VisuallyHidden>
               <DialogTitle>{approval.title}</DialogTitle>
+              </VisuallyHidden>
               <DialogDescription className="mt-1">{approval.description}</DialogDescription>
             </div>
             <div className="flex items-center gap-2">
