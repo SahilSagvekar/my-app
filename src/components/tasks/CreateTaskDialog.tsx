@@ -42,6 +42,7 @@ const taskTypes = [
 
 export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogProps) {
   const [open, setOpen] = useState(false);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -49,16 +50,26 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     assignedTo: "",
     dueDate: "",
     estimatedHours: "",
-    projectId: "",
+    clientId: "",
+    folderType: "", // ✅ Added for backend API compatibility
   });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const [availableMembers, setAvailableMembers] = useState<any[]>([]);
+  const [file, setFile] = useState<File | null>(null); // ✅ Single file for backend
+  const [clients, setClients] = useState<any[]>([]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]); // ✅ Take only the first file
+    }
   };
 
   const validateForm = () => {
@@ -67,6 +78,8 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     if (!formData.type) newErrors.type = "Task type is required";
     if (!formData.assignedTo) newErrors.assignedTo = "Please assign this task to someone";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
+    if (!formData.clientId) newErrors.clientId = "Please select a client";
+    if (!formData.folderType) newErrors.folderType = "Please select a folder type"; // ✅ Added
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -89,8 +102,26 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
   useEffect(() => {
     fetchMembers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.type]);
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      try {
+        const res = await fetch("/api/clients");
+        const result = await res.json();
+
+        if (result.success && Array.isArray(result.data)) {
+          setClients(result.data);
+        } else {
+          console.error("Invalid response format:", result);
+        }
+      } catch (error) {
+        console.error("Error fetching clients:", error);
+      }
+    };
+
+    fetchClients();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,21 +129,22 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
     setLoading(true);
     try {
+      const formPayload = new FormData();
+      formPayload.append("title", formData.title);
+      formPayload.append("description", formData.description);
+      formPayload.append("taskType", formData.type);
+      formPayload.append("dueDate", formData.dueDate);
+      formPayload.append("assignedTo", formData.assignedTo);
+      formPayload.append("clientId", formData.clientId);
+      formPayload.append("folderType", formData.folderType); // ✅ Added for backend
+      if (file) {
+        formPayload.append("file", file); // ✅ Single file
+      }
+
       const res = await fetch("/api/admin/tasks", {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          description: formData.description,
-          taskType: formData.type,
-          dueDate: formData.dueDate,
-          assignedTo: formData.assignedTo,
-          estimatedHours: formData.estimatedHours,
-          projectId: formData.projectId,
-        }),
+        body: formPayload,
       });
 
       const data = await res.json();
@@ -127,8 +159,10 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         assignedTo: "",
         dueDate: "",
         estimatedHours: "",
-        projectId: "",
+        clientId: "",
+        folderType: "",
       });
+      setFile(null);
       setAvailableMembers([]);
       setOpen(false);
     } catch (error) {
@@ -191,6 +225,45 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
             />
           </div>
 
+          {/* Client Dropdown */}
+          <div className="space-y-2">
+            <Label>Select Client</Label>
+            <Select
+              value={formData.clientId}
+              onValueChange={(value) => handleInputChange("clientId", value)}
+            >
+              <SelectTrigger className={errors.clientId ? "border-destructive" : ""}>
+                <SelectValue placeholder="Select a client" />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={String(client.id)}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.clientId && <p className="text-sm text-destructive">{errors.clientId}</p>}
+          </div>
+
+          {/* Folder Type Dropdown */}
+          <div className="space-y-2">
+            <Label>Select Folder Type</Label>
+            <Select
+              value={formData.folderType}
+              onValueChange={(value) => handleInputChange("folderType", value)}
+            >
+              <SelectTrigger className={errors.folderType ? "border-destructive" : ""}>
+                <SelectValue placeholder="Select folder type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="raw">Raw Footage</SelectItem>
+                <SelectItem value="essentials">Essentials</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.folderType && <p className="text-sm text-destructive">{errors.folderType}</p>}
+          </div>
+
           {/* Task Type */}
           <div className="space-y-2">
             <Label>Task Type</Label>
@@ -215,33 +288,31 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
             {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
           </div>
 
-          {/* Dates & Hours */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="dueDate">Due Date</Label>
-              <Input
-                id="dueDate"
-                type="date"
-                value={formData.dueDate}
-                onChange={(e) => handleInputChange("dueDate", e.target.value)}
-                className={errors.dueDate ? "border-destructive" : ""}
-                min={new Date().toISOString().split("T")[0]}
-              />
-              {errors.dueDate && <p className="text-sm text-destructive">{errors.dueDate}</p>}
-            </div>
+          {/* Due Date */}
+          <div className="space-y-2">
+            <Label htmlFor="dueDate">Due Date</Label>
+            <Input
+              id="dueDate"
+              type="date"
+              value={formData.dueDate}
+              onChange={(e) => handleInputChange("dueDate", e.target.value)}
+              className={errors.dueDate ? "border-destructive" : ""}
+              min={new Date().toISOString().split("T")[0]}
+            />
+            {errors.dueDate && <p className="text-sm text-destructive">{errors.dueDate}</p>}
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="estimatedHours">Estimated Hours</Label>
-              <Input
-                id="estimatedHours"
-                type="number"
-                placeholder="e.g. 8"
-                value={formData.estimatedHours}
-                onChange={(e) => handleInputChange("estimatedHours", e.target.value)}
-                min="0.5"
-                step="0.5"
-              />
-            </div>
+          {/* File Upload */}
+          <div className="space-y-2">
+            <Label htmlFor="file">Attach File</Label>
+            <Input
+              id="file"
+              type="file"
+              onChange={handleFileChange}
+            />
+            {file && (
+              <p className="text-sm text-gray-600 mt-2">{file.name}</p>
+            )}
           </div>
 
           {/* Assign To */}

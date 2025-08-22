@@ -53,8 +53,8 @@ model Client {
   longFormVideos     Int      @default(0)
   shortFormClips     Int      @default(0)
   socialPosts        Int      @default(0)
+  driveFolderId String?
   customDeliverables String?  
-  driveFolderId      String
   rawFolderId        String
   essentialsFolderId String
   tasks              Task[]
@@ -76,6 +76,7 @@ model Task {
   assignedTo  Int
   createdBy   Int
   clientId    String? // Link task to client
+  driveFolderId String? // <-- Add this line
   user        User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client      Client?  @relation(fields: [clientId], references: [id])
   createdAt   DateTime @default(now())
