@@ -63,6 +63,15 @@ model Client {
   updatedAt          DateTime @updatedAt
 }
 
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  READY_FOR_QC
+  QC_IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  REJECTED
+}
 
 
 // Tasks
@@ -71,7 +80,7 @@ model Task {
   title       String
   description String
   taskType    String
-  status      String?  @default("pending")
+   status     TaskStatus?  @default(PENDING)
   dueDate     DateTime
   assignedTo  Int
   createdBy   Int

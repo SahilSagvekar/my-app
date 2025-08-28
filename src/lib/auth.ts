@@ -64,3 +64,36 @@ export async function getCurrentUser(req: NextRequest) {
     return null;
   }
 }
+
+type Decoded = { userId: string; email: string; role?: string; name?: string };
+
+export async function getCurrentUser2(req?: NextRequest) {
+  try {
+    // Prefer cookie; allow Authorization header for Postman
+    const cookieToken = req
+      ? req.cookies.get("authToken")?.value
+      : cookies().get("authToken")?.value;
+
+      // console.log(req.cookies.getAll());
+      // console.log(req.headers.get("cookie"))
+
+    const headerToken = req?.headers.get("authorization")?.split(" ")[1];
+
+    const token = cookieToken || headerToken;
+   
+    if (!token) return null;
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret") as Decoded;
+    console.log("getCurrentUser2 decoded:", decoded);
+    if (!decoded?.userId) return null;
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    console.log("getCurrentUser2 user:", user);
+    if (!user) return null;
+
+    return { userId: user.id, email: user.email, role: user.role, name: user.name };
+  } catch (err) {
+    console.error("getCurrentUser error:", err);
+    return null;
+  }
+}

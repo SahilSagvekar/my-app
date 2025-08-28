@@ -1,4 +1,3 @@
-// src/app/api/login/route.ts
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -19,7 +18,7 @@ export async function POST(req) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    //temporarayly disable password check
+    // Temporarily skip password check
     // const passwordMatch = await bcrypt.compare(password, user.password);
     // if (!passwordMatch) {
     //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
@@ -32,19 +31,21 @@ export async function POST(req) {
       { expiresIn: "1h" }
     );
 
-    // Set secure httpOnly cookie
-    const response = NextResponse.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name } });
-    const response2 = NextResponse.json({ token: token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+    const response = NextResponse.json({
+      token,
+      user: { id: user.id, email: user.email, role: user.role, name: user.name }
+    });
+
+    // Set httpOnly cookie
     response.cookies.set("authToken", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "development",
+      secure: process.env.NODE_ENV === "production", // ✅ Only secure in prod
       sameSite: "strict",
-      maxAge: 60 * 60, // 1 hour
+      maxAge: 60 * 60,
       path: "/",
     });
 
-    // return response;
-    return response2;
+    return response;
   } catch (err) {
     console.error("Login error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
