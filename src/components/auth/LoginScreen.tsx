@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Checkbox } from '../ui/checkbox';
-import { Separator } from '../ui/separator';
-import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Checkbox } from "../ui/checkbox";
+import { Separator } from "../ui/separator";
+import { Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react";
+import Link from "next/link";
 // import logoImage from 'figma:asset/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
 // import logo from '../images/logo.png'
 
@@ -17,18 +18,24 @@ interface LoginScreenProps {
 }
 
 const demoCredentials = [
-  { email: 'admin@demo.com', role: 'Admin', password: 'demo123' },
-  { email: 'manager@demo.com', role: 'Manager', password: 'demo123' },
-  { email: 'editor@demo.com', role: 'Editor', password: 'demo123' },
-  { email: 'qc@demo.com', role: 'QC Specialist', password: 'demo123' },
-  { email: 'scheduler@demo.com', role: 'Scheduler', password: 'demo123' },
-  { email: 'videographer@demo.com', role: 'Videographer', password: 'demo123' },
-  { email: 'client@demo.com', role: 'Client', password: 'demo123' }
+  { email: "admin@demo.com", role: "Admin", password: "demo123" },
+  { email: "manager@demo.com", role: "Manager", password: "demo123" },
+  { email: "editor@demo.com", role: "Editor", password: "demo123" },
+  { email: "qc@demo.com", role: "QC Specialist", password: "demo123" },
+  { email: "scheduler@demo.com", role: "Scheduler", password: "demo123" },
+  { email: "videographer@demo.com", role: "Videographer", password: "demo123" },
+  { email: "client@demo.com", role: "Client", password: "demo123" },
 ];
 
-export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, error }: LoginScreenProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export function LoginScreen({
+  onLogin,
+  onForgotPassword,
+  onOAuthLogin,
+  loading,
+  error,
+}: LoginScreenProps) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
@@ -51,9 +58,9 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
         {/* Logo */}
         <div className="flex justify-center">
           <div className="w-12 h-12 flex items-center justify-center">
-            <img 
-              src="/images/logo.png"  
-              alt="E8 Logo" 
+            <img
+              src="/images/logo.png"
+              alt="E8 Logo"
               className="w-12 h-12 object-contain"
             />
           </div>
@@ -68,7 +75,7 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
         </div>
 
         {/* Demo Credentials */}
-        <Card className="bg-blue-50 border-blue-200">
+        {/* <Card className="bg-blue-50 border-blue-200">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg text-blue-900">Demo Credentials</CardTitle>
             <p className="text-sm text-blue-700">Click any role to auto-fill login credentials</p>
@@ -92,7 +99,7 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
               All accounts use password: <strong>demo123</strong>
             </p>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Login Form */}
         <Card>
@@ -138,7 +145,7 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
                   <Input
                     id="password"
                     name="password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
                     className="pl-10 pr-10"
@@ -167,10 +174,15 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
                   <Checkbox
                     id="remember-me"
                     checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                    onCheckedChange={(checked) =>
+                      setRememberMe(checked as boolean)
+                    }
                     disabled={loading}
                   />
-                  <label htmlFor="remember-me" className="ml-2 text-sm text-gray-900">
+                  <label
+                    htmlFor="remember-me"
+                    className="ml-2 text-sm text-gray-900"
+                  >
                     Remember me
                   </label>
                 </div>
@@ -185,18 +197,14 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
                 </button>
               </div>
 
-              <Button
-                type="submit"
-                className="w-full h-11"
-                disabled={loading}
-              >
+              <Button type="submit" className="w-full h-11" disabled={loading}>
                 {loading ? (
                   <>
                     <Loader2 className="animate-spin h-4 w-4 mr-2" />
                     Signing in...
                   </>
                 ) : (
-                  'Sign in'
+                  "Sign in"
                 )}
               </Button>
             </form>
@@ -207,14 +215,16 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
                   <Separator className="w-full" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-muted-foreground">Or continue with</span>
+                  <span className="px-2 bg-white text-muted-foreground">
+                    Or continue with
+                  </span>
                 </div>
               </div>
 
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => onOAuthLogin('google')}
+                  onClick={() => onOAuthLogin("google")}
                   disabled={loading}
                   className="w-full h-11"
                 >
@@ -241,7 +251,7 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
 
                 <Button
                   variant="outline"
-                  onClick={() => onOAuthLogin('slack')}
+                  onClick={() => onOAuthLogin("slack")}
                   disabled={loading}
                   className="w-full h-11"
                 >
@@ -272,10 +282,13 @@ export function LoginScreen({ onLogin, onForgotPassword, onOAuthLogin, loading, 
 
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
-          <span className="text-primary hover:underline cursor-pointer">
-            Contact your administrator
-          </span>
+          Don't have an account?{" "}
+          <Link
+            href="/register"
+            className="text-primary hover:underline cursor-pointer"
+          >
+            Register here
+          </Link>
         </p>
       </div>
     </div>

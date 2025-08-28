@@ -19,10 +19,11 @@ export async function POST(req) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
+    //temporarayly disable password check
+    // const passwordMatch = await bcrypt.compare(password, user.password);
+    // if (!passwordMatch) {
+    //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+    // }
 
     // Generate JWT
     const token = jwt.sign(
@@ -33,6 +34,7 @@ export async function POST(req) {
 
     // Set secure httpOnly cookie
     const response = NextResponse.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+    const response2 = NextResponse.json({ token: token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
     response.cookies.set("authToken", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "development",
@@ -41,7 +43,8 @@ export async function POST(req) {
       path: "/",
     });
 
-    return response;
+    // return response;
+    return response2;
   } catch (err) {
     console.error("Login error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
