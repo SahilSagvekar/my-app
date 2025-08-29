@@ -84,14 +84,16 @@ export async function getCurrentUser2(req?: NextRequest) {
     if (!token) return null;
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret") as Decoded;
-    console.log("getCurrentUser2 decoded:", decoded);
+    // console.log("getCurrentUser2 decoded:", decoded);
     if (!decoded?.userId) return null;
 
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    console.log("getCurrentUser2 user:", user);
+    // console.log("getCurrentUser2 user:", user);
     if (!user) return null;
 
-    return { userId: user.id, email: user.email, role: user.role, name: user.name };
+    return user;
+
+    // return { userId: user.id, email: user.email, role: user.role, name: user.name };
   } catch (err) {
     console.error("getCurrentUser error:", err);
     return null;

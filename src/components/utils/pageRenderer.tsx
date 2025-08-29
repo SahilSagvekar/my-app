@@ -1,5 +1,6 @@
 import { AdminDashboard } from '../dashboards/AdminDashboard';
-import { EditorDashboard } from '../dashboards/EditorDashboard';
+import  { EditorDashboard } from '../dashboards/EditorDashboard';
+// import  EditorDashboard  from '../dashboards/EditorDashboard';
 import { QCDashboard } from '../dashboards/QCDashboard';
 import { SchedulerDashboard } from '../dashboards/SchedulerDashboard';
 import { ManagerDashboard } from '../dashboards/ManagerDashboard';

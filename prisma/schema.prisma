@@ -80,7 +80,7 @@ model Task {
   title       String
   description String
   taskType    String
-   status     TaskStatus?  @default(PENDING)
+  status     TaskStatus?  @default(PENDING)
   dueDate     DateTime
   assignedTo  Int
   createdBy   Int

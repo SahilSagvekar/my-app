@@ -197,7 +197,9 @@ export function FileUploadDialog({ task, onUploadComplete, trigger }: FileUpload
             <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
             <div className="flex items-center gap-2">
               <Badge variant="outline">
-                {task.type.replace('_', ' ')}
+                {/* {task.type.replace('_', ' ')} */}
+                {task.type ? task.type.replace('_', ' ') : 'Unknown'}
+
               </Badge>
               <Badge variant={
                 task.priority === 'urgent' ? 'destructive' :

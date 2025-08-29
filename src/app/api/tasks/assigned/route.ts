@@ -5,8 +5,12 @@ import { getCurrentUser2 } from "@/lib/auth";
 export async function GET(req: Request) {
   try {
     const user = await getCurrentUser2(req as any);
-    if (!user)
+    if (!user) 
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (user.role !== "editor") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const tasks = await prisma.task.findMany({
       where: { assignedTo: user.userId },
@@ -28,15 +32,12 @@ export async function GET(req: Request) {
         // rejectionReason: true,
         // originalTaskId: true,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { dueDate: "asc" }, // prioritize tasks with nearer deadlines
     });
 
     return NextResponse.json({ tasks });
   } catch (err) {
-    console.error("Error fetching tasks:", err);
-    return NextResponse.json(
-      { error: "Failed to fetch tasks" },
-      { status: 500 }
-    );
+    // console.error("Error fetching tasks:", err);
+    return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 });
   }
 }
