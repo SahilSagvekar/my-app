@@ -1,0 +1,108 @@
+// Existing generator & datasource
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Roles
+enum Role {
+  admin
+  manager
+  editor
+  videographer
+  qc_specialist
+  scheduler
+  client
+}
+
+// Users
+model User {
+  id        Int     @id @default(autoincrement())
+  name      String?
+  email     String  @unique
+  password  String?
+  image     String?
+  role      Role    @default(client)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+// Notifications
+model Notification {
+  id        String   @id @default(cuid())
+  userId    Int
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// **New Client model**
+model Client {
+  id                 String   @id @default(cuid())
+  name               String   
+  email              String?
+  company            String?
+  phone              String?
+  longFormVideos     Int      @default(0)
+  shortFormClips     Int      @default(0)
+  socialPosts        Int      @default(0)
+  driveFolderId String?
+  customDeliverables String?  
+  rawFolderId        String
+  essentialsFolderId String
+  tasks              Task[]
+  assets             Asset[] 
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  READY_FOR_QC
+  QC_IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  REJECTED
+}
+
+
+// Tasks
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  taskType    String
+  status     TaskStatus?  @default(PENDING)
+  dueDate     DateTime
+  assignedTo  Int
+  createdBy   Int
+  clientId    String? // Link task to client
+  driveFolderId String? // <-- Add this line
+  user        User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  client      Client?  @relation(fields: [clientId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  attachments Json? // Optional JSON of uploaded files
+  assets      Asset[] // <-- back-relation for assets
+}
+
+// Optional: Store individual file info for more control
+model Asset {
+  id          String   @id @default(cuid())
+  taskId      String
+  clientId    String
+  folderType  String // "RAW" or "ESSENTIALS"
+  fileName    String
+  driveFileId String
+  createdAt   DateTime @default(now())
+  task        Task     @relation(fields: [taskId], references: [id])
+  client      Client   @relation(fields: [clientId], references: [id])
+}

@@ -18,12 +18,6 @@ export async function POST(req) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    // Temporarily skip password check
-    // const passwordMatch = await bcrypt.compare(password, user.password);
-    // if (!passwordMatch) {
-    //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    // }
-
     // Generate JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },

@@ -104,11 +104,14 @@ interface AdminDashboardProps {
   currentPage?: string;
 }
 
+
+
 export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProps) {
   const handleTaskCreated = (task: any) => {
     console.log('New task created:', task);
     // In a real app, this would update the task list or refresh data
   };
+  
 
   // Main dashboard overview content
   const DashboardOverview = () => (
@@ -262,6 +265,8 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
 
   // Render the appropriate content based on currentPage
   const renderPageContent = () => {
+     const completed = 0;
+  const total =  0;
     switch (currentPage) {
       case 'dashboard':
         return (

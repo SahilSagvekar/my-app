@@ -1,4 +1,3 @@
-// Existing generator & datasource
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Roles
 enum Role {
   admin
   manager
@@ -19,48 +17,71 @@ enum Role {
   client
 }
 
-// Users
 model User {
-  id            Int            @id @default(autoincrement())
-  name          String?
-  email         String         @unique
-  password      String
-  role          Role
-  tasks         Task[]         @relation("AssignedTasks")
-  notifications Notification[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-}
-
-// Notifications
-model Notification {
-  id        String   @id @default(cuid())
-  userId    Int
-  message   String
-  isRead    Boolean  @default(false)
+  id        Int      @id @default(autoincrement())
+  name      String?
+  email     String   @unique
+  password  String?
+  image     String?
+  role      Role     @default(client)
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
+  updatedAt DateTime @updatedAt
+  accounts  Account[]
+  sessions  Session[]
+  assignedTasks Task[] @relation("AssignedTasks")
 }
 
-// **New Client model**
-model Client {
-  id                 String   @id @default(cuid())
-  name               String   
-  email              String?
-  company            String?
-  phone              String?
-  longFormVideos     Int      @default(0)
-  shortFormClips     Int      @default(0)
-  socialPosts        Int      @default(0)
+model Account {
+  id                String  @id @default(cuid())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  taskType    String
+  status      TaskStatus?  @default(PENDING)
+  dueDate     DateTime
+  assignedTo  Int
+  createdBy   Int
+  clientId    String?
   driveFolderId String?
-  customDeliverables String?  
-  rawFolderId        String
-  essentialsFolderId String
-  tasks              Task[]
-  assets             Asset[] 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  attachments Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  client Client?  @relation(fields: [clientId], references: [id])
 }
 
 enum TaskStatus {
@@ -73,36 +94,28 @@ enum TaskStatus {
   REJECTED
 }
 
+model Client {
+  id                  String   @id @default(cuid())
+  name                String
+  email               String  
+  companyName         String?
+  phone               String?
+  createdBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-// Tasks
-model Task {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  taskType    String
-  status     TaskStatus?  @default(PENDING)
-  dueDate     DateTime
-  assignedTo  Int
-  createdBy   Int
-  clientId    String? // Link task to client
-  driveFolderId String? // <-- Add this line
-  user        User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
-  client      Client?  @relation(fields: [clientId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  attachments Json? // Optional JSON of uploaded files
-  assets      Asset[] // <-- back-relation for assets
+  tasks     Task[]
+
+  // Google Drive
+  driveFolderId       String?
+  rawFootageFolderId  String?
+  essentialsFolderId  String?
+
+  // Deliverables
+  longFormVideos      Int      @default(0)
+  shortFormClips      Int      @default(0)
+  socialPosts         Int      @default(0)
+  customDeliverables  String?
 }
 
-// Optional: Store individual file info for more control
-model Asset {
-  id          String   @id @default(cuid())
-  taskId      String
-  clientId    String
-  folderType  String // "RAW" or "ESSENTIALS"
-  fileName    String
-  driveFileId String
-  createdAt   DateTime @default(now())
-  task        Task     @relation(fields: [taskId], references: [id])
-  client      Client   @relation(fields: [clientId], references: [id])
-}
+

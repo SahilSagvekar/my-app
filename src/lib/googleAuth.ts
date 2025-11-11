@@ -4,7 +4,7 @@ export function getOAuthClient() {
   const client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
+    process.env.BASE_URL
   );
 
   // Set the refresh token for server-side auth

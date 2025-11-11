@@ -105,23 +105,39 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   }, [formData.type]);
 
   useEffect(() => {
-    const fetchClients = async () => {
+  const fetchClients = async () => {
+    try {
+      const res = await fetch("/api/clients");
+      const text = await res.text();
+      let data: any = {};
       try {
-        const res = await fetch("/api/clients");
-        const result = await res.json();
-
-        if (result.success && Array.isArray(result.data)) {
-          setClients(result.data);
-        } else {
-          console.error("Invalid response format:", result);
-        }
-      } catch (error) {
-        console.error("Error fetching clients:", error);
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("⚠ Invalid JSON from /api/clients:", text);
+        return;
       }
-    };
 
-    fetchClients();
-  }, []);
+      // ✅ Accept either format
+      const clients = Array.isArray(data)
+        ? data
+        : Array.isArray(data.clients)
+        ? data.clients
+        : [];
+
+      if (!clients.length) {
+        console.warn("⚠ No clients found.");
+      }
+
+      setClients(clients);
+    } catch (err) {
+      console.error("❌ Fetch clients failed:", err);
+      setClients([]);
+    }
+  };
+
+  fetchClients();
+}, []);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

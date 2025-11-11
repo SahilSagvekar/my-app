@@ -224,7 +224,8 @@ export function LoginScreen({
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => onOAuthLogin("google")}
+                  // onClick={() => onOAuthLogin("google")}
+                  onClick={() => window.location.href = "/api/auth/google"}
                   disabled={loading}
                   className="w-full h-11"
                 >
@@ -251,7 +252,8 @@ export function LoginScreen({
 
                 <Button
                   variant="outline"
-                  onClick={() => onOAuthLogin("slack")}
+                  // onClick={() => onOAuthLogin("slack")}
+                  onClick={() => window.location.href = "/api/auth/slack"}
                   disabled={loading}
                   className="w-full h-11"
                 >

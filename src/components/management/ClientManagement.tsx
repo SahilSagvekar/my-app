@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -12,6 +12,7 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
   Select,
   SelectContent,
@@ -289,100 +290,149 @@ const mockAccountManagers = [
 function ClientOnboardingDialog(props: { onClientCreated: (client: Client) => void }) {
   const { onClientCreated } = props;
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [newClient, setNewClient] = useState<Partial<Client>>({
-    name: "",
-    company: "",
-    email: "",
-    phone: "",
-    monthlyDeliverables: {
+ const [newClient, setNewClient] = useState({
+  name: "",
+  company: "",
+  email: "",
+  phone: "",
+  monthlyDeliverables: {
+    longFormVideos: 0,
+    shortFormClips: 0,
+    socialPosts: 0,
+    customDeliverables: "",
+  },
+});
+
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+// const handleSaveClient = async () => {
+//   setLoading(true);
+//   setMessage("");
+
+//   try {
+//     const res = await fetch("/api/clients", {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({
+//         name: newClient.name,
+//         companyName: newClient.company,
+//         email: newClient.email,
+//         phone: newClient.phone,
+//         longFormVideos: newClient.monthlyDeliverables.longFormVideos,
+//         shortFormClips: newClient.monthlyDeliverables.shortFormClips,
+//         socialPosts: newClient.monthlyDeliverables.socialPosts,
+//         customDeliverables: newClient.monthlyDeliverables.customDeliverables,
+//       }),
+//     });
+
+//     const data = await res.json();
+
+//     if (!res.ok) {
+//       throw new Error(data.message || "Failed to create client");
+//     }
+
+//     setMessage("✅ Client created successfully!");
+//     setShowAddDialog(false);
+
+//     // 🔥 Add this to notify parent
+//     onClientCreated(data.client);
+
+//     // Reset form
+//     setNewClient({
+//       name: "",
+//       company: "",
+//       email: "",
+//       phone: "",
+//       monthlyDeliverables: {
+//         longFormVideos: 0,
+//         shortFormClips: 0,
+//         socialPosts: 0,
+//         customDeliverables: "",
+//       },
+//     });
+//   } catch (err: any) {
+//     setMessage(`❌ ${err.message}`);
+//   } finally {
+//     setLoading(false);
+//   }
+// };
+
+const handleSaveClient = async () => {
+  setLoading(true);
+  setMessage("");
+
+  try {
+    // ✅ Safely destructure deliverables (avoid undefined errors)
+    const deliverables = newClient?.monthlyDeliverables ?? {
       longFormVideos: 0,
       shortFormClips: 0,
       socialPosts: 0,
       customDeliverables: "",
-    },
-  });
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-
- const handleSaveClient = async () => {
-   // 1️⃣ Basic validation
-   if (!newClient.name?.trim() || !newClient.email?.trim()) {
-     setMessage("Client name and email are required.");
-     return;
-   }
-
-   setLoading(true);
-   setMessage("");
-
-   try {
-     // 2️⃣ Flatten monthly deliverables to match API
-    //  const payload = {
-    //    name: newClient.name,
-    //    email: newClient.email,
-    //    company: newClient.company || "",
-    //    phone: newClient.phone || "",
-    //    longFormVideos: newClient.monthlyDeliverables?.longFormVideos || 0,
-    //    shortFormClips: newClient.monthlyDeliverables?.shortFormClips || 0,
-    //    socialPosts: newClient.monthlyDeliverables?.socialPosts || 0,
-    //    customDeliverables:
-    //      newClient.monthlyDeliverables?.customDeliverables || "",
-    //  };
-
-    const payload = {
-      name: newClient.name,
-      email: newClient.email,
-      company: newClient.company || "",
-      phone: newClient.phone || "",
-      longFormVideos: newClient.monthlyDeliverables?.longFormVideos || 0,
-      shortFormClips: newClient.monthlyDeliverables?.shortFormClips || 0,
-      socialPosts: newClient.monthlyDeliverables?.socialPosts || 0,
-      customDeliverables:
-        newClient.monthlyDeliverables?.customDeliverables || "",
     };
 
+    const payload = {
+      name: newClient?.name?.trim() || "",
+      companyName: newClient?.company?.trim() || "",
+      email: newClient?.email?.trim() || "",
+      phone: newClient?.phone?.trim() || "",
+      longFormVideos: Number(deliverables.longFormVideos) || 0,
+      shortFormClips: Number(deliverables.shortFormClips) || 0,
+      socialPosts: Number(deliverables.socialPosts) || 0,
+      customDeliverables: deliverables.customDeliverables?.trim() || "",
+    };
 
-     // 3️⃣ Call backend API
-     const res = await fetch("/api/admin/create-client", {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify(payload),
-     });
+    // ✅ Validate required fields before hitting API
+    if (!payload.name || !payload.email) {
+      throw new Error("Client name and email are required.");
+    }
 
-     const data = await res.json();
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include", // keep session cookies if applicable
+      body: JSON.stringify(payload),
+    });
 
-     if (!res.ok) throw new Error(data.error || "Failed to save client");
+    // ✅ Parse safely
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      console.error("⚠ Invalid JSON from /api/clients:", text);
+    }
 
-     // 4️⃣ Success message
-     setMessage(`Client "${data.client.name}" created successfully!`);
+    // ✅ Handle server errors
+    if (!res.ok) {
+      const message = data?.message || `Request failed (${res.status})`;
+      throw new Error(message);
+    }
 
-     // 5️⃣ Update parent component or state if needed
-     if (data.client) {
-       onClientCreated(data.client);
-     }
+    // ✅ Add to list and reset form
+    if (data?.client) onClientCreated?.(data.client);
 
-     // 6️⃣ Reset form
-     setNewClient({
-       name: "",
-       company: "",
-       email: "",
-       phone: "",
-       monthlyDeliverables: {
-         longFormVideos: 0,
-         shortFormClips: 0,
-         socialPosts: 0,
-         customDeliverables: "",
-       },
-     });
-
-     setShowAddDialog(false);
-   } catch (err: any) {
-     console.error("Error saving client:", err);
-     setMessage(err.message || "Failed to save client");
-   } finally {
-     setLoading(false);
-   }
- };
-
+    setMessage("✅ Client created successfully!");
+    setShowAddDialog(false);
+    setNewClient({
+      name: "",
+      company: "",
+      email: "",
+      phone: "",
+      monthlyDeliverables: {
+        longFormVideos: 0,
+        shortFormClips: 0,
+        socialPosts: 0,
+        customDeliverables: "",
+      },
+    });
+  } catch (err: any) {
+    console.error("❌ Create client error:", err);
+    setMessage(`❌ ${err.message || "Something went wrong."}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
 
   return (
@@ -396,6 +446,11 @@ function ClientOnboardingDialog(props: { onClientCreated: (client: Client) => vo
     </DialogTrigger>
 
     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+
+      <VisuallyHidden>
+    <DialogTitle>Add Client</DialogTitle>
+  </VisuallyHidden>
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -557,7 +612,7 @@ function ClientOnboardingDialog(props: { onClientCreated: (client: Client) => vo
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading} onClick={handleSaveClient}>
             {loading ? "Saving..." : "Add Client"}
           </Button>
         </DialogFooter>
@@ -576,7 +631,16 @@ function ClientOnboardingDialog(props: { onClientCreated: (client: Client) => vo
 }
 
 export function ClientManagement() {
-  const [clients, setClients] = useState<Client[]>(mockClients);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("/api/clients");
+      const data = await res.json();
+      if (res.ok) setClients(data.clients);
+    })();
+  }, []);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [managerFilter, setManagerFilter] = useState<string>("all");
@@ -680,9 +744,14 @@ export function ClientManagement() {
   };
 
   // Add new client to state after successful onboarding
+  // const onClientCreated = (client: Client) => {
+  //   setClients((prev) => [...prev, client]);
+  // };
+
   const onClientCreated = (client: Client) => {
-    setClients((prev) => [...prev, client]);
-  };
+  setClients((prev) => [client, ...prev]);
+};
+
 
   // Edit existing client
   const handleEditClient = (client: Client) => {
@@ -1163,6 +1232,7 @@ export function ClientManagement() {
                 <div className="space-y-2">
                   <h4 className="font-medium text-sm">Monthly Deliverables</h4>
                   <div className="space-y-1 text-sm text-muted-foreground">
+                    {/* <p>• {client.monthlyDeliverables.longFormVideos} Long-form videos</p> */}
                     <p>• {client.monthlyDeliverables.longFormVideos} Long-form videos</p>
                     <p>• {client.monthlyDeliverables.shortFormClips} Short-form clips</p>
                     <p>• {client.monthlyDeliverables.socialPosts} Social posts</p>
@@ -1176,20 +1246,20 @@ export function ClientManagement() {
                 <div className="space-y-2">
                   <h4 className="font-medium text-sm">This Month's Progress</h4>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
+                    {/* <div className="flex items-center justify-between text-sm">
                       <span>
                         {client.currentProgress.completed} / {client.currentProgress.total} completed
                       </span>
                       <span className="font-medium">
                         {getProgressPercentage(client.currentProgress.completed, client.currentProgress.total)}%
                       </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
+                    </div> */}
+                    {/* <div className="w-full bg-muted rounded-full h-2">
                       <div
                         className="bg-primary h-2 rounded-full transition-all"
                         style={{ width: `${getProgressPercentage(client.currentProgress.completed, client.currentProgress.total)}%` }}
                       />
-                    </div>
+                    </div> */}
                     <p className="text-xs text-muted-foreground">Last activity: {new Date(client.lastActivity).toLocaleDateString()}</p>
                   </div>
                 </div>
@@ -1198,7 +1268,7 @@ export function ClientManagement() {
                 <div className="space-y-2">
                   <h4 className="font-medium text-sm">Brand Assets</h4>
                   <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">{client.brandAssets.length} assets uploaded</p>
+                    {/* <p className="text-sm text-muted-foreground">{client.brandAssets.length} assets uploaded</p> */}
                     <Button variant="outline" size="sm" className="w-full" onClick={() => handleViewClientDetails(client)}>
                       <Eye className="h-3 w-3 mr-1" />
                       View Assets
