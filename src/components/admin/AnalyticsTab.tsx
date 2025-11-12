@@ -92,7 +92,9 @@ const platformDistribution = [
   { platform: 'TikTok', views: 520000, color: '#000000' },
   { platform: 'LinkedIn', views: 280000, color: '#0A66C2' },
   { platform: 'Twitter', views: 220000, color: '#1DA1F2' },
-  { platform: 'YouTube', views: 180000, color: '#FF0000' }
+  { platform: 'YouTube', views: 180000, color: '#FF0000' },
+  { platform: 'Sanpchat', views: 180000, color: '#FF0000' },
+
 ];
 
 const clientPerformance = [

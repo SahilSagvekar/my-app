@@ -70,7 +70,7 @@ export function LoginScreen({
         <div className="text-center space-y-2">
           <h1>Welcome back</h1>
           <p className="text-muted-foreground">
-            Sign in to your Project Manager account
+            Sign in to your account
           </p>
         </div>
 
