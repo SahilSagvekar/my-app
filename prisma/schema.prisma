@@ -79,6 +79,7 @@ model Task {
   attachments Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  driveLinks   String[]
 
   user   User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client Client?  @relation(fields: [clientId], references: [id])
@@ -104,7 +105,9 @@ model Client {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  tasks     Task[]
+  tasks               Task[]
+  uploadedFiles       Json?
+
 
   // Google Drive
   driveFolderId       String?

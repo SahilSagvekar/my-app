@@ -1,5 +1,12 @@
+// import { NextResponse } from "next/server";
+// import { google } from "googleapis";
+// import jwt from "jsonwebtoken";
+// import { prisma } from "@/lib/prisma";
+
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
+import formidable from "formidable";
+import fs from "fs";
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 
@@ -8,6 +15,13 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_SECRET,
   `${process.env.BASE_URL}/api/auth/google/callback`
 );
+
+function getTokenFromCookies(req: Request) {
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/authToken=([^;]+)/);
+  return match ? match[1] : null;
+}
 
 export async function GET(req: Request) {
   const url = new URL(req.url);

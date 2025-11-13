@@ -12,6 +12,7 @@
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
+  "type": "module",
   "dependencies": {
     "@aws-amplify/ui-react-core": "^3.4.3",
     "@next-auth/prisma-adapter": "^1.0.7",

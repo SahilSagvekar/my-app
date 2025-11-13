@@ -1,4 +1,11 @@
 import { google } from "googleapis";
+// import * as fs from "fs";
+import fs from "fs";
+import path from "path";
+import { getOAuthClient } from "../lib/googleAuth";
+// import { drive } from "./googleClient"; // your initialized Drive client
+import { Readable } from "stream";
+
 
 console.log("🔍 Checking env key format...");
 const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
@@ -71,3 +78,96 @@ export async function createClientFolders(clientName: string) {
     throw new Error("Failed to create Google Drive folders");
   }
 }
+
+// const auth = new google.auth.GoogleAuth({
+//   credentials: {
+//     client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+//     private_key: process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n"),
+//   },
+//   scopes: ["https://www.googleapis.com/auth/drive.file"],
+// });
+
+// const drive = google.drive({ version: "v3", auth });
+
+export async function uploadFileToDrive(
+  filePath: string,
+  folderId: string,
+  fileName: string,
+  mimeType: string
+) {
+  try {
+    // Safety: ensure file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error("File does not exist at path: " + filePath);
+    }
+
+    const realMime = mimeType || "application/octet-stream";
+
+    const res = await drive.files.create({
+      requestBody: {
+        name: fileName || path.basename(filePath),
+        parents: [folderId],
+      },
+      media: {
+        mimeType: realMime,
+        body: fs.createReadStream(filePath),
+      },
+      fields: "id, name, webViewLink, webContentLink",
+    });
+
+    // Always make file readable
+    await drive.permissions.create({
+      fileId: res.data.id!,
+      requestBody: {
+        role: "reader",
+        type: "anyone",
+      },
+    });
+
+    return res.data;
+  } catch (err: any) {
+    console.error("❌ Google Drive Upload Error:", err.message || err);
+    throw new Error("Failed to upload file to Google Drive");
+  } finally {
+    // Cleanup: remove temp file
+    if (fs.existsSync(filePath)) {
+      fs.unlink(filePath, () => {});
+    }
+  }
+}
+
+export async function uploadBufferToDrive({
+  buffer,
+  folderId,
+  filename,
+  mimeType,
+}: {
+  buffer: Buffer;
+  folderId: string;
+  filename: string;
+  mimeType: string;
+}) {
+  const drive = google.drive({ version: "v3", auth: getOAuthClient() });
+
+  const res = await drive.files.create({
+    requestBody: {
+      name: filename,
+      parents: [folderId],
+    },
+    media: {
+      mimeType,
+      body: BufferToStream(buffer),
+    },
+    fields: "id, webViewLink",
+  });
+
+  return res.data;
+}
+
+function BufferToStream(buffer: Buffer) {
+  const stream = new Readable();
+  stream.push(buffer);
+  stream.push(null);
+  return stream;
+}
+

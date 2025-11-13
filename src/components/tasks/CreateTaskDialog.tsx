@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "../ui/button";
@@ -51,14 +53,14 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     dueDate: "",
     estimatedHours: "",
     clientId: "",
-    folderType: "", // ✅ Added for backend API compatibility
+    folderType: "", // rawFootage | essentials
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const [availableMembers, setAvailableMembers] = useState<any[]>([]);
-  const [file, setFile] = useState<File | null>(null); // ✅ Single file for backend
+  const [files, setFiles] = useState<FileList | null>(null);
   const [clients, setClients] = useState<any[]>([]);
 
   const handleInputChange = (field: string, value: any) => {
@@ -67,9 +69,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]); // ✅ Take only the first file
-    }
+    setFiles(e.target.files);
   };
 
   const validateForm = () => {
@@ -79,7 +79,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     if (!formData.assignedTo) newErrors.assignedTo = "Please assign this task to someone";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     if (!formData.clientId) newErrors.clientId = "Please select a client";
-    if (!formData.folderType) newErrors.folderType = "Please select a folder type"; // ✅ Added
+    if (!formData.folderType) newErrors.folderType = "Please select a folder type";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -91,7 +91,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     }
     try {
       const res = await fetch(`/api/roles?taskType=${formData.type}`);
-      if (!res.ok) throw new Error(res.statusText);
       const data = await res.json();
       setAvailableMembers(data.roleUsers || data.users || []);
     } catch (error) {
@@ -105,45 +104,39 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   }, [formData.type]);
 
   useEffect(() => {
-  const fetchClients = async () => {
-    try {
-      const res = await fetch("/api/clients");
-      const text = await res.text();
-      let data: any = {};
+    const fetchClients = async () => {
       try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        console.error("⚠ Invalid JSON from /api/clients:", text);
-        return;
+        const res = await fetch("/api/clients");
+        const text = await res.text();
+        let data: any = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          console.error("⚠ Invalid JSON from /api/clients:", text);
+          return;
+        }
+
+        const clients = Array.isArray(data)
+          ? data
+          : Array.isArray(data.clients)
+          ? data.clients
+          : [];
+
+        setClients(clients);
+      } catch (err) {
+        console.error("❌ Fetch clients failed:", err);
+        setClients([]);
       }
+    };
 
-      // ✅ Accept either format
-      const clients = Array.isArray(data)
-        ? data
-        : Array.isArray(data.clients)
-        ? data.clients
-        : [];
-
-      if (!clients.length) {
-        console.warn("⚠ No clients found.");
-      }
-
-      setClients(clients);
-    } catch (err) {
-      console.error("❌ Fetch clients failed:", err);
-      setClients([]);
-    }
-  };
-
-  fetchClients();
-}, []);
-
+    fetchClients();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-
     setLoading(true);
+
     try {
       const formPayload = new FormData();
       formPayload.append("title", formData.title);
@@ -152,12 +145,13 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       formPayload.append("dueDate", formData.dueDate);
       formPayload.append("assignedTo", formData.assignedTo);
       formPayload.append("clientId", formData.clientId);
-      formPayload.append("folderType", formData.folderType); // ✅ Added for backend
-      if (file) {
-        formPayload.append("file", file); // ✅ Single file
+      formPayload.append("folderType", formData.folderType);
+
+      if (files && files.length > 0) {
+        Array.from(files).forEach((file) => formPayload.append("files", file));
       }
 
-      const res = await fetch("/api/admin/tasks", {
+      const res = await fetch("/api/tasks", {
         method: "POST",
         credentials: "include",
         body: formPayload,
@@ -167,7 +161,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       if (!res.ok) throw new Error(data.message || "Failed to create task");
 
       onTaskCreated?.(data);
-
       setFormData({
         title: "",
         description: "",
@@ -178,7 +171,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         clientId: "",
         folderType: "",
       });
-      setFile(null);
+      setFiles(null);
       setAvailableMembers([]);
       setOpen(false);
     } catch (error) {
@@ -189,7 +182,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     }
   };
 
-  const selectedMember = availableMembers.find((m) => String(m.id) === String(formData.assignedTo));
+  const selectedMember = availableMembers.find(
+    (m) => String(m.id) === String(formData.assignedTo)
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -200,11 +195,12 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
           </Button>
         )}
       </DialogTrigger>
+
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
           <DialogDescription>
-            Assign a task to your team members. Choose the appropriate role based on the task type.
+            Assign a task to your team members and optionally upload related files.
           </DialogDescription>
           {user && (
             <div className="text-xs text-muted-foreground">
@@ -234,7 +230,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              placeholder="Provide detailed task instructions..."
+              placeholder="Provide task details..."
               value={formData.description}
               onChange={(e) => handleInputChange("description", e.target.value)}
               rows={3}
@@ -270,10 +266,10 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
               onValueChange={(value) => handleInputChange("folderType", value)}
             >
               <SelectTrigger className={errors.folderType ? "border-destructive" : ""}>
-                <SelectValue placeholder="Select folder type" />
+                <SelectValue placeholder="Choose folder destination" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="raw">Raw Footage</SelectItem>
+                <SelectItem value="rawFootage">Raw Footage</SelectItem>
                 <SelectItem value="essentials">Essentials</SelectItem>
               </SelectContent>
             </Select>
@@ -320,14 +316,14 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
           {/* File Upload */}
           <div className="space-y-2">
-            <Label htmlFor="file">Attach File</Label>
-            <Input
-              id="file"
-              type="file"
-              onChange={handleFileChange}
-            />
-            {file && (
-              <p className="text-sm text-gray-600 mt-2">{file.name}</p>
+            <Label htmlFor="file">Attach Files</Label>
+            <Input id="file" type="file" multiple onChange={handleFileChange} />
+            {files && (
+              <ul className="text-sm text-gray-600 mt-2 space-y-1">
+                {Array.from(files).map((f, i) => (
+                  <li key={i}>{f.name}</li>
+                ))}
+              </ul>
             )}
           </div>
 
@@ -377,7 +373,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                 {errors.assignedTo && <p className="text-sm text-destructive">{errors.assignedTo}</p>}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Select a task type first to see available team members.</p>
+              <p className="text-sm text-muted-foreground">
+                Select a task type first to see available team members.
+              </p>
             )}
           </div>
 
@@ -396,11 +394,13 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                   <div className="flex-1">
                     <p className="font-medium">{selectedMember.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {selectedMember.department} • Currently has {selectedMember.currentTasks} active tasks
+                      {selectedMember.department} • {selectedMember.currentTasks} active tasks
                     </p>
                   </div>
                   <Badge
-                    variant={selectedMember.availability === "available" ? "default" : "secondary"}
+                    variant={
+                      selectedMember.availability === "available" ? "default" : "secondary"
+                    }
                   >
                     {selectedMember.availability}
                   </Badge>

@@ -12,120 +12,120 @@ function getTokenFromCookies(req: Request) {
 }
 
 // ✅ GET — Return full structured list for UI
-// export async function GET() {
-//   try {
-//     const clients = await prisma.client.findMany({
-//       orderBy: { name: "asc" },
-//       select: {
-//         id: true,
-//         name: true,
-//         email: true,
-//         companyName: true,
-//         phone: true,
-//         driveFolderId: true,
-//         rawFootageFolderId: true,
-//         essentialsFolderId: true,
-//         longFormVideos: true,
-//         shortFormClips: true,
-//         socialPosts: true,
-//         customDeliverables: true,
-//         createdAt: true,
-//       },
-//     });
-
-//     // ✅ Normalize shape for frontend expectations
-//     const normalized = clients.map((c) => ({
-//   ...c,
-//   monthlyDeliverables: {
-//     longFormVideos: c.longFormVideos ?? 0,
-//     shortFormClips: c.shortFormClips ?? 0,
-//     socialPosts: c.socialPosts ?? 0,
-//     customDeliverables: c.customDeliverables ?? "",
-//   },
-//   // ✅ Safe defaults
-//   currentProgress: {
-//     completed: 0,
-//     total: 0,
-//   },
-//   lastActivity: c.createdAt,
-//   brandAssets: [], // 👈 ensures .length always exists
-//   brandGuidelines: {
-//     primaryColors: [],
-//     secondaryColors: [],
-//     fonts: [],
-//     logoUsage: "",
-//     toneOfVoice: "",
-//     brandValues: "",
-//     targetAudience: "",
-//     contentStyle: "",
-//   },
-//   projectSettings: {
-//     defaultVideoLength: "60 seconds",
-//     preferredPlatforms: [],
-//     contentApprovalRequired: false,
-//     quickTurnaroundAvailable: false,
-//   },
-// }));
-
-
-//     console.log("✅ Clients fetched:", normalized.length);
-//     return NextResponse.json({ clients: normalized });
-//   } catch (error) {
-//     console.error("❌ Error fetching clients:", error);
-//     return NextResponse.json(
-//       { success: false, message: "Failed to fetch clients" },
-//       { status: 500 }
-//     );
-//   }
-// }
-
 export async function GET() {
   try {
     const clients = await prisma.client.findMany({
       orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        companyName: true,
+        phone: true,
+        driveFolderId: true,
+        rawFootageFolderId: true,
+        essentialsFolderId: true,
+        longFormVideos: true,
+        shortFormClips: true,
+        socialPosts: true,
+        customDeliverables: true,
+        createdAt: true,
+      },
     });
 
-    // 🧠 Normalize to ensure frontend never breaks
+    // ✅ Normalize shape for frontend expectations
     const normalized = clients.map((c) => ({
-      ...c,
-      monthlyDeliverables: {
-        longFormVideos: c.longFormVideos ?? 0,
-        shortFormClips: c.shortFormClips ?? 0,
-        socialPosts: c.socialPosts ?? 0,
-        customDeliverables: c.customDeliverables ?? "",
-      },
-      currentProgress: {
-        completed: c.completedTasks ?? 0,
-        total: c.totalTasks ?? 0,
-      },
-      brandAssets: c.brandAssets ?? [],
-      brandGuidelines: c.brandGuidelines ?? {
-        primaryColors: [],
-        secondaryColors: [],
-        fonts: [],
-        logoUsage: "",
-        toneOfVoice: "",
-        brandValues: "",
-        targetAudience: "",
-        contentStyle: "",
-      },
-      projectSettings: c.projectSettings ?? {
-        defaultVideoLength: "60 seconds",
-        preferredPlatforms: [],
-        contentApprovalRequired: false,
-        quickTurnaroundAvailable: false,
-      },
-    }));
+  ...c,
+  monthlyDeliverables: {
+    longFormVideos: c.longFormVideos ?? 0,
+    shortFormClips: c.shortFormClips ?? 0,
+    socialPosts: c.socialPosts ?? 0,
+    customDeliverables: c.customDeliverables ?? "",
+  },
+  // ✅ Safe defaults
+  currentProgress: {
+    completed: 0,
+    total: 0,
+  },
+  lastActivity: c.createdAt,
+  brandAssets: [], // 👈 ensures .length always exists
+  brandGuidelines: {
+    primaryColors: [],
+    secondaryColors: [],
+    fonts: [],
+    logoUsage: "",
+    toneOfVoice: "",
+    brandValues: "",
+    targetAudience: "",
+    contentStyle: "",
+  },
+  projectSettings: {
+    defaultVideoLength: "60 seconds",
+    preferredPlatforms: [],
+    contentApprovalRequired: false,
+    quickTurnaroundAvailable: false,
+  },
+}));
 
+
+    console.log("✅ Clients fetched:", normalized.length);
     return NextResponse.json({ clients: normalized });
   } catch (error) {
-    console.error("Error fetching clients:", error);
+    console.error("❌ Error fetching clients:", error);
     return NextResponse.json(
       { success: false, message: "Failed to fetch clients" },
       { status: 500 }
     );
   }
 }
+
+// export async function GET() {
+//   try {
+//     const clients = await prisma.client.findMany({
+//       orderBy: { name: "asc" },
+//     });
+
+//     // 🧠 Normalize to ensure frontend never breaks
+//     const normalized = clients.map((c) => ({
+//       ...c,
+//       monthlyDeliverables: {
+//         longFormVideos: c.longFormVideos ?? 0,
+//         shortFormClips: c.shortFormClips ?? 0,
+//         socialPosts: c.socialPosts ?? 0,
+//         customDeliverables: c.customDeliverables ?? "",
+//       },
+//       currentProgress: {
+//         completed: c.completedTasks ?? 0,
+//         total: c.totalTasks ?? 0,
+//       },
+//       brandAssets: c.brandAssets ?? [],
+//       brandGuidelines: c.brandGuidelines ?? {
+//         primaryColors: [],
+//         secondaryColors: [],
+//         fonts: [],
+//         logoUsage: "",
+//         toneOfVoice: "",
+//         brandValues: "",
+//         targetAudience: "",
+//         contentStyle: "",
+//       },
+//       projectSettings: c.projectSettings ?? {
+//         defaultVideoLength: "60 seconds",
+//         preferredPlatforms: [],
+//         contentApprovalRequired: false,
+//         quickTurnaroundAvailable: false,
+//       },
+//     }));
+
+//     return NextResponse.json({ clients: normalized });
+//   } catch (error) {
+//     console.error("Error fetching clients:", error);
+//     return NextResponse.json(
+//       { success: false, message: "Failed to fetch clients" },
+//       { status: 500 }
+//     );
+//   }
+// }
 
 
 // ✅ POST — Create new client with Drive folders
