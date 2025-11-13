@@ -68,7 +68,7 @@ interface FullScreenReviewModalProps {
   onApprove: (asset: ReviewAsset, confirmFinal: boolean) => void;
   onRequestRevisions: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
   onNextAsset?: () => void;
-  userRole?: 'client' | 'qc';
+  userRole?: 'client' | 'qc_specialist';
   onSendToClient?: (asset: ReviewAsset) => void;
   onSendBackToEditor?: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
 }
@@ -349,7 +349,7 @@ export function FullScreenReviewModal({
       entries: revisionEntries
     };
 
-    if (userRole === 'qc' && onSendBackToEditor) {
+    if (userRole === 'qc_specialist' && onSendBackToEditor) {
       onSendBackToEditor(asset, revisionData);
     } else {
       onRequestRevisions(asset, revisionData);
@@ -472,10 +472,10 @@ export function FullScreenReviewModal({
                 <CardContent className="p-8 text-center">
                   <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
                   <h3 className="text-xl font-medium text-green-900 mb-2">
-                    {userRole === 'qc' ? 'Sent to Client!' : 'Version Approved!'}
+                    {userRole === 'qc_specialist' ? 'Sent to Client!' : 'Version Approved!'}
                   </h3>
                   <p className="text-green-700">
-                    {userRole === 'qc' 
+                    {userRole === 'qc_specialist' 
                       ? 'Asset has been sent to client for review' 
                       : 'Asset has been approved for publishing'
                     }
@@ -491,10 +491,10 @@ export function FullScreenReviewModal({
                 <CardContent className="p-8 text-center">
                   <MessageSquare className="h-16 w-16 text-blue-600 mx-auto mb-4" />
                   <h3 className="text-xl font-medium text-blue-900 mb-2">
-                    {userRole === 'qc' ? 'Sent Back to Editor' : 'Revisions Requested'}
+                    {userRole === 'qc_specialist' ? 'Sent Back to Editor' : 'Revisions Requested'}
                   </h3>
                   <p className="text-blue-700">
-                    {userRole === 'qc' ? 'Feedback has been sent to the editor' : 'Feedback has been sent to the team'}
+                    {userRole === 'qc_specialist' ? 'Feedback has been sent to the editor' : 'Feedback has been sent to the team'}
                   </p>
                 </CardContent>
               </Card>
@@ -716,15 +716,15 @@ export function FullScreenReviewModal({
 
               {/* Review Actions */}
               {((userRole === 'client' && asset.status === 'client_review') || 
-                (userRole === 'qc' && asset.status === 'in_qc')) && 
+                (userRole === 'qc_specialist' && asset.status === 'in_qc')) && 
                 !asset.approvalLocked && (
                 <div className="mt-8 space-y-4">
                   <h4 className="font-medium mb-4">
-                    {userRole === 'qc' ? 'QC Review Actions' : 'Review Actions'}
+                    {userRole === 'qc_specialist' ? 'QC Review Actions' : 'Review Actions'}
                   </h4>
                   
                   {/* QC Approval Section */}
-                  {userRole === 'qc' && (
+                  {userRole === 'qc_specialist' && (
                     <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
                       <div className="space-y-3">
                         <p className="text-sm text-white/80">
@@ -785,14 +785,14 @@ export function FullScreenReviewModal({
                           className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />
-                          {userRole === 'qc' ? 'Send Back to Editor' : 'Request Revisions'}
+                          {userRole === 'qc_specialist' ? 'Send Back to Editor' : 'Request Revisions'}
                         </Button>
                       </SheetTrigger>
                       <SheetContent className="sm:max-w-2xl w-full">
                         <div className="h-full flex flex-col">
                           <SheetHeader className="px-6 py-4 border-b">
                             <SheetTitle>
-                              {userRole === 'qc' ? 'QC Feedback for Editor' : 'Request Revisions'}
+                              {userRole === 'qc_specialist' ? 'QC Feedback for Editor' : 'Request Revisions'}
                             </SheetTitle>
                             <p className="text-sm text-muted-foreground">
                               Add revision notes with timestamps. Current video time: {formatTime(currentTime)}
@@ -946,7 +946,7 @@ export function FullScreenReviewModal({
                                 className="flex-1"
                                 disabled={revisionEntries.length === 0}
                               >
-                                {userRole === 'qc' 
+                                {userRole === 'qc_specialist' 
                                   ? `Send Back ${revisionEntries.length} Issue${revisionEntries.length !== 1 ? 's' : ''}`
                                   : `Submit ${revisionEntries.length} Revision${revisionEntries.length !== 1 ? 's' : ''}`
                                 }

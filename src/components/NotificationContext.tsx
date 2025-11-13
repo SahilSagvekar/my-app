@@ -144,7 +144,7 @@ const getRoleSpecificNotifications = (role: string): Notification[] => {
         }
       ];
 
-    case 'qc':
+    case 'qc_specialist':
       return [
         {
           id: 9,

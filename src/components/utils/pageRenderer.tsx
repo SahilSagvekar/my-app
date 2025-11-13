@@ -1,8 +1,17 @@
 import { AdminDashboard } from '../dashboards/AdminDashboard';
-import  { EditorDashboard } from '../dashboards/EditorDashboard';
-// import  EditorDashboard  from '../dashboards/EditorDashboard';
+import { EditorDashboard } from '../dashboards/EditorDashboard';
 import { QCDashboard } from '../dashboards/QCDashboard';
+import { QCCompletedPage } from '../dashboards/QCCompletedPage';
+import { QCGuidelinesPage } from '../dashboards/QCGuidelinesPage';
+import { QCReportsPage } from '../dashboards/QCReportsPage';
+import { QCResourcesPage } from '../dashboards/QCResourcesPage';
+import { QCTrainingPage } from '../dashboards/QCTrainingPage';
 import { SchedulerDashboard } from '../dashboards/SchedulerDashboard';
+import { SchedulerApprovedQueuePage } from '../dashboards/SchedulerApprovedQueuePage';
+import { SchedulerSchedulingPage } from '../dashboards/SchedulerSchedulingPage';
+import { SchedulerResourcesPage } from '../dashboards/SchedulerResourcesPage';
+import { SchedulerReportsPage } from '../dashboards/SchedulerReportsPage';
+import { SchedulerTrainingPage } from '../dashboards/SchedulerTrainingPage';
 import { ManagerDashboard } from '../dashboards/ManagerDashboard';
 import { ClientDashboard } from '../dashboards/ClientDashboard';
 import { ClientMonthlyOverview } from '../dashboards/ClientMonthlyOverview';
@@ -44,13 +53,15 @@ export function renderPage(role: string, page: string): JSX.Element {
     }
   }
 
-  if (role === 'qc') {
+  if (role === 'qc_specialist') {
     switch (page) {
       case 'review-queue': return <QCDashboard />;
-      case 'completed': return <ComingSoonPage title="Completed Reviews" />;
-      case 'guidelines': return <ComingSoonPage title="QC Guidelines" />;
+      case 'completed': return <QCCompletedPage />;
+      case 'guidelines': return <QCGuidelinesPage />;
+      case 'reports': return <QCReportsPage />;
+      case 'resources': return <QCResourcesPage />;
+      case 'training': return <QCTrainingPage />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;
-      case 'reports': return <ComingSoonPage title="QC Reports" />;
       default: return <QCDashboard />;
     }
   }
@@ -58,10 +69,11 @@ export function renderPage(role: string, page: string): JSX.Element {
   if (role === 'scheduler') {
     switch (page) {
       case 'calendar': return <SchedulerDashboard />;
-      case 'approved-queue': return <ComingSoonPage title="Approved Queue" />;
-      case 'scheduling': return <ComingSoonPage title="Scheduling Tools" />;
-      case 'resources': return <ComingSoonPage title="Resource Planning" />;
-      case 'reports': return <ComingSoonPage title="Schedule Reports" />;
+      case 'approved-queue': return <SchedulerApprovedQueuePage />;
+      case 'scheduling': return <SchedulerSchedulingPage />;
+      case 'resources': return <SchedulerResourcesPage />;
+      case 'reports': return <SchedulerReportsPage />;
+      case 'training': return <SchedulerTrainingPage />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;
       default: return <SchedulerDashboard />;
     }

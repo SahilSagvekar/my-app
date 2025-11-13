@@ -15,6 +15,7 @@ enum Role {
   qc_specialist
   scheduler
   client
+  qc
 }
 
 model User {

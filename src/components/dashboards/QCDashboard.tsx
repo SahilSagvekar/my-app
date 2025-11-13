@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Users, Video, Palette, FileVideo, UserCheck } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck } from 'lucide-react';
 import { QCReviewDialog } from '../workflow/QCReviewDialog';
 import { FullScreenReviewModal } from '../client/FullScreenReviewModal';
 import { useTaskWorkflow, WorkflowTask } from '../workflow/TaskWorkflowEngine';
@@ -388,7 +387,7 @@ export function QCDashboard() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1>QC Portal</h1>
+        <h1>Review Queue</h1>
         <p className="text-muted-foreground mt-2">
           Review submitted work and approve or reject with feedback
         </p>

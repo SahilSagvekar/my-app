@@ -145,7 +145,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
             </CardContent>
           </Card>
         );
-      case 'qc':
+      case 'qc_specialist':
         return (
           <Card>
             <CardHeader>

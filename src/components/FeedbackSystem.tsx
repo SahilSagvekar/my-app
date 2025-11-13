@@ -317,7 +317,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
     switch (role) {
       case 'admin': return 'John Admin';
       case 'editor': return 'Current Editor';
-      case 'qc': return 'Current QC';
+      case 'qc_specialist': return 'Current QC';
       case 'scheduler': return 'Current Scheduler';
       case 'manager': return 'Current Manager';
       case 'client': return 'Current Client';
