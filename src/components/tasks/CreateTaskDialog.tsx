@@ -157,6 +157,8 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         body: formPayload,
       });
 
+      console.log("Create task response status:", res.status);
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to create task");
 

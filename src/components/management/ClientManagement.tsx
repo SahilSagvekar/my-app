@@ -1,6 +1,4 @@
-"use client";
-
-import { useState,useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -12,7 +10,6 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import {
   Select,
   SelectContent,
@@ -57,9 +54,38 @@ import {
   Palette,
   FileImage,
   FileX,
+  X,
+  Video,
+  Zap,
+  Share2,
+  Repeat,
+  DollarSign,
+  CreditCard,
 } from "lucide-react";
 import { Separator } from "../ui/separator";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
+import { VisuallyHidden } from "../ui/visually-hidden";
+import { Checkbox } from "../ui/checkbox";
+import { toast } from "sonner";
+import { globalTaskManager } from "../workflow/GlobalTaskManager";
+
+type SocialPlatform = "instagram" | "tiktok" | "facebook" | "youtube" | "twitter" | "linkedin";
+
+type DeliverableType = "Short Form Videos" | "Long Form Videos" | "Square Form Videos" | "Snapchat Show Episode" | "Social/Hard Post";
+
+type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom";
+
+interface MonthlyDeliverable {
+  id: string;
+  type: DeliverableType;
+  quantity: number; // how many per month
+  videosPerDay?: number; // how many videos per posting day (e.g., 2 videos every Tuesday)
+  platforms: SocialPlatform[];
+  postingSchedule: PostingSchedule;
+  postingDays?: string[]; // e.g., ["Monday", "Wednesday"] or ["1st", "15th"]
+  postingTimes: string[]; // e.g., ["10:00", "11:00", "14:00"] - one for each video per day
+  description?: string;
+}
 
 interface BrandAsset {
   id: string;
@@ -90,12 +116,7 @@ interface Client {
   startDate: string;
   renewalDate: string;
   status: "active" | "pending" | "expired";
-  monthlyDeliverables: {
-    longFormVideos: number;
-    shortFormClips: number;
-    socialPosts: number;
-    customDeliverables: string;
-  };
+  monthlyDeliverables: MonthlyDeliverable[];
   currentProgress: {
     completed: number;
     total: number;
@@ -118,6 +139,46 @@ interface Client {
     contentApprovalRequired: boolean;
     quickTurnaroundAvailable: boolean;
   };
+  billing?: {
+    monthlyFee: string;
+    billingFrequency: "monthly" | "quarterly" | "annually";
+    billingDay: number; // 1-31
+    paymentMethod: "credit-card" | "bank-transfer" | "check" | "paypal";
+    nextBillingDate: string;
+    notes?: string;
+  };
+  postingSchedule?: {
+    instagram?: {
+      weekdays: string;
+      weekends: string;
+      bestTimes: string;
+    };
+    tiktok?: {
+      weekdays: string;
+      weekends: string;
+      bestTimes: string;
+    };
+    youtube?: {
+      weekdays: string;
+      weekends: string;
+      bestTimes: string;
+    };
+    facebook?: {
+      weekdays: string;
+      weekends: string;
+      bestTimes: string;
+    };
+    twitter?: {
+      weekdays: string;
+      weekends: string;
+      bestTimes: string;
+    };
+    linkedin?: {
+      weekdays: string;
+      weekends: string;
+      bestTimes: string;
+    };
+  };
 }
 
 const mockBrandAssets: BrandAsset[] = [
@@ -130,7 +191,8 @@ const mockBrandAssets: BrandAsset[] = [
     fileSize: "24 KB",
     uploadedAt: "2024-08-15",
     uploadedBy: "Alex Chen",
-    description: "Main logo for all digital and print materials",
+    description:
+      "Main logo for all digital and print materials",
   },
   {
     id: "asset-002",
@@ -168,12 +230,30 @@ const mockClients: Client[] = [
     startDate: "2024-01-15",
     renewalDate: "2025-01-15",
     status: "active",
-    monthlyDeliverables: {
-      longFormVideos: 4,
-      shortFormClips: 8,
-      socialPosts: 16,
-      customDeliverables: "Monthly strategy consultation",
-    },
+    monthlyDeliverables: [
+      {
+        id: "del-001",
+        type: "Long Form Videos",
+        quantity: 4,
+        videosPerDay: 1,
+        platforms: ["youtube", "linkedin"],
+        postingSchedule: "weekly",
+        postingDays: ["Monday"],
+        postingTimes: ["10:00"],
+        description: "Weekly thought leadership content"
+      },
+      {
+        id: "del-002",
+        type: "Short Form Videos",
+        quantity: 8,
+        videosPerDay: 2,
+        platforms: ["instagram", "tiktok"],
+        postingSchedule: "bi-weekly",
+        postingDays: ["Tuesday", "Thursday"],
+        postingTimes: ["14:00", "16:00"],
+        description: "Bi-weekly tips and quick insights"
+      }
+    ],
     currentProgress: {
       completed: 22,
       total: 28,
@@ -184,17 +264,52 @@ const mockClients: Client[] = [
       primaryColors: ["#2563EB", "#1E40AF", "#3B82F6"],
       secondaryColors: ["#64748B", "#475569", "#94A3B8"],
       fonts: ["Inter", "Roboto", "Open Sans"],
-      logoUsage: "Logo should maintain minimum clear space of 2x the height of the mark",
+      logoUsage:
+        "Logo should maintain minimum clear space of 2x the height of the mark",
       toneOfVoice: "Professional, innovative, approachable",
       brandValues: "Innovation, reliability, customer-centric",
-      targetAudience: "Tech professionals, startup founders, developers",
-      contentStyle: "Clean, modern, data-driven with human touch",
+      targetAudience:
+        "Tech professionals, startup founders, developers",
+      contentStyle:
+        "Clean, modern, data-driven with human touch",
     },
     projectSettings: {
       defaultVideoLength: "60-90 seconds",
       preferredPlatforms: ["LinkedIn", "Twitter", "YouTube"],
       contentApprovalRequired: true,
       quickTurnaroundAvailable: false,
+    },
+    postingSchedule: {
+      instagram: {
+        weekdays: "10am-12pm, 6-8pm",
+        weekends: "11am-1pm",
+        bestTimes: "Tue-Thu 6-8pm"
+      },
+      tiktok: {
+        weekdays: "7-9am, 8-10pm",
+        weekends: "10am-12pm",
+        bestTimes: "Wed-Fri 8-9pm"
+      },
+      youtube: {
+        weekdays: "3-5pm",
+        weekends: "10am-12pm",
+        bestTimes: "Thu-Fri 3-4pm"
+      },
+      linkedin: {
+        weekdays: "8-10am, 12-2pm",
+        weekends: "N/A - B2B audience",
+        bestTimes: "Tue-Wed 8-9am"
+      },
+      twitter: {
+        weekdays: "9am-12pm, 5-7pm",
+        weekends: "11am-1pm",
+        bestTimes: "Weekdays 9-10am"
+      },
+      facebook: {
+        weekdays: "1-3pm, 7-9pm",
+        weekends: "12-2pm",
+        bestTimes: "Wed-Thu 1-2pm"
+      }
     },
   },
   {
@@ -208,12 +323,30 @@ const mockClients: Client[] = [
     startDate: "2024-03-01",
     renewalDate: "2025-03-01",
     status: "active",
-    monthlyDeliverables: {
-      longFormVideos: 2,
-      shortFormClips: 6,
-      socialPosts: 12,
-      customDeliverables: "Quarterly brand guideline updates",
-    },
+    monthlyDeliverables: [
+      {
+        id: "del-003",
+        type: "Long Form Videos",
+        quantity: 2,
+        videosPerDay: 1,
+        platforms: ["youtube", "facebook"],
+        postingSchedule: "bi-weekly",
+        postingDays: ["1st", "15th"],
+        postingTimes: ["12:00"],
+        description: "Bi-monthly educational content"
+      },
+      {
+        id: "del-004",
+        type: "Social/Hard Post",
+        quantity: 12,
+        videosPerDay: 1,
+        platforms: ["instagram", "facebook"],
+        postingSchedule: "custom",
+        postingDays: ["Monday", "Wednesday", "Friday"],
+        postingTimes: ["09:00"],
+        description: "Regular social media posts"
+      }
+    ],
     currentProgress: {
       completed: 18,
       total: 20,
@@ -224,17 +357,38 @@ const mockClients: Client[] = [
       primaryColors: ["#059669", "#047857", "#10B981"],
       secondaryColors: ["#6B7280", "#9CA3AF", "#D1D5DB"],
       fonts: ["Poppins", "Lato"],
-      logoUsage: "Always use on light backgrounds, minimum size 24px",
+      logoUsage:
+        "Always use on light backgrounds, minimum size 24px",
       toneOfVoice: "Caring, sustainable, educational",
-      brandValues: "Environmental responsibility, transparency, community",
-      targetAudience: "Environmentally conscious consumers, families",
-      contentStyle: "Natural, authentic, educational with emotional connection",
+      brandValues:
+        "Environmental responsibility, transparency, community",
+      targetAudience:
+        "Environmentally conscious consumers, families",
+      contentStyle:
+        "Natural, authentic, educational with emotional connection",
     },
     projectSettings: {
       defaultVideoLength: "30-60 seconds",
       preferredPlatforms: ["Instagram", "Facebook", "TikTok"],
       contentApprovalRequired: false,
       quickTurnaroundAvailable: true,
+    },
+    postingSchedule: {
+      instagram: {
+        weekdays: "11am-1pm, 5-7pm",
+        weekends: "10am-2pm",
+        bestTimes: "Daily 11am-12pm"
+      },
+      facebook: {
+        weekdays: "12-2pm, 6-8pm",
+        weekends: "11am-3pm",
+        bestTimes: "Weekdays 12-1pm"
+      },
+      tiktok: {
+        weekdays: "6-9am, 7-10pm",
+        weekends: "9am-12pm",
+        bestTimes: "Daily 7-9pm"
+      }
     },
   },
   {
@@ -248,12 +402,30 @@ const mockClients: Client[] = [
     startDate: "2024-02-10",
     renewalDate: "2024-11-10",
     status: "pending",
-    monthlyDeliverables: {
-      longFormVideos: 6,
-      shortFormClips: 12,
-      socialPosts: 24,
-      customDeliverables: "Weekly trend reports, influencer collaboration content",
-    },
+    monthlyDeliverables: [
+      {
+        id: "del-005",
+        type: "Short Form Videos",
+        quantity: 12,
+        videosPerDay: 3,
+        platforms: ["instagram", "tiktok"],
+        postingSchedule: "custom",
+        postingDays: ["Monday", "Wednesday", "Friday", "Sunday"],
+        postingTimes: ["10:00", "14:00", "18:00"],
+        description: "Fashion tips and trends"
+      },
+      {
+        id: "del-006",
+        type: "Long Form Videos",
+        quantity: 6,
+        videosPerDay: 1,
+        platforms: ["youtube", "instagram"],
+        postingSchedule: "weekly",
+        postingDays: ["Friday"],
+        postingTimes: ["15:00"],
+        description: "Weekly lookbook and styling guides"
+      }
+    ],
     currentProgress: {
       completed: 35,
       total: 42,
@@ -261,20 +433,35 @@ const mockClients: Client[] = [
     lastActivity: "2024-08-28",
     brandAssets: [],
     brandGuidelines: {
-      primaryColors: ["#EC4899", "#DB2777", "#F472B6"],
+      primaryColors: ["#EC4899", "#DB2777", "##F472B6"],
       secondaryColors: ["#1F2937", "#374151", "#6B7280"],
       fonts: ["Montserrat", "Playfair Display"],
-      logoUsage: "Versatile logo system for various applications",
+      logoUsage:
+        "Versatile logo system for various applications",
       toneOfVoice: "Trendy, confident, inspiring",
       brandValues: "Style, individuality, empowerment",
-      targetAudience: "Fashion-forward individuals, 18-35 years old",
-      contentStyle: "Bold, vibrant, trend-focused with aspirational messaging",
+      targetAudience:
+        "Fashion-forward individuals, 18-35 years old",
+      contentStyle:
+        "Bold, vibrant, trend-focused with aspirational messaging",
     },
     projectSettings: {
       defaultVideoLength: "15-30 seconds",
       preferredPlatforms: ["Instagram", "TikTok", "Pinterest"],
       contentApprovalRequired: true,
       quickTurnaroundAvailable: true,
+    },
+    postingSchedule: {
+      instagram: {
+        weekdays: "9am-11am, 6-9pm",
+        weekends: "11am-4pm",
+        bestTimes: "Daily 6-7pm"
+      },
+      tiktok: {
+        weekdays: "7-10am, 8-11pm",
+        weekends: "10am-2pm",
+        bestTimes: "Daily 8-10pm"
+      }
     },
   },
 ];
@@ -287,366 +474,20 @@ const mockAccountManagers = [
   { id: "mgr-005", name: "James Kim" },
 ];
 
-function ClientOnboardingDialog(props: { onClientCreated: (client: Client) => void }) {
-  const { onClientCreated } = props;
-  const [showAddDialog, setShowAddDialog] = useState(false);
- const [newClient, setNewClient] = useState({
-  name: "",
-  company: "",
-  email: "",
-  phone: "",
-  monthlyDeliverables: {
-    longFormVideos: 0,
-    shortFormClips: 0,
-    socialPosts: 0,
-    customDeliverables: "",
-  },
-});
-
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-
-// const handleSaveClient = async () => {
-//   setLoading(true);
-//   setMessage("");
-
-//   try {
-//     const res = await fetch("/api/clients", {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({
-//         name: newClient.name,
-//         companyName: newClient.company,
-//         email: newClient.email,
-//         phone: newClient.phone,
-//         longFormVideos: newClient.monthlyDeliverables.longFormVideos,
-//         shortFormClips: newClient.monthlyDeliverables.shortFormClips,
-//         socialPosts: newClient.monthlyDeliverables.socialPosts,
-//         customDeliverables: newClient.monthlyDeliverables.customDeliverables,
-//       }),
-//     });
-
-//     const data = await res.json();
-
-//     if (!res.ok) {
-//       throw new Error(data.message || "Failed to create client");
-//     }
-
-//     setMessage("✅ Client created successfully!");
-//     setShowAddDialog(false);
-
-//     // 🔥 Add this to notify parent
-//     onClientCreated(data.client);
-
-//     // Reset form
-//     setNewClient({
-//       name: "",
-//       company: "",
-//       email: "",
-//       phone: "",
-//       monthlyDeliverables: {
-//         longFormVideos: 0,
-//         shortFormClips: 0,
-//         socialPosts: 0,
-//         customDeliverables: "",
-//       },
-//     });
-//   } catch (err: any) {
-//     setMessage(`❌ ${err.message}`);
-//   } finally {
-//     setLoading(false);
-//   }
-// };
-
-const handleSaveClient = async () => {
-  setLoading(true);
-  setMessage("");
-
-  try {
-    // ✅ Safely destructure deliverables (avoid undefined errors)
-    const deliverables = newClient?.monthlyDeliverables ?? {
-      longFormVideos: 0,
-      shortFormClips: 0,
-      socialPosts: 0,
-      customDeliverables: "",
-    };
-
-    const payload = {
-      name: newClient?.name?.trim() || "",
-      companyName: newClient?.company?.trim() || "",
-      email: newClient?.email?.trim() || "",
-      phone: newClient?.phone?.trim() || "",
-      longFormVideos: Number(deliverables.longFormVideos) || 0,
-      shortFormClips: Number(deliverables.shortFormClips) || 0,
-      socialPosts: Number(deliverables.socialPosts) || 0,
-      customDeliverables: deliverables.customDeliverables?.trim() || "",
-    };
-
-    // ✅ Validate required fields before hitting API
-    if (!payload.name || !payload.email) {
-      throw new Error("Client name and email are required.");
-    }
-
-    const res = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include", // keep session cookies if applicable
-      body: JSON.stringify(payload),
-    });
-
-    // ✅ Parse safely
-    const text = await res.text();
-    let data: any = {};
-    try {
-      data = text ? JSON.parse(text) : {};
-    } catch {
-      console.error("⚠ Invalid JSON from /api/clients:", text);
-    }
-
-    // ✅ Handle server errors
-    if (!res.ok) {
-      const message = data?.message || `Request failed (${res.status})`;
-      throw new Error(message);
-    }
-
-    // ✅ Add to list and reset form
-    if (data?.client) onClientCreated?.(data.client);
-
-    setMessage("✅ Client created successfully!");
-    setShowAddDialog(false);
-    setNewClient({
-      name: "",
-      company: "",
-      email: "",
-      phone: "",
-      monthlyDeliverables: {
-        longFormVideos: 0,
-        shortFormClips: 0,
-        socialPosts: 0,
-        customDeliverables: "",
-      },
-    });
-  } catch (err: any) {
-    console.error("❌ Create client error:", err);
-    setMessage(`❌ ${err.message || "Something went wrong."}`);
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-  return (
-    <div>
-  <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-    <DialogTrigger asChild>
-      <Button variant="default" className="flex items-center gap-2">
-        <Plus className="h-4 w-4" />
-        Add New Client
-      </Button>
-    </DialogTrigger>
-
-    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-
-      <VisuallyHidden>
-    <DialogTitle>Add Client</DialogTitle>
-  </VisuallyHidden>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSaveClient();
-        }}
-        className="space-y-6"
-      >
-        {/* Client Information */}
-        <div className="space-y-4">
-          <h4 className="font-medium">Client Information</h4>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="clientName">Client Name</Label>
-              <Input
-                id="clientName"
-                value={newClient.name || ""}
-                onChange={(e) =>
-                  setNewClient((prev) => ({ ...prev, name: e.target.value }))
-                }
-                placeholder="Enter client name"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="company">Company</Label>
-              <Input
-                id="company"
-                value={newClient.company || ""}
-                onChange={(e) =>
-                  setNewClient((prev) => ({ ...prev, company: e.target.value }))
-                }
-                placeholder="Enter company name"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={newClient.email || ""}
-                onChange={(e) =>
-                  setNewClient((prev) => ({ ...prev, email: e.target.value }))
-                }
-                placeholder="client@company.com"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={newClient.phone || ""}
-                onChange={(e) =>
-                  setNewClient((prev) => ({ ...prev, phone: e.target.value }))
-                }
-                placeholder="+1 (555) 123-4567"
-              />
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Monthly Deliverables */}
-        <div className="space-y-4">
-          <h4 className="font-medium">Monthly Deliverables</h4>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="longForm">Long-form Videos</Label>
-              <Input
-                id="longForm"
-                type="number"
-                min={0}
-                value={newClient.monthlyDeliverables?.longFormVideos ?? 0}
-                onChange={(e) =>
-                  setNewClient((prev) => ({
-                    ...prev,
-                    monthlyDeliverables: {
-                      ...prev.monthlyDeliverables,
-                      longFormVideos: parseInt(e.target.value) || 0,
-                    },
-                  }))
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="shortForm">Short-form Clips</Label>
-              <Input
-                id="shortForm"
-                type="number"
-                min={0}
-                value={newClient.monthlyDeliverables?.shortFormClips ?? 0}
-                onChange={(e) =>
-                  setNewClient((prev) => ({
-                    ...prev,
-                    monthlyDeliverables: {
-                      ...prev.monthlyDeliverables,
-                      shortFormClips: parseInt(e.target.value) || 0,
-                    },
-                  }))
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="socialPosts">Social Posts</Label>
-              <Input
-                id="socialPosts"
-                type="number"
-                min={0}
-                value={newClient.monthlyDeliverables?.socialPosts ?? 0}
-                onChange={(e) =>
-                  setNewClient((prev) => ({
-                    ...prev,
-                    monthlyDeliverables: {
-                      ...prev.monthlyDeliverables,
-                      socialPosts: parseInt(e.target.value) || 0,
-                    },
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="customDeliverables">Custom Deliverables</Label>
-            <Textarea
-              id="customDeliverables"
-              rows={3}
-              value={newClient.monthlyDeliverables?.customDeliverables ?? ""}
-              onChange={(e) =>
-                setNewClient((prev) => ({
-                  ...prev,
-                  monthlyDeliverables: {
-                    ...prev.monthlyDeliverables,
-                    customDeliverables: e.target.value,
-                  },
-                }))
-              }
-              placeholder="Additional custom deliverables, consultations, etc."
-            />
-          </div>
-        </div>
-
-        <DialogFooter className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowAddDialog(false)}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={loading} onClick={handleSaveClient}>
-            {loading ? "Saving..." : "Add Client"}
-          </Button>
-        </DialogFooter>
-
-        {message && (
-          <p className="mt-2 text-sm text-gray-700" role="alert">
-            {message}
-          </p>
-        )}
-      </form>
-    </DialogContent>
-  </Dialog>
-</div>
-
-  );
-}
-
 export function ClientManagement() {
   const [clients, setClients] = useState<Client[]>([]);
-
-  useEffect(() => {
-    (async () => {
-      const res = await fetch("/api/clients");
-      const data = await res.json();
-      if (res.ok) setClients(data.clients);
-    })();
-  }, []);
-
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [managerFilter, setManagerFilter] = useState<string>("all");
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [showClientDetailsDialog, setShowClientDetailsDialog] = useState(false);
+  const [statusFilter, setStatusFilter] =
+    useState<string>("all");
+  const [managerFilter, setManagerFilter] =
+    useState<string>("all");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingClient, setEditingClient] =
+    useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] =
+    useState<Client | null>(null);
+  const [showClientDetailsDialog, setShowClientDetailsDialog] =
+    useState(false);
   const [newClient, setNewClient] = useState<Partial<Client>>({
     name: "",
     company: "",
@@ -656,12 +497,7 @@ export function ClientManagement() {
     startDate: "",
     renewalDate: "",
     status: "active",
-    monthlyDeliverables: {
-      longFormVideos: 0,
-      shortFormClips: 0,
-      socialPosts: 0,
-      customDeliverables: "",
-    },
+    monthlyDeliverables: [],
     brandAssets: [],
     brandGuidelines: {
       primaryColors: [],
@@ -681,22 +517,81 @@ export function ClientManagement() {
     },
   });
 
-  // Filtering clients based on search and filters
+  const [newDeliverable, setNewDeliverable] = useState<Partial<MonthlyDeliverable>>({
+    type: "Short Form Videos",
+    quantity: 1,
+    videosPerDay: 1,
+    platforms: [],
+    postingSchedule: "weekly",
+    postingDays: [],
+    postingTimes: ["10:00"],
+    description: "",
+  });
+
+  const [showAddDeliverableDialog, setShowAddDeliverableDialog] = useState(false);
+
   const filteredClients = clients.filter((client) => {
     const matchesSearch =
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || client.status === statusFilter;
-    const matchesManager = managerFilter === "all" || client.accountManagerId === managerFilter;
+      client.name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      client.company
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      client.email
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" || client.status === statusFilter;
+    const matchesManager =
+      managerFilter === "all" ||
+      client.accountManagerId === managerFilter;
+
     return matchesSearch && matchesStatus && matchesManager;
   });
 
-  // Icons for status
+//   useEffect(() => {
+//   async function loadClients() {
+//     try {
+//       const res = await fetch("/api/clients");
+//       const data = await res.json();
+//       setClients(Array.isArray(data.clients) ? data.clients : []);
+//     } catch (err) {
+//       console.error("Failed to load clients", err);
+//     }
+//   }
+
+//   loadClients();
+// }, []);
+
+
+useEffect(() => {
+  async function loadClients() {
+    try {
+      const res = await fetch("/api/clients");
+      const data = await res.json();
+
+      setClients(Array.isArray(data.clients) ? data.clients : []);
+    } catch (err) {
+      console.error("Failed to load clients", err);
+      setClients([]);
+    }
+  }
+
+  loadClients();
+}, []);
+
+
+
+
+
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return (
+          <CheckCircle className="h-4 w-4 text-green-500" />
+        );
       case "pending":
         return <Clock className="h-4 w-4 text-yellow-500" />;
       case "expired":
@@ -706,7 +601,6 @@ export function ClientManagement() {
     }
   };
 
-  // Badge variant for status
   const getStatusVariant = (status: string) => {
     switch (status) {
       case "active":
@@ -720,12 +614,13 @@ export function ClientManagement() {
     }
   };
 
-  // Percentage progress
-  const getProgressPercentage = (completed: number, total: number) => {
-    return total === 0 ? 0 : Math.round((completed / total) * 100);
+  const getProgressPercentage = (
+    completed: number,
+    total: number,
+  ) => {
+    return Math.round((completed / total) * 100);
   };
 
-  // Icon for asset type
   const getAssetTypeIcon = (type: string) => {
     switch (type) {
       case "logo":
@@ -743,17 +638,265 @@ export function ClientManagement() {
     }
   };
 
-  // Add new client to state after successful onboarding
-  // const onClientCreated = (client: Client) => {
-  //   setClients((prev) => [...prev, client]);
-  // };
+  const getPlatformBadgeColor = (platform: SocialPlatform): string => {
+    const colors: Record<SocialPlatform, string> = {
+      instagram: "bg-pink-100 text-pink-700 border-pink-300",
+      tiktok: "bg-gray-900 text-white border-gray-700",
+      facebook: "bg-blue-100 text-blue-700 border-blue-300",
+      youtube: "bg-red-100 text-red-700 border-red-300",
+      twitter: "bg-sky-100 text-sky-700 border-sky-300",
+      linkedin: "bg-indigo-100 text-indigo-700 border-indigo-300",
+    };
+    return colors[platform] || "bg-gray-100 text-gray-700";
+  };
 
-  const onClientCreated = (client: Client) => {
-  setClients((prev) => [client, ...prev]);
+  const getDeliverableTypeIcon = (type: string) => {
+    switch (type) {
+      case "Long Form Videos":
+        return <Video className="h-4 w-4" />;
+      case "Short Form Videos":
+        return <Zap className="h-4 w-4" />;
+      case "Square Form Videos":
+        return <Video className="h-4 w-4" />;
+      case "Snapchat Show Episode":
+        return <Video className="h-4 w-4" />;
+      case "Social/Hard Post":
+        return <Share2 className="h-4 w-4" />;
+      default:
+        return <FileText className="h-4 w-4" />;
+    }
+  };
+
+  const toggleDay = (day: string) => {
+    const currentDays = newDeliverable.postingDays || [];
+    if (currentDays.includes(day)) {
+      setNewDeliverable({
+        ...newDeliverable,
+        postingDays: currentDays.filter((d) => d !== day),
+      });
+    } else {
+      setNewDeliverable({
+        ...newDeliverable,
+        postingDays: [...currentDays, day],
+      });
+    }
+  };
+
+  const setEveryDay = () => {
+    const allDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const currentDays = newDeliverable.postingDays || [];
+    
+    // If all days are selected, deselect all. Otherwise, select all.
+    if (currentDays.length === 7) {
+      setNewDeliverable({
+        ...newDeliverable,
+        postingDays: [],
+      });
+    } else {
+      setNewDeliverable({
+        ...newDeliverable,
+        postingDays: allDays,
+      });
+    }
+  };
+
+  const updatePostingTime = (index: number, time: string) => {
+    const currentTimes = newDeliverable.postingTimes || ["10:00"];
+    const newTimes = [...currentTimes];
+    newTimes[index] = time;
+    setNewDeliverable({
+      ...newDeliverable,
+      postingTimes: newTimes,
+    });
+  };
+
+  const syncPostingTimesWithVideosPerDay = (videosPerDay: number) => {
+    const currentTimes = newDeliverable.postingTimes || ["10:00"];
+    const newTimes = [...currentTimes];
+    
+    // If we need more times, add default ones
+    while (newTimes.length < videosPerDay) {
+      // Add times spaced 2 hours apart
+      const lastTime = newTimes[newTimes.length - 1];
+      const [hours, minutes] = lastTime.split(":").map(Number);
+      const newHours = (hours + 2) % 24;
+      newTimes.push(`${String(newHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`);
+    }
+    
+    // If we have too many times, trim
+    while (newTimes.length > videosPerDay) {
+      newTimes.pop();
+    }
+    
+    setNewDeliverable({
+      ...newDeliverable,
+      videosPerDay,
+      postingTimes: newTimes,
+    });
+  };
+
+  const handleAddDeliverable = () => {
+    if (!newDeliverable.quantity || !newDeliverable.platforms || newDeliverable.platforms.length === 0) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    const deliverable: MonthlyDeliverable = {
+      id: `deliverable-${Date.now()}`,
+      type: newDeliverable.type as DeliverableType,
+      quantity: newDeliverable.quantity,
+      videosPerDay: newDeliverable.videosPerDay || 1,
+      platforms: newDeliverable.platforms,
+      postingSchedule: newDeliverable.postingSchedule as PostingSchedule,
+      postingDays: newDeliverable.postingDays,
+      postingTimes: newDeliverable.postingTimes || ["10:00"],
+      description: newDeliverable.description || "",
+    };
+
+    setNewClient((prev) => ({
+      ...prev,
+      monthlyDeliverables: [
+        ...(prev.monthlyDeliverables || []),
+        deliverable,
+      ],
+    }));
+
+    // Reset form
+    setNewDeliverable({
+      type: "Short Form Videos",
+      quantity: 1,
+      videosPerDay: 1,
+      platforms: [],
+      postingSchedule: "weekly",
+      postingDays: [],
+      postingTimes: ["10:00"],
+      description: "",
+    });
+    setShowAddDeliverableDialog(false);
+    toast.success("Monthly deliverable added");
+  };
+
+  const handleRemoveDeliverable = (id: string) => {
+    setNewClient((prev) => ({
+      ...prev,
+      monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
+        (d) => d.id !== id
+      ),
+    }));
+    toast.success("Deliverable removed");
+  };
+
+  const togglePlatform = (platform: SocialPlatform) => {
+    setNewDeliverable((prev) => {
+      const platforms = prev.platforms || [];
+      const isSelected = platforms.includes(platform);
+      return {
+        ...prev,
+        platforms: isSelected
+          ? platforms.filter((p) => p !== platform)
+          : [...platforms, platform],
+      };
+    });
+  };
+
+  const generateMonthlyTasks = (
+    clientId: string,
+    clientName: string,
+    deliverables: MonthlyDeliverable[]
+  ) => {
+    const taskManager = GlobalTaskManager.getInstance();
+    let tasksCreated = 0;
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    deliverables.forEach((deliverable) => {
+      const videosPerDay = deliverable.videosPerDay || 1;
+      
+      // For each deliverable, create tasks based on quantity
+      // The quantity represents the total videos for the month
+      // videosPerDay tells us how many videos go out on each posting day
+      const totalPostingDays = Math.ceil(deliverable.quantity / videosPerDay);
+      
+      for (let dayIndex = 0; dayIndex < totalPostingDays; dayIndex++) {
+        // Calculate due dates based on posting schedule
+        let dueDate = new Date(currentYear, currentMonth, 1);
+        
+        if (deliverable.postingSchedule === "weekly") {
+          // Space tasks weekly throughout the month
+          dueDate.setDate(dueDate.getDate() + (dayIndex * 7));
+        } else if (deliverable.postingSchedule === "bi-weekly") {
+          // Space tasks bi-weekly
+          dueDate.setDate(dueDate.getDate() + (dayIndex * 14));
+        } else if (deliverable.postingSchedule === "monthly") {
+          // All tasks due at beginning of month
+          dueDate.setDate(dueDate.getDate() + dayIndex);
+        } else {
+          // Custom - distribute evenly
+          const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+          const spacing = Math.floor(daysInMonth / deliverable.quantity);
+          dueDate.setDate(dueDate.getDate() + (dayIndex * spacing));
+        }
+
+        // Set due date 5 days before posting to allow for workflow
+        dueDate.setDate(dueDate.getDate() - 5);
+
+        // Determine task type based on deliverable type
+        const taskType = (deliverable.type === 'Long Form Videos' || deliverable.type === 'Square Form Videos' || deliverable.type === 'Snapchat Show Episode') ? 'video' : 'design';
+        
+        // Determine estimated hours based on deliverable type
+        const estimatedHours = deliverable.type === 'Long Form Videos' ? '4' : 
+                              deliverable.type === 'Snapchat Show Episode' ? '3' : '2';
+        
+        // Create the initial editor task
+        const platformsText = deliverable.platforms.join(', ');
+        const task = taskManager.createTask({
+          title: `${deliverable.type} #${i + 1} - ${clientName}`,
+          description: `${deliverable.type} deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${deliverable.postingSchedule}\\nPosting Time: ${deliverable.defaultPostingTime}\\n\\n${deliverable.description || 'No additional notes'}`,
+          type: taskType,
+          assignedTo: 'editor',
+          dueDate: dueDate.toISOString().split('T')[0],
+          estimatedHours: estimatedHours,
+          projectId: clientId,
+          createdBy: 'admin',
+          createdByName: 'Admin',
+          taskTypeLabel: `${deliverable.type} - ${platformsText}`,
+        });
+
+        tasksCreated++;
+      }
+    });
+
+    return tasksCreated;
+  };
+
+  const handleSaveClient = async () => {
+  try {
+    const res = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newClient),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      toast.error(data.message || "Failed to create client");
+      return;
+    }
+
+    toast.success("Client created successfully!");
+    setClients((prev) => [...prev, data.client]);
+
+    setShowAddDialog(false);
+    setEditingClient(null);
+  } catch (err) {
+    console.error("Error saving client:", err);
+    toast.error("Server error");
+  }
 };
 
 
-  // Edit existing client
   const handleEditClient = (client: Client) => {
     setEditingClient(client);
     setNewClient({
@@ -766,340 +909,358 @@ export function ClientManagement() {
       renewalDate: client.renewalDate,
       status: client.status,
       monthlyDeliverables: client.monthlyDeliverables,
+      billing: client.billing,
       brandGuidelines: client.brandGuidelines,
       projectSettings: client.projectSettings,
     });
     setShowAddDialog(true);
   };
 
-  // Delete client
   const handleDeleteClient = (clientId: string) => {
-    if (confirm("Are you sure you want to delete this client?")) {
-      setClients((prev) => prev.filter((client) => client.id !== clientId));
+    if (
+      confirm("Are you sure you want to delete this client?")
+    ) {
+      setClients((prev) =>
+        prev.filter((client) => client.id !== clientId),
+      );
+      toast.success("Client deleted");
     }
   };
 
-  // View client details
   const handleViewClientDetails = (client: Client) => {
     setSelectedClient(client);
     setShowClientDetailsDialog(true);
   };
 
-  // File upload handler (mock)
-  const handleFileUpload = (clientId: string, files: FileList | null) => {
+  const calculateTotalDeliverables = (
+    deliverables: MonthlyDeliverable[],
+  ) => {
+    return deliverables.reduce((sum, d) => sum + d.quantity, 0);
+  };
+
+  const handleFileUpload = (
+    clientId: string,
+    files: FileList | null,
+  ) => {
     if (!files || files.length === 0) return;
 
-    const mockAssets: BrandAsset[] = Array.from(files).map((file, index) => ({
-      id: `asset-${Date.now()}-${index}`,
-      name: file.name.split(".")[0],
-      type: file.type.includes("image") ? "logo" : "other",
-      fileUrl: URL.createObjectURL(file),
-      fileName: file.name,
-      fileSize: `${Math.round(file.size / 1024)} KB`,
-      uploadedAt: new Date().toISOString().split("T")[0],
-      uploadedBy: "Current User",
-    }));
+    // In a real app, you would upload to a file storage service
+    console.log("Uploading files for client:", clientId, files);
+
+    // Mock file upload
+    const mockAssets: BrandAsset[] = Array.from(files).map(
+      (file, index) => ({
+        id: `asset-${Date.now()}-${index}`,
+        name: file.name.split(".")[0],
+        type: file.type.includes("image") ? "logo" : "other",
+        fileUrl: URL.createObjectURL(file),
+        fileName: file.name,
+        fileSize: `${Math.round(file.size / 1024)} KB`,
+        uploadedAt: new Date().toISOString().split("T")[0],
+        uploadedBy: "Current User",
+      }),
+    );
 
     setClients((prev) =>
       prev.map((client) =>
         client.id === clientId
           ? {
               ...client,
-              brandAssets: [...client.brandAssets, ...mockAssets],
+              brandAssets: [
+                ...client.brandAssets,
+                ...mockAssets,
+              ],
             }
           : client,
       ),
     );
+    
+    toast.success(`${mockAssets.length} file(s) uploaded`);
   };
 
-  // Client Details Dialog
   const ClientDetailsDialog = () => {
     if (!selectedClient) return null;
+
     return (
-      <Dialog open={showClientDetailsDialog} onOpenChange={setShowClientDetailsDialog}>
-        <DialogContent
-          className="max-w-6xl max-h-[90vh] overflow-hidden"
-          aria-describedby="client-details-description"
-        >
+      <Dialog
+        open={showClientDetailsDialog}
+        onOpenChange={setShowClientDetailsDialog}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white border-gray-200">
           <DialogHeader>
-            <DialogTitle id="client-details-title" className="flex items-center gap-3">
-              <Building className="h-6 w-6" />
-              {selectedClient.company} - Brand Assets & Guidelines
+            <DialogTitle className="text-gray-900">
+              {selectedClient.company} - Client Details
             </DialogTitle>
-            <DialogDescription id="client-details-description">
-              Manage brand assets, guidelines, and project settings for {selectedClient.name}
+            <DialogDescription className="text-gray-600">
+              Complete client information and monthly deliverables
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="assets" className="flex-1 overflow-hidden">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="assets">Brand Assets</TabsTrigger>
-              <TabsTrigger value="guidelines">Brand Guidelines</TabsTrigger>
-              <TabsTrigger value="settings">Project Settings</TabsTrigger>
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-4 bg-gray-100">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="deliverables">Monthly Deliverables</TabsTrigger>
+              <TabsTrigger value="brand">Brand Assets</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
-            <div className="mt-6 overflow-y-auto max-h-[60vh]">
-              <TabsContent value="assets" className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">
-                    Brand Assets ({selectedClient.brandAssets.length})
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.svg"
-                      onChange={(e) => handleFileUpload(selectedClient.id, e.target.files)}
-                      className="hidden"
-                      id="asset-upload"
-                    />
-                    <label htmlFor="asset-upload">
-                      <Button asChild size="sm">
-                        <span>
-                          <Upload className="h-4 w-4 mr-2" />
-                          Upload Assets
-                        </span>
-                      </Button>
-                    </label>
+            <TabsContent value="overview" className="space-y-4">
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900">Contact Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Contact Name</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <User className="h-4 w-4" />
+                      {selectedClient.name}
+                    </div>
                   </div>
-                </div>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Company</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <Building className="h-4 w-4" />
+                      {selectedClient.company}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Email</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <Mail className="h-4 w-4" />
+                      {selectedClient.email}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Phone</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <Phone className="h-4 w-4" />
+                      {selectedClient.phone}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Account Manager</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <User className="h-4 w-4" />
+                      {selectedClient.accountManager}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Status</Label>
+                    <Badge variant={getStatusVariant(selectedClient.status)}>
+                      {selectedClient.status}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
 
-                {selectedClient.brandAssets.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {selectedClient.brandAssets.map((asset) => (
-                      <Card key={asset.id}>
-                        <CardContent className="p-4">
-                          <div className="aspect-video bg-muted rounded-lg mb-3 overflow-hidden">
-                            <ImageWithFallback
-                              src={asset.fileUrl}
-                              alt={asset.name}
-                              className="w-full h-full object-cover"
-                            />
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900">Progress</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Monthly Progress</span>
+                      <span>
+                        {selectedClient.currentProgress.completed} /{" "}
+                        {selectedClient.currentProgress.total}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 transition-all"
+                        style={{
+                          width: `${getProgressPercentage(
+                            selectedClient.currentProgress.completed,
+                            selectedClient.currentProgress.total,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="deliverables" className="space-y-4">
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 flex items-center gap-2">
+                    <Repeat className="h-5 w-5" />
+                    Monthly Recurring Deliverables
+                  </CardTitle>
+                  <p className="text-sm text-gray-600">
+                    These deliverables automatically generate tasks each month
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {selectedClient.monthlyDeliverables.map((deliverable) => (
+                    <div
+                      key={deliverable.id}
+                      className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          {getDeliverableTypeIcon(deliverable.type)}
+                          <div>
+                            <div className="text-gray-900">{deliverable.type}</div>
+                            <div className="text-sm text-gray-600">
+                              {deliverable.quantity} per month ({deliverable.videosPerDay || 1} per day) • {deliverable.postingSchedule}
+                            </div>
                           </div>
-
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              {getAssetTypeIcon(asset.type)}
-                              <h5 className="font-medium text-sm truncate">{asset.name}</h5>
-                            </div>
-
-                            <p className="text-xs text-muted-foreground">{asset.fileName}</p>
-
-                            {asset.description && (
-                              <p className="text-xs text-muted-foreground">{asset.description}</p>
-                            )}
-
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span>{asset.fileSize}</span>
-                              <span>{new Date(asset.uploadedAt).toLocaleDateString()}</span>
-                            </div>
-
-                            <div className="flex items-center gap-1 pt-2">
-                              <Button variant="outline" size="sm" className="flex-1">
-                                <Eye className="h-3 w-3 mr-1" />
-                                View
-                              </Button>
-                              <Button variant="outline" size="sm" className="flex-1">
-                                <Download className="h-3 w-3 mr-1" />
-                                Download
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                    <FileX className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                    <h3 className="mb-2">No brand assets uploaded</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Upload logos, brand guidelines, templates, and other assets
-                    </p>
-                    <label htmlFor="asset-upload-empty">
-                      <Button asChild>
-                        <span>
-                          <Upload className="h-4 w-4 mr-2" />
-                          Upload First Asset
-                        </span>
-                      </Button>
-                    </label>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.svg"
-                      onChange={(e) => handleFileUpload(selectedClient.id, e.target.files)}
-                      className="hidden"
-                      id="asset-upload-empty"
-                    />
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="guidelines" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Brand Colors */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Palette className="h-5 w-5" />
-                        Brand Colors
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label className="text-sm font-medium">Primary Colors</Label>
-                        <div className="flex gap-2 mt-2">
-                          {selectedClient.brandGuidelines.primaryColors.map((color, index) => (
-                            <div key={index} className="flex flex-col items-center">
-                              <div
-                                className="w-8 h-8 rounded border border-border"
-                                style={{ backgroundColor: color }}
-                              />
-                              <span className="text-xs mt-1">{color}</span>
-                            </div>
-                          ))}
                         </div>
+                        <Badge variant="outline" className="text-gray-700">
+                          {(deliverable.postingDays && deliverable.postingDays.length > 0) 
+                            ? deliverable.postingDays.join(", ") 
+                            : "Various"}
+                        </Badge>
                       </div>
-
-                      <div>
-                        <Label className="text-sm font-medium">Secondary Colors</Label>
-                        <div className="flex gap-2 mt-2">
-                          {selectedClient.brandGuidelines.secondaryColors.map((color, index) => (
-                            <div key={index} className="flex flex-col items-center">
-                              <div
-                                className="w-8 h-8 rounded border border-border"
-                                style={{ backgroundColor: color }}
-                              />
-                              <span className="text-xs mt-1">{color}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Typography */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Typography</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Label className="text-sm font-medium">Brand Fonts</Label>
-                      <div className="mt-2 space-y-2">
-                        {selectedClient.brandGuidelines.fonts.map((font, index) => (
-                          <div key={index} className="p-2 bg-muted rounded text-sm">
-                            {font}
-                          </div>
+                      
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {deliverable.platforms.map((platform) => (
+                          <Badge
+                            key={platform}
+                            variant="outline"
+                            className={getPlatformBadgeColor(platform)}
+                          >
+                            {platform}
+                          </Badge>
                         ))}
                       </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Logo Usage */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Logo Usage</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedClient.brandGuidelines.logoUsage || "No logo usage guidelines specified"}
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  {/* Brand Voice & Values */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Brand Voice & Values</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <Label className="text-sm font-medium">Tone of Voice</Label>
-                        <p className="text-sm text-muted-foreground mt-1">{selectedClient.brandGuidelines.toneOfVoice}</p>
+                      
+                      {deliverable.description && (
+                        <p className="text-sm text-gray-600 mt-2">
+                          {deliverable.description}
+                        </p>
+                      )}
+                      
+                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                        <Clock className="h-3 w-3" />
+                        Posting time{(deliverable.postingTimes?.length || 1) > 1 ? 's' : ''}: {(deliverable.postingTimes || ["10:00"]).join(", ")}
                       </div>
+                    </div>
+                  ))}
+                  
+                  {selectedClient.monthlyDeliverables.length === 0 && (
+                    <div className="text-center py-8 text-gray-400">
+                      No monthly deliverables configured
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                      <div>
-                        <Label className="text-sm font-medium">Brand Values</Label>
-                        <p className="text-sm text-muted-foreground mt-1">{selectedClient.brandGuidelines.brandValues}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Target Audience */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Target Audience</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">{selectedClient.brandGuidelines.targetAudience}</p>
-                    </CardContent>
-                  </Card>
-
-                  {/* Content Style */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Content Style</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">{selectedClient.brandGuidelines.contentStyle}</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="settings" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Content Preferences</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label className="text-sm font-medium">Default Video Length</Label>
-                        <p className="text-sm text-muted-foreground mt-1">{selectedClient.projectSettings.defaultVideoLength}</p>
-                      </div>
-
-                      <div>
-                        <Label className="text-sm font-medium">Preferred Platforms</Label>
-                        <div className="flex gap-1 mt-2">
-                          {selectedClient.projectSettings.preferredPlatforms.map((platform, index) => (
-                            <Badge key={index} variant="secondary">
-                              {platform}
-                            </Badge>
-                          ))}
+            <TabsContent value="brand" className="space-y-4">
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900">Brand Assets</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedClient.brandAssets.map((asset) => (
+                      <div
+                        key={asset.id}
+                        className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          {getAssetTypeIcon(asset.type)}
+                          <span className="text-gray-900">{asset.name}</span>
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {asset.fileName} • {asset.fileSize}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="flex-1">
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex-1">
+                            <Download className="h-3 w-3 mr-1" />
+                            Download
+                          </Button>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                    ))}
+                  </div>
+                  
+                  {selectedClient.brandAssets.length === 0 && (
+                    <div className="text-center py-8 text-gray-400">
+                      No brand assets uploaded
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Workflow Settings</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">Client Approval Required</Label>
-                        <Badge variant={selectedClient.projectSettings.contentApprovalRequired ? "default" : "secondary"}>
-                          {selectedClient.projectSettings.contentApprovalRequired ? "Yes" : "No"}
-                        </Badge>
-                      </div>
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900">Brand Guidelines</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-gray-500">Tone of Voice</Label>
+                    <p className="text-gray-900">{selectedClient.brandGuidelines.toneOfVoice}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-500">Target Audience</Label>
+                    <p className="text-gray-900">{selectedClient.brandGuidelines.targetAudience}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-500">Content Style</Label>
+                    <p className="text-gray-900">{selectedClient.brandGuidelines.contentStyle}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">Quick Turnaround Available</Label>
-                        <Badge variant={selectedClient.projectSettings.quickTurnaroundAvailable ? "default" : "secondary"}>
-                          {selectedClient.projectSettings.quickTurnaroundAvailable ? "Yes" : "No"}
+            <TabsContent value="settings" className="space-y-4">
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900">Project Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-gray-500">Default Video Length</Label>
+                    <p className="text-gray-900">{selectedClient.projectSettings.defaultVideoLength}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-500">Preferred Platforms</Label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {selectedClient.projectSettings.preferredPlatforms.map((platform) => (
+                        <Badge key={platform} variant="outline" className="text-gray-700">
+                          {platform}
                         </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-            </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedClient.projectSettings.contentApprovalRequired}
+                        disabled
+                      />
+                      <Label className="text-gray-700">Content Approval Required</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedClient.projectSettings.quickTurnaroundAvailable}
+                        disabled
+                      />
+                      <Label className="text-gray-700">Quick Turnaround Available</Label>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
 
           <DialogFooter>
-            <Button onClick={() => setShowClientDetailsDialog(false)}>Close</Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowClientDetailsDialog(false)}
+            >
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1108,48 +1269,53 @@ export function ClientManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header and Add New Client */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h2>Client Management</h2>
-          <p className="text-muted-foreground mt-1">
-            Manage client accounts, brand assets, guidelines, and team assignments
+          <h2 className="text-gray-900">Client Management</h2>
+          <p className="text-sm text-gray-600">
+            Manage client accounts and monthly deliverables
           </p>
         </div>
-
-        {/* Client Onboarding Dialog for adding clients */}
-        <ClientOnboardingDialog onClientCreated={onClientCreated} />
+        <Button
+          onClick={() => {
+            setEditingClient(null);
+            setShowAddDialog(true);
+          }}
+          className="gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Add Client
+        </Button>
       </div>
 
       {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <Card className="bg-white border-gray-200">
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search clients..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-9 bg-white border-gray-200 text-gray-900"
               />
             </div>
-
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="bg-white border-gray-200 text-gray-900">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="expired">Expired</SelectItem>
               </SelectContent>
             </Select>
-
             <Select value={managerFilter} onValueChange={setManagerFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="bg-white border-gray-200 text-gray-900">
                 <User className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter by manager" />
               </SelectTrigger>
@@ -1166,136 +1332,759 @@ export function ClientManagement() {
         </CardContent>
       </Card>
 
-      {/* Clients List */}
+      {/* Client List */}
       <div className="grid gap-4">
         {filteredClients.map((client) => (
-          <Card key={client.id}>
+          <Card
+            key={client.id}
+            className="bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
+          >
             <CardContent className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <Building className="h-6 w-6 text-primary" />
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-gray-900">{client.company}</h3>
+                    <Badge
+                      variant={getStatusVariant(client.status)}
+                      className="flex items-center gap-1"
+                    >
+                      {getStatusIcon(client.status)}
+                      {client.status.charAt(0).toUpperCase() +
+                        client.status.slice(1)}
+                    </Badge>
                   </div>
-                  <div>
-                    <h3 className="font-medium">{client.name}</h3>
-                    <p className="text-sm text-muted-foreground">{client.company}</p>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        {client.email}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {client.phone}
-                      </span>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                      <Label className="text-gray-500 text-xs">Contact</Label>
+                      <p className="text-gray-900 text-sm">{client.name}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-500 text-xs">Account Manager</Label>
+                      <p className="text-gray-900 text-sm">{client.accountManager}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-500 text-xs">Monthly Deliverables</Label>
+                      <p className="text-gray-900 text-sm">
+                        {calculateTotalDeliverables(client.monthlyDeliverables)} items
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-500 text-xs">Progress</Label>
+                      <p className="text-gray-900 text-sm">
+                        {client.currentProgress.completed}/{client.currentProgress.total}
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <Badge variant={getStatusVariant(client.status)} className="flex items-center gap-1">
-                    {getStatusIcon(client.status)}
-                    {/* {client?.status?.charAt(0).toUpperCase() + client.status.slice(1)}x */}
-                  </Badge>
-
-                  <Button variant="ghost" size="sm" onClick={() => handleViewClientDetails(client)}>
-                    <Eye className="h-4 w-4" />
-                  </Button>
-
-                  <Button variant="ghost" size="sm" onClick={() => handleEditClient(client)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-
-                  <Button variant="ghost" size="sm" onClick={() => handleDeleteClient(client.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Account Info */}
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Account Manager</h4>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    {client.accountManager}
-                  </p>
-
-                  <h4 className="font-medium text-sm mt-3">Contract Period</h4>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {new Date(client.startDate).toLocaleDateString()} - {new Date(client.renewalDate).toLocaleDateString()}
-                  </p>
-                </div>
-
-                {/* Deliverables */}
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Monthly Deliverables</h4>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    {/* <p>• {client.monthlyDeliverables.longFormVideos} Long-form videos</p> */}
-                    <p>• {client.monthlyDeliverables.longFormVideos} Long-form videos</p>
-                    <p>• {client.monthlyDeliverables.shortFormClips} Short-form clips</p>
-                    <p>• {client.monthlyDeliverables.socialPosts} Social posts</p>
-                    {client.monthlyDeliverables.customDeliverables && (
-                      <p>• {client.monthlyDeliverables.customDeliverables}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {client.monthlyDeliverables.slice(0, 3).map((deliverable) => (
+                      <Badge
+                        key={deliverable.id}
+                        variant="outline"
+                        className="text-gray-700 gap-1"
+                      >
+                        {getDeliverableTypeIcon(deliverable.type)}
+                        {deliverable.quantity} {deliverable.type}
+                      </Badge>
+                    ))}
+                    {client.monthlyDeliverables.length > 3 && (
+                      <Badge variant="outline" className="text-gray-500">
+                        +{client.monthlyDeliverables.length - 3} more
+                      </Badge>
                     )}
                   </div>
                 </div>
 
-                {/* Progress */}
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">This Month's Progress</h4>
-                  <div className="space-y-2">
-                    {/* <div className="flex items-center justify-between text-sm">
-                      <span>
-                        {client.currentProgress.completed} / {client.currentProgress.total} completed
-                      </span>
-                      <span className="font-medium">
-                        {getProgressPercentage(client.currentProgress.completed, client.currentProgress.total)}%
-                      </span>
-                    </div> */}
-                    {/* <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-primary h-2 rounded-full transition-all"
-                        style={{ width: `${getProgressPercentage(client.currentProgress.completed, client.currentProgress.total)}%` }}
-                      />
-                    </div> */}
-                    <p className="text-xs text-muted-foreground">Last activity: {new Date(client.lastActivity).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                {/* Brand Assets */}
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Brand Assets</h4>
-                  <div className="space-y-2">
-                    {/* <p className="text-sm text-muted-foreground">{client.brandAssets.length} assets uploaded</p> */}
-                    <Button variant="outline" size="sm" className="w-full" onClick={() => handleViewClientDetails(client)}>
-                      <Eye className="h-3 w-3 mr-1" />
-                      View Assets
-                    </Button>
-                  </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleViewClientDetails(client)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEditClient(client)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDeleteClient(client.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
         ))}
+
+        {filteredClients.length === 0 && (
+          <Card className="bg-white border-gray-200">
+            <CardContent className="p-12 text-center">
+              <p className="text-gray-400">No clients found</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {filteredClients.length === 0 && (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Building className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="mb-2">No clients found</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchTerm || statusFilter !== "all" || managerFilter !== "all"
-                ? "Try adjusting your filters or search terms"
-                : "Get started by adding your first client"}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Add/Edit Client Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="!max-w-[1400px] w-[95vw] h-[95vh] !max-h-[95vh] overflow-y-auto bg-white border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900">
+              {editingClient ? "Edit Client" : "Add New Client"}
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              {editingClient
+                ? "Update client information and monthly deliverables"
+                : "Add a new client with their monthly deliverable schedule"}
+            </DialogDescription>
+          </DialogHeader>
 
+          <div className="space-y-6">
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <h3 className="text-gray-900">Basic Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-gray-700">
+                    Contact Name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={newClient.name}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, name: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company" className="text-gray-700">
+                    Company
+                  </Label>
+                  <Input
+                    id="company"
+                    value={newClient.company}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, company: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-gray-700">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newClient.email}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, email: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-gray-700">
+                    Phone
+                  </Label>
+                  <Input
+                    id="phone"
+                    value={newClient.phone}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, phone: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accountManager" className="text-gray-700">
+                    Account Manager
+                  </Label>
+                  <Select
+                    value={newClient.accountManagerId}
+                    onValueChange={(value) =>
+                      setNewClient({ ...newClient, accountManagerId: value })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select manager" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mockAccountManagers.map((manager) => (
+                        <SelectItem key={manager.id} value={manager.id}>
+                          {manager.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status" className="text-gray-700">
+                    Status
+                  </Label>
+                  <Select
+                    value={newClient.status}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        status: value as "active" | "pending" | "expired",
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="expired">Expired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate" className="text-gray-700">
+                    Start Date
+                  </Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={newClient.startDate}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, startDate: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="renewalDate" className="text-gray-700">
+                    Renewal Date
+                  </Label>
+                  <Input
+                    id="renewalDate"
+                    type="date"
+                    value={newClient.renewalDate}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, renewalDate: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator className="bg-gray-200" />
+
+            {/* Monthly Deliverables */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-gray-900 flex items-center gap-2">
+                    <Repeat className="h-5 w-5" />
+                    Monthly Deliverables
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Set up recurring deliverables that auto-generate tasks
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setShowAddDeliverableDialog(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Deliverable
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {(newClient.monthlyDeliverables || []).map((deliverable) => (
+                  <div
+                    key={deliverable.id}
+                    className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {getDeliverableTypeIcon(deliverable.type)}
+                        <span className="text-gray-900">{deliverable.type}</span>
+                        <Badge variant="outline" className="text-gray-600">
+                          {deliverable.quantity} per month
+                        </Badge>
+                        <Badge variant="outline" className="text-blue-600 bg-blue-50">
+                          {deliverable.videosPerDay || 1} per day
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {deliverable.postingSchedule} • {(deliverable.postingDays && deliverable.postingDays.length > 0) 
+                          ? deliverable.postingDays.join(", ") 
+                          : "Various days"} • {deliverable.defaultPostingTime}
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {deliverable.platforms.map((platform) => (
+                          <Badge
+                            key={platform}
+                            variant="outline"
+                            className={`text-xs ${getPlatformBadgeColor(platform)}`}
+                          >
+                            {platform}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleRemoveDeliverable(deliverable.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+
+                {(!newClient.monthlyDeliverables || newClient.monthlyDeliverables.length === 0) && (
+                  <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-gray-200">
+                    No monthly deliverables added yet
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Separator className="bg-gray-200" />
+
+            {/* Payment & Billing */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-gray-900 flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Payment & Billing
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Set up payment schedule and billing information
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="monthlyFee" className="text-gray-700">
+                    Monthly Fee ($)
+                  </Label>
+                  <Input
+                    id="monthlyFee"
+                    type="number"
+                    placeholder="5000"
+                    value={newClient.billing?.monthlyFee || ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        billing: {
+                          ...newClient.billing,
+                          monthlyFee: e.target.value,
+                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingDay: newClient.billing?.billingDay || 1,
+                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                        },
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="billingFrequency" className="text-gray-700">
+                    Billing Frequency
+                  </Label>
+                  <Select
+                    value={newClient.billing?.billingFrequency || "monthly"}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        billing: {
+                          ...newClient.billing,
+                          monthlyFee: newClient.billing?.monthlyFee || "",
+                          billingFrequency: value as "monthly" | "quarterly" | "annually",
+                          billingDay: newClient.billing?.billingDay || 1,
+                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="quarterly">Quarterly</SelectItem>
+                      <SelectItem value="annually">Annually</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="billingDay" className="text-gray-700">
+                    Billing Day of Month
+                  </Label>
+                  <Select
+                    value={String(newClient.billing?.billingDay || 1)}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        billing: {
+                          ...newClient.billing,
+                          monthlyFee: newClient.billing?.monthlyFee || "",
+                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingDay: parseInt(value),
+                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                        <SelectItem key={day} value={String(day)}>
+                          {day}{day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th"} of the month
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentMethod" className="text-gray-700">
+                    Payment Method
+                  </Label>
+                  <Select
+                    value={newClient.billing?.paymentMethod || "credit-card"}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        billing: {
+                          ...newClient.billing,
+                          monthlyFee: newClient.billing?.monthlyFee || "",
+                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingDay: newClient.billing?.billingDay || 1,
+                          paymentMethod: value as "credit-card" | "bank-transfer" | "check" | "paypal",
+                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="credit-card">
+                        <span className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4" />
+                          Credit Card
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="paypal">PayPal</SelectItem>
+                      <SelectItem value="check">Check</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nextBillingDate" className="text-gray-700">
+                    Next Billing Date
+                  </Label>
+                  <Input
+                    id="nextBillingDate"
+                    type="date"
+                    value={newClient.billing?.nextBillingDate || ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        billing: {
+                          ...newClient.billing,
+                          monthlyFee: newClient.billing?.monthlyFee || "",
+                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingDay: newClient.billing?.billingDay || 1,
+                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate: e.target.value,
+                        },
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="billingNotes" className="text-gray-700">
+                    Billing Notes (Optional)
+                  </Label>
+                  <Textarea
+                    id="billingNotes"
+                    placeholder="e.g., Includes 12 videos per month, 10% discount applied"
+                    value={newClient.billing?.notes || ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        billing: {
+                          ...newClient.billing,
+                          monthlyFee: newClient.billing?.monthlyFee || "",
+                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingDay: newClient.billing?.billingDay || 1,
+                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                          notes: e.target.value,
+                        },
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                    rows={3}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddDialog(false);
+                setEditingClient(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSaveClient}>
+              {editingClient ? "Update Client" : "Add Client"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Deliverable Dialog */}
+      <Dialog
+        open={showAddDeliverableDialog}
+        onOpenChange={setShowAddDeliverableDialog}
+      >
+        <DialogContent className="!max-w-[1200px] w-[90vw] !max-h-[90vh] overflow-y-auto bg-white border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900">Add Monthly Deliverable</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Configure a recurring deliverable for this client
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="deliverableType" className="text-gray-700">
+                Deliverable Type
+              </Label>
+              <Select
+                value={newDeliverable.type}
+                onValueChange={(value) =>
+                  setNewDeliverable({ ...newDeliverable, type: value as DeliverableType })
+                }
+              >
+                <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Short Form Videos">Short Form Videos</SelectItem>
+                  <SelectItem value="Long Form Videos">Long Form Videos</SelectItem>
+                  <SelectItem value="Square Form Videos">Square Form Videos</SelectItem>
+                  <SelectItem value="Snapchat Show Episode">Snapchat Show Episode</SelectItem>
+                  <SelectItem value="Social/Hard Post">Social/Hard Post</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="quantity" className="text-gray-700">
+                  Quantity per Month
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  value={newDeliverable.quantity}
+                  onChange={(e) =>
+                    setNewDeliverable({ ...newDeliverable, quantity: parseInt(e.target.value) || 1 })
+                  }
+                  className="bg-white border-gray-200 text-gray-900"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="videosPerDay" className="text-gray-700">
+                  Videos per Posting Day
+                </Label>
+                <Input
+                  id="videosPerDay"
+                  type="number"
+                  min="1"
+                  value={newDeliverable.videosPerDay}
+                  onChange={(e) =>
+                    syncPostingTimesWithVideosPerDay(parseInt(e.target.value) || 1)
+                  }
+                  className="bg-white border-gray-200 text-gray-900"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="postingSchedule" className="text-gray-700">
+                Posting Schedule
+              </Label>
+              <Select
+                value={newDeliverable.postingSchedule}
+                onValueChange={(value) =>
+                  setNewDeliverable({ ...newDeliverable, postingSchedule: value as PostingSchedule })
+                }
+              >
+                <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-700">
+                  Posting Days
+                </Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={setEveryDay}
+                  className={`h-8 ${
+                    (newDeliverable.postingDays || []).length === 7
+                      ? "bg-blue-50 border-blue-500 text-blue-700"
+                      : "bg-white border-gray-200 text-gray-600"
+                  }`}
+                >
+                  {(newDeliverable.postingDays || []).length === 7 ? "✓ " : ""}Everyday
+                </Button>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => (
+                  <div
+                    key={day}
+                    onClick={() => toggleDay(day)}
+                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors ${
+                      (newDeliverable.postingDays || []).includes(day)
+                        ? "bg-blue-50 border-blue-500 text-blue-700"
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {day.substring(0, 3)}
+                  </div>
+                ))}
+              </div>
+              {(newDeliverable.postingDays || []).length > 0 && (
+                <p className="text-xs text-gray-500">
+                  Selected: {(newDeliverable.postingDays || []).join(", ")}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-gray-700">
+                Posting Times ({newDeliverable.videosPerDay || 1} video{(newDeliverable.videosPerDay || 1) > 1 ? 's' : ''} per day)
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                {Array.from({ length: newDeliverable.videosPerDay || 1 }).map((_, index) => (
+                  <div key={index} className="space-y-1">
+                    <Label htmlFor={`postingTime-${index}`} className="text-xs text-gray-600">
+                      Video {index + 1} Time
+                    </Label>
+                    <Input
+                      id={`postingTime-${index}`}
+                      type="time"
+                      value={(newDeliverable.postingTimes || ["10:00"])[index] || "10:00"}
+                      onChange={(e) => updatePostingTime(index, e.target.value)}
+                      className="bg-white border-gray-200 text-gray-900"
+                    />
+                  </div>
+                ))}
+              </div>
+              {(newDeliverable.videosPerDay || 1) > 1 && (
+                <p className="text-xs text-gray-500">
+                  Times: {(newDeliverable.postingTimes || ["10:00"]).join(", ")}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-gray-700">Platforms</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {(["instagram", "tiktok", "facebook", "youtube", "twitter", "linkedin"] as SocialPlatform[]).map((platform) => (
+                  <div
+                    key={platform}
+                    onClick={() => togglePlatform(platform)}
+                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors ${
+                      newDeliverable.platforms?.includes(platform)
+                        ? "bg-blue-50 border-blue-500 text-blue-700"
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {platform}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-gray-700">
+                Description (optional)
+              </Label>
+              <Textarea
+                id="description"
+                value={newDeliverable.description}
+                onChange={(e) =>
+                  setNewDeliverable({ ...newDeliverable, description: e.target.value })
+                }
+                placeholder="Additional notes about this deliverable..."
+                className="bg-white border-gray-200 text-gray-900"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddDeliverableDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddDeliverable}>Add Deliverable</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Client Details Dialog */}
       <ClientDetailsDialog />
     </div>
-  );
+      );
 }

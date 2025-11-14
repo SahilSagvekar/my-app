@@ -35,7 +35,7 @@ model User {
 model Account {
   id                String  @id @default(cuid())
   userId            Int
-  type              String
+  type              String  @default("pending")
   provider          String
   providerAccountId String
   refresh_token     String?  @db.Text
@@ -73,18 +73,22 @@ model Task {
   taskType    String
   status      TaskStatus?  @default(PENDING)
   dueDate     DateTime
+
   assignedTo  Int
   createdBy   Int
   clientId    String?
+
   driveFolderId String?
-  attachments Json?
+  attachments   Json?
+  driveLinks    String[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  driveLinks   String[]
 
-  user   User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
-  client Client?  @relation(fields: [clientId], references: [id])
+  user        User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  client      Client?  @relation(fields: [clientId], references: [id])
 }
+
 
 enum TaskStatus {
   PENDING
@@ -99,27 +103,96 @@ enum TaskStatus {
 model Client {
   id                  String   @id @default(cuid())
   name                String
-  email               String  
+  email               String   
   companyName         String?
   phone               String?
   createdBy           String?
+
+  status              String   @default("active")
+  accountManagerId    String?
+  startDate           DateTime?
+  renewalDate         DateTime?
+  lastActivity        DateTime?
+
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
+  // RELATIONS
   tasks               Task[]
+  monthlyDeliverables MonthlyDeliverable[]
+  brandAssets         BrandAsset[]
+  recurringTasks      RecurringTask[]
+
+  // JSON BLOBS FOR UI
   uploadedFiles       Json?
+  brandGuidelines     Json?
+  projectSettings     Json?
+  billing             Json?
+  postingSchedule     Json?
+  currentProgress     Json?
 
-
-  // Google Drive
+  // GOOGLE DRIVE
   driveFolderId       String?
   rawFootageFolderId  String?
   essentialsFolderId  String?
-
-  // Deliverables
-  longFormVideos      Int      @default(0)
-  shortFormClips      Int      @default(0)
-  socialPosts         Int      @default(0)
-  customDeliverables  String?
 }
+
+
+
+model MonthlyDeliverable {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id])
+
+  type            String
+  quantity        Int
+  videosPerDay    Int
+  postingSchedule String       // weekly | bi-weekly | monthly | custom
+  postingDays     String[]
+  postingTimes    String[]
+  platforms       String[]
+  description     String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  recurringTasks  RecurringTask[]
+}
+
+
+model RecurringTask {
+  id              String   @id @default(cuid())
+
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id])
+
+  deliverableId   String
+  deliverable     MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
+
+  nextRunDate     DateTime
+  lastRunDate     DateTime?
+  scheduleType    String
+  active          Boolean @default(true)
+
+  createdAt       DateTime @default(now())
+}
+
+
+model BrandAsset {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+
+  name        String
+  type        String
+  fileUrl     String
+  fileName    String
+  fileSize    String
+  uploadedAt  DateTime @default(now())
+  uploadedBy  String
+}
+
+
+
 
 

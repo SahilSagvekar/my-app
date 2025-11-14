@@ -1,25 +1,12 @@
-// import { NextResponse } from "next/server";
-// import { google } from "googleapis";
-// import formidable from "formidable";
-// import fs from "fs";
-// import jwt from "jsonwebtoken";
-// import { prisma } from "@/lib/prisma";
-// import { uploadFileToDrive } from "../../../lib/googleDrive";
-
-export const runtime = "nodejs"; // ⛔ force real Node runtime (NO edge)
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { IncomingForm } from "formidable";
 import fs from "fs";
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { uploadFileToDrive } from "../../../lib/googleDrive";
 import { uploadBufferToDrive } from "../../../lib/googleDrive";
-// import { getTokenFromCookies } from "@/lib/authUtils";
-
-// 🚀 Modern Formidable import for App Router
-import formidable from "formidable";
 
 export const config = {
   api: { bodyParser: false },
@@ -32,101 +19,52 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
-// export async function POST(req: Request) {
-//   try {
-//     const token = getTokenFromCookies(req);
-//     if (!token)
-//       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+export async function GET(req: Request) {
+  try {
+    const token = getTokenFromCookies(req);
+    if (!token) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
-//     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-//     if (!["admin", "manager"].includes(decoded.role))
-//       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    const { role, userId } = decoded;
 
-//     const body = await req.json();
-//     const { title, description, taskType, dueDate, assignedTo, clientId } = body;
+    // Admin / manager → get all tasks
+    // Editor / QC / Scheduler → get only assigned tasks
+    const where =
+      ["admin", "manager"].includes(role)
+        ? {}
+        : { assignedTo: Number(userId) };
 
-//     if (!title || !description || !taskType || !dueDate || !assignedTo) {
-//       return NextResponse.json(
-//         { message: "Missing required fields" },
-//         { status: 400 }
-//       );
-//     }
+    const tasks = await prisma.task.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        taskType: true,
+        status: true,
+        dueDate: true,
+        assignedTo: true,
+        createdBy: true,
+        clientId: true,
+        driveLinks: true,
+        createdAt: true,
+      },
+    });
 
-//     // ✅ Validate clientId (optional)
-//     let validClientId = null;
-//     if (clientId) {
-//       const clientExists = await prisma.client.findUnique({
-//         where: { id: clientId },
-//       });
-//       if (clientExists) validClientId = clientId;
-//       else
-//         console.warn(`⚠️ Client ID ${clientId} not found, skipping relation.`);
-//     }
+    return NextResponse.json({ tasks }, { status: 200 });
+  } catch (err: any) {
+    console.error("❌ GET /api/tasks error:", err);
+    return NextResponse.json(
+      { message: "Server error", error: err.message },
+      { status: 500 }
+    );
+  }
+}
 
-//     // ✅ Create task safely
-//     const task = await prisma.task.create({
-//       data: {
-//         title,
-//         description,
-//         taskType,
-//         dueDate: new Date(dueDate),
-//         assignedTo,
-//         createdBy: decoded.userId,
-//         clientId: validClientId, // 👈 only includes if valid
-//       },
-//     });
 
-//     return NextResponse.json(task, { status: 201 });
-//   } catch (err: any) {
-//     console.error("❌ Create task error:", err.message, err.code || "");
-//     return NextResponse.json({ message: "Server error" }, { status: 500 });
-//   }
-// }
-
-// export async function POST(req: Request) {
-//   try {
-//     // Parse body/form data (see note below about file upload setup)
-//     // Example: const { clientId, folderType } = req.body; const file = req.file;
-
-//     // Fetch client’s folder IDs
-//     const body = await req.json();
-//     const { clientId, folderType, file } = body; // extract clientId here
-
-//     if (!clientId) return NextResponse.json({ message: "Missing clientId" }, { status: 400 });
-
-//     const client = await prisma.client.findUnique({
-//       where: { id: clientId },
-//       select: { rawFootageFolderId: true, essentialsFolderId: true },
-//     });
-//     if (!client) return NextResponse.json({ message: "Client not found" }, { status: 404 });
-
-//     // Choose correct subfolder
-//     const folderId =
-//       folderType === "raw footage"
-//         ? client.rawFootageFolderId
-//         : client.essentialsFolderId;
-
-//     if (!folderId) {
-//       return NextResponse.json(
-//         { message: `Folder ID not found for ${folderType}` },
-//         { status: 400 }
-//       );
-//     }
-
-//     // Initialize Drive service
-//     const drive = getDriveService();
-
-//     // Upload file
-//     const fileData = await uploadToDrive({ drive, file, folderId });
-
-//     // Save task (and file reference) to DB as needed
-
-//     return NextResponse.json({ success: true, file: fileData }, { status: 201 });
-//   } catch (err: any) {
-//     console.error("❌ Drive upload error:", err.message, err.code || "");
-//     return NextResponse.json({ message: "Server error" }, { status: 500 });
-//   }
-// }
 
 export async function POST(req: Request) {
   try {

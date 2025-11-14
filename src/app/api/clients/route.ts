@@ -2,216 +2,179 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { createClientFolders } from "@/lib/googleDrive";
+import { createRecurringTasksForClient } from "@/app/api/clients/recurring";
 
-// ✅ Helper to extract token from cookies
+// Helper to extract JWT from cookies
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
+  // You were using authToken here; keep it consistent
   const match = cookieHeader.match(/authToken=([^;]+)/);
   return match ? match[1] : null;
 }
 
-// ✅ GET — Return full structured list for UI
+// ---------- GET /api/clients ----------
+// Returns full structured list tailored for your ClientManagement UI
 export async function GET() {
   try {
     const clients = await prisma.client.findMany({
       orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        companyName: true,
-        phone: true,
-        driveFolderId: true,
-        rawFootageFolderId: true,
-        essentialsFolderId: true,
-        longFormVideos: true,
-        shortFormClips: true,
-        socialPosts: true,
-        customDeliverables: true,
-        createdAt: true,
+      include: {
+        monthlyDeliverables: true,
+        brandAssets: true,
+        recurringTasks: true,
       },
     });
 
-    // ✅ Normalize shape for frontend expectations
     const normalized = clients.map((c) => ({
-  ...c,
-  monthlyDeliverables: {
-    longFormVideos: c.longFormVideos ?? 0,
-    shortFormClips: c.shortFormClips ?? 0,
-    socialPosts: c.socialPosts ?? 0,
-    customDeliverables: c.customDeliverables ?? "",
-  },
-  // ✅ Safe defaults
-  currentProgress: {
-    completed: 0,
-    total: 0,
-  },
-  lastActivity: c.createdAt,
-  brandAssets: [], // 👈 ensures .length always exists
-  brandGuidelines: {
-    primaryColors: [],
-    secondaryColors: [],
-    fonts: [],
-    logoUsage: "",
-    toneOfVoice: "",
-    brandValues: "",
-    targetAudience: "",
-    contentStyle: "",
-  },
-  projectSettings: {
-    defaultVideoLength: "60 seconds",
-    preferredPlatforms: [],
-    contentApprovalRequired: false,
-    quickTurnaroundAvailable: false,
-  },
-}));
+      ...c,
 
+      // Default-safe fields for the UI
+      currentProgress: c.currentProgress ?? { completed: 0, total: 0 },
+      brandGuidelines: c.brandGuidelines ?? {
+        primaryColors: [],
+        secondaryColors: [],
+        fonts: [],
+        logoUsage: "",
+        toneOfVoice: "",
+        brandValues: "",
+        targetAudience: "",
+        contentStyle: "",
+      },
+      projectSettings: c.projectSettings ?? {
+        defaultVideoLength: "60 seconds",
+        preferredPlatforms: [],
+        contentApprovalRequired: false,
+        quickTurnaroundAvailable: false,
+      },
+      billing: c.billing ?? {
+        monthlyFee: "",
+        billingFrequency: "monthly",
+        billingDay: 1,
+        paymentMethod: "credit-card",
+        nextBillingDate: "",
+        notes: "",
+      },
+      postingSchedule: c.postingSchedule ?? {},
+      monthlyDeliverables: c.monthlyDeliverables ?? [],
+      brandAssets: c.brandAssets ?? [],
+    }));
 
-    console.log("✅ Clients fetched:", normalized.length);
     return NextResponse.json({ clients: normalized });
-  } catch (error) {
-    console.error("❌ Error fetching clients:", error);
+  } catch (err) {
+    console.error("❌ GET /clients failed:", err);
     return NextResponse.json(
-      { success: false, message: "Failed to fetch clients" },
+      { success: false, message: "Failed to load clients" },
       { status: 500 }
     );
   }
 }
 
-// export async function GET() {
-//   try {
-//     const clients = await prisma.client.findMany({
-//       orderBy: { name: "asc" },
-//     });
-
-//     // 🧠 Normalize to ensure frontend never breaks
-//     const normalized = clients.map((c) => ({
-//       ...c,
-//       monthlyDeliverables: {
-//         longFormVideos: c.longFormVideos ?? 0,
-//         shortFormClips: c.shortFormClips ?? 0,
-//         socialPosts: c.socialPosts ?? 0,
-//         customDeliverables: c.customDeliverables ?? "",
-//       },
-//       currentProgress: {
-//         completed: c.completedTasks ?? 0,
-//         total: c.totalTasks ?? 0,
-//       },
-//       brandAssets: c.brandAssets ?? [],
-//       brandGuidelines: c.brandGuidelines ?? {
-//         primaryColors: [],
-//         secondaryColors: [],
-//         fonts: [],
-//         logoUsage: "",
-//         toneOfVoice: "",
-//         brandValues: "",
-//         targetAudience: "",
-//         contentStyle: "",
-//       },
-//       projectSettings: c.projectSettings ?? {
-//         defaultVideoLength: "60 seconds",
-//         preferredPlatforms: [],
-//         contentApprovalRequired: false,
-//         quickTurnaroundAvailable: false,
-//       },
-//     }));
-
-//     return NextResponse.json({ clients: normalized });
-//   } catch (error) {
-//     console.error("Error fetching clients:", error);
-//     return NextResponse.json(
-//       { success: false, message: "Failed to fetch clients" },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-
-// ✅ POST — Create new client with Drive folders
+// ---------- POST /api/clients ----------
+// Accepts full client payload from your Add Client dialog
 export async function POST(req: Request) {
   try {
     const token = getTokenFromCookies(req);
-    if (!token) {
+    if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    const { role, userId } = decoded;
-
-    if (!["admin", "manager"].includes(role?.toLowerCase())) {
+    if (!["admin", "manager"].includes(decoded.role))
       return NextResponse.json(
-        { message: "Only admins or managers can add clients" },
+        { message: "Permission denied" },
         { status: 403 }
       );
-    }
 
     const body = await req.json();
     const {
       name,
       email,
-      companyName,
+      company,
       phone,
-      longFormVideos,
-      shortFormClips,
-      socialPosts,
-      customDeliverables,
-    } = body || {};
+      accountManagerId,
 
-    if (!name || !email) {
+      // Big UI chunks
+      monthlyDeliverables,
+      brandGuidelines,
+      projectSettings,
+      billing,
+      postingSchedule,
+    } = body;
+
+    if (!name || !email)
       return NextResponse.json(
-        { message: "Client name and email are required" },
+        { message: "Name and email required" },
         { status: 400 }
       );
-    }
 
-    // 🧠 Create Google Drive folders
-    const driveFolders = await createClientFolders(name);
+    // STEP 1 — Create Drive Folders
+    const folders = await createClientFolders(name);
 
-    // 🧩 Save client to DB
-    const newClient = await prisma.client.create({
+    // STEP 2 — Create Client
+    const client = await prisma.client.create({
       data: {
         name,
         email,
-        companyName: companyName || null,
-        phone: phone || null,
-        createdBy: String(userId), // ✅ Fix: ensure type matches Prisma schema
+        companyName: company || null,
+        phone,
+        createdBy: decoded.userId.toString(),
 
-        driveFolderId: driveFolders.mainFolderId,
-        rawFootageFolderId: driveFolders.rawFolderId,
-        essentialsFolderId: driveFolders.essentialsFolderId,
+        accountManagerId,
+        status: "active",
+        startDate: new Date(),
+        renewalDate: null,
+        lastActivity: new Date(),
 
-        longFormVideos: Number(longFormVideos) || 0,
-        shortFormClips: Number(shortFormClips) || 0,
-        socialPosts: Number(socialPosts) || 0,
-        customDeliverables: customDeliverables || "",
+        driveFolderId: folders.mainFolderId,
+        rawFootageFolderId: folders.rawFolderId,
+        essentialsFolderId: folders.essentialsFolderId,
+
+        monthlyDeliverables: undefined, // Don't store raw JSON here
+        brandAssets: undefined,
+
+        brandGuidelines,
+        projectSettings,
+        billing,
+        postingSchedule,
+
+        currentProgress: { completed: 0, total: 0 },
       },
     });
 
-    // ✅ Return the created client in the same format the UI expects
-    const clientResponse = {
-      ...newClient,
-      monthlyDeliverables: {
-        longFormVideos: newClient.longFormVideos,
-        shortFormClips: newClient.shortFormClips,
-        socialPosts: newClient.socialPosts,
-        customDeliverables: newClient.customDeliverables,
-      },
-    };
+    // STEP 3 — Insert deliverables into SQL
+    const createdDeliverables = await Promise.all(
+      (monthlyDeliverables || []).map((d: any) =>
+        prisma.monthlyDeliverable.create({
+          data: {
+            clientId: client.id,
+            type: d.type,
+            quantity: d.quantity,
+            videosPerDay: d.videosPerDay,
+            postingSchedule: d.postingSchedule,
+            postingDays: d.postingDays,
+            postingTimes: d.postingTimes,
+            platforms: d.platforms,
+            description: d.description,
+          },
+        })
+      )
+    );
 
-    return NextResponse.json({ client: clientResponse }, { status: 201 });
-  } catch (err: any) {
-    console.error("❌ Create client error:", err);
-
-    if (err.code === "P2002") {
-      return NextResponse.json(
-        { message: "A client with this email already exists" },
-        { status: 409 }
-      );
-    }
+    // STEP 4 — Create RecurringTask entries
+    await createRecurringTasksForClient(client.id);
 
     return NextResponse.json(
-      { message: "Server error", error: err.message || String(err) },
+      {
+        success: true,
+        client,
+        deliverables: createdDeliverables,
+      },
+      { status: 201 }
+    );
+  } catch (err: any) {
+    console.error("❌ POST /clients error:", err);
+    return NextResponse.json(
+      { success: false, message: err.message },
       { status: 500 }
     );
   }
