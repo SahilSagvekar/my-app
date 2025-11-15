@@ -272,7 +272,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="rawFootage">Raw Footage</SelectItem>
-                <SelectItem value="essentials">Essentials</SelectItem>
+                <SelectItem value="essentials">Elements</SelectItem>
               </SelectContent>
             </Select>
             {errors.folderType && <p className="text-sm text-destructive">{errors.folderType}</p>}

@@ -29,8 +29,11 @@ export async function GET() {
     const normalized = clients.map((c) => ({
       ...c,
 
-      // Default-safe fields for the UI
-      currentProgress: c.currentProgress ?? { completed: 0, total: 0 },
+      monthlyDeliverables: c.monthlyDeliverables ?? [],
+      brandAssets: c.brandAssets ?? [],
+      recurringTasks: c.recurringTasks ?? [],
+
+      // JSON defaults
       brandGuidelines: c.brandGuidelines ?? {
         primaryColors: [],
         secondaryColors: [],
@@ -41,12 +44,14 @@ export async function GET() {
         targetAudience: "",
         contentStyle: "",
       },
+
       projectSettings: c.projectSettings ?? {
         defaultVideoLength: "60 seconds",
         preferredPlatforms: [],
         contentApprovalRequired: false,
         quickTurnaroundAvailable: false,
       },
+
       billing: c.billing ?? {
         monthlyFee: "",
         billingFrequency: "monthly",
@@ -55,16 +60,18 @@ export async function GET() {
         nextBillingDate: "",
         notes: "",
       },
+
       postingSchedule: c.postingSchedule ?? {},
-      monthlyDeliverables: c.monthlyDeliverables ?? [],
-      brandAssets: c.brandAssets ?? [],
+
+      currentProgress: c.currentProgress ?? { completed: 0, total: 0 },
     }));
 
     return NextResponse.json({ clients: normalized });
+
   } catch (err) {
-    console.error("❌ GET /clients failed:", err);
+    console.error("GET /clients error:", err);
     return NextResponse.json(
-      { success: false, message: "Failed to load clients" },
+      { message: "Failed to load clients" },
       { status: 500 }
     );
   }

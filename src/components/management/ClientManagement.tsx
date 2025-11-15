@@ -1,10 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
@@ -26,12 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "../ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import {
   Plus,
   Search,
@@ -69,9 +59,20 @@ import { Checkbox } from "../ui/checkbox";
 import { toast } from "sonner";
 import { globalTaskManager } from "../workflow/GlobalTaskManager";
 
-type SocialPlatform = "instagram" | "tiktok" | "facebook" | "youtube" | "twitter" | "linkedin";
+type SocialPlatform =
+  | "instagram"
+  | "tiktok"
+  | "facebook"
+  | "youtube"
+  | "twitter"
+  | "linkedin";
 
-type DeliverableType = "Short Form Videos" | "Long Form Videos" | "Square Form Videos" | "Snapchat Show Episode" | "Social/Hard Post";
+type DeliverableType =
+  | "Short Form Videos"
+  | "Long Form Videos"
+  | "Square Form Videos"
+  | "Snapchat Show Episode"
+  | "Social/Hard Post";
 
 type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom";
 
@@ -90,13 +91,7 @@ interface MonthlyDeliverable {
 interface BrandAsset {
   id: string;
   name: string;
-  type:
-    | "logo"
-    | "color-palette"
-    | "font"
-    | "template"
-    | "guideline"
-    | "other";
+  type: "logo" | "color-palette" | "font" | "template" | "guideline" | "other";
   fileUrl: string;
   fileName: string;
   fileSize: string;
@@ -108,7 +103,7 @@ interface BrandAsset {
 interface Client {
   id: string;
   name: string;
-  company: string;
+  companyName: string;
   email: string;
   phone: string;
   accountManager: string;
@@ -191,8 +186,7 @@ const mockBrandAssets: BrandAsset[] = [
     fileSize: "24 KB",
     uploadedAt: "2024-08-15",
     uploadedBy: "Alex Chen",
-    description:
-      "Main logo for all digital and print materials",
+    description: "Main logo for all digital and print materials",
   },
   {
     id: "asset-002",
@@ -222,7 +216,7 @@ const mockClients: Client[] = [
   {
     id: "client-001",
     name: "Sarah Johnson",
-    company: "TechStartup Inc.",
+    companyName: "TechStartup Inc.",
     email: "sarah@techstartup.com",
     phone: "+1 (555) 123-4567",
     accountManager: "Alex Chen",
@@ -240,7 +234,7 @@ const mockClients: Client[] = [
         postingSchedule: "weekly",
         postingDays: ["Monday"],
         postingTimes: ["10:00"],
-        description: "Weekly thought leadership content"
+        description: "Weekly thought leadership content",
       },
       {
         id: "del-002",
@@ -251,8 +245,8 @@ const mockClients: Client[] = [
         postingSchedule: "bi-weekly",
         postingDays: ["Tuesday", "Thursday"],
         postingTimes: ["14:00", "16:00"],
-        description: "Bi-weekly tips and quick insights"
-      }
+        description: "Bi-weekly tips and quick insights",
+      },
     ],
     currentProgress: {
       completed: 22,
@@ -268,10 +262,8 @@ const mockClients: Client[] = [
         "Logo should maintain minimum clear space of 2x the height of the mark",
       toneOfVoice: "Professional, innovative, approachable",
       brandValues: "Innovation, reliability, customer-centric",
-      targetAudience:
-        "Tech professionals, startup founders, developers",
-      contentStyle:
-        "Clean, modern, data-driven with human touch",
+      targetAudience: "Tech professionals, startup founders, developers",
+      contentStyle: "Clean, modern, data-driven with human touch",
     },
     projectSettings: {
       defaultVideoLength: "60-90 seconds",
@@ -283,39 +275,39 @@ const mockClients: Client[] = [
       instagram: {
         weekdays: "10am-12pm, 6-8pm",
         weekends: "11am-1pm",
-        bestTimes: "Tue-Thu 6-8pm"
+        bestTimes: "Tue-Thu 6-8pm",
       },
       tiktok: {
         weekdays: "7-9am, 8-10pm",
         weekends: "10am-12pm",
-        bestTimes: "Wed-Fri 8-9pm"
+        bestTimes: "Wed-Fri 8-9pm",
       },
       youtube: {
         weekdays: "3-5pm",
         weekends: "10am-12pm",
-        bestTimes: "Thu-Fri 3-4pm"
+        bestTimes: "Thu-Fri 3-4pm",
       },
       linkedin: {
         weekdays: "8-10am, 12-2pm",
         weekends: "N/A - B2B audience",
-        bestTimes: "Tue-Wed 8-9am"
+        bestTimes: "Tue-Wed 8-9am",
       },
       twitter: {
         weekdays: "9am-12pm, 5-7pm",
         weekends: "11am-1pm",
-        bestTimes: "Weekdays 9-10am"
+        bestTimes: "Weekdays 9-10am",
       },
       facebook: {
         weekdays: "1-3pm, 7-9pm",
         weekends: "12-2pm",
-        bestTimes: "Wed-Thu 1-2pm"
-      }
+        bestTimes: "Wed-Thu 1-2pm",
+      },
     },
   },
   {
     id: "client-002",
     name: "Michael Rodriguez",
-    company: "EcoFriendly Solutions",
+    companyName: "EcoFriendly Solutions",
     email: "michael@ecofriendly.com",
     phone: "+1 (555) 987-6543",
     accountManager: "Sarah Wilson",
@@ -333,7 +325,7 @@ const mockClients: Client[] = [
         postingSchedule: "bi-weekly",
         postingDays: ["1st", "15th"],
         postingTimes: ["12:00"],
-        description: "Bi-monthly educational content"
+        description: "Bi-monthly educational content",
       },
       {
         id: "del-004",
@@ -344,8 +336,8 @@ const mockClients: Client[] = [
         postingSchedule: "custom",
         postingDays: ["Monday", "Wednesday", "Friday"],
         postingTimes: ["09:00"],
-        description: "Regular social media posts"
-      }
+        description: "Regular social media posts",
+      },
     ],
     currentProgress: {
       completed: 18,
@@ -357,15 +349,11 @@ const mockClients: Client[] = [
       primaryColors: ["#059669", "#047857", "#10B981"],
       secondaryColors: ["#6B7280", "#9CA3AF", "#D1D5DB"],
       fonts: ["Poppins", "Lato"],
-      logoUsage:
-        "Always use on light backgrounds, minimum size 24px",
+      logoUsage: "Always use on light backgrounds, minimum size 24px",
       toneOfVoice: "Caring, sustainable, educational",
-      brandValues:
-        "Environmental responsibility, transparency, community",
-      targetAudience:
-        "Environmentally conscious consumers, families",
-      contentStyle:
-        "Natural, authentic, educational with emotional connection",
+      brandValues: "Environmental responsibility, transparency, community",
+      targetAudience: "Environmentally conscious consumers, families",
+      contentStyle: "Natural, authentic, educational with emotional connection",
     },
     projectSettings: {
       defaultVideoLength: "30-60 seconds",
@@ -377,24 +365,24 @@ const mockClients: Client[] = [
       instagram: {
         weekdays: "11am-1pm, 5-7pm",
         weekends: "10am-2pm",
-        bestTimes: "Daily 11am-12pm"
+        bestTimes: "Daily 11am-12pm",
       },
       facebook: {
         weekdays: "12-2pm, 6-8pm",
         weekends: "11am-3pm",
-        bestTimes: "Weekdays 12-1pm"
+        bestTimes: "Weekdays 12-1pm",
       },
       tiktok: {
         weekdays: "6-9am, 7-10pm",
         weekends: "9am-12pm",
-        bestTimes: "Daily 7-9pm"
-      }
+        bestTimes: "Daily 7-9pm",
+      },
     },
   },
   {
     id: "client-003",
     name: "Emily Davis",
-    company: "Fashion Forward",
+    companyName: "Fashion Forward",
     email: "emily@fashionforward.com",
     phone: "+1 (555) 456-7890",
     accountManager: "David Park",
@@ -412,7 +400,7 @@ const mockClients: Client[] = [
         postingSchedule: "custom",
         postingDays: ["Monday", "Wednesday", "Friday", "Sunday"],
         postingTimes: ["10:00", "14:00", "18:00"],
-        description: "Fashion tips and trends"
+        description: "Fashion tips and trends",
       },
       {
         id: "del-006",
@@ -423,8 +411,8 @@ const mockClients: Client[] = [
         postingSchedule: "weekly",
         postingDays: ["Friday"],
         postingTimes: ["15:00"],
-        description: "Weekly lookbook and styling guides"
-      }
+        description: "Weekly lookbook and styling guides",
+      },
     ],
     currentProgress: {
       completed: 35,
@@ -436,14 +424,11 @@ const mockClients: Client[] = [
       primaryColors: ["#EC4899", "#DB2777", "##F472B6"],
       secondaryColors: ["#1F2937", "#374151", "#6B7280"],
       fonts: ["Montserrat", "Playfair Display"],
-      logoUsage:
-        "Versatile logo system for various applications",
+      logoUsage: "Versatile logo system for various applications",
       toneOfVoice: "Trendy, confident, inspiring",
       brandValues: "Style, individuality, empowerment",
-      targetAudience:
-        "Fashion-forward individuals, 18-35 years old",
-      contentStyle:
-        "Bold, vibrant, trend-focused with aspirational messaging",
+      targetAudience: "Fashion-forward individuals, 18-35 years old",
+      contentStyle: "Bold, vibrant, trend-focused with aspirational messaging",
     },
     projectSettings: {
       defaultVideoLength: "15-30 seconds",
@@ -455,13 +440,13 @@ const mockClients: Client[] = [
       instagram: {
         weekdays: "9am-11am, 6-9pm",
         weekends: "11am-4pm",
-        bestTimes: "Daily 6-7pm"
+        bestTimes: "Daily 6-7pm",
       },
       tiktok: {
         weekdays: "7-10am, 8-11pm",
         weekends: "10am-2pm",
-        bestTimes: "Daily 8-10pm"
-      }
+        bestTimes: "Daily 8-10pm",
+      },
     },
   },
 ];
@@ -477,20 +462,15 @@ const mockAccountManagers = [
 export function ClientManagement() {
   const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState<string>("all");
-  const [managerFilter, setManagerFilter] =
-    useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [managerFilter, setManagerFilter] = useState<string>("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingClient, setEditingClient] =
-    useState<Client | null>(null);
-  const [selectedClient, setSelectedClient] =
-    useState<Client | null>(null);
-  const [showClientDetailsDialog, setShowClientDetailsDialog] =
-    useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [showClientDetailsDialog, setShowClientDetailsDialog] = useState(false);
   const [newClient, setNewClient] = useState<Partial<Client>>({
     name: "",
-    company: "",
+    companyName: "",
     email: "",
     phone: "",
     accountManagerId: "",
@@ -517,7 +497,9 @@ export function ClientManagement() {
     },
   });
 
-  const [newDeliverable, setNewDeliverable] = useState<Partial<MonthlyDeliverable>>({
+  const [newDeliverable, setNewDeliverable] = useState<
+    Partial<MonthlyDeliverable>
+  >({
     type: "Short Form Videos",
     quantity: 1,
     videosPerDay: 1,
@@ -528,70 +510,56 @@ export function ClientManagement() {
     description: "",
   });
 
-  const [showAddDeliverableDialog, setShowAddDeliverableDialog] = useState(false);
+  const [showAddDeliverableDialog, setShowAddDeliverableDialog] =
+    useState(false);
 
   const filteredClients = clients.filter((client) => {
     const matchesSearch =
-      client.name
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      client.company
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      client.email
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "all" || client.status === statusFilter;
     const matchesManager =
-      managerFilter === "all" ||
-      client.accountManagerId === managerFilter;
+      managerFilter === "all" || client.accountManagerId === managerFilter;
 
     return matchesSearch && matchesStatus && matchesManager;
   });
 
-//   useEffect(() => {
-//   async function loadClients() {
-//     try {
-//       const res = await fetch("/api/clients");
-//       const data = await res.json();
-//       setClients(Array.isArray(data.clients) ? data.clients : []);
-//     } catch (err) {
-//       console.error("Failed to load clients", err);
-//     }
-//   }
+  //   useEffect(() => {
+  //   async function loadClients() {
+  //     try {
+  //       const res = await fetch("/api/clients");
+  //       const data = await res.json();
+  //       setClients(Array.isArray(data.clients) ? data.clients : []);
+  //     } catch (err) {
+  //       console.error("Failed to load clients", err);
+  //     }
+  //   }
 
-//   loadClients();
-// }, []);
+  //   loadClients();
+  // }, []);
 
+  useEffect(() => {
+    async function loadClients() {
+      try {
+        const res = await fetch("/api/clients");
+        const data = await res.json();
 
-useEffect(() => {
-  async function loadClients() {
-    try {
-      const res = await fetch("/api/clients");
-      const data = await res.json();
-
-      setClients(Array.isArray(data.clients) ? data.clients : []);
-    } catch (err) {
-      console.error("Failed to load clients", err);
-      setClients([]);
+        setClients(Array.isArray(data.clients) ? data.clients : []);
+      } catch (err) {
+        console.error("Failed to load clients", err);
+        setClients([]);
+      }
     }
-  }
 
-  loadClients();
-}, []);
-
-
-
-
-
+    loadClients();
+  }, []);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
-        return (
-          <CheckCircle className="h-4 w-4 text-green-500" />
-        );
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
       case "pending":
         return <Clock className="h-4 w-4 text-yellow-500" />;
       case "expired":
@@ -614,10 +582,7 @@ useEffect(() => {
     }
   };
 
-  const getProgressPercentage = (
-    completed: number,
-    total: number,
-  ) => {
+  const getProgressPercentage = (completed: number, total: number) => {
     return Math.round((completed / total) * 100);
   };
 
@@ -683,9 +648,17 @@ useEffect(() => {
   };
 
   const setEveryDay = () => {
-    const allDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const allDays = [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ];
     const currentDays = newDeliverable.postingDays || [];
-    
+
     // If all days are selected, deselect all. Otherwise, select all.
     if (currentDays.length === 7) {
       setNewDeliverable({
@@ -713,21 +686,26 @@ useEffect(() => {
   const syncPostingTimesWithVideosPerDay = (videosPerDay: number) => {
     const currentTimes = newDeliverable.postingTimes || ["10:00"];
     const newTimes = [...currentTimes];
-    
+
     // If we need more times, add default ones
     while (newTimes.length < videosPerDay) {
       // Add times spaced 2 hours apart
       const lastTime = newTimes[newTimes.length - 1];
       const [hours, minutes] = lastTime.split(":").map(Number);
       const newHours = (hours + 2) % 24;
-      newTimes.push(`${String(newHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`);
+      newTimes.push(
+        `${String(newHours).padStart(2, "0")}:${String(minutes).padStart(
+          2,
+          "0"
+        )}`
+      );
     }
-    
+
     // If we have too many times, trim
     while (newTimes.length > videosPerDay) {
       newTimes.pop();
     }
-    
+
     setNewDeliverable({
       ...newDeliverable,
       videosPerDay,
@@ -736,7 +714,11 @@ useEffect(() => {
   };
 
   const handleAddDeliverable = () => {
-    if (!newDeliverable.quantity || !newDeliverable.platforms || newDeliverable.platforms.length === 0) {
+    if (
+      !newDeliverable.quantity ||
+      !newDeliverable.platforms ||
+      newDeliverable.platforms.length === 0
+    ) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -755,10 +737,7 @@ useEffect(() => {
 
     setNewClient((prev) => ({
       ...prev,
-      monthlyDeliverables: [
-        ...(prev.monthlyDeliverables || []),
-        deliverable,
-      ],
+      monthlyDeliverables: [...(prev.monthlyDeliverables || []), deliverable],
     }));
 
     // Reset form
@@ -812,54 +791,72 @@ useEffect(() => {
 
     deliverables.forEach((deliverable) => {
       const videosPerDay = deliverable.videosPerDay || 1;
-      
+
       // For each deliverable, create tasks based on quantity
       // The quantity represents the total videos for the month
       // videosPerDay tells us how many videos go out on each posting day
       const totalPostingDays = Math.ceil(deliverable.quantity / videosPerDay);
-      
+
       for (let dayIndex = 0; dayIndex < totalPostingDays; dayIndex++) {
         // Calculate due dates based on posting schedule
         let dueDate = new Date(currentYear, currentMonth, 1);
-        
+
         if (deliverable.postingSchedule === "weekly") {
           // Space tasks weekly throughout the month
-          dueDate.setDate(dueDate.getDate() + (dayIndex * 7));
+          dueDate.setDate(dueDate.getDate() + dayIndex * 7);
         } else if (deliverable.postingSchedule === "bi-weekly") {
           // Space tasks bi-weekly
-          dueDate.setDate(dueDate.getDate() + (dayIndex * 14));
+          dueDate.setDate(dueDate.getDate() + dayIndex * 14);
         } else if (deliverable.postingSchedule === "monthly") {
           // All tasks due at beginning of month
           dueDate.setDate(dueDate.getDate() + dayIndex);
         } else {
           // Custom - distribute evenly
-          const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+          const daysInMonth = new Date(
+            currentYear,
+            currentMonth + 1,
+            0
+          ).getDate();
           const spacing = Math.floor(daysInMonth / deliverable.quantity);
-          dueDate.setDate(dueDate.getDate() + (dayIndex * spacing));
+          dueDate.setDate(dueDate.getDate() + dayIndex * spacing);
         }
 
         // Set due date 5 days before posting to allow for workflow
         dueDate.setDate(dueDate.getDate() - 5);
 
         // Determine task type based on deliverable type
-        const taskType = (deliverable.type === 'Long Form Videos' || deliverable.type === 'Square Form Videos' || deliverable.type === 'Snapchat Show Episode') ? 'video' : 'design';
-        
+        const taskType =
+          deliverable.type === "Long Form Videos" ||
+          deliverable.type === "Square Form Videos" ||
+          deliverable.type === "Snapchat Show Episode"
+            ? "video"
+            : "design";
+
         // Determine estimated hours based on deliverable type
-        const estimatedHours = deliverable.type === 'Long Form Videos' ? '4' : 
-                              deliverable.type === 'Snapchat Show Episode' ? '3' : '2';
-        
+        const estimatedHours =
+          deliverable.type === "Long Form Videos"
+            ? "4"
+            : deliverable.type === "Snapchat Show Episode"
+            ? "3"
+            : "2";
+
         // Create the initial editor task
-        const platformsText = deliverable.platforms.join(', ');
+        const platformsText = deliverable.platforms.join(", ");
         const task = taskManager.createTask({
           title: `${deliverable.type} #${i + 1} - ${clientName}`,
-          description: `${deliverable.type} deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${deliverable.postingSchedule}\\nPosting Time: ${deliverable.defaultPostingTime}\\n\\n${deliverable.description || 'No additional notes'}`,
+          description: `${
+            deliverable.type
+          } deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${
+            deliverable.postingSchedule
+          }\\n\\n${deliverable.description || "No additional notes"}`,
+          // description: `${deliverable.type} deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${deliverable.postingSchedule}\\nPosting Time: ${deliverable.defaultPostingTime}\\n\\n${deliverable.description || 'No additional notes'}`,
           type: taskType,
-          assignedTo: 'editor',
-          dueDate: dueDate.toISOString().split('T')[0],
+          assignedTo: "editor",
+          dueDate: dueDate.toISOString().split("T")[0],
           estimatedHours: estimatedHours,
           projectId: clientId,
-          createdBy: 'admin',
-          createdByName: 'Admin',
+          createdBy: "admin",
+          createdByName: "Admin",
           taskTypeLabel: `${deliverable.type} - ${platformsText}`,
         });
 
@@ -872,8 +869,14 @@ useEffect(() => {
 
   const handleSaveClient = async () => {
   try {
-    const res = await fetch("/api/clients", {
-      method: "POST",
+    const url = editingClient 
+      ? `/api/clients/${editingClient.id}`
+      : `/api/clients`;
+
+    const method = editingClient ? "PUT" : "POST";
+
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newClient),
     });
@@ -881,17 +884,25 @@ useEffect(() => {
     const data = await res.json();
 
     if (!res.ok) {
-      toast.error(data.message || "Failed to create client");
+      toast.error(data.message || "Failed to save client");
       return;
     }
 
-    toast.success("Client created successfully!");
-    setClients((prev) => [...prev, data.client]);
+    toast.success(editingClient ? "Client updated" : "Client created");
+
+    // Update UI list immediately
+    if (editingClient) {
+      setClients(prev =>
+        prev.map(c => (c.id === editingClient.id ? data.updated : c))
+      );
+    } else {
+      setClients(prev => [...prev, data.client]);
+    }
 
     setShowAddDialog(false);
     setEditingClient(null);
   } catch (err) {
-    console.error("Error saving client:", err);
+    console.error("Save client failed:", err);
     toast.error("Server error");
   }
 };
@@ -901,80 +912,114 @@ useEffect(() => {
     setEditingClient(client);
     setNewClient({
       name: client.name,
-      company: client.company,
+      companyName: client.companyName,
       email: client.email,
       phone: client.phone,
       accountManagerId: client.accountManagerId,
       startDate: client.startDate,
       renewalDate: client.renewalDate,
       status: client.status,
-      monthlyDeliverables: client.monthlyDeliverables,
+      monthlyDeliverables: client.monthlyDeliverables ?? [],
       billing: client.billing,
-      brandGuidelines: client.brandGuidelines,
-      projectSettings: client.projectSettings,
+      brandGuidelines: client.brandGuidelines ?? {},
+      projectSettings: client.projectSettings ?? {},
     });
     setShowAddDialog(true);
   };
 
-  const handleDeleteClient = (clientId: string) => {
-    if (
-      confirm("Are you sure you want to delete this client?")
-    ) {
-      setClients((prev) =>
-        prev.filter((client) => client.id !== clientId),
-      );
-      toast.success("Client deleted");
-    }
-  };
+const handleDeleteClient = async (clientId: string) => {
+  const confirmed = confirm("Are you sure you want to delete this client?");
+  if (!confirmed) return;
 
-  const handleViewClientDetails = (client: Client) => {
-    setSelectedClient(client);
+  try {
+    const res = await fetch(`/api/clients/${clientId}`, {
+      method: "DELETE",
+    });
+
+    if (!res.ok) {
+      toast.error("Failed to delete client");
+      return;
+    }
+
+    // Remove from client list
+    setClients(prev => prev.filter(c => c.id !== clientId));
+
+    // If the user is currently viewing this client, close the dialog
+    if (selectedClient?.id === clientId) {
+      setShowClientDetailsDialog(false);
+      setSelectedClient(null);
+    }
+
+    toast.success("Client deleted");
+  } catch (err) {
+    console.error("DELETE failed:", err);
+    toast.error("Server error");
+  }
+};
+
+
+
+  const handleViewClientDetails = async (client: Client) => {
+  try {
+    const res = await fetch(`/api/clients/${client.id}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      toast.error("Failed to load client details");
+      return;
+    }
+
+    setSelectedClient(data.client);
     setShowClientDetailsDialog(true);
-  };
+  } catch (err) {
+    console.error("Failed to fetch client:", err);
+    toast.error("Server error");
+  }
+};
+
+
+  // const calculateTotalDeliverables = (
+  //   deliverables: MonthlyDeliverable[],
+  // ) => {
+  //   return deliverables.reduce((sum, d) => sum + d.quantity, 0);
+  // };
 
   const calculateTotalDeliverables = (
-    deliverables: MonthlyDeliverable[],
+    deliverables: MonthlyDeliverable[] | null | undefined
   ) => {
-    return deliverables.reduce((sum, d) => sum + d.quantity, 0);
+    if (!Array.isArray(deliverables)) return 0;
+    return deliverables.reduce((sum, d) => sum + (d?.quantity ?? 0), 0);
   };
 
-  const handleFileUpload = (
-    clientId: string,
-    files: FileList | null,
-  ) => {
+  const handleFileUpload = (clientId: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     // In a real app, you would upload to a file storage service
     console.log("Uploading files for client:", clientId, files);
 
     // Mock file upload
-    const mockAssets: BrandAsset[] = Array.from(files).map(
-      (file, index) => ({
-        id: `asset-${Date.now()}-${index}`,
-        name: file.name.split(".")[0],
-        type: file.type.includes("image") ? "logo" : "other",
-        fileUrl: URL.createObjectURL(file),
-        fileName: file.name,
-        fileSize: `${Math.round(file.size / 1024)} KB`,
-        uploadedAt: new Date().toISOString().split("T")[0],
-        uploadedBy: "Current User",
-      }),
-    );
+    const mockAssets: BrandAsset[] = Array.from(files).map((file, index) => ({
+      id: `asset-${Date.now()}-${index}`,
+      name: file.name.split(".")[0],
+      type: file.type.includes("image") ? "logo" : "other",
+      fileUrl: URL.createObjectURL(file),
+      fileName: file.name,
+      fileSize: `${Math.round(file.size / 1024)} KB`,
+      uploadedAt: new Date().toISOString().split("T")[0],
+      uploadedBy: "Current User",
+    }));
 
     setClients((prev) =>
       prev.map((client) =>
         client.id === clientId
           ? {
               ...client,
-              brandAssets: [
-                ...client.brandAssets,
-                ...mockAssets,
-              ],
+              brandAssets: [...client.brandAssets, ...mockAssets],
             }
-          : client,
-      ),
+          : client
+      )
     );
-    
+
     toast.success(`${mockAssets.length} file(s) uploaded`);
   };
 
@@ -989,7 +1034,7 @@ useEffect(() => {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white border-gray-200">
           <DialogHeader>
             <DialogTitle className="text-gray-900">
-              {selectedClient.company} - Client Details
+              {selectedClient.companyName} - Client Details
             </DialogTitle>
             <DialogDescription className="text-gray-600">
               Complete client information and monthly deliverables
@@ -999,7 +1044,9 @@ useEffect(() => {
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="grid w-full grid-cols-4 bg-gray-100">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="deliverables">Monthly Deliverables</TabsTrigger>
+              <TabsTrigger value="deliverables">
+                Monthly Deliverables
+              </TabsTrigger>
               <TabsTrigger value="brand">Brand Assets</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
@@ -1007,7 +1054,9 @@ useEffect(() => {
             <TabsContent value="overview" className="space-y-4">
               <Card className="bg-white border-gray-200">
                 <CardHeader>
-                  <CardTitle className="text-gray-900">Contact Information</CardTitle>
+                  <CardTitle className="text-gray-900">
+                    Contact Information
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -1021,7 +1070,7 @@ useEffect(() => {
                     <Label className="text-gray-500">Company</Label>
                     <div className="flex items-center gap-2 text-gray-900">
                       <Building className="h-4 w-4" />
-                      {selectedClient.company}
+                      {selectedClient.companyName}
                     </div>
                   </div>
                   <div className="space-y-1">
@@ -1073,7 +1122,7 @@ useEffect(() => {
                         style={{
                           width: `${getProgressPercentage(
                             selectedClient.currentProgress.completed,
-                            selectedClient.currentProgress.total,
+                            selectedClient.currentProgress.total
                           )}%`,
                         }}
                       />
@@ -1095,58 +1144,77 @@ useEffect(() => {
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {selectedClient.monthlyDeliverables.map((deliverable) => (
-                    <div
-                      key={deliverable.id}
-                      className="p-4 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          {getDeliverableTypeIcon(deliverable.type)}
-                          <div>
-                            <div className="text-gray-900">{deliverable.type}</div>
-                            <div className="text-sm text-gray-600">
-                              {deliverable.quantity} per month ({deliverable.videosPerDay || 1} per day) • {deliverable.postingSchedule}
+                  {/* {selectedClient.monthlyDeliverables.map((deliverable) => ( */}
+                  {(selectedClient.monthlyDeliverables ?? []).map(
+                    (deliverable) => (
+                      <div
+                        key={deliverable.id}
+                        className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            {getDeliverableTypeIcon(deliverable.type)}
+                            <div>
+                              <div className="text-gray-900">
+                                {deliverable.type}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {deliverable.quantity} per month (
+                                {deliverable.videosPerDay || 1} per day) •{" "}
+                                {deliverable.postingSchedule}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <Badge variant="outline" className="text-gray-700">
-                          {(deliverable.postingDays && deliverable.postingDays.length > 0) 
-                            ? deliverable.postingDays.join(", ") 
-                            : "Various"}
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {deliverable.platforms.map((platform) => (
-                          <Badge
-                            key={platform}
-                            variant="outline"
-                            className={getPlatformBadgeColor(platform)}
-                          >
-                            {platform}
+                          <Badge variant="outline" className="text-gray-700">
+                            {deliverable.postingDays &&
+                            deliverable.postingDays.length > 0
+                              ? deliverable.postingDays.join(", ")
+                              : "Various"}
                           </Badge>
-                        ))}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {deliverable.platforms.map((platform) => (
+                            <Badge
+                              key={platform}
+                              variant="outline"
+                              className={getPlatformBadgeColor(platform)}
+                            >
+                              {platform}
+                            </Badge>
+                          ))}
+                        </div>
+
+                        {deliverable.description && (
+                          <p className="text-sm text-gray-600 mt-2">
+                            {deliverable.description}
+                          </p>
+                        )}
+
+                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          Posting time
+                          {(deliverable.postingTimes?.length || 1) > 1
+                            ? "s"
+                            : ""}
+                          : {(deliverable.postingTimes || ["10:00"]).join(", ")}
+                        </div>
                       </div>
-                      
-                      {deliverable.description && (
-                        <p className="text-sm text-gray-600 mt-2">
-                          {deliverable.description}
-                        </p>
-                      )}
-                      
-                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                        <Clock className="h-3 w-3" />
-                        Posting time{(deliverable.postingTimes?.length || 1) > 1 ? 's' : ''}: {(deliverable.postingTimes || ["10:00"]).join(", ")}
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {selectedClient.monthlyDeliverables.length === 0 && (
+                    )
+                  )}
+
+                  {/* {selectedClient.monthlyDeliverables.length === 0 && (
                     <div className="text-center py-8 text-gray-400">
                       No monthly deliverables configured
                     </div>
-                  )}
+                  )} */}
+
+                  {!selectedClient.monthlyDeliverables ||
+                    (selectedClient.monthlyDeliverables.length === 0 && (
+                      <div className="text-center py-8 text-gray-400">
+                        No monthly deliverables configured
+                      </div>
+                    ))}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1158,7 +1226,7 @@ useEffect(() => {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4">
-                    {selectedClient.brandAssets.map((asset) => (
+                    {(selectedClient.brandAssets ?? []).map((asset) => (
                       <div
                         key={asset.id}
                         className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2"
@@ -1171,11 +1239,19 @@ useEffect(() => {
                           {asset.fileName} • {asset.fileSize}
                         </div>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="flex-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                          >
                             <Eye className="h-3 w-3 mr-1" />
                             View
                           </Button>
-                          <Button size="sm" variant="outline" className="flex-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                          >
                             <Download className="h-3 w-3 mr-1" />
                             Download
                           </Button>
@@ -1183,31 +1259,40 @@ useEffect(() => {
                       </div>
                     ))}
                   </div>
-                  
-                  {selectedClient.brandAssets.length === 0 && (
-                    <div className="text-center py-8 text-gray-400">
-                      No brand assets uploaded
-                    </div>
-                  )}
+
+                  {!selectedClient.brandAssets ||
+                    (selectedClient.brandAssets.length === 0 && (
+                      <div className="text-center py-8 text-gray-400">
+                        No brand assets uploaded
+                      </div>
+                    ))}
                 </CardContent>
               </Card>
 
               <Card className="bg-white border-gray-200">
                 <CardHeader>
-                  <CardTitle className="text-gray-900">Brand Guidelines</CardTitle>
+                  <CardTitle className="text-gray-900">
+                    Brand Guidelines
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
                     <Label className="text-gray-500">Tone of Voice</Label>
-                    <p className="text-gray-900">{selectedClient.brandGuidelines.toneOfVoice}</p>
+                    <p className="text-gray-900">
+                      {selectedClient.brandGuidelines.toneOfVoice}
+                    </p>
                   </div>
                   <div>
                     <Label className="text-gray-500">Target Audience</Label>
-                    <p className="text-gray-900">{selectedClient.brandGuidelines.targetAudience}</p>
+                    <p className="text-gray-900">
+                      {selectedClient.brandGuidelines.targetAudience}
+                    </p>
                   </div>
                   <div>
                     <Label className="text-gray-500">Content Style</Label>
-                    <p className="text-gray-900">{selectedClient.brandGuidelines.contentStyle}</p>
+                    <p className="text-gray-900">
+                      {selectedClient.brandGuidelines.contentStyle}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -1216,37 +1301,58 @@ useEffect(() => {
             <TabsContent value="settings" className="space-y-4">
               <Card className="bg-white border-gray-200">
                 <CardHeader>
-                  <CardTitle className="text-gray-900">Project Settings</CardTitle>
+                  <CardTitle className="text-gray-900">
+                    Project Settings
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label className="text-gray-500">Default Video Length</Label>
-                    <p className="text-gray-900">{selectedClient.projectSettings.defaultVideoLength}</p>
+                    <Label className="text-gray-500">
+                      Default Video Length
+                    </Label>
+                    <p className="text-gray-900">
+                      {selectedClient.projectSettings.defaultVideoLength}
+                    </p>
                   </div>
                   <div>
                     <Label className="text-gray-500">Preferred Platforms</Label>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      {selectedClient.projectSettings.preferredPlatforms.map((platform) => (
-                        <Badge key={platform} variant="outline" className="text-gray-700">
-                          {platform}
-                        </Badge>
-                      ))}
+                      {selectedClient.projectSettings.preferredPlatforms.map(
+                        (platform) => (
+                          <Badge
+                            key={platform}
+                            variant="outline"
+                            className="text-gray-700"
+                          >
+                            {platform}
+                          </Badge>
+                        )
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        checked={selectedClient.projectSettings.contentApprovalRequired}
+                        checked={
+                          selectedClient.projectSettings.contentApprovalRequired
+                        }
                         disabled
                       />
-                      <Label className="text-gray-700">Content Approval Required</Label>
+                      <Label className="text-gray-700">
+                        Content Approval Required
+                      </Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        checked={selectedClient.projectSettings.quickTurnaroundAvailable}
+                        checked={
+                          selectedClient.projectSettings
+                            .quickTurnaroundAvailable
+                        }
                         disabled
                       />
-                      <Label className="text-gray-700">Quick Turnaround Available</Label>
+                      <Label className="text-gray-700">
+                        Quick Turnaround Available
+                      </Label>
                     </div>
                   </div>
                 </CardContent>
@@ -1297,7 +1403,7 @@ useEffect(() => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search clients..."
-                value={searchTerm}
+                value={searchTerm ?? ""}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 bg-white border-gray-200 text-gray-900"
               />
@@ -1343,7 +1449,7 @@ useEffect(() => {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-gray-900">{client.company}</h3>
+                    <h3 className="text-gray-900">{client.companyName}</h3>
                     <Badge
                       variant={getStatusVariant(client.status)}
                       className="flex items-center gap-1"
@@ -1360,37 +1466,49 @@ useEffect(() => {
                       <p className="text-gray-900 text-sm">{client.name}</p>
                     </div>
                     <div>
-                      <Label className="text-gray-500 text-xs">Account Manager</Label>
-                      <p className="text-gray-900 text-sm">{client.accountManager}</p>
+                      <Label className="text-gray-500 text-xs">
+                        Account Manager
+                      </Label>
+                      <p className="text-gray-900 text-sm">
+                        {client.accountManager}
+                      </p>
                     </div>
                     <div>
-                      <Label className="text-gray-500 text-xs">Monthly Deliverables</Label>
+                      <Label className="text-gray-500 text-xs">
+                        Monthly Deliverables
+                      </Label>
                       <p className="text-gray-900 text-sm">
-                        {calculateTotalDeliverables(client.monthlyDeliverables)} items
+                        {calculateTotalDeliverables(
+                          client.monthlyDeliverables ?? []
+                        )}{" "}
+                        items
                       </p>
                     </div>
                     <div>
                       <Label className="text-gray-500 text-xs">Progress</Label>
                       <p className="text-gray-900 text-sm">
-                        {client.currentProgress.completed}/{client.currentProgress.total}
+                        {client.currentProgress.completed}/
+                        {client.currentProgress.total}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {client.monthlyDeliverables.slice(0, 3).map((deliverable) => (
-                      <Badge
-                        key={deliverable.id}
-                        variant="outline"
-                        className="text-gray-700 gap-1"
-                      >
-                        {getDeliverableTypeIcon(deliverable.type)}
-                        {deliverable.quantity} {deliverable.type}
-                      </Badge>
-                    ))}
-                    {client.monthlyDeliverables.length > 3 && (
+                    {(client.monthlyDeliverables ?? [])
+                      .slice(0, 3)
+                      .map((deliverable) => (
+                        <Badge
+                          key={deliverable.id}
+                          variant="outline"
+                          className="text-gray-700 gap-1"
+                        >
+                          {getDeliverableTypeIcon(deliverable.type)}
+                          {deliverable.quantity} {deliverable.type}
+                        </Badge>
+                      ))}
+                    {(client.monthlyDeliverables?.length ?? 0) > 3 && (
                       <Badge variant="outline" className="text-gray-500">
-                        +{client.monthlyDeliverables.length - 3} more
+                        +{(client.monthlyDeliverables?.length ?? 0) - 3} more
                       </Badge>
                     )}
                   </div>
@@ -1459,7 +1577,7 @@ useEffect(() => {
                   </Label>
                   <Input
                     id="name"
-                    value={newClient.name}
+                    value={newClient.name ?? ""}
                     onChange={(e) =>
                       setNewClient({ ...newClient, name: e.target.value })
                     }
@@ -1472,9 +1590,12 @@ useEffect(() => {
                   </Label>
                   <Input
                     id="company"
-                    value={newClient.company}
+                    value={newClient.companyName ?? ""}
                     onChange={(e) =>
-                      setNewClient({ ...newClient, company: e.target.value })
+                      setNewClient({
+                        ...newClient,
+                        companyName: e.target.value,
+                      })
                     }
                     className="bg-white border-gray-200 text-gray-900"
                   />
@@ -1486,7 +1607,7 @@ useEffect(() => {
                   <Input
                     id="email"
                     type="email"
-                    value={newClient.email}
+                    value={newClient.email ?? ""}
                     onChange={(e) =>
                       setNewClient({ ...newClient, email: e.target.value })
                     }
@@ -1499,7 +1620,7 @@ useEffect(() => {
                   </Label>
                   <Input
                     id="phone"
-                    value={newClient.phone}
+                    value={newClient.phone ?? ""}
                     onChange={(e) =>
                       setNewClient({ ...newClient, phone: e.target.value })
                     }
@@ -1558,7 +1679,7 @@ useEffect(() => {
                   <Input
                     id="startDate"
                     type="date"
-                    value={newClient.startDate}
+                    value={newClient.startDate ?? ""}
                     onChange={(e) =>
                       setNewClient({ ...newClient, startDate: e.target.value })
                     }
@@ -1572,9 +1693,12 @@ useEffect(() => {
                   <Input
                     id="renewalDate"
                     type="date"
-                    value={newClient.renewalDate}
+                    value={newClient.renewalDate ?? ""}
                     onChange={(e) =>
-                      setNewClient({ ...newClient, renewalDate: e.target.value })
+                      setNewClient({
+                        ...newClient,
+                        renewalDate: e.target.value,
+                      })
                     }
                     className="bg-white border-gray-200 text-gray-900"
                   />
@@ -1615,25 +1739,32 @@ useEffect(() => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         {getDeliverableTypeIcon(deliverable.type)}
-                        <span className="text-gray-900">{deliverable.type}</span>
+                        <span className="text-gray-900">
+                          {deliverable.type}
+                        </span>
                         <Badge variant="outline" className="text-gray-600">
                           {deliverable.quantity} per month
                         </Badge>
-                        <Badge variant="outline" className="text-blue-600 bg-blue-50">
+                        <Badge
+                          variant="outline"
+                          className="text-blue-600 bg-blue-50"
+                        >
                           {deliverable.videosPerDay || 1} per day
                         </Badge>
                       </div>
-                      <div className="text-sm text-gray-600">
+                      {/* <div className="text-sm text-gray-600">
                         {deliverable.postingSchedule} • {(deliverable.postingDays && deliverable.postingDays.length > 0) 
                           ? deliverable.postingDays.join(", ") 
                           : "Various days"} • {deliverable.defaultPostingTime}
-                      </div>
+                      </div> */}
                       <div className="flex flex-wrap gap-1 mt-2">
                         {deliverable.platforms.map((platform) => (
                           <Badge
                             key={platform}
                             variant="outline"
-                            className={`text-xs ${getPlatformBadgeColor(platform)}`}
+                            className={`text-xs ${getPlatformBadgeColor(
+                              platform
+                            )}`}
                           >
                             {platform}
                           </Badge>
@@ -1652,7 +1783,8 @@ useEffect(() => {
                   </div>
                 ))}
 
-                {(!newClient.monthlyDeliverables || newClient.monthlyDeliverables.length === 0) && (
+                {(!newClient.monthlyDeliverables ||
+                  newClient.monthlyDeliverables.length === 0) && (
                   <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-gray-200">
                     No monthly deliverables added yet
                   </div>
@@ -1690,10 +1822,13 @@ useEffect(() => {
                         billing: {
                           ...newClient.billing,
                           monthlyFee: e.target.value,
-                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingFrequency:
+                            newClient.billing?.billingFrequency || "monthly",
                           billingDay: newClient.billing?.billingDay || 1,
-                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
-                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                          paymentMethod:
+                            newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate:
+                            newClient.billing?.nextBillingDate || "",
                         },
                       })
                     }
@@ -1713,10 +1848,15 @@ useEffect(() => {
                         billing: {
                           ...newClient.billing,
                           monthlyFee: newClient.billing?.monthlyFee || "",
-                          billingFrequency: value as "monthly" | "quarterly" | "annually",
+                          billingFrequency: value as
+                            | "monthly"
+                            | "quarterly"
+                            | "annually",
                           billingDay: newClient.billing?.billingDay || 1,
-                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
-                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                          paymentMethod:
+                            newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate:
+                            newClient.billing?.nextBillingDate || "",
                         },
                       })
                     }
@@ -1744,10 +1884,13 @@ useEffect(() => {
                         billing: {
                           ...newClient.billing,
                           monthlyFee: newClient.billing?.monthlyFee || "",
-                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingFrequency:
+                            newClient.billing?.billingFrequency || "monthly",
                           billingDay: parseInt(value),
-                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
-                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                          paymentMethod:
+                            newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate:
+                            newClient.billing?.nextBillingDate || "",
                         },
                       })
                     }
@@ -1756,11 +1899,21 @@ useEffect(() => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                        <SelectItem key={day} value={String(day)}>
-                          {day}{day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th"} of the month
-                        </SelectItem>
-                      ))}
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map(
+                        (day) => (
+                          <SelectItem key={day} value={String(day)}>
+                            {day}
+                            {day === 1
+                              ? "st"
+                              : day === 2
+                              ? "nd"
+                              : day === 3
+                              ? "rd"
+                              : "th"}{" "}
+                            of the month
+                          </SelectItem>
+                        )
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1777,10 +1930,16 @@ useEffect(() => {
                         billing: {
                           ...newClient.billing,
                           monthlyFee: newClient.billing?.monthlyFee || "",
-                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingFrequency:
+                            newClient.billing?.billingFrequency || "monthly",
                           billingDay: newClient.billing?.billingDay || 1,
-                          paymentMethod: value as "credit-card" | "bank-transfer" | "check" | "paypal",
-                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                          paymentMethod: value as
+                            | "credit-card"
+                            | "bank-transfer"
+                            | "check"
+                            | "paypal",
+                          nextBillingDate:
+                            newClient.billing?.nextBillingDate || "",
                         },
                       })
                     }
@@ -1795,7 +1954,9 @@ useEffect(() => {
                           Credit Card
                         </span>
                       </SelectItem>
-                      <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="bank-transfer">
+                        Bank Transfer
+                      </SelectItem>
                       <SelectItem value="paypal">PayPal</SelectItem>
                       <SelectItem value="check">Check</SelectItem>
                     </SelectContent>
@@ -1816,9 +1977,11 @@ useEffect(() => {
                         billing: {
                           ...newClient.billing,
                           monthlyFee: newClient.billing?.monthlyFee || "",
-                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingFrequency:
+                            newClient.billing?.billingFrequency || "monthly",
                           billingDay: newClient.billing?.billingDay || 1,
-                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
+                          paymentMethod:
+                            newClient.billing?.paymentMethod || "credit-card",
                           nextBillingDate: e.target.value,
                         },
                       })
@@ -1841,10 +2004,13 @@ useEffect(() => {
                         billing: {
                           ...newClient.billing,
                           monthlyFee: newClient.billing?.monthlyFee || "",
-                          billingFrequency: newClient.billing?.billingFrequency || "monthly",
+                          billingFrequency:
+                            newClient.billing?.billingFrequency || "monthly",
                           billingDay: newClient.billing?.billingDay || 1,
-                          paymentMethod: newClient.billing?.paymentMethod || "credit-card",
-                          nextBillingDate: newClient.billing?.nextBillingDate || "",
+                          paymentMethod:
+                            newClient.billing?.paymentMethod || "credit-card",
+                          nextBillingDate:
+                            newClient.billing?.nextBillingDate || "",
                           notes: e.target.value,
                         },
                       })
@@ -1881,7 +2047,9 @@ useEffect(() => {
       >
         <DialogContent className="!max-w-[1200px] w-[90vw] !max-h-[90vh] overflow-y-auto bg-white border-gray-200">
           <DialogHeader>
-            <DialogTitle className="text-gray-900">Add Monthly Deliverable</DialogTitle>
+            <DialogTitle className="text-gray-900">
+              Add Monthly Deliverable
+            </DialogTitle>
             <DialogDescription className="text-gray-600">
               Configure a recurring deliverable for this client
             </DialogDescription>
@@ -1895,18 +2063,31 @@ useEffect(() => {
               <Select
                 value={newDeliverable.type}
                 onValueChange={(value) =>
-                  setNewDeliverable({ ...newDeliverable, type: value as DeliverableType })
+                  setNewDeliverable({
+                    ...newDeliverable,
+                    type: value as DeliverableType,
+                  })
                 }
               >
                 <SelectTrigger className="bg-white border-gray-200 text-gray-900">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Short Form Videos">Short Form Videos</SelectItem>
-                  <SelectItem value="Long Form Videos">Long Form Videos</SelectItem>
-                  <SelectItem value="Square Form Videos">Square Form Videos</SelectItem>
-                  <SelectItem value="Snapchat Show Episode">Snapchat Show Episode</SelectItem>
-                  <SelectItem value="Social/Hard Post">Social/Hard Post</SelectItem>
+                  <SelectItem value="Short Form Videos">
+                    Short Form Videos
+                  </SelectItem>
+                  <SelectItem value="Long Form Videos">
+                    Long Form Videos
+                  </SelectItem>
+                  <SelectItem value="Square Form Videos">
+                    Square Form Videos
+                  </SelectItem>
+                  <SelectItem value="Snapchat Show Episode">
+                    Snapchat Show Episode
+                  </SelectItem>
+                  <SelectItem value="Social/Hard Post">
+                    Social/Hard Post
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1922,7 +2103,10 @@ useEffect(() => {
                   min="1"
                   value={newDeliverable.quantity}
                   onChange={(e) =>
-                    setNewDeliverable({ ...newDeliverable, quantity: parseInt(e.target.value) || 1 })
+                    setNewDeliverable({
+                      ...newDeliverable,
+                      quantity: parseInt(e.target.value) || 1,
+                    })
                   }
                   className="bg-white border-gray-200 text-gray-900"
                 />
@@ -1938,7 +2122,9 @@ useEffect(() => {
                   min="1"
                   value={newDeliverable.videosPerDay}
                   onChange={(e) =>
-                    syncPostingTimesWithVideosPerDay(parseInt(e.target.value) || 1)
+                    syncPostingTimesWithVideosPerDay(
+                      parseInt(e.target.value) || 1
+                    )
                   }
                   className="bg-white border-gray-200 text-gray-900"
                 />
@@ -1952,7 +2138,10 @@ useEffect(() => {
               <Select
                 value={newDeliverable.postingSchedule}
                 onValueChange={(value) =>
-                  setNewDeliverable({ ...newDeliverable, postingSchedule: value as PostingSchedule })
+                  setNewDeliverable({
+                    ...newDeliverable,
+                    postingSchedule: value as PostingSchedule,
+                  })
                 }
               >
                 <SelectTrigger className="bg-white border-gray-200 text-gray-900">
@@ -1969,9 +2158,7 @@ useEffect(() => {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-gray-700">
-                  Posting Days
-                </Label>
+                <Label className="text-gray-700">Posting Days</Label>
                 <Button
                   type="button"
                   size="sm"
@@ -1983,11 +2170,20 @@ useEffect(() => {
                       : "bg-white border-gray-200 text-gray-600"
                   }`}
                 >
-                  {(newDeliverable.postingDays || []).length === 7 ? "✓ " : ""}Everyday
+                  {(newDeliverable.postingDays || []).length === 7 ? "✓ " : ""}
+                  Everyday
                 </Button>
               </div>
               <div className="grid grid-cols-4 gap-2">
-                {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => (
+                {[
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday",
+                  "Sunday",
+                ].map((day) => (
                   <div
                     key={day}
                     onClick={() => toggleDay(day)}
@@ -2010,23 +2206,34 @@ useEffect(() => {
 
             <div className="space-y-3">
               <Label className="text-gray-700">
-                Posting Times ({newDeliverable.videosPerDay || 1} video{(newDeliverable.videosPerDay || 1) > 1 ? 's' : ''} per day)
+                Posting Times ({newDeliverable.videosPerDay || 1} video
+                {(newDeliverable.videosPerDay || 1) > 1 ? "s" : ""} per day)
               </Label>
               <div className="grid grid-cols-2 gap-3">
-                {Array.from({ length: newDeliverable.videosPerDay || 1 }).map((_, index) => (
-                  <div key={index} className="space-y-1">
-                    <Label htmlFor={`postingTime-${index}`} className="text-xs text-gray-600">
-                      Video {index + 1} Time
-                    </Label>
-                    <Input
-                      id={`postingTime-${index}`}
-                      type="time"
-                      value={(newDeliverable.postingTimes || ["10:00"])[index] || "10:00"}
-                      onChange={(e) => updatePostingTime(index, e.target.value)}
-                      className="bg-white border-gray-200 text-gray-900"
-                    />
-                  </div>
-                ))}
+                {Array.from({ length: newDeliverable.videosPerDay || 1 }).map(
+                  (_, index) => (
+                    <div key={index} className="space-y-1">
+                      <Label
+                        htmlFor={`postingTime-${index}`}
+                        className="text-xs text-gray-600"
+                      >
+                        Video {index + 1} Time
+                      </Label>
+                      <Input
+                        id={`postingTime-${index}`}
+                        type="time"
+                        value={
+                          (newDeliverable.postingTimes || ["10:00"])[index] ||
+                          "10:00"
+                        }
+                        onChange={(e) =>
+                          updatePostingTime(index, e.target.value)
+                        }
+                        className="bg-white border-gray-200 text-gray-900"
+                      />
+                    </div>
+                  )
+                )}
               </div>
               {(newDeliverable.videosPerDay || 1) > 1 && (
                 <p className="text-xs text-gray-500">
@@ -2038,7 +2245,16 @@ useEffect(() => {
             <div className="space-y-2">
               <Label className="text-gray-700">Platforms</Label>
               <div className="grid grid-cols-3 gap-2">
-                {(["instagram", "tiktok", "facebook", "youtube", "twitter", "linkedin"] as SocialPlatform[]).map((platform) => (
+                {(
+                  [
+                    "instagram",
+                    "tiktok",
+                    "facebook",
+                    "youtube",
+                    "twitter",
+                    "linkedin",
+                  ] as SocialPlatform[]
+                ).map((platform) => (
                   <div
                     key={platform}
                     onClick={() => togglePlatform(platform)}
@@ -2062,7 +2278,10 @@ useEffect(() => {
                 id="description"
                 value={newDeliverable.description}
                 onChange={(e) =>
-                  setNewDeliverable({ ...newDeliverable, description: e.target.value })
+                  setNewDeliverable({
+                    ...newDeliverable,
+                    description: e.target.value,
+                  })
                 }
                 placeholder="Additional notes about this deliverable..."
                 className="bg-white border-gray-200 text-gray-900"
@@ -2086,5 +2305,5 @@ useEffect(() => {
       {/* Client Details Dialog */}
       <ClientDetailsDialog />
     </div>
-      );
+  );
 }

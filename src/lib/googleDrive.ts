@@ -60,7 +60,7 @@ export async function createClientFolders(clientName: string) {
       }),
       drive.files.create({
         requestBody: {
-          name: "Essentials",
+          name: "Elements",
           mimeType: "application/vnd.google-apps.folder",
           parents: [mainFolderId],
         },
