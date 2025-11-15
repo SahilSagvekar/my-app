@@ -32,7 +32,6 @@ export async function uploadFileToDrive(
       fields: "id, name, webViewLink, webContentLink",
     });
 
-    console.log("✅ Uploaded file:", res.data.name);
     return res.data;
   } catch (err: any) {
     console.error("❌ Drive upload error:", err.response?.data || err.message);

@@ -166,7 +166,6 @@ export function UserManagementTab() {
   };
 
   const handleAddUser = () => {
-    console.log('Adding new user:', newUser);
     setIsAddUserDialogOpen(false);
     setNewUser({ name: '', email: '', phone: '', role: '', status: 'active' });
   };

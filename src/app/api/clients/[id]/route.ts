@@ -30,29 +30,95 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     const { id } = await context.params;
     const data = await req.json();
 
-    const updated = await prisma.client.update({
-      where: { id: id},
-      data: {
-        name: data.name,
-        email: data.email,
-        companyName: data.companyName,
-        phone: data.phone,
-        status: data.status,
-        accountManagerId: data.accountManagerId,
+    const {
+      name,
+      email,
+      companyName,
+      phone,
+      status,
+      accountManagerId,
+      brandGuidelines,
+      projectSettings,
+      billing,
+      postingSchedule,
+      monthlyDeliverables = [], // array coming from UI
+    } = data;
 
-        brandGuidelines: data.brandGuidelines,
-        projectSettings: data.projectSettings,
-        billing: data.billing,
-        postingSchedule: data.postingSchedule,
-      }
+    // STEP 1 — Update main client record
+    const updatedClient = await prisma.client.update({
+      where: { id },
+      data: {
+        name,
+        email,
+        companyName,
+        phone,
+        status,
+        accountManagerId,
+        brandGuidelines,
+        projectSettings,
+        billing,
+        postingSchedule,
+      },
     });
 
-    return NextResponse.json({ success: true, updated });
+    // STEP 2 — Fetch existing deliverables for this client
+    const existing = await prisma.monthlyDeliverable.findMany({
+      where: { clientId: id },
+    });
+
+    const existingIds = existing.map((d) => d.id);
+    const incomingIds = monthlyDeliverables.map((d: any) => d.id).filter(Boolean);
+
+    // STEP 3 — DELETE deliverables removed in UI
+    const toDelete = existingIds.filter((id) => !incomingIds.includes(id));
+    if (toDelete.length > 0) {
+      await prisma.monthlyDeliverable.deleteMany({
+        where: { id: { in: toDelete } },
+      });
+    }
+
+    // STEP 4 — UPSERT remaining deliverables
+    for (const d of monthlyDeliverables) {
+      if (d.id && existingIds.includes(d.id)) {
+        // UPDATE existing deliverable
+        await prisma.monthlyDeliverable.update({
+          where: { id: d.id },
+          data: {
+            type: d.type,
+            quantity: d.quantity,
+            videosPerDay: d.videosPerDay,
+            postingSchedule: d.postingSchedule,
+            postingDays: d.postingDays,
+            postingTimes: d.postingTimes,
+            platforms: d.platforms,
+            description: d.description,
+          },
+        });
+      } else {
+        // CREATE new deliverable
+        await prisma.monthlyDeliverable.create({
+          data: {
+            clientId: id,
+            type: d.type,
+            quantity: d.quantity,
+            videosPerDay: d.videosPerDay,
+            postingSchedule: d.postingSchedule,
+            postingDays: d.postingDays,
+            postingTimes: d.postingTimes,
+            platforms: d.platforms,
+            description: d.description,
+          },
+        });
+      }
+    }
+
+    return NextResponse.json({ success: true, updated: updatedClient });
   } catch (err) {
     console.error("PUT client failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }
+
 
 export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
   try {

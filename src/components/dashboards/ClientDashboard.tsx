@@ -723,7 +723,6 @@ export function ClientDashboard() {
         description: `${approval.title} has been approved and sent to scheduler.`,
       });
 
-      console.log('🎉 Content approved and workflow triggered:', approval.title);
     } catch (error) {
       toast('❌ Error', {
         description: 'Failed to approve content. Please try again.',

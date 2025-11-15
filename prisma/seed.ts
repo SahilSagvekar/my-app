@@ -72,7 +72,6 @@ async function main() {
 
 main()
   .then(async () => {
-    console.log("✅ Seeded 12 users");
     await prisma.$disconnect();
   })
   .catch(async (e) => {

@@ -111,7 +111,6 @@ function AuthenticationFlow() {
   };
 
   const handleOAuthLogin = (provider: string) => {
-    console.log('OAuth login with:', provider);
     setAuthError('OAuth login not implemented in demo');
   };
 

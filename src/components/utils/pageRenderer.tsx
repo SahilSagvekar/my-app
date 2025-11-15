@@ -17,7 +17,6 @@ import { ClientDashboard } from '../dashboards/ClientDashboard';
 import { ClientMonthlyOverview } from '../dashboards/ClientMonthlyOverview';
 import { VideographerDashboard } from '../dashboards/VideographerDashboard';
 import { EditorProjects } from '../EditorProjects';
-
 import { EditorResources } from '../EditorResources';
 import { FeedbackSystem } from '../FeedbackSystem';
 
@@ -53,7 +52,11 @@ export function renderPage(role: string, page: string): JSX.Element {
     }
   }
 
-  if (role === 'qc_specialist') {
+  console.log(role);
+
+  if (role === 'qc') {
+    // console.log(role);
+    console.log(page);
     switch (page) {
       case 'review-queue': return <QCDashboard />;
       case 'completed': return <QCCompletedPage />;

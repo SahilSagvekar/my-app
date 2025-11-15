@@ -33,6 +33,7 @@ export async function POST(req) {
       "editor",
       "videographer",
       "qc_specialist",
+      "qc",
       "scheduler",
       "client",
     ];

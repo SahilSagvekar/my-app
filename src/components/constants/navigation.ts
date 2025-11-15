@@ -41,8 +41,10 @@ export const NAVIGATION_ITEMS = {
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
     { id: 'completed', label: 'Completed', icon: Archive },
     { id: 'guidelines', label: 'Guidelines', icon: BookOpen },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'reports', label: 'Reports', icon: FileSpreadsheet }
+    { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    { id: 'resources', label: 'Resources', icon: FolderOpen },
+    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   scheduler: [
     { id: 'calendar', label: 'Calendar', icon: Calendar },
@@ -50,6 +52,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'scheduling', label: 'Scheduling', icon: Clock },
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   manager: [

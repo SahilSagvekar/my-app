@@ -25,8 +25,6 @@ export async function GET(req: NextRequest) {
   try {
     const allowedRoles = taskTypeRoleMap[taskType] || [];
 
-    console.log("Received allowedRoles:", allowedRoles);
-
     const roleUsers = await prisma.user.findMany({
       where: { role: { in: allowedRoles } },
       select: { id: true, name: true, email: true, role: true },

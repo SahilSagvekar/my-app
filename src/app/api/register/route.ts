@@ -8,7 +8,6 @@ const prisma = new PrismaClient();
 export async function POST(req: Request) {
   try {
     const { name, email, password, acceptTerms } = await req.json();
-    console.log("Register request body:", JSON.stringify(req.json()));
 
     if (!email || !password) {
       return NextResponse.json({ message: "Email and password are required" }, { status: 400 });

@@ -16,9 +16,6 @@ const authUrl = oauth2Client.generateAuthUrl({
   scope: SCOPES,
 });
 
-console.log('\n🔗 Visit this URL in your browser:\n');
-console.log(authUrl);
-
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -27,9 +24,7 @@ const rl = readline.createInterface({
 rl.question('\nPaste the code from the URL here: ', async (code) => {
   try {
     const { tokens } = await oauth2Client.getToken(code.trim());
-    console.log('\n✅ Your refresh token:\n');
-    console.log(tokens.refresh_token);
-    console.log('\n💾 Add this to your .env.local as GOOGLE_REFRESH_TOKEN');
+
     rl.close();
   } catch (err) {
     console.error('\n❌ Error:', err.message);

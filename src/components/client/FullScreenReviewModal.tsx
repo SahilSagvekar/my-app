@@ -349,6 +349,8 @@ export function FullScreenReviewModal({
       entries: revisionEntries
     };
 
+    console.log('Submitting revisions:', userRole);
+
     if (userRole === 'qc_specialist' && onSendBackToEditor) {
       onSendBackToEditor(asset, revisionData);
     } else {

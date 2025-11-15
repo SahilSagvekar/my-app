@@ -202,6 +202,11 @@ export function SearchProvider({ children }: SearchProviderProps) {
               urlParts[2] === 'completed' ? 'completed' :
               urlParts[2] === 'guidelines' ? 'guidelines' : 'review-queue';
         break;
+      case 'qc':
+        page = urlParts[2] === 'review-queue' ? 'review-queue' : 
+              urlParts[2] === 'completed' ? 'completed' :
+              urlParts[2] === 'guidelines' ? 'guidelines' : 'review-queue';
+        break;
       case 'scheduler':
         page = urlParts[2] === 'calendar' ? 'calendar' :
               urlParts[2] === 'approved-queue' ? 'approved-queue' :

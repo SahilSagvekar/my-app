@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck } from 'lucide-react';
 import { QCReviewDialog } from '../workflow/QCReviewDialog';
 import { FullScreenReviewModal } from '../client/FullScreenReviewModal';
@@ -25,7 +26,7 @@ const initialQCTasks: EnhancedWorkflowTask[] = [
   {
     id: 'QC-001',
     title: 'QC Review: Brand Guidelines Update',
-    description: 'Review uploaded files for: Brand Guidelines Update\n\nOriginal task description: Update brand guidelines for Q4 campaign with new color palette and typography',
+    description: 'Review uploaded files for: Brand Guidelines Update\\n\\nOriginal task description: Update brand guidelines for Q4 campaign with new color palette and typography',
     type: 'qc_review',
     status: 'pending',
     assignedTo: 'qc1',
@@ -67,7 +68,7 @@ const initialQCTasks: EnhancedWorkflowTask[] = [
   {
     id: 'QC-002',
     title: 'QC Review: Holiday Campaign Video',
-    description: 'Review uploaded video for: Holiday Campaign Video\n\nOriginal task description: Create promotional video for holiday campaign with product showcase and customer testimonials',
+    description: 'Review uploaded video for: Holiday Campaign Video\\n\\nOriginal task description: Create promotional video for holiday campaign with product showcase and customer testimonials',
     type: 'qc_review',
     status: 'pending',
     assignedTo: 'qc1',
@@ -109,7 +110,7 @@ const initialQCTasks: EnhancedWorkflowTask[] = [
   {
     id: 'QC-003',
     title: 'QC Review: Social Media Assets',
-    description: 'Review uploaded social media assets\n\nOriginal task description: Create Instagram and Facebook post designs for product launch',
+    description: 'Review uploaded social media assets\\n\\nOriginal task description: Create Instagram and Facebook post designs for product launch',
     type: 'qc_review',
     status: 'pending',
     assignedTo: 'qc1',
@@ -170,14 +171,8 @@ export function QCDashboard() {
     
     setQCTasks(sortedTasks);
     
-    // Auto-select the first pending task (FIFO)
-    if (!selectedTask) {
-      const firstPendingTask = sortedTasks.find(task => task.status === 'pending');
-      if (firstPendingTask) {
-        setSelectedTask(firstPendingTask);
-      }
-    }
-  }, [workflowTasks, selectedTask, currentUser.id]);
+    // Don't auto-select - let user choose which task to review
+  }, [workflowTasks, currentUser.id]);
 
   const handleReviewComplete = (approved: boolean, feedback?: string) => {
     if (!selectedTask) return;
@@ -384,7 +379,7 @@ export function QCDashboard() {
   const overdueReviews = qcTasks.filter(task => task.status === 'pending' && isOverdue(task)).length;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full space-y-6">
       {/* Page Header */}
       <div>
         <h1>Review Queue</h1>
@@ -469,15 +464,15 @@ export function QCDashboard() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Enhanced Review Queue List */}
-        <Card className="lg:col-span-1">
+      {/* Full-Screen Review Queue */}
+      <div className="flex flex-col flex-1 min-h-0">
+        <Card className="flex flex-col flex-1 min-h-0">
           <CardHeader>
             <CardTitle>Review Queue ({pendingReviews})</CardTitle>
             <p className="text-xs text-muted-foreground">Sorted by submission time (oldest first)</p>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="space-y-0 max-h-96 overflow-y-auto">
+          <CardContent className="p-0 flex-1 overflow-hidden">
+            <div className="space-y-0 h-full overflow-y-auto">
               {qcTasks.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
                   <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
@@ -560,181 +555,27 @@ export function QCDashboard() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Enhanced Task Details & Review */}
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <CardTitle className="truncate">
-                  {selectedTask ? selectedTask.title.replace('QC Review: ', '') : 'Select a task to review'}
-                </CardTitle>
-                {selectedTask && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline">{selectedTask.id}</Badge>
-                    <Badge variant={selectedTask.status === 'pending' ? 'default' : 'secondary'}>
-                      {selectedTask.status}
-                    </Badge>
-                    {selectedTask.taskCategory && (
-                      <div className="flex items-center gap-1 px-2 py-1 bg-accent rounded text-xs">
-                        {getTaskCategoryIcon(selectedTask.taskCategory)}
-                        <span className="capitalize">{selectedTask.taskCategory}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {selectedTask ? (
-              <div className="space-y-6">
-                {/* Enhanced Task Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-accent/50 rounded-lg">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Project ID</p>
-                    <p className="font-medium">{selectedTask.projectId || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Due Date</p>
-                    <p className={`font-medium ${isOverdue(selectedTask) ? 'text-red-500' : ''}`}>
-                      {selectedTask.dueDate}
-                      {isOverdue(selectedTask) && ' (Overdue)'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Submitted</p>
-                    <p className="font-medium">
-                      {new Date(selectedTask.createdAt).toLocaleDateString()} at {new Date(selectedTask.createdAt).toLocaleTimeString()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Status</p>
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(selectedTask.status)}
-                      <span className="font-medium capitalize">{selectedTask.status}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Workflow Path Indicator */}
-                {selectedTask.status === 'pending' && selectedTask.nextDestination && (
-                  <div className="p-4 border rounded-lg bg-blue-50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <ArrowRight className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-blue-900">Workflow Path</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-sm text-blue-700">After approval, this task will go to:</span>
-                          <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getDestinationColor(selectedTask.nextDestination)}`}>
-                            {getDestinationIcon(selectedTask.nextDestination)}
-                            <span className="capitalize">{selectedTask.nextDestination}</span>
-                            {selectedTask.requiresClientReview && selectedTask.nextDestination === 'client' && (
-                              <span>(Client Review Required)</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Task Description */}
-                <div>
-                  <h4 className="font-medium mb-2">Description</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedTask.description.split('\n\nOriginal task description: ')[1] || selectedTask.description}
-                  </p>
-                </div>
-
-                {/* Files */}
-                <div>
-                  <h4 className="font-medium mb-3">Submitted Files ({selectedTask.files?.length || 0})</h4>
-                  {selectedTask.files && selectedTask.files.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {selectedTask.files.map((file) => (
-                        <div key={file.id} className="border rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <FileText className="h-4 w-4" />
-                            <span className="text-sm font-medium truncate">{file.name}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mb-3">
-                            {formatFileSize(file.size)} • Uploaded {new Date(file.uploadedAt).toLocaleDateString()}
-                          </p>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="w-full"
-                            onClick={() => window.open(file.url, '_blank')}
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            View File
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-8">No files submitted</p>
-                  )}
-                </div>
-
-                {/* Review Actions */}
-                {selectedTask.status === 'pending' && (
-                  <div className="flex justify-center gap-4 pt-4">
-                    {hasVideoFile(selectedTask) ? (
-                      <Button 
-                        size="lg"
-                        onClick={() => setShowVideoReview(true)}
-                      >
-                        <Play className="h-4 w-4 mr-2" />
-                        Review Video
-                      </Button>
-                    ) : (
-                      <QCReviewDialog
-                        task={selectedTask}
-                        onReviewComplete={handleReviewComplete}
-                        trigger={
-                          <Button size="lg">
-                            <Eye className="h-4 w-4 mr-2" />
-                            Start Review
-                          </Button>
-                        }
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* Completed Review Info */}
-                {(selectedTask.status === 'approved' || selectedTask.status === 'rejected') && (
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      {getStatusIcon(selectedTask.status)}
-                      <h4 className="font-medium">Review Completed</h4>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      This task has been {selectedTask.status} and automatically moved to the next step in the workflow.
-                    </p>
-                    {selectedTask.feedback && (
-                      <div className="mt-3">
-                        <p className="text-sm font-medium">Feedback:</p>
-                        <p className="text-sm text-muted-foreground">{selectedTask.feedback}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <Clock className="h-16 w-16 mx-auto mb-4 opacity-40" />
-                <h3 className="mb-2">No Task Selected</h3>
-                <p>Tasks are automatically ordered by submission time (oldest first)</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Task Details Dialog - Only opens when user clicks on a task */}
+      <QCTaskDetailsDialog
+        task={selectedTask}
+        open={!!selectedTask}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTask(null);
+          }
+        }}
+        onReviewComplete={handleReviewComplete}
+        getStatusIcon={getStatusIcon}
+        getTaskCategoryIcon={getTaskCategoryIcon}
+        getDestinationIcon={getDestinationIcon}
+        getDestinationColor={getDestinationColor}
+        isOverdue={isOverdue}
+        formatFileSize={formatFileSize}
+        hasVideoFile={hasVideoFile}
+        onVideoReview={() => setShowVideoReview(true)}
+      />
 
       {/* Video Review Modal */}
       {selectedTask && hasVideoFile(selectedTask) && (
@@ -750,5 +591,209 @@ export function QCDashboard() {
         />
       )}
     </div>
+  );
+}
+
+// Task Details Dialog Component
+function QCTaskDetailsDialog({
+  task,
+  open,
+  onOpenChange,
+  onReviewComplete,
+  getStatusIcon,
+  getTaskCategoryIcon,
+  getDestinationIcon,
+  getDestinationColor,
+  isOverdue,
+  formatFileSize,
+  hasVideoFile,
+  onVideoReview
+}: {
+  task: EnhancedWorkflowTask | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onReviewComplete: (approved: boolean, feedback?: string) => void;
+  getStatusIcon: (status: string) => JSX.Element;
+  getTaskCategoryIcon: (category?: string) => JSX.Element;
+  getDestinationIcon: (destination?: TaskDestination) => JSX.Element;
+  getDestinationColor: (destination?: TaskDestination) => string;
+  isOverdue: (task: EnhancedWorkflowTask) => boolean;
+  formatFileSize: (bytes: number) => string;
+  hasVideoFile: (task: EnhancedWorkflowTask) => boolean;
+  onVideoReview: () => void;
+}) {
+  if (!task) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="!max-w-none w-[95vw] h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3">
+            <span className="truncate">{task.title.replace('QC Review: ', '')}</span>
+          </DialogTitle>
+          <DialogDescription>
+            Review task details, submitted files, and workflow routing information
+          </DialogDescription>
+          <div className="flex items-center gap-2 mt-2">
+            <Badge variant="outline">{task.id}</Badge>
+            <Badge variant={task.status === 'pending' ? 'default' : 'secondary'}>
+              {task.status}
+            </Badge>
+            {task.taskCategory && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-accent rounded text-xs">
+                {getTaskCategoryIcon(task.taskCategory)}
+                <span className="capitalize">{task.taskCategory}</span>
+              </div>
+            )}
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-4 overflow-y-auto flex-1 pr-2">
+          {/* Enhanced Task Info */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-accent/50 rounded-lg">
+            <div>
+              <p className="text-sm text-muted-foreground">Project ID</p>
+              <p className="font-medium">{task.projectId || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Due Date</p>
+              <p className={`font-medium ${isOverdue(task) ? 'text-red-500' : ''}`}>
+                {task.dueDate}
+                {isOverdue(task) && ' (Overdue)'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Submitted</p>
+              <p className="font-medium">
+                {new Date(task.createdAt).toLocaleDateString()} at {new Date(task.createdAt).toLocaleTimeString()}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Status</p>
+              <div className="flex items-center gap-2">
+                {getStatusIcon(task.status)}
+                <span className="font-medium capitalize">{task.status}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Workflow Path Indicator */}
+          {task.status === 'pending' && task.nextDestination && (
+            <div className="p-4 border rounded-lg bg-blue-50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <ArrowRight className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-blue-900 mb-1">Workflow Path</h4>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-blue-700">After approval, this task will go to:</span>
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getDestinationColor(task.nextDestination)}`}>
+                      {getDestinationIcon(task.nextDestination)}
+                      <span className="capitalize">{task.nextDestination}</span>
+                      {task.requiresClientReview && task.nextDestination === 'client' && (
+                        <span>(Client Review Required)</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Task Description */}
+          <div className="p-4 bg-muted/50 rounded-lg">
+            <h4 className="font-medium mb-2">Description</h4>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {task.description.split('\\n\\nOriginal task description: ')[1] || task.description}
+            </p>
+          </div>
+
+          {/* Files */}
+          <div>
+            <h4 className="font-medium mb-3">Submitted Files ({task.files?.length || 0})</h4>
+            {task.files && task.files.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {task.files.map((file) => (
+                  <div key={file.id} className="border rounded-lg p-3 hover:border-primary transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium truncate">{file.name}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      {formatFileSize(file.size)} • Uploaded {new Date(file.uploadedAt).toLocaleDateString()}
+                    </p>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => window.open(file.url, '_blank')}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View File
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-6">No files submitted</p>
+            )}
+          </div>
+
+          {/* Completed Review Info */}
+          {(task.status === 'approved' || task.status === 'rejected') && (
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                {getStatusIcon(task.status)}
+                <h4 className="font-medium">Review Completed</h4>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This task has been {task.status} and automatically moved to the next step in the workflow.
+              </p>
+              {task.feedback && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium">Feedback:</p>
+                  <p className="text-sm text-muted-foreground">{task.feedback}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Sticky Footer with Review Actions */}
+        {task.status === 'pending' && (
+          <div className="flex-shrink-0 border-t pt-4 pb-2 bg-background">
+            <div className="flex justify-center gap-4">
+              {hasVideoFile(task) ? (
+                <Button 
+                  size="lg"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onVideoReview();
+                  }}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Review Video
+                </Button>
+              ) : (
+                <QCReviewDialog
+                  task={task}
+                  onReviewComplete={(approved, feedback) => {
+                    onReviewComplete(approved, feedback);
+                    onOpenChange(false);
+                  }}
+                  trigger={
+                    <Button size="lg">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Start Review
+                    </Button>
+                  }
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
