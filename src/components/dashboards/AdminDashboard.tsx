@@ -12,6 +12,7 @@ import { AuditLogTab } from '../admin/AuditLogTab';
 import { FinanceTab } from '../admin/FinanceTab';
 import { ClientManagement } from '../management/ClientManagement';
 import { Button } from '../ui/button';
+import { useEffect, useState } from "react";
 
 const kpiData = [
   {
@@ -107,10 +108,36 @@ interface AdminDashboardProps {
 
 
 export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProps) {
+  
+  const [tasks, setTasks] = useState([]);
+
   const handleTaskCreated = (task: any) => {
     console.log('New task created:', task);
     // In a real app, this would update the task list or refresh data
   };
+
+ const [recentTasks, setRecentTasks] = useState([]);
+
+useEffect(() => {
+  loadTasks();
+}, []);
+
+async function loadTasks() {
+  try {
+    const res = await fetch("/api/tasks");
+    const data = await res.json();
+
+    // Take the latest 10 tasks
+    const sorted = (data.tasks || [])
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10);
+
+    setRecentTasks(sorted);
+  } catch (err) {
+    console.error("Failed to fetch tasks:", err);
+  }
+}
+
   
 
   // Main dashboard overview content
@@ -152,7 +179,11 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
-                  <Bar dataKey="projects" fill="hsl(var(--primary))" radius={4} />
+                  <Bar
+                    dataKey="projects"
+                    fill="hsl(var(--primary))"
+                    radius={4}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -187,10 +218,13 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
             </div>
             <div className="space-y-2 mt-4">
               {projectHealthData.map((item, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
+                <div
+                  key={index}
+                  className="flex items-center justify-between text-sm"
+                >
                   <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
+                    <div
+                      className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: item.color }}
                     />
                     <span>{item.name}</span>
@@ -210,16 +244,26 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <CardContent>
             <div className="space-y-4">
               {recentActivity.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3 pb-3 border-b last:border-b-0">
-                  <div className={`w-2 h-2 rounded-full mt-2 ${
-                    activity.status === 'success' ? 'bg-green-500' :
-                    activity.status === 'error' ? 'bg-red-500' :
-                    activity.status === 'warning' ? 'bg-yellow-500' :
-                    'bg-blue-500'
-                  }`} />
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-3 pb-3 border-b last:border-b-0"
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full mt-2 ${
+                      activity.status === "success"
+                        ? "bg-green-500"
+                        : activity.status === "error"
+                        ? "bg-red-500"
+                        : activity.status === "warning"
+                        ? "bg-yellow-500"
+                        : "bg-blue-500"
+                    }`}
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm">{activity.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {activity.time}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -230,10 +274,12 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
 
       {/* Recent Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RecentTasksCard 
+        <RecentTasksCard
           title="Recently Assigned Tasks"
+          tasks={recentTasks}
           showCreateButton={true}
         />
+
         <Card>
           <CardHeader>
             <CardTitle>System Status</CardTitle>
@@ -242,11 +288,15 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm">Server Status</span>
-                <Badge variant="default" className="bg-green-500">Online</Badge>
+                <Badge variant="default" className="bg-green-500">
+                  Online
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">Database</span>
-                <Badge variant="default" className="bg-green-500">Healthy</Badge>
+                <Badge variant="default" className="bg-green-500">
+                  Healthy
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">API Response Time</span>

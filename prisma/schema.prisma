@@ -78,6 +78,10 @@ model Task {
   createdBy   Int
   clientId    String?
 
+  monthlyDeliverableId String?
+  monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
+
+
   driveFolderId String?
   attachments   Json?
   driveLinks    String[]
@@ -87,7 +91,31 @@ model Task {
 
   user        User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client      Client?  @relation(fields: [clientId], references: [id])
+
+  templateFor RecurringTask[] @relation("TemplateTask")
 }
+
+model RecurringTask {
+  id              String   @id @default(cuid())
+
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id])
+
+  deliverableId   String
+  deliverable     MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
+
+  // NEW: which task is the blueprint?
+  templateTaskId  String?
+  templateTask    Task?   @relation("TemplateTask", fields: [templateTaskId], references: [id])
+
+  nextRunDate     DateTime
+  lastRunDate     DateTime?
+  scheduleType    String        // e.g. "monthly" | "manual"
+  active          Boolean @default(true)
+
+  createdAt       DateTime @default(now())
+}
+
 
 
 enum TaskStatus {
@@ -156,26 +184,27 @@ model MonthlyDeliverable {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  tasks           Task[]
   recurringTasks  RecurringTask[]
 }
 
 
-model RecurringTask {
-  id              String   @id @default(cuid())
+// model RecurringTask {
+//   id              String   @id @default(cuid())
 
-  clientId        String
-  client          Client   @relation(fields: [clientId], references: [id])
+//   clientId        String
+//   client          Client   @relation(fields: [clientId], references: [id])
 
-  deliverableId   String
-  deliverable     MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
+//   deliverableId   String
+//   deliverable     MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
 
-  nextRunDate     DateTime
-  lastRunDate     DateTime?
-  scheduleType    String
-  active          Boolean @default(true)
+//   nextRunDate     DateTime
+//   lastRunDate     DateTime?
+//   scheduleType    String
+//   active          Boolean @default(true)
 
-  createdAt       DateTime @default(now())
-}
+//   createdAt       DateTime @default(now())
+// }
 
 
 model BrandAsset {
