@@ -219,15 +219,16 @@ export async function POST(req: Request) {
     // ------------- PARSE FORM DATA --------------
     const form = await req.formData();
 
-    const title = form.get("title") as string;
     const description = form.get("description") as string;
-    const taskType = form.get("taskType") as string;
     const dueDate = form.get("dueDate") as string;
     const assignedTo = form.get("assignedTo") as string;
+    const qc_specialist = form.get("qc_specialist") as string;
+    const scheduler = form.get("scheduler") as string;
+    const videographer = form.get("videographer") as string;
     const clientId = form.get("clientId") as string;
     const folderType = form.get("folderType") as string;
 
-    if (!taskType || !dueDate || !assignedTo || !folderType || !clientId) {
+    if ( !assignedTo || !folderType || !clientId) {
       return NextResponse.json(
         { message: "Missing required fields" },
         { status: 400 }
@@ -280,15 +281,20 @@ export async function POST(req: Request) {
       uploadedLinks.push(uploaded.webViewLink ?? "NULL");
     }
 
+    const autoTitle = `${clientSlug}_${createdDateStr}_${deliverableSlug}_${createdCount}`;
+
     // ------------- CREATE FIRST (MANUAL) TASK --------------
     const task = await prisma.task.create({
       data: {
         // we still accept the manual title but will overwrite with pattern
-        title: title || "",
+        title: "",
         description: description || "",
-        taskType,
+        // taskType,
         dueDate: new Date(dueDate),
         assignedTo: Number(assignedTo),
+        qc_specialist:  Number(qc_specialist),
+        scheduler:     Number(scheduler),
+        videographer:  Number(videographer),
         createdBy: decoded.userId,
         clientId,
         driveLinks: uploadedLinks,

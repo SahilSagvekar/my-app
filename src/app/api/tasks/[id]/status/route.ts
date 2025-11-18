@@ -14,7 +14,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const token = getTokenFromCookies(req);
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });

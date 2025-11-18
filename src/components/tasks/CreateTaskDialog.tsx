@@ -2,6 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
+
+declare global {
+  interface Window {
+    __taskContext: {
+      availableMembers: any[];
+      formData: any;
+      update: (field: string, value: any) => void;
+    };
+  }
+}
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -39,32 +49,65 @@ const taskTypes = [
   { value: "schedule", label: "Schedule Planning", roles: ["scheduler"] },
   { value: "copywriting", label: "Copywriting", roles: ["editor"] },
   { value: "audit", label: "Content Audit", roles: ["qc_specialist"] },
-  { value: "coordination", label: "Project Coordination", roles: ["scheduler"] },
+  {
+    value: "coordination",
+    label: "Project Coordination",
+    roles: ["scheduler"],
+  },
 ];
 
-export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogProps) {
+
+export function CreateTaskDialog({
+  trigger,
+  onTaskCreated,
+}: CreateTaskDialogProps) {
   const [open, setOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     description: "",
-    type: "",
+    // type: "",
     assignedTo: "",
+    editor: "",
+    scheduler: "",
+    videographer: "",
+    qc_specialist: "",
     dueDate: "",
     clientId: "",
     folderType: "",
   });
 
+  
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
+  // const [availableMembers, setAvailableMembers] = useState<any[]>([]);
+  
+  
   const [availableMembers, setAvailableMembers] = useState<any[]>([]);
   const [files, setFiles] = useState<FileList | null>(null);
-  const [clients, setClients] = useState<any[]>([]);
 
+  // move this up
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
+
+  // now assign context AFTER function exists
+  window.__taskContext = {
+    availableMembers,
+    formData,
+    update: handleInputChange,
+  };
+
+
+  // const [files, setFiles] = useState<FileList | null>(null);
+  const [clients, setClients] = useState<any[]>([]);
+
+  // const handleInputChange = (field: string, value: any) => {
+  //   setFormData((prev) => ({ ...prev, [field]: value }));
+  //   if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+  // };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFiles(e.target.files);
@@ -72,7 +115,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.type) newErrors.type = "Task type is required";
+    // if (!formData.type) newErrors.type = "Task type is required";
     if (!formData.assignedTo) newErrors.assignedTo = "Please assign this task";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     if (!formData.clientId) newErrors.clientId = "Client is required";
@@ -81,23 +124,22 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     return Object.keys(newErrors).length === 0;
   };
 
-  const fetchMembers = async () => {
-    if (!formData.type) {
-      setAvailableMembers([]);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/roles?taskType=${formData.type}`);
-      const data = await res.json();
-      setAvailableMembers(data.roleUsers || data.users || []);
-    } catch {
-      setAvailableMembers([]);
-    }
-  };
-
   useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const res = await fetch("/api/roles?all=true");
+        const data = await res.json();
+        setAvailableMembers(data.users || []);
+      } catch {
+        setAvailableMembers([]);
+      }
+    };
     fetchMembers();
-  }, [formData.type]);
+  }, []);
+
+  // useEffect(() => {
+  //   fetchMembers();
+  // }, []);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -122,9 +164,12 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       const formPayload = new FormData();
 
       formPayload.append("description", formData.description || "");
-      formPayload.append("taskType", formData.type);
+      // formPayload.append("taskType", formData.type);
       formPayload.append("dueDate", formData.dueDate);
       formPayload.append("assignedTo", formData.assignedTo);
+      formPayload.append("qc_specialist", formData.qc_specialist);
+      formPayload.append("scheduler", formData.scheduler);
+      formPayload.append("videographer", formData.videographer);
       formPayload.append("clientId", formData.clientId);
       formPayload.append("folderType", formData.folderType);
 
@@ -144,12 +189,17 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       onTaskCreated?.(data);
       setFormData({
         description: "",
-        type: "",
+        // type: "",
         assignedTo: "",
+        editor: "",
+        scheduler: "",
+        videographer: "",
+        qc_specialist: "",
         dueDate: "",
         clientId: "",
         folderType: "",
       });
+
       setFiles(null);
       setAvailableMembers([]);
       setOpen(false);
@@ -175,10 +225,11 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       </DialogTrigger>
 
       <DialogContent className="!max-w-[1200px] w-[95vw] h-[95vh] !max-h-[95vh] overflow-y-auto bg-white border border-gray-200 rounded-lg">
-
         <DialogHeader>
           <DialogTitle>Create Task</DialogTitle>
-          <DialogDescription>Assign the task and upload files.</DialogDescription>
+          <DialogDescription>
+            Assign the task and upload files.
+          </DialogDescription>
 
           {user && (
             <div className="text-xs text-muted-foreground">
@@ -188,7 +239,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {errors.submit && <p className="text-sm text-destructive">{errors.submit}</p>}
+          {errors.submit && (
+            <p className="text-sm text-destructive">{errors.submit}</p>
+          )}
 
           {/* DESCRIPTION */}
           <div className="space-y-2">
@@ -207,7 +260,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
               value={formData.clientId}
               onValueChange={(v) => handleInputChange("clientId", v)}
             >
-              <SelectTrigger className={errors.clientId ? "border-destructive" : ""}>
+              <SelectTrigger
+                className={errors.clientId ? "border-destructive" : ""}
+              >
                 <SelectValue placeholder="Select a client" />
               </SelectTrigger>
               <SelectContent>
@@ -218,7 +273,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                 ))}
               </SelectContent>
             </Select>
-            {errors.clientId && <p className="text-sm text-destructive">{errors.clientId}</p>}
+            {errors.clientId && (
+              <p className="text-sm text-destructive">{errors.clientId}</p>
+            )}
           </div>
 
           {/* FOLDER TYPE */}
@@ -228,7 +285,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
               value={formData.folderType}
               onValueChange={(v) => handleInputChange("folderType", v)}
             >
-              <SelectTrigger className={errors.folderType ? "border-destructive" : ""}>
+              <SelectTrigger
+                className={errors.folderType ? "border-destructive" : ""}
+              >
                 <SelectValue placeholder="raw footage / elements" />
               </SelectTrigger>
               <SelectContent>
@@ -236,11 +295,13 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                 <SelectItem value="essentials">Elements</SelectItem>
               </SelectContent>
             </Select>
-            {errors.folderType && <p className="text-sm text-destructive">{errors.folderType}</p>}
+            {errors.folderType && (
+              <p className="text-sm text-destructive">{errors.folderType}</p>
+            )}
           </div>
 
           {/* TYPE */}
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label>Task Type</Label>
             <Select
               value={formData.type}
@@ -261,7 +322,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
               </SelectContent>
             </Select>
             {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
-          </div>
+          </div> */}
 
           {/* DUE DATE */}
           <div className="space-y-2">
@@ -273,7 +334,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
               className={errors.dueDate ? "border-destructive" : ""}
               min={new Date().toISOString().split("T")[0]}
             />
-            {errors.dueDate && <p className="text-sm text-destructive">{errors.dueDate}</p>}
+            {errors.dueDate && (
+              <p className="text-sm text-destructive">{errors.dueDate}</p>
+            )}
           </div>
 
           {/* FILES */}
@@ -290,12 +353,12 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
           </div>
 
           {/* ASSIGN TO */}
-          <div className="space-y-3">
+          {/* <div className="space-y-3">
             <Label>Assign To</Label>
 
-            {formData.type ? (
-              <div className="space-y-3 max-h-48 overflow-y-auto">
-                {availableMembers.map((member) => (
+            <div className="space-y-3 max-h-48 overflow-y-auto">
+              {availableMembers.length > 0 ? (
+                availableMembers.map((member) => (
                   <Card
                     key={member.id}
                     className={`cursor-pointer transition ${
@@ -303,36 +366,83 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                         ? "border-primary bg-primary/10"
                         : "hover:bg-accent"
                     }`}
-                    onClick={() => handleInputChange("assignedTo", String(member.id))}
+                    onClick={() =>
+                      handleInputChange("assignedTo", String(member.id))
+                    }
                   >
                     <CardContent className="p-3 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={member.avatarUrl || ""} />
-                          <AvatarFallback>{member.name?.charAt(0)}</AvatarFallback>
+                          <AvatarFallback>
+                            {member.name?.charAt(0)}
+                          </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <h4 className="text-sm">{member.name}</h4>
-                        </div>
+                        <h4 className="text-sm">{member.name}</h4>
                       </div>
                       <Badge>{member.availability}</Badge>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Select a task type first.
-              </p>
-            )}
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No members available.
+                </p>
+              )}
+            </div>
 
             {errors.assignedTo && (
               <p className="text-sm text-destructive">{errors.assignedTo}</p>
             )}
-          </div>
+          </div> */}
+
+          {/* ROLE SECTIONS */}
+          <RoleAssign
+            title="Assign Editor"
+            role="editor"
+            field="assignedTo"
+            formData={formData}
+            update={handleInputChange}
+            availableMembers={availableMembers}
+            error={errors.assignedTo}
+          />
+
+          <RoleAssign
+            title="Assign Scheduler"
+            role="scheduler"
+            field="scheduler"
+            formData={formData}
+            update={handleInputChange}
+            availableMembers={availableMembers}
+            error={errors.assignedTo}
+          />
+
+          <RoleAssign
+            title="Assign Videographer"
+            role="videographer"
+            field="videographer"
+            formData={formData}
+            update={handleInputChange}
+            availableMembers={availableMembers}
+            error={errors.assignedTo}
+          />
+
+          <RoleAssign
+            title="Assign QC"
+            role="qc"
+            field="qc_specialist"
+            formData={formData}
+            update={handleInputChange}
+            availableMembers={availableMembers}
+            error={errors.assignedTo}
+          />
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
@@ -343,4 +453,46 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       </DialogContent>
     </Dialog>
   );
-} 
+}
+
+function RoleAssign({ title, role, field, formData, update, availableMembers, error }) {
+  const members = availableMembers.filter((m) => m.role === role);
+
+  return (
+    <div className="space-y-2">
+      <Label>{title}</Label>
+
+      <div className="space-y-3 max-h-48 overflow-y-auto">
+        {members.length > 0 ? (
+          members.map((member) => (
+            <Card
+              key={member.id}
+              className={`cursor-pointer transition ${
+                String(formData[field]) === String(member.id)
+                  ? "border-primary bg-primary/10"
+                  : "hover:bg-accent"
+              }`}
+              onClick={() => update(field, String(member.id))}
+            >
+              <CardContent className="p-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={member.avatarUrl || ""} />
+                    <AvatarFallback>{member.name?.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <h4 className="text-sm">{member.name}</h4>
+                </div>
+                <Badge>{member.availability}</Badge>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <p className="text-sm text-muted-foreground">No members available.</p>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+

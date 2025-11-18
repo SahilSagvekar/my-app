@@ -11,6 +11,7 @@ export interface WorkflowTask {
   assignedToRole: string;
   createdAt: string;
   dueDate: string;
+  clientId?: string;
   projectId?: string;
   parentTaskId?: string; // For tracking related tasks in the workflow
   files?: WorkflowFile[];

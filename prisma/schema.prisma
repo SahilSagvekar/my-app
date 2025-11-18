@@ -68,14 +68,17 @@ model VerificationToken {
 
 model Task {
   id          String   @id @default(cuid())
-  title       String
+  title       String?
   description String
-  taskType    String
+  taskType    String?
   status      TaskStatus?  @default(PENDING)
-  dueDate     DateTime
+  dueDate     DateTime?
 
-  assignedTo  Int
-  createdBy   Int
+  assignedTo  Int     
+  qc_specialist  Int?  
+  scheduler     Int?   
+  videographer  Int?   
+  createdBy   Int?
   clientId    String?
 
   monthlyDeliverableId String?
