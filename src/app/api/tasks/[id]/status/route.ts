@@ -23,10 +23,16 @@ export async function PATCH(
     const { role, userId } = decoded;
 
     const body = await req.json();
-    const { status } = body;
+    const { status, feedback, qcNotes, route } = body;
 
     if (!status)
       return NextResponse.json({ message: "Status is required" }, { status: 400 });
+
+    const updateData: any = {};
+
+    if (feedback !== undefined) updateData.feedback = feedback;
+    if (qcNotes !== undefined) updateData.qcNotes = qcNotes;
+    if (route !== undefined) updateData.route = route;
 
     // Get current task
     const task = await prisma.task.findUnique({ where: { id } });
@@ -71,6 +77,7 @@ export async function PATCH(
     const updatedTask = await prisma.task.update({
       where: { id },
       data: {
+        ...updateData,
         status,
         updatedAt: new Date(),
       },

@@ -17,129 +17,197 @@ type TaskDestination = 'editor' | 'client' | 'scheduler';
 interface EnhancedWorkflowTask extends WorkflowTask {
   nextDestination?: TaskDestination;
   requiresClientReview?: boolean;
-  taskCategory?: 'design' | 'video' | 'copywriting' | 'review';
-  priority?: 'urgent' | 'high' | 'medium' | 'low';
+  taskCategory?: "design" | "video" | "copywriting" | "review";
+  priority?: "urgent" | "high" | "medium" | "low";
+  qcNotes?: string | null; // NEW: where we mirror rejection notes on FE
 }
 
+
 // Mock initial QC tasks with enhanced workflow information
-const initialQCTasks: EnhancedWorkflowTask[] = [
-  {
-    id: 'QC-001',
-    title: 'QC Review: Brand Guidelines Update',
-    description: 'Review uploaded files for: Brand Guidelines Update\\n\\nOriginal task description: Update brand guidelines for Q4 campaign with new color palette and typography',
-    type: 'qc_review',
-    status: 'pending',
-    assignedTo: 'qc1',
-    assignedToName: 'Lisa Davis',
-    assignedToRole: 'qc',
-    createdAt: '2024-08-10T15:00:00Z',
-    dueDate: '2024-08-11',
-    parentTaskId: 'EDIT-001',
-    originalTaskId: 'EDIT-001',
-    workflowStep: 'qc_review',
-    taskCategory: 'design',
-    priority: 'high',
-    requiresClientReview: true,
-    nextDestination: 'client',
-    files: [
-      {
-        id: 'file-001',
-        name: 'brand_guidelines_v4.pdf',
-        url: 'https://drive.google.com/file/d/1234567890/view',
-        uploadedAt: '2024-08-10T14:45:00Z',
-        uploadedBy: 'ed1',
-        driveFileId: 'drive-001',
-        mimeType: 'application/pdf',
-        size: 2548576
-      },
-      {
-        id: 'file-002',
-        name: 'color_palette_reference.png',
-        url: 'https://drive.google.com/file/d/0987654321/view',
-        uploadedAt: '2024-08-10T14:47:00Z',
-        uploadedBy: 'ed1',
-        driveFileId: 'drive-002',
-        mimeType: 'image/png',
-        size: 854729
-      }
-    ],
-    projectId: 'proj-001'
-  },
-  {
-    id: 'QC-002',
-    title: 'QC Review: Holiday Campaign Video',
-    description: 'Review uploaded video for: Holiday Campaign Video\\n\\nOriginal task description: Create promotional video for holiday campaign with product showcase and customer testimonials',
-    type: 'qc_review',
-    status: 'pending',
-    assignedTo: 'qc1',
-    assignedToName: 'Lisa Davis',
-    assignedToRole: 'qc',
-    createdAt: '2024-08-09T16:30:00Z',
-    dueDate: '2024-08-10',
-    parentTaskId: 'EDIT-002',
-    originalTaskId: 'EDIT-002',
-    workflowStep: 'qc_review',
-    taskCategory: 'video',
-    priority: 'urgent',
-    requiresClientReview: true,
-    nextDestination: 'client',
-    files: [
-      {
-        id: 'file-003',
-        name: 'holiday_campaign_v1.mp4',
-        url: 'https://drive.google.com/file/d/video123/view',
-        uploadedAt: '2024-08-09T16:15:00Z',
-        uploadedBy: 'ed2',
-        driveFileId: 'drive-003',
-        mimeType: 'video/mp4',
-        size: 89453728
-      },
-      {
-        id: 'file-004',
-        name: 'holiday_script.pdf',
-        url: 'https://drive.google.com/file/d/script456/view',
-        uploadedAt: '2024-08-09T16:16:00Z',
-        uploadedBy: 'ed2',
-        driveFileId: 'drive-004',
-        mimeType: 'application/pdf',
-        size: 245760
-      }
-    ],
-    projectId: 'proj-002'
-  },
-  {
-    id: 'QC-003',
-    title: 'QC Review: Social Media Assets',
-    description: 'Review uploaded social media assets\\n\\nOriginal task description: Create Instagram and Facebook post designs for product launch',
-    type: 'qc_review',
-    status: 'pending',
-    assignedTo: 'qc1',
-    assignedToName: 'Lisa Davis',
-    assignedToRole: 'qc',
-    createdAt: '2024-08-11T09:30:00Z',
-    dueDate: '2024-08-13',
-    parentTaskId: 'EDIT-003',
-    originalTaskId: 'EDIT-003',
-    workflowStep: 'qc_review',
-    taskCategory: 'design',
-    priority: 'medium',
-    requiresClientReview: false,
-    nextDestination: 'scheduler',
-    files: [
-      {
-        id: 'file-005',
-        name: 'instagram_posts.zip',
-        url: 'https://drive.google.com/file/d/assets123/view',
-        uploadedAt: '2024-08-11T09:15:00Z',
-        uploadedBy: 'ed1',
-        driveFileId: 'drive-005',
-        mimeType: 'application/zip',
-        size: 4547829
-      }
-    ],
-    projectId: 'proj-003'
+// const initialQCTasks: EnhancedWorkflowTask[] = [
+//   {
+//     id: 'QC-001',
+//     title: 'QC Review: Brand Guidelines Update',
+//     description: 'Review uploaded files for: Brand Guidelines Update\\n\\nOriginal task description: Update brand guidelines for Q4 campaign with new color palette and typography',
+//     type: 'qc_review',
+//     status: 'pending',
+//     assignedTo: 'qc1',
+//     assignedToName: 'Lisa Davis',
+//     assignedToRole: 'qc',
+//     createdAt: '2024-08-10T15:00:00Z',
+//     dueDate: '2024-08-11',
+//     parentTaskId: 'EDIT-001',
+//     originalTaskId: 'EDIT-001',
+//     workflowStep: 'qc_review',
+//     taskCategory: 'design',
+//     priority: 'high',
+//     requiresClientReview: true,
+//     nextDestination: 'client',
+//     files: [
+//       {
+//         id: 'file-001',
+//         name: 'brand_guidelines_v4.pdf',
+//         url: 'https://drive.google.com/file/d/1234567890/view',
+//         uploadedAt: '2024-08-10T14:45:00Z',
+//         uploadedBy: 'ed1',
+//         driveFileId: 'drive-001',
+//         mimeType: 'application/pdf',
+//         size: 2548576
+//       },
+//       {
+//         id: 'file-002',
+//         name: 'color_palette_reference.png',
+//         url: 'https://drive.google.com/file/d/0987654321/view',
+//         uploadedAt: '2024-08-10T14:47:00Z',
+//         uploadedBy: 'ed1',
+//         driveFileId: 'drive-002',
+//         mimeType: 'image/png',
+//         size: 854729
+//       }
+//     ],
+//     projectId: 'proj-001'
+//   },
+//   {
+//     id: 'QC-002',
+//     title: 'QC Review: Holiday Campaign Video',
+//     description: 'Review uploaded video for: Holiday Campaign Video\\n\\nOriginal task description: Create promotional video for holiday campaign with product showcase and customer testimonials',
+//     type: 'qc_review',
+//     status: 'pending',
+//     assignedTo: 'qc1',
+//     assignedToName: 'Lisa Davis',
+//     assignedToRole: 'qc',
+//     createdAt: '2024-08-09T16:30:00Z',
+//     dueDate: '2024-08-10',
+//     parentTaskId: 'EDIT-002',
+//     originalTaskId: 'EDIT-002',
+//     workflowStep: 'qc_review',
+//     taskCategory: 'video',
+//     priority: 'urgent',
+//     requiresClientReview: true,
+//     nextDestination: 'client',
+//     files: [
+//       {
+//         id: 'file-003',
+//         name: 'holiday_campaign_v1.mp4',
+//         url: 'https://drive.google.com/file/d/video123/view',
+//         uploadedAt: '2024-08-09T16:15:00Z',
+//         uploadedBy: 'ed2',
+//         driveFileId: 'drive-003',
+//         mimeType: 'video/mp4',
+//         size: 89453728
+//       },
+//       {
+//         id: 'file-004',
+//         name: 'holiday_script.pdf',
+//         url: 'https://drive.google.com/file/d/script456/view',
+//         uploadedAt: '2024-08-09T16:16:00Z',
+//         uploadedBy: 'ed2',
+//         driveFileId: 'drive-004',
+//         mimeType: 'application/pdf',
+//         size: 245760
+//       }
+//     ],
+//     projectId: 'proj-002'
+//   },
+//   {
+//     id: 'QC-003',
+//     title: 'QC Review: Social Media Assets',
+//     description: 'Review uploaded social media assets\\n\\nOriginal task description: Create Instagram and Facebook post designs for product launch',
+//     type: 'qc_review',
+//     status: 'pending',
+//     assignedTo: 'qc1',
+//     assignedToName: 'Lisa Davis',
+//     assignedToRole: 'qc',
+//     createdAt: '2024-08-11T09:30:00Z',
+//     dueDate: '2024-08-13',
+//     parentTaskId: 'EDIT-003',
+//     originalTaskId: 'EDIT-003',
+//     workflowStep: 'qc_review',
+//     taskCategory: 'design',
+//     priority: 'medium',
+//     requiresClientReview: false,
+//     nextDestination: 'scheduler',
+//     files: [
+//       {
+//         id: 'file-005',
+//         name: 'instagram_posts.zip',
+//         url: 'https://drive.google.com/file/d/assets123/view',
+//         uploadedAt: '2024-08-11T09:15:00Z',
+//         uploadedBy: 'ed1',
+//         driveFileId: 'drive-005',
+//         mimeType: 'application/zip',
+//         size: 4547829
+//       }
+//     ],
+//     projectId: 'proj-003'
+//   }
+// ];
+
+const persistQCResult = async ({
+  taskId,
+  approved,
+  feedback,
+  requiresClientReview,
+}: {
+  taskId: string;
+  approved: boolean;
+  feedback?: string;
+  requiresClientReview?: boolean;
+}) => {
+  const newStatus = approved ? "COMPLETED" : "REJECTED";
+
+  // 1) Update status
+  // const statusRes = await fetch(`/api/tasks/${taskId}/status`, {
+  //   method: "PATCH",
+  //   headers: { "Content-Type": "application/json" },
+  //   body: JSON.stringify({ status: newStatus }),
+  // });
+
+  // if (!statusRes.ok) {
+  //   const body = await statusRes.text();
+  //   console.error("Status update failed:", body);
+  //   throw new Error("Failed to update status");
+  // }
+
+  // 2) Update feedback / qcNotes / routing intent
+  const metaBody: any = {};
+
+  if (approved && feedback) {
+    metaBody.feedback = feedback; // APPROVED feedback
   }
-];
+
+  if (!approved && feedback) {
+    metaBody.qcNotes = feedback; // REJECTION notes
+  }
+
+  // Optional routing hints – you can wire this in backend if you want
+  if (approved) {
+    metaBody.qcResult = "APPROVED";
+    metaBody.route = requiresClientReview
+      ? "client_then_scheduler"
+      : "scheduler";
+  } else {
+    metaBody.qcResult = "REJECTED";
+    metaBody.route = "editor";
+  }
+
+  if (Object.keys(metaBody).length === 0) return;
+
+  metaBody.status = newStatus; // include status update here
+
+  const metaRes = await fetch(`/api/tasks/${taskId}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(metaBody),
+  });
+
+  if (!metaRes.ok) {
+    const body = await metaRes.text();
+    console.error("Metadata update failed:", body);
+    throw new Error("Failed to update task metadata");
+  }
+};
+
 
 export function QCDashboard() {
   const [qcTasks, setQCTasks] = useState<EnhancedWorkflowTask[]>([]);
@@ -204,89 +272,178 @@ export function QCDashboard() {
 
 
 
-  const handleReviewComplete = (approved: boolean, feedback?: string) => {
+  const handleReviewComplete = async (approved: boolean, feedback?: string) => {
     if (!selectedTask) return;
 
-    // Update task status locally
-    setQCTasks(prev => prev.map(task => 
-      task.id === selectedTask.id 
-        ? { 
-            ...task, 
-            status: approved ? 'approved' : 'rejected',
-            feedback: feedback 
-          }
-        : task
-    ));
+    const taskId = selectedTask.id;
 
-    // Auto-move to next pending task (FIFO)
-    const pendingTasks = qcTasks.filter(task => task.status === 'pending' && task.id !== selectedTask.id);
-    const nextTask = pendingTasks.sort((a, b) => 
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    )[0];
-    
-    setSelectedTask(nextTask || null);
+    try {
+      // Persist to backend: status + feedback/qcNotes + routing hint
+      await persistQCResult({
+        taskId,
+        approved,
+        feedback,
+        requiresClientReview: selectedTask.requiresClientReview,
+      });
 
-    // Show routing confirmation
-    if (approved && selectedTask.nextDestination) {
-      const destinationName = selectedTask.nextDestination === 'client' ? 'Client Review' : 
-                             selectedTask.nextDestination === 'scheduler' ? 'Scheduler' : 'Editor';
-      toast('✅ Task Approved', { 
-        description: `Task sent to ${destinationName} automatically` 
-      });
-    } else if (!approved) {
-      toast('❌ Task Rejected', { 
-        description: 'Revision task sent back to Editor' 
-      });
+      // Decide routing on FE side for UX
+      let nextDestination: TaskDestination | undefined;
+
+      if (approved) {
+        // APPROVE FLOW
+        if (selectedTask.requiresClientReview) {
+          // Client first, then scheduler
+          nextDestination = "client";
+        } else {
+          // Direct to scheduler
+          nextDestination = "scheduler";
+        }
+      } else {
+        // REJECT FLOW – back to editor
+        nextDestination = "editor";
+      }
+
+      setQCTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                status: approved ? "approved" : "rejected",
+                // store feedback for approved, qcNotes for rejected
+                ...(approved
+                  ? { feedback }
+                  : { qcNotes: feedback, feedback: task.feedback }),
+                nextDestination,
+              }
+            : task
+        )
+      );
+
+      // Pick next pending task FIFO
+      const pendingTasks = qcTasks.filter(
+        (task) => task.status === "pending" && task.id !== taskId
+      );
+      const nextTask = pendingTasks.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )[0];
+
+      setSelectedTask(nextTask || null);
+
+      // Toasts
+      if (approved) {
+        if (selectedTask.requiresClientReview) {
+          toast("✅ Approved – Sent to Client", {
+            description:
+              "Task approved by QC and sent to client for review, then scheduler.",
+          });
+        } else {
+          toast("✅ Approved – Sent to Scheduler", {
+            description: "Task approved by QC and sent directly to scheduler.",
+          });
+        }
+      } else {
+        toast("❌ Rejected – Back to Editor", {
+          description: "Rejection notes have been sent to the assigned editor.",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update task status");
     }
   };
 
-  const handleSendToClient = (asset: any) => {
+
+  const handleSendToClient = async (asset: any) => {
     if (!selectedTask) return;
-    
-    setQCTasks(prev => prev.map(task => 
-      task.id === selectedTask.id 
-        ? { ...task, status: 'approved' }
-        : task
-    ));
-    
-    toast('✅ Video Approved', { 
-      description: 'Video has been sent to client for review' 
-    });
-    
-    // Move to next task (FIFO)
-    const pendingTasks = qcTasks.filter(task => task.status === 'pending' && task.id !== selectedTask.id);
-    const nextTask = pendingTasks.sort((a, b) => 
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    )[0];
-    
-    setSelectedTask(nextTask || null);
+
+    try {
+      await persistQCResult({
+        taskId: selectedTask.id,
+        approved: true,
+        // you can pass a default feedback string if you want:
+        // feedback: "Approved and sent to client for review.",
+        requiresClientReview: true,
+      });
+
+      setQCTasks((prev) =>
+        prev.map((task) =>
+          task.id === selectedTask.id
+            ? {
+                ...task,
+                status: "approved",
+                nextDestination: "client",
+              }
+            : task
+        )
+      );
+
+      toast("✅ Video Approved – Sent to Client", {
+        description:
+          "Video has been sent to client for review before scheduling.",
+      });
+
+      const pendingTasks = qcTasks.filter(
+        (task) => task.status === "pending" && task.id !== selectedTask.id
+      );
+      const nextTask = pendingTasks.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )[0];
+
+      setSelectedTask(nextTask || null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update task status");
+    }
   };
 
-  const handleSendBackToEditor = (asset: any, revisionData: any) => {
+
+  const handleSendBackToEditor = async (asset: any, revisionData: any) => {
     if (!selectedTask) return;
-    
-    setQCTasks(prev => prev.map(task => 
-      task.id === selectedTask.id 
-        ? { 
-            ...task, 
-            status: 'rejected',
-            feedback: revisionData.notes 
-          }
-        : task
-    ));
-    
-    toast('📝 Issues Reported', { 
-      description: 'Feedback has been sent back to the editor' 
-    });
-    
-    // Move to next task (FIFO)
-    const pendingTasks = qcTasks.filter(task => task.status === 'pending' && task.id !== selectedTask.id);
-    const nextTask = pendingTasks.sort((a, b) => 
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    )[0];
-    
-    setSelectedTask(nextTask || null);
+
+    const notes = revisionData?.notes || revisionData?.feedback || "";
+
+    try {
+      await persistQCResult({
+        taskId: selectedTask.id,
+        approved: false,
+        feedback: notes, // stored as qcNotes
+      });
+
+      setQCTasks((prev) =>
+        prev.map((task) =>
+          task.id === selectedTask.id
+            ? {
+                ...task,
+                status: "rejected",
+                qcNotes: notes,
+                nextDestination: "editor",
+              }
+            : task
+        )
+      );
+
+      toast("📝 Issues Reported – Back to Editor", {
+        description:
+          "Rejection notes have been saved and sent back to the assigned editor.",
+      });
+
+      const pendingTasks = qcTasks.filter(
+        (task) => task.status === "pending" && task.id !== selectedTask.id
+      );
+      const nextTask = pendingTasks.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )[0];
+
+      setSelectedTask(nextTask || null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update task status");
+    }
   };
+
 
   // Convert task to review asset format
   const getVideoAssetFromTask = (task: EnhancedWorkflowTask) => {

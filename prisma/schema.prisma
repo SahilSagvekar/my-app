@@ -102,6 +102,12 @@ model Task {
   requiresClientReview Boolean?  @default(false)
   workflowStep         String?   // "qc_review" etc.
 
+  feedback   String?  // for approved QC feedback
+  qcNotes    String?  // for rejection notes
+  qcResult   String?  // optional: "APPROVED" | "REJECTED"
+  route      String?  // optional: "scheduler" | "client_then_scheduler" | "editor"
+  
+
 
   templateFor RecurringTask[] @relation("TemplateTask")
 }
