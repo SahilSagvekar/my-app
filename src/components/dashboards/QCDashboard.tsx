@@ -156,23 +156,53 @@ export function QCDashboard() {
   };
 
   useEffect(() => {
-    // Get QC tasks from workflow engine (generated from completed editor tasks)
-    const userQCTasks = workflowTasks.filter(task => 
-      task.assignedTo === currentUser.id && task.type === 'qc_review'
-    );
+  async function loadQCTasks() {
+    try {
+      const res = await fetch("/api/tasks?qc=true", {
+        method: "GET",
+        credentials: "include",
+      });
 
-    // Include demo tasks only if no real workflow tasks exist
-    const allQCTasks = userQCTasks.length > 0 ? userQCTasks : initialQCTasks;
-    
-    // Sort by creation date (FIFO - oldest first)
-    const sortedTasks = [...allQCTasks].sort((a, b) => 
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-    
-    setQCTasks(sortedTasks);
-    
-    // Don't auto-select - let user choose which task to review
-  }, [workflowTasks, currentUser.id]);
+      if (!res.ok) throw new Error("Failed fetching QC tasks");
+
+      let data = await res.json();
+
+      if (data.tasks) data = data.tasks;
+      if (!Array.isArray(data)) {
+        console.error("QC API returned non-array:", data);
+        return;
+      }
+
+      const normalized = data.map((task: any) => ({
+        ...task,
+        status:
+          task.status === "READY_FOR_QC" ||
+          task.status === "QC_IN_PROGRESS"
+            ? "pending"
+            : String(task.status || "").toLowerCase(),
+        priority: task.priority || "medium",
+        taskCategory: task.taskCategory || "design",
+        nextDestination: task.nextDestination || "client",
+        requiresClientReview: task.requiresClientReview ?? false,
+        files: task.files || [],
+      }));
+
+      const sorted = normalized.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() -
+          new Date(b.createdAt).getTime()
+      );
+
+      setQCTasks(sorted);
+    } catch (err) {
+      console.error("QC load error:", err);
+    }
+  }
+
+  loadQCTasks();
+}, []); // ✅ FIXED: STATIC DEP ARRAY
+
+
 
   const handleReviewComplete = (approved: boolean, feedback?: string) => {
     if (!selectedTask) return;

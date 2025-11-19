@@ -94,11 +94,14 @@ export function CreateTaskDialog({
   };
 
   // now assign context AFTER function exists
+  useEffect(() => {
   window.__taskContext = {
     availableMembers,
     formData,
     update: handleInputChange,
   };
+}, [availableMembers, formData]);
+
 
 
   // const [files, setFiles] = useState<FileList | null>(null);
@@ -124,18 +127,23 @@ export function CreateTaskDialog({
     return Object.keys(newErrors).length === 0;
   };
 
-  useEffect(() => {
-    const fetchMembers = async () => {
-      try {
-        const res = await fetch("/api/roles?all=true");
-        const data = await res.json();
-        setAvailableMembers(data.users || []);
-      } catch {
-        setAvailableMembers([]);
-      }
-    };
-    fetchMembers();
-  }, []);
+  // 🔥 Reload members every time dialog opens
+useEffect(() => {
+  if (!open) return;
+
+  async function fetchMembers() {
+    try {
+      const res = await fetch("/api/roles?all=true");
+      const data = await res.json();
+      setAvailableMembers(data.users || []);
+    } catch {
+      setAvailableMembers([]);
+    }
+  }
+
+  fetchMembers();
+}, [open]);
+
 
   // useEffect(() => {
   //   fetchMembers();

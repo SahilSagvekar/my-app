@@ -73,6 +73,7 @@ model Task {
   taskType    String?
   status      TaskStatus?  @default(PENDING)
   dueDate     DateTime?
+  files       File[]
 
   assignedTo  Int     
   qc_specialist  Int?  
@@ -94,6 +95,13 @@ model Task {
 
   user        User     @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client      Client?  @relation(fields: [clientId], references: [id])
+
+  priority             String?   // "urgent" | "high" | "medium" | "low"
+  taskCategory         String?   // "design" | "video" | "copywriting"
+  nextDestination      String?   // "client" | "scheduler" | "editor"
+  requiresClientReview Boolean?  @default(false)
+  workflowStep         String?   // "qc_review" etc.
+
 
   templateFor RecurringTask[] @relation("TemplateTask")
 }
@@ -223,6 +231,22 @@ model BrandAsset {
   uploadedAt  DateTime @default(now())
   uploadedBy  String
 }
+
+model File {
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id])
+
+  name        String
+  url         String
+  mimeType    String?
+  size        Int?
+  uploadedAt  DateTime @default(now())
+  uploadedBy  Int?   // userId of who uploaded the file
+
+  createdAt   DateTime @default(now())
+}
+
 
 
 
