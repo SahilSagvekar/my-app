@@ -2,7 +2,8 @@ import { google } from "googleapis";
 // import * as fs from "fs";
 import fs from "fs";
 import path from "path";
-import { getOAuthClient } from "../lib/googleAuth";
+// import { getOAuthClient } from "../lib/googleAuth";
+import { getDriveClient } from "./googleAuth";
 // import { drive } from "./googleClient"; // your initialized Drive client
 import { Readable } from "stream";
 
@@ -147,7 +148,8 @@ export async function uploadBufferToDrive({
   filename: string;
   mimeType: string;
 }) {
-  const drive = google.drive({ version: "v3", auth: getOAuthClient() });
+  // const drive = google.drive({ version: "v3", auth });
+  const drive = getDriveClient();
 
   const res = await drive.files.create({
     requestBody: {
@@ -163,6 +165,33 @@ export async function uploadBufferToDrive({
 
   return res.data;
 }
+
+// export async function uploadBufferToDrive({
+//   buffer,
+//   folderId,
+//   filename,
+//   mimeType,
+// }: {
+//   buffer: Buffer;
+//   folderId: string;
+//   filename: string;
+//   mimeType: string;
+// }) {
+//   const res = await drive.files.create({
+//     requestBody: {
+//       name: filename,
+//       parents: [folderId],
+//     },
+//     media: {
+//       mimeType,
+//       body: BufferToStream(buffer),
+//     },
+//     fields: "id, webViewLink",
+//   });
+
+//   return res.data;
+// }
+
 
 function BufferToStream(buffer: Buffer) {
   const stream = new Readable();

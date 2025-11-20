@@ -21,15 +21,14 @@ function mapStatus(status: string) {
     case "IN_PROGRESS":
       return "in_progress";
     case "READY_FOR_QC":
-      return "completed";
+      return "ready_for_qc";
     case "REJECTED":
-      return "pending";
-    case "COMPLETED":
-      return "completed";
+      return "rejected";
     default:
       return "pending";
   }
 }
+
 
 function mapTaskTypeToWorkflow(type: string) {
   if (["design", "video", "copywriting"].includes(type)) return "edit";
@@ -216,9 +215,10 @@ export function EditorDashboard() {
   const tasksByStatus = {
     pending: tasks.filter((t) => t.status === "pending"),
     inProgress: tasks.filter((t) => t.status === "in_progress"),
-    readyForQC: tasks.filter((t) => t.status === "completed"),
-    revisions: tasks.filter((t) => t.rejectionReason && t.status === "pending"),
+    readyForQC: tasks.filter((t) => t.status === "ready_for_qc"),
+    revisions: tasks.filter((t) => t.status === "rejected"),
   };
+
 
   const columns = [
     { id: "pending", title: "Pending", tasks: tasksByStatus.pending },

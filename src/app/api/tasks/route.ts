@@ -5,6 +5,7 @@
   import jwt from "jsonwebtoken";
   import { prisma } from "@/lib/prisma";
   import { uploadBufferToDrive } from "../../../lib/googleDrive";
+  import { TaskStatus } from "@prisma/client";
 
   // ─────────────────────────────────────────
   // Helpers
@@ -20,6 +21,53 @@
     const match = cookieHeader.match(/authToken=([^;]+)/);
     return match ? match[1] : null;
   }
+
+  const buildRoleWhereQuery = (role: string, userId: number): any => {
+    switch (role.toLowerCase()) {
+      case "editor":
+        return {
+          AND: [{ assignedTo: userId },
+              {
+                status: {
+                in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.READY_FOR_QC, TaskStatus.REJECTED],
+              },
+              }
+          ],
+        };
+
+      case "qc":
+        return {
+          AND: [
+            { qc_specialist: userId },
+            {
+              status: {
+                in: [TaskStatus.READY_FOR_QC],
+              },
+            },
+          ],
+        };
+
+      case "scheduler":
+        return {
+          AND: [
+            { scheduler: userId },
+            {
+              status: {
+                in: [TaskStatus.COMPLETED],
+              },
+            },
+          ],
+        };
+
+      case "manager":
+      case "admin":
+        return {};
+
+      default:
+        return { assignedTo: userId };
+    }
+  };
+
 
   // Simple weekday map for postingDays like ["Monday", "Wednesday"]
   const WEEKDAY_MAP: Record<string, number> = {
@@ -152,11 +200,6 @@
     await Promise.all(creates);
   }
 
-
-  // ─────────────────────────────────────────
-  // GET /api/tasks
-  // ─────────────────────────────────────────
-
   export async function GET(req: Request) {
     try {
       const token = getTokenFromCookies(req);
@@ -167,10 +210,12 @@
       const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
       const { role, userId } = decoded;
 
-      const where =
-        ["admin", "manager"].includes(role)
-          ? {}
-          : { assignedTo: Number(userId) };
+      // const where =
+      //   ["admin", "manager"].includes(role)
+      //     ? {}
+      //     : { assignedTo: Number(userId) };
+
+      const where = buildRoleWhereQuery(role, Number(userId));
 
       const tasks = await prisma.task.findMany({
         where,
@@ -206,10 +251,6 @@
       );
     }
   }
-
-  // ─────────────────────────────────────────
-  // POST /api/tasks  (Create manual + auto)
-  // ─────────────────────────────────────────
 
   export async function POST(req: Request) {
     try {
