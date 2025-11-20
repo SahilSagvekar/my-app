@@ -17,14 +17,16 @@ type AuthScreen = 'login' | 'forgot-password' | 'reset-password' | 'two-factor';
 
 
 function AuthenticatedApp() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading  } = useAuth();
   const [currentPage, setCurrentPage] = useState(() => getDefaultPage(user?.role || 'admin'));
 
   const handlePageChange = (newPage: string) => {
     setCurrentPage(newPage);
   };
 
-  if (!user) return null;
+  if (loading) return <div>Loading...</div>;
+  if (!user) return <div>Not logged in</div>;
+ 
 
   return (
     <NotificationProvider currentRole={user.role}>
@@ -120,9 +122,14 @@ function AuthenticationFlow() {
     setPendingTwoFactorEmail('');
   };
 
-  if (isAuthenticated) {
-    return <AuthenticatedApp />;
-  }
+  if (loading) {
+  return <div>Loading...</div>;
+}
+
+if (isAuthenticated) {
+  return <AuthenticatedApp />;
+}
+
 
   if (currentScreen === 'login') {
     return (
