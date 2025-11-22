@@ -36,8 +36,49 @@ const calendarEvents = {
   ]
 };
 
+async function scheduleTask(task: SchedulerTask) {
+  try {
+    setBusyId(task.id);
+
+    const res = await fetch(`/api/tasks/${task.id}/mark-scheduled`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postedAt: new Date().toISOString() })
+    });
+
+    if (!res.ok) throw new Error("Failed to schedule");
+
+    const updated = await res.json();
+
+    // Update UI instantly
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === task.id ? { ...t, status: "SCHEDULED" } : t
+      )
+    );
+
+    // Remove selection
+    setSelectedTask(null);
+
+    alert("Task scheduled successfully");
+  } catch (err) {
+    console.error(err);
+    alert("Error scheduling task");
+  } finally {
+    setBusyId(null);
+  }
+}
+
+
 // Mock initial scheduling tasks
 const initialSchedulingTasks: WorkflowTask[] = [];
+
+ function mapStatus(status: string) {
+    if (status === "QC_APPROVED" || status === "READY_FOR_SCHEDULER")
+      return "pending";
+    if (status === "SCHEDULED") return "completed";
+    return "pending";
+  }
 
 function CalendarGrid() {
   const [currentMonth, setCurrentMonth] = useState(currentDate);
@@ -61,6 +102,9 @@ function CalendarGrid() {
     const dayStr = String(day).padStart(2, '0');
     return `${year}-${month}-${dayStr}`;
   };
+
+ 
+
 
   return (
     <div className="space-y-4">
@@ -136,53 +180,107 @@ function CalendarGrid() {
 }
 
 export function SchedulerDashboard() {
-  const [schedulingTasks, setSchedulingTasks] = useState<WorkflowTask[]>(initialSchedulingTasks);
+  // const [schedulingTasks, setSchedulingTasks] = useState<WorkflowTask[]>(initialSchedulingTasks);
+  const [schedulingTasks, setSchedulingTasks] = useState<WorkflowTask[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<WorkflowTask | null>(null);
   const { tasks: workflowTasks, completeSchedulingTask } = useTaskWorkflow();
 
+  // useEffect(() => {
+  //   // Filter workflow tasks for scheduling
+  //   const userSchedulingTasks = workflowTasks.filter(task => 
+  //     task.assignedTo === currentUser.id && task.type === 'scheduling'
+  //   );
+    
+  //   // Combine with initial tasks
+  //   const allSchedulingTasks = [...initialSchedulingTasks, ...userSchedulingTasks.filter(wt => 
+  //     !initialSchedulingTasks.some(it => it.id === wt.id)
+  //   )];
+    
+  //   setSchedulingTasks(allSchedulingTasks);
+    
+  //   // Auto-select first pending task
+  //   if (!selectedTask && allSchedulingTasks.length > 0) {
+  //     const firstPending = allSchedulingTasks.find(task => task.status === 'pending');
+  //     if (firstPending) setSelectedTask(firstPending);
+  //   }
+  // }, [workflowTasks, selectedTask]);
+
   useEffect(() => {
-    // Filter workflow tasks for scheduling
-    const userSchedulingTasks = workflowTasks.filter(task => 
-      task.assignedTo === currentUser.id && task.type === 'scheduling'
-    );
-    
-    // Combine with initial tasks
-    const allSchedulingTasks = [...initialSchedulingTasks, ...userSchedulingTasks.filter(wt => 
-      !initialSchedulingTasks.some(it => it.id === wt.id)
-    )];
-    
-    setSchedulingTasks(allSchedulingTasks);
-    
-    // Auto-select first pending task
-    if (!selectedTask && allSchedulingTasks.length > 0) {
-      const firstPending = allSchedulingTasks.find(task => task.status === 'pending');
-      if (firstPending) setSelectedTask(firstPending);
+    async function loadTasks() {
+      try {
+        const res = await fetch("/api/tasks", { cache: "no-store" });
+        const data = await res.json();
+
+        const mapped = data.tasks.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          type: "scheduling",
+          status: mapStatus(t.status),
+          assignedTo: String(t.assignedSchedulerId),
+          dueDate: t.dueDate,
+          clientId: t.clientId,
+          projectId: t.clientId,
+          priority: t.priority,
+          feedback: t.feedback,
+          files: t.files || [],
+        }));
+
+        setSchedulingTasks(mapped);
+      } catch (err) {
+        console.error("Error loading scheduler tasks:", err);
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [workflowTasks, selectedTask]);
+
+    loadTasks();
+  }, []);
 
   const handleScheduleTask = async (task: WorkflowTask) => {
     try {
-      // In real app, this would show a scheduling dialog and collect schedule details
-      // For demo, we'll simulate scheduling
-      
-      // Update task locally
-      setSchedulingTasks(prev => prev.map(t => 
-        t.id === task.id ? { ...t, status: 'completed' } : t
-      ));
+      // 1️⃣ Immediately update UI (optimistic update)
+      setSchedulingTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: "completed" } : t))
+      );
 
-      // Complete the workflow
+      // 2️⃣ Call backend API
+      await fetch(`/api/tasks/${task.id}/schedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduledAt: new Date().toISOString(),
+        }),
+      });
+
+      // 3️⃣ Notify workflow engine (if you're still using it)
       await completeSchedulingTask(task);
 
-      console.log('✅ Task scheduled and workflow completed:', task.id);
-      
-      // Move to next task
-      const nextTask = schedulingTasks.find(t => t.status === 'pending' && t.id !== task.id);
-      setSelectedTask(nextTask || null);
-      
-    } catch (error) {
-      console.error('Error scheduling task:', error);
+      console.log("✅ Task scheduled:", task.id);
+
+      // 4️⃣ Move to the next pending task using the UPDATED list
+      setSchedulingTasks((prev) => {
+        const updated = prev; // we've already updated the status at #1
+
+        const next = updated.find(
+          (t) => t.status === "pending" && t.id !== task.id
+        );
+
+        setSelectedTask(next || null);
+
+        return updated;
+      });
+    } catch (err) {
+      console.error("❌ Error scheduling:", err);
+
+      // 5️⃣ Roll back if needed
+      setSchedulingTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: "pending" } : t))
+      );
     }
   };
+
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
