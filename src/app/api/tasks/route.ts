@@ -6,6 +6,7 @@
   import { prisma } from "@/lib/prisma";
   import { uploadBufferToDrive } from "../../../lib/googleDrive";
   import { TaskStatus } from "@prisma/client";
+import { ClientRequest } from "http";
 
   // ─────────────────────────────────────────
   // Helpers
@@ -56,6 +57,14 @@
                 in: [TaskStatus.COMPLETED],
               },
             },
+          ],
+        };
+
+        case "client":
+        return {
+          AND: [
+            { clientUserId: userId },
+            { requiresClientReview: true },
           ],
         };
 

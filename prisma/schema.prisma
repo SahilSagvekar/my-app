@@ -27,6 +27,7 @@ model User {
   role      Role     @default(client)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  client    Client?
   accounts  Account[]
   sessions  Session[]
   assignedTasks Task[] @relation("AssignedTasks")
@@ -74,6 +75,7 @@ model Task {
   status      TaskStatus?  @default(PENDING)
   dueDate     DateTime?
   files       File[]
+  clientUserId  Int?
 
   assignedTo  Int     
   qc_specialist  Int?  
@@ -99,6 +101,7 @@ model Task {
   priority             String?   // "urgent" | "high" | "medium" | "low"
   taskCategory         String?   // "design" | "video" | "copywriting"
   nextDestination      String?   // "client" | "scheduler" | "editor"
+  clientReview         Boolean?  @default(false)
   requiresClientReview Boolean?  @default(false)
   workflowStep         String?   // "qc_review" etc.
 
@@ -148,6 +151,9 @@ enum TaskStatus {
 
 model Client {
   id                  String   @id @default(cuid())
+  userId Int? @unique
+  user   User? @relation(fields: [userId], references: [id])
+
   name                String
   email               String   
   companyName         String?
@@ -181,6 +187,7 @@ model Client {
   driveFolderId       String?
   rawFootageFolderId  String?
   essentialsFolderId  String?
+  
 }
 
 

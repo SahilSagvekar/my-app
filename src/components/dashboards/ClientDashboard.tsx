@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -670,7 +670,50 @@ function ApprovalCard({ approval, onOpenReview }: {
 export function ClientDashboard() {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [showFullscreenReview, setShowFullscreenReview] = useState(false);
-  const [approvals, setApprovals] = useState(pendingApprovals);
+  const [approvals, setApprovals] = useState([]);
+const [loading, setLoading] = useState(true);
+
+useEffect(() => {
+  loadApprovals();
+}, []);
+
+async function loadApprovals() {
+  try {
+    setLoading(true);
+    const res = await fetch("/api/tasks", { cache: "no-store" });
+    const data = await res.json();
+    console.log("DATA FROM API:", data);
+
+
+    // setApprovals(data.tasks  || []);
+    setApprovals(
+      (data.tasks || []).map((task) => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        status: task.status?.toLowerCase(),
+        submittedDate: task.createdAt,
+        deadline: task.dueDate,
+        submittedBy: {
+          id: task.assignedTo,
+          name: "Unknown User", // until you join with User table
+          avatar: "U",
+        },
+        requiresClientApproval: task.requiresClientReview || false,
+        comments: 0,
+        type: "Video", // TEMP until backend adds type
+        thumbnail: "/placeholder.png", // TEMP
+        files: task.files || [],
+      }))
+    );
+
+  } catch (err) {
+    console.error("Failed to load approvals", err);
+  } finally {
+    setLoading(false);
+  }
+}
+
   const { approveQCTask, rejectQCTask, createQCReviewTask } = useTaskWorkflow();
   const { addNotification } = useNotifications();
 
@@ -955,6 +998,9 @@ Please address these concerns and re-submit for approval.
         <h2 className="mb-4">Recent Submissions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {approvals.map((approval) => (
+
+            console.log('Rendering approval:', approval),
+
             <ApprovalCard 
               key={approval.id} 
               approval={approval} 

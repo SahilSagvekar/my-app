@@ -50,6 +50,14 @@ export async function POST(req: Request) {
     const driveFolders = await createClientFolders(name);
 
     // 🧩 Store new client in DB
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: email,
+        role: "client",
+      }
+    })
+    
     const newClient = await prisma.client.create({
       data: {
         name,

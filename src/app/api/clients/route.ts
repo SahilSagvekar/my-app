@@ -118,6 +118,15 @@ export async function POST(req: Request) {
     const folders = await createClientFolders(name);
 
     // STEP 2 — Create Client
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: email,
+        role: "client",
+      }
+    })
+
     const client = await prisma.client.create({
       data: {
         name,
