@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-import { createClientFolders } from "@/lib/googleDrive";
+import { createClientFolders } from "@/lib/s3";
 import { createRecurringTasksForClient } from "@/app/api/clients/recurring";
 
 // Helper to extract JWT from cookies

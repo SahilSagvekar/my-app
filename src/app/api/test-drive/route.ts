@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClientFolders } from "@/lib/googleDrive";
+import { createClientFolders } from "@/lib/s3";
 
 export async function GET() {
   try {
