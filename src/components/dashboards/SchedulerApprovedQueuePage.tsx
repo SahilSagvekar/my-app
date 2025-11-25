@@ -56,14 +56,15 @@ export function SchedulerApprovedQueuePage() {
         status: "PENDING",
         dueDate: t.dueDate,
         files: (t.driveLinks || []).map((url, i) => ({
-          id: i,
-          name: url.split("/").pop(),
-          url,
-          size: 0
-        })),
+  id: i,
+  name: url.split("/").pop(),
+  url,
+  key: url.replace("https://e8-app-s3-bucket.s3.us-east-1.amazonaws.com/", ""), // EXTRACT KEY
+  size: 0
+})),
         createdAt: t.createdAt,
         projectId: t.clientId,
-        deliverable: t.monthlyDeliverable
+        deliverable: t.monthlyDeliverable,
       }));
 
       setTasks(mapped);
@@ -173,16 +174,24 @@ export function SchedulerApprovedQueuePage() {
         <Card>
           <CardContent className="p-4">
             <p className="text-sm">Scheduled Today</p>
-            <h3>{completedTasks.filter(t =>
-              new Date(t.createdAt).toDateString() === new Date().toDateString()
-            ).length}</h3>
+            <h3>
+              {
+                completedTasks.filter(
+                  (t) =>
+                    new Date(t.createdAt).toDateString() ===
+                    new Date().toDateString()
+                ).length
+              }
+            </h3>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-4">
             <p className="text-sm">Urgent</p>
-            <h3>{pendingTasks.filter(t => t.priority === "urgent").length}</h3>
+            <h3>
+              {pendingTasks.filter((t) => t.priority === "urgent").length}
+            </h3>
           </CardContent>
         </Card>
       </div>
@@ -217,7 +226,6 @@ export function SchedulerApprovedQueuePage() {
 
       {/* MAIN LAYOUT */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
         {/* LEFT: Tasks */}
         <Card>
           <CardHeader>
@@ -225,7 +233,7 @@ export function SchedulerApprovedQueuePage() {
           </CardHeader>
 
           <CardContent className="p-0 max-h-[600px] overflow-y-auto">
-            {pendingTasks.map(task => (
+            {pendingTasks.map((task) => (
               <div
                 key={task.id}
                 className={`p-4 border-b cursor-pointer ${
@@ -235,7 +243,9 @@ export function SchedulerApprovedQueuePage() {
               >
                 <div className="flex justify-between">
                   <h4>{task.title}</h4>
-                  <Badge variant={getPriorityColor(task.priority)}>{task.priority}</Badge>
+                  <Badge variant={getPriorityColor(task.priority)}>
+                    {task.priority}
+                  </Badge>
                 </div>
 
                 <p className="text-xs text-muted-foreground">
@@ -268,7 +278,6 @@ export function SchedulerApprovedQueuePage() {
               <p className="text-muted-foreground">Select a task</p>
             ) : (
               <div className="space-y-4">
-
                 <div>
                   <p className="font-medium">{selectedTask.title}</p>
                   <p className="text-sm text-muted-foreground">
@@ -282,27 +291,110 @@ export function SchedulerApprovedQueuePage() {
                   {selectedTask.deliverable ? (
                     <div className="text-sm">
                       <p>Type: {selectedTask.deliverable.type}</p>
-                      <p>Schedule: {selectedTask.deliverable.postingSchedule}</p>
-                      <p>Days: {selectedTask.deliverable.postingDays.join(", ")}</p>
-                      <p>Times: {selectedTask.deliverable.postingTimes.join(", ")}</p>
+                      <p>
+                        Schedule: {selectedTask.deliverable.postingSchedule}
+                      </p>
+                      <p>
+                        Days: {selectedTask.deliverable.postingDays.join(", ")}
+                      </p>
+                      <p>
+                        Times:{" "}
+                        {selectedTask.deliverable.postingTimes.join(", ")}
+                      </p>
                     </div>
                   ) : (
-                    <p className="text-muted-foreground">No deliverable linked</p>
+                    <p className="text-muted-foreground">
+                      No deliverable linked
+                    </p>
                   )}
                 </div>
 
                 {/* Files */}
-                <div>
+                {/* <div>
                   <h4 className="font-medium mb-2">Files</h4>
-                  {selectedTask.files.map(file => (
-                    <div key={file.id} className="border p-2 rounded flex justify-between">
+                  {selectedTask.files.map((file) => (
+                    <div
+                      key={file.id}
+                      className="border p-2 rounded flex justify-between"
+                    >
                       <span>{file.name}</span>
-                      <Button size="sm" variant="outline" onClick={() => window.open(file.url)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(file.url)}
+                      >
                         <Eye className="h-4 w-4 mr-1" /> View
                       </Button>
                     </div>
                   ))}
-                </div>
+                </div> */}
+
+                {/* Files */}
+                {/* Files */}
+<div>
+  <h4 className="font-medium mb-2">Files</h4>
+
+  {selectedTask.files.length === 0 && (
+    <p className="text-muted-foreground">No files</p>
+  )}
+
+  {selectedTask.files.map((file) => {
+    // Extract S3 key from URL:
+    const key = file.url.split(".amazonaws.com/")[1];
+
+    return (
+      <div
+        key={file.id}
+        className="border p-2 rounded flex justify-between items-center gap-2"
+      >
+        <span>{file.name}</span>
+
+        <div className="flex gap-2">
+          {/* VIEW */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => window.open(file.url, "_blank")}
+          >
+            <Eye className="h-4 w-4 mr-1" /> View
+          </Button>
+
+          {/* DOWNLOAD */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (!file.key) {
+                console.error("Missing key for file:", file);
+                return;
+              }
+
+              const res = await fetch("/api/download", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  key: file.key,
+                  filename: file.name,
+                }),
+              });
+
+              const { url } = await res.json();
+
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = file.name;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            }}
+          >
+            ⬇️ Download
+          </Button>
+        </div>
+      </div>
+    );
+  })}
+</div>
 
                 <Button
                   className="w-full"
@@ -316,7 +408,6 @@ export function SchedulerApprovedQueuePage() {
             )}
           </CardContent>
         </Card>
-
       </div>
     </div>
   );

@@ -10,6 +10,8 @@ import { useTaskWorkflow, WorkflowTask } from '../workflow/TaskWorkflowEngine';
 import { useGlobalTasks } from '../workflow/GlobalTaskManager';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
+import { FilePreviewModal } from "@/components/FileViewerModal";
+
 
 // Enhanced task type definitions for workflow routing
 type TaskDestination = 'editor' | 'client' | 'scheduler';
@@ -216,6 +218,10 @@ export function QCDashboard() {
   const { tasks: workflowTasks } = useTaskWorkflow();
   const { tasks: globalTasks } = useGlobalTasks();
   const { user } = useAuth();
+
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
 
   const currentUser = {
     id: user?.id || '3', // Default to QC user ID
@@ -622,9 +628,12 @@ export function QCDashboard() {
               <CheckCircle className="h-5 w-5 text-green-600" />
             </div>
             <div className="flex-1">
-              <h4 className="font-medium">Automated QC Workflow - FIFO System</h4>
+              <h4 className="font-medium">
+                Automated QC Workflow - FIFO System
+              </h4>
               <p className="text-sm text-muted-foreground mb-3">
-                Tasks are automatically sorted by submission time (oldest first). After QC review:
+                Tasks are automatically sorted by submission time (oldest
+                first). After QC review:
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                 <div className="flex items-center gap-2">
@@ -656,7 +665,9 @@ export function QCDashboard() {
         <Card className="flex flex-col flex-1 min-h-0">
           <CardHeader>
             <CardTitle>Review Queue ({pendingReviews})</CardTitle>
-            <p className="text-xs text-muted-foreground">Sorted by submission time (oldest first)</p>
+            <p className="text-xs text-muted-foreground">
+              Sorted by submission time (oldest first)
+            </p>
           </CardHeader>
           <CardContent className="p-0 flex-1 overflow-hidden">
             <div className="space-y-0 h-full overflow-y-auto">
@@ -670,52 +681,64 @@ export function QCDashboard() {
                   <div
                     key={task.id}
                     className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${
-                      selectedTask?.id === task.id ? 'bg-muted' : ''
-                    } ${getPriorityColor(task.priority)} ${isOverdue(task) ? 'border-r-4 border-r-red-500' : ''}`}
+                      selectedTask?.id === task.id ? "bg-muted" : ""
+                    } ${getPriorityColor(task.priority)} ${
+                      isOverdue(task) ? "border-r-4 border-r-red-500" : ""
+                    }`}
                     onClick={() => setSelectedTask(task)}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {getStatusIcon(task.status)}
                         <div className="flex items-center gap-1">
-                          <span className="text-xs font-mono text-muted-foreground">#{index + 1}</span>
+                          <span className="text-xs font-mono text-muted-foreground">
+                            #{index + 1}
+                          </span>
                           {getTaskCategoryIcon(task.taskCategory)}
                         </div>
                         <h4 className="text-sm font-medium truncate">
-                          {task.title.replace('QC Review: ', '')}
+                          {task.title.replace("QC Review: ", "")}
                         </h4>
                       </div>
-                      <Badge 
-                        variant={task.status === 'pending' ? 'default' : 'secondary'}
+                      <Badge
+                        variant={
+                          task.status === "pending" ? "default" : "secondary"
+                        }
                         className="text-xs ml-2 flex-shrink-0"
                       >
                         {task.status}
                       </Badge>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                       <User className="h-3 w-3" />
                       <span>From Editor</span>
                       {task.priority && (
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`text-xs px-1 py-0 ${
-                            task.priority === 'urgent' ? 'border-red-500 text-red-700' :
-                            task.priority === 'high' ? 'border-orange-500 text-orange-700' :
-                            'border-gray-500 text-gray-700'
+                            task.priority === "urgent"
+                              ? "border-red-500 text-red-700"
+                              : task.priority === "high"
+                              ? "border-orange-500 text-orange-700"
+                              : "border-gray-500 text-gray-700"
                           }`}
                         >
                           {task.priority}
                         </Badge>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
-                        <span className={isOverdue(task) ? 'text-red-500 font-medium' : ''}>
+                        <span
+                          className={
+                            isOverdue(task) ? "text-red-500 font-medium" : ""
+                          }
+                        >
                           Due {task.dueDate}
-                          {isOverdue(task) && ' (Overdue)'}
+                          {isOverdue(task) && " (Overdue)"}
                         </span>
                       </div>
                       {task.files && (
@@ -727,12 +750,18 @@ export function QCDashboard() {
                     </div>
 
                     {/* Workflow Destination Indicator */}
-                    {task.nextDestination && task.status === 'pending' && (
+                    {task.nextDestination && task.status === "pending" && (
                       <div className="flex items-center gap-2 mt-2 pt-2 border-t">
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${getDestinationColor(task.nextDestination)}`}>
+                        <div
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${getDestinationColor(
+                            task.nextDestination
+                          )}`}
+                        >
                           {getDestinationIcon(task.nextDestination)}
                           <ArrowRight className="h-2 w-2" />
-                          <span className="capitalize">{task.nextDestination}</span>
+                          <span className="capitalize">
+                            {task.nextDestination}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -762,6 +791,10 @@ export function QCDashboard() {
         formatFileSize={formatFileSize}
         hasVideoFile={hasVideoFile}
         onVideoReview={() => setShowVideoReview(true)}
+        onPreviewFile={(file) => {
+          setPreviewFile(file);
+          setShowPreview(true);
+        }}
       />
 
       {/* Video Review Modal */}
@@ -770,13 +803,20 @@ export function QCDashboard() {
           open={showVideoReview}
           onOpenChange={setShowVideoReview}
           asset={getVideoAssetFromTask(selectedTask)}
-          onApprove={() => {}} // Not used for QC
-          onRequestRevisions={() => {}} // Not used for QC  
+          onApprove={() => {}}
+          onRequestRevisions={() => {}}
           userRole="qc"
           onSendToClient={handleSendToClient}
           onSendBackToEditor={handleSendBackToEditor}
         />
       )}
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        file={previewFile}
+      />
     </div>
   );
 }
@@ -794,7 +834,8 @@ function QCTaskDetailsDialog({
   isOverdue,
   formatFileSize,
   hasVideoFile,
-  onVideoReview
+  onVideoReview,
+  onPreviewFile,
 }: {
   task: EnhancedWorkflowTask | null;
   open: boolean;
@@ -808,6 +849,7 @@ function QCTaskDetailsDialog({
   formatFileSize: (bytes: number) => string;
   hasVideoFile: (task: EnhancedWorkflowTask) => boolean;
   onVideoReview: () => void;
+  onPreviewFile: (file: any) => void;
 }) {
   if (!task) return null;
 
@@ -816,14 +858,19 @@ function QCTaskDetailsDialog({
       <DialogContent className="!max-w-none w-[95vw] h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            <span className="truncate">{task.title.replace('QC Review: ', '')}</span>
+            <span className="truncate">
+              {task.title.replace("QC Review: ", "")}
+            </span>
           </DialogTitle>
           <DialogDescription>
-            Review task details, submitted files, and workflow routing information
+            Review task details, submitted files, and workflow routing
+            information
           </DialogDescription>
           <div className="flex items-center gap-2 mt-2">
             <Badge variant="outline">{task.id}</Badge>
-            <Badge variant={task.status === 'pending' ? 'default' : 'secondary'}>
+            <Badge
+              variant={task.status === "pending" ? "default" : "secondary"}
+            >
               {task.status}
             </Badge>
             {task.taskCategory && (
@@ -840,19 +887,24 @@ function QCTaskDetailsDialog({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-accent/50 rounded-lg">
             <div>
               <p className="text-sm text-muted-foreground">Project ID</p>
-              <p className="font-medium">{task.projectId || 'N/A'}</p>
+              <p className="font-medium">{task.projectId || "N/A"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Due Date</p>
-              <p className={`font-medium ${isOverdue(task) ? 'text-red-500' : ''}`}>
+              <p
+                className={`font-medium ${
+                  isOverdue(task) ? "text-red-500" : ""
+                }`}
+              >
                 {task.dueDate}
-                {isOverdue(task) && ' (Overdue)'}
+                {isOverdue(task) && " (Overdue)"}
               </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Submitted</p>
               <p className="font-medium">
-                {new Date(task.createdAt).toLocaleDateString()} at {new Date(task.createdAt).toLocaleTimeString()}
+                {new Date(task.createdAt).toLocaleDateString()} at{" "}
+                {new Date(task.createdAt).toLocaleTimeString()}
               </p>
             </div>
             <div>
@@ -865,22 +917,31 @@ function QCTaskDetailsDialog({
           </div>
 
           {/* Workflow Path Indicator */}
-          {task.status === 'pending' && task.nextDestination && (
+          {task.status === "pending" && task.nextDestination && (
             <div className="p-4 border rounded-lg bg-blue-50">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <ArrowRight className="h-4 w-4 text-blue-600" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-medium text-blue-900 mb-1">Workflow Path</h4>
+                  <h4 className="font-medium text-blue-900 mb-1">
+                    Workflow Path
+                  </h4>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-blue-700">After approval, this task will go to:</span>
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getDestinationColor(task.nextDestination)}`}>
+                    <span className="text-sm text-blue-700">
+                      After approval, this task will go to:
+                    </span>
+                    <div
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getDestinationColor(
+                        task.nextDestination
+                      )}`}
+                    >
                       {getDestinationIcon(task.nextDestination)}
                       <span className="capitalize">{task.nextDestination}</span>
-                      {task.requiresClientReview && task.nextDestination === 'client' && (
-                        <span>(Client Review Required)</span>
-                      )}
+                      {task.requiresClientReview &&
+                        task.nextDestination === "client" && (
+                          <span>(Client Review Required)</span>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -892,29 +953,47 @@ function QCTaskDetailsDialog({
           <div className="p-4 bg-muted/50 rounded-lg">
             <h4 className="font-medium mb-2">Description</h4>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {task.description.split('\\n\\nOriginal task description: ')[1] || task.description}
+              {task.description.split("\\n\\nOriginal task description: ")[1] ||
+                task.description}
             </p>
           </div>
 
           {/* Files */}
           <div>
-            <h4 className="font-medium mb-3">Submitted Files ({task.files?.length || 0})</h4>
+            <h4 className="font-medium mb-3">
+              Submitted Files ({task.files?.length || 0})
+            </h4>
             {task.files && task.files.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {task.files.map((file) => (
-                  <div key={file.id} className="border rounded-lg p-3 hover:border-primary transition-colors">
+                  <div
+                    key={file.id}
+                    className="border rounded-lg p-3 hover:border-primary transition-colors"
+                  >
                     <div className="flex items-center gap-2 mb-2">
                       <FileText className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium truncate">{file.name}</span>
+                      <span className="text-sm font-medium truncate">
+                        {file.name}
+                      </span>
                     </div>
                     <p className="text-xs text-muted-foreground mb-3">
-                      {formatFileSize(file.size)} • Uploaded {new Date(file.uploadedAt).toLocaleDateString()}
+                      {formatFileSize(file.size)} • Uploaded{" "}
+                      {new Date(file.uploadedAt).toLocaleDateString()}
                     </p>
-                    <Button 
+                    {/* <Button 
                       size="sm" 
                       variant="outline" 
                       className="w-full"
                       onClick={() => window.open(file.url, '_blank')}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View File
+                    </Button> */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => onPreviewFile(file)}
                     >
                       <Eye className="h-4 w-4 mr-2" />
                       View File
@@ -923,24 +1002,29 @@ function QCTaskDetailsDialog({
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-6">No files submitted</p>
+              <p className="text-sm text-muted-foreground text-center py-6">
+                No files submitted
+              </p>
             )}
           </div>
 
           {/* Completed Review Info */}
-          {(task.status === 'approved' || task.status === 'rejected') && (
+          {(task.status === "approved" || task.status === "rejected") && (
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
                 {getStatusIcon(task.status)}
                 <h4 className="font-medium">Review Completed</h4>
               </div>
               <p className="text-sm text-muted-foreground">
-                This task has been {task.status} and automatically moved to the next step in the workflow.
+                This task has been {task.status} and automatically moved to the
+                next step in the workflow.
               </p>
               {task.feedback && (
                 <div className="mt-3">
                   <p className="text-sm font-medium">Feedback:</p>
-                  <p className="text-sm text-muted-foreground">{task.feedback}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {task.feedback}
+                  </p>
                 </div>
               )}
             </div>
@@ -948,11 +1032,11 @@ function QCTaskDetailsDialog({
         </div>
 
         {/* Sticky Footer with Review Actions */}
-        {task.status === 'pending' && (
+        {task.status === "pending" && (
           <div className="flex-shrink-0 border-t pt-4 pb-2 bg-background">
             <div className="flex justify-center gap-4">
-              {hasVideoFile(task) ? (
-                <Button 
+              {/* {hasVideoFile(task) ? (
+                <Button
                   size="lg"
                   onClick={() => {
                     onOpenChange(false);
@@ -976,7 +1060,20 @@ function QCTaskDetailsDialog({
                     </Button>
                   }
                 />
-              )}
+              )} */}
+              <QCReviewDialog
+                task={task}
+                onReviewComplete={(approved, feedback) => {
+                  onReviewComplete(approved, feedback);
+                  onOpenChange(false);
+                }}
+                trigger={
+                  <Button size="lg">
+                    <Play className="h-4 w-4 mr-2" />
+                    Review Video
+                  </Button>
+                }
+              />
             </div>
           </div>
         )}

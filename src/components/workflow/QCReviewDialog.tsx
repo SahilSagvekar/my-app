@@ -329,7 +329,7 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
                     </div>
 
                     {/* Video Player for video files */}
-                    {isVideoFile(task.files[selectedFileIndex].name) ? (
+                    {/* {isVideoFile(task.files[selectedFileIndex].name) ? (
                       <VideoReviewPlayer
                         file={task.files[selectedFileIndex]}
                         notes={videoNotes}
@@ -339,7 +339,6 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
                         isReviewer={true}
                       />
                     ) : (
-                      /* Static file preview for non-video files */
                       <div className="border rounded-lg p-8">
                         <div className="text-center space-y-4">
                           <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center mx-auto">
@@ -353,7 +352,7 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
                           </div>
                         </div>
                       </div>
-                    )}
+                    )} */}
                   </div>
                 )}
               </div>
