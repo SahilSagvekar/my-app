@@ -122,3 +122,20 @@ export async function getCurrentUser2(req?: NextRequest) {
     return null;
   }
 }
+
+export function getUserFromRequest(req: Request) {
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
+
+  const match = cookieHeader.match(/authToken=([^;]+)/);
+  if (!match) return null;
+
+  const token = match[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret");
+    return decoded; // must contain userId inside it
+  } catch (e) {
+    return null;
+  }
+}

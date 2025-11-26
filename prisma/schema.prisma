@@ -261,6 +261,33 @@ model File {
   createdAt   DateTime @default(now())
 }
 
+model Notification {
+  id          String   @id @default(cuid())
+  userId      Int?  // null => broadcast
+  type        String
+  title       String
+  body        String?
+  payload     Json?
+  channel     String[] @default([])
+  delivered   Boolean  @default(false)
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    Int
+  channel   String   // "in-app" | "slack"
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, channel])
+}
+
+
 
 
 
