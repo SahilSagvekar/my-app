@@ -17,7 +17,8 @@ import {
   FileSpreadsheet,
   Camera,
   Upload,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Sparkles
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -50,6 +51,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'approved-queue', label: 'Approved Queue', icon: CheckSquare },
     { id: 'scheduling', label: 'Scheduling', icon: Clock },
+    { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'training', label: 'Training', icon: Layout },

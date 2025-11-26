@@ -8,6 +8,7 @@ import { QCResourcesPage } from '../dashboards/QCResourcesPage';
 import { QCTrainingPage } from '../dashboards/QCTrainingPage';
 import { SchedulerDashboard } from '../dashboards/SchedulerDashboard';
 import { SchedulerApprovedQueuePage } from '../dashboards/SchedulerApprovedQueuePage';
+import { SchedulerContentTitlingPage } from '../dashboards/SchedulerContentTitlingPage';
 import { SchedulerSchedulingPage } from '../dashboards/SchedulerSchedulingPage';
 import { SchedulerResourcesPage } from '../dashboards/SchedulerResourcesPage';
 import { SchedulerReportsPage } from '../dashboards/SchedulerReportsPage';
@@ -25,6 +26,8 @@ const ComingSoonPage = ({ title }: { title: string }) => (
 );
 
 export function renderPage(role: string, page: string): JSX.Element {
+
+  console.log(`Rendering page for role: ${role}, page: ${page}`);
   if (role === 'admin') {
     switch (page) {
       case 'dashboard':
@@ -74,6 +77,7 @@ export function renderPage(role: string, page: string): JSX.Element {
       case 'calendar': return <SchedulerDashboard />;
       case 'approved-queue': return <SchedulerApprovedQueuePage />;
       case 'scheduling': return <SchedulerSchedulingPage />;
+      case 'content-titling': return <SchedulerContentTitlingPage />;
       case 'resources': return <SchedulerResourcesPage />;
       case 'reports': return <SchedulerReportsPage />;
       case 'training': return <SchedulerTrainingPage />;
@@ -81,6 +85,7 @@ export function renderPage(role: string, page: string): JSX.Element {
       default: return <SchedulerDashboard />;
     }
   }
+
 
   if (role === 'manager') {
     switch (page) {
