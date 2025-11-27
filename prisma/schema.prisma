@@ -76,6 +76,7 @@ model Task {
   dueDate     DateTime?
   files       File[]
   clientUserId  Int?
+  folderType     String? 
 
   assignedTo  Int     
   qc_specialist  Int?  

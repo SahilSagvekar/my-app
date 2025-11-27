@@ -31,7 +31,7 @@ const auth = new google.auth.JWT({
 const drive = google.drive({ version: "v3", auth });
 
 // ✅ Function to create client folder and subfolders
-export async function createClientFolders(clientName: string) {
+export async function createClientFolders2(clientName: string) {
   try {
     const parentId = process.env.GOOGLE_DRIVE_PARENT_ID;
     if (!parentId) throw new Error("Missing GOOGLE_DRIVE_PARENT_ID env var");

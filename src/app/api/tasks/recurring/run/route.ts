@@ -179,6 +179,7 @@ export async function POST(req: Request) {
             driveFolderId: template.driveFolderId ?? null,
             attachments: template.attachments ?? undefined,
             driveLinks: template.driveLinks ?? [],
+            folderType: template.folderType ?? null,
           },
         });
 

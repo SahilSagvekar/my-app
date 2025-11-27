@@ -40,6 +40,8 @@ function mapTaskTypeToWorkflow(type: string) {
 /* -------------------------------------------------------------------------- */
 /* 🔥 WORKFLOW TASK TYPE EXPECTED BY UI                                       */
 /* -------------------------------------------------------------------------- */
+
+
 interface WorkflowTask {
   id: string;
   title: string;
@@ -98,6 +100,23 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
             </span>
           )}
         </div>
+
+        {/* FILE LIST */}
+        {task.files?.length > 0 && (
+          <div className="mb-4 space-y-1">
+            {task.files.map((file: any, i: number) => (
+              <a
+                key={i}
+                href={file.url || file}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-blue-600 hover:underline"
+              >
+                📄 File {i + 1}
+              </a>
+            ))}
+          </div>
+        )}
 
         <div className="flex gap-2">
           {(task.status === "pending" || task.status === "rejected") && (
@@ -163,6 +182,8 @@ export function EditorDashboard() {
             assignedToRole: currentUser.role,
             createdAt: t.createdAt,
             dueDate: t.dueDate,
+            folderType: t.folderType || "unknown",
+
 
             workflowStep: "editing",
 

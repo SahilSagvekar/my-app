@@ -223,7 +223,9 @@ export async function GET(req: Request) {
         requiresClientReview: true,
         workflowStep: true,
         files: true,
+        folderType: true,
       },
+
     });
 
     return NextResponse.json({ tasks }, { status: 200 });
@@ -308,6 +310,7 @@ export async function POST(req: Request) {
         createdBy: decoded.userId,
         clientId,
         driveLinks: uploadedLinks,
+        folderType,
       },
     });
 
