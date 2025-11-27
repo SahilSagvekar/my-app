@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 
 const prisma = new PrismaClient();
 
-export async function POST(req) {
+export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
 
@@ -18,6 +18,8 @@ export async function POST(req) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
+    console.log("email:", user.email);
+
     // Generate JWT
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
@@ -25,10 +27,14 @@ export async function POST(req) {
       { expiresIn: "1h" }
     );
 
+    console.log("Generated token:", token);
+
     const response = NextResponse.json({
       token,
       user: { id: user.id, email: user.email, role: user.role, name: user.name }
     });
+
+    console.log("Setting authToken cookie", response);
 
     // Set httpOnly cookie
     response.cookies.set("authToken", token, {
@@ -38,6 +44,8 @@ export async function POST(req) {
       maxAge: 60 * 60,
       path: "/",
     });
+
+    console.log("response 2", response);
 
     return response;
   } catch (err) {
