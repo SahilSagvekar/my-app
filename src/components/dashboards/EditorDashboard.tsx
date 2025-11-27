@@ -100,7 +100,7 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
         </div>
 
         <div className="flex gap-2">
-          {task.status === "pending" && (
+          {(task.status === "pending" || task.status === "rejected") && (
             <Button
               size="sm"
               variant="outline"
