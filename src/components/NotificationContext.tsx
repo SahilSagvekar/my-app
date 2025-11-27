@@ -48,43 +48,43 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // ----------------------------
   // INITIAL FETCH FROM BACKEND
   // ----------------------------
-  useEffect(() => {
-    fetch("/api/notifications")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.notifications) {
-          setNotifications(data.notifications);
-        }
-      });
+  // useEffect(() => {
+  //   fetch("/api/notifications")
+  //     .then((res) => res.json())
+  //     .then((data) => {
+  //       if (data.notifications) {
+  //         setNotifications(data.notifications);
+  //       }
+  //     });
 
-    // ----------------------------
-    // REALTIME CONNECTION (SSE)
-    // ----------------------------
-    const connect = () => {
-      const es = new EventSource("/api/notifications/stream");
-      esRef.current = es;
+  //   // ----------------------------
+  //   // REALTIME CONNECTION (SSE)
+  //   // ----------------------------
+  //   const connect = () => {
+  //     const es = new EventSource("/api/notifications/stream");
+  //     esRef.current = es;
 
-      es.addEventListener("notification", (e) => {
-        const notif = JSON.parse(e.data);
+  //     es.addEventListener("notification", (e) => {
+  //       const notif = JSON.parse(e.data);
 
-        setNotifications((prev) => {
-          if (prev.some((item) => item.id === notif.id)) return prev;
-          return [notif, ...prev];
-        });
-      });
+  //       setNotifications((prev) => {
+  //         if (prev.some((item) => item.id === notif.id)) return prev;
+  //         return [notif, ...prev];
+  //       });
+  //     });
 
-      es.onerror = () => {
-        es.close();
-        setTimeout(connect, 2000);
-      };
-    };
+  //     es.onerror = () => {
+  //       es.close();
+  //       setTimeout(connect, 2000);
+  //     };
+  //   };
 
-    connect();
+  //   connect();
 
-    return () => {
-      esRef.current?.close();
-    };
-  }, []);
+  //   return () => {
+  //     esRef.current?.close();
+  //   };
+  // }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
