@@ -13,7 +13,7 @@ export async function POST(req) {
       return NextResponse.json({ message: "Email and password are required" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({ where: { email } });
     if (!user) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }

@@ -120,9 +120,64 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 }
 
 
-export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
+// export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
+//   try {
+//     const { id } = await context.params;
+
+//     // STEP 1 — Delete Recurring Tasks tied to deliverables
+//     await prisma.recurringTask.deleteMany({
+//       where: { clientId: id },
+//     });
+
+//     // STEP 2 — Delete Monthly Deliverables
+//     await prisma.monthlyDeliverable.deleteMany({
+//       where: { clientId: id },
+//     });
+
+//     // STEP 3 — Delete Brand Assets
+//     await prisma.brandAsset.deleteMany({
+//       where: { clientId: id },
+//     });
+
+//     // STEP 4 — Delete Tasks linked to client
+//     await prisma.task.deleteMany({
+//       where: { clientId: id },
+//     });
+
+//     // STEP 5 — Finally delete the client
+//     await prisma.client.delete({
+//       where: { id },
+//     });
+
+    
+
+//     return NextResponse.json({ success: true });
+//   } catch (err) {
+//     console.error("DELETE client failed:", err);
+//     return NextResponse.json({ message: "Server error" }, { status: 500 });
+//   }
+// }
+
+
+export async function DELETE(
+  req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     const { id } = await context.params;
+
+    // STEP 0 — Fetch the client to get its linked userId
+    const client = await prisma.client.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+
+    if (!client) {
+      return NextResponse.json(
+        { success: false, message: "Client not found" },
+        { status: 404 }
+      );
+    }
 
     // STEP 1 — Delete Recurring Tasks tied to deliverables
     await prisma.recurringTask.deleteMany({
@@ -144,15 +199,25 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
       where: { clientId: id },
     });
 
-    // STEP 5 — Finally delete the client
+    // STEP 5 — Delete the client record
     await prisma.client.delete({
       where: { id },
     });
 
+    // STEP 6 — Delete associated USER account
+    if (client.userId) {
+      await prisma.user.delete({
+        where: { id: client.userId },
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("DELETE client failed:", err);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { message: "Server error" },
+      { status: 500 }
+    );
   }
 }
 

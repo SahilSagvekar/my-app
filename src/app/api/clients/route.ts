@@ -134,6 +134,7 @@ export async function POST(req: Request) {
         companyName: company || null,
         phone,
         createdBy: decoded.userId.toString(),
+        userId: user.id,
 
         accountManagerId,
         status: "active",

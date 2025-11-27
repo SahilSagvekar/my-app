@@ -35,7 +35,7 @@ export async function createClientFolders(clientName: string) {
 
   const mainPrefix = `${clientName}/`;
   const rawPrefix = `${clientName}/raw-footage/`;
-  const essentialsPrefix = `${clientName}/essentials/`;
+  const essentialsPrefix = `${clientName}/elements/`;
 
   const folderCommands = [
     new PutObjectCommand({

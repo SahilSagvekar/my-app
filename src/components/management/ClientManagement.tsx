@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+"use client";
+
+import { useState, useEffect, useRef  } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -468,6 +470,9 @@ export function ClientManagement() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showClientDetailsDialog, setShowClientDetailsDialog] = useState(false);
+  const [uploadFolder, setUploadFolder] = useState("elements");
+  const fileInputRef = useRef<HTMLInputElement | null>(null); 
+
   const [newClient, setNewClient] = useState<Partial<Client>>({
     name: "",
     companyName: "",
@@ -991,36 +996,40 @@ const handleDeleteClient = async (clientId: string) => {
     return deliverables.reduce((sum, d) => sum + (d?.quantity ?? 0), 0);
   };
 
-  const handleFileUpload = (clientId: string, files: FileList | null) => {
+  const handleFileUpload = async (
+    clientId: string,
+    folder: "elements" | "raw-footage",
+    files: FileList | null
+  ) => {
     if (!files || files.length === 0) return;
 
-    // In a real app, you would upload to a file storage service
-    console.log("Uploading files for client:", clientId, files);
+    const formData = new FormData();
+    formData.append("clientId", clientId);
+    formData.append("folder", folder);
+    formData.append("file", files[0]);
 
-    // Mock file upload
-    const mockAssets: BrandAsset[] = Array.from(files).map((file, index) => ({
-      id: `asset-${Date.now()}-${index}`,
-      name: file.name.split(".")[0],
-      type: file.type.includes("image") ? "logo" : "other",
-      fileUrl: URL.createObjectURL(file),
-      fileName: file.name,
-      fileSize: `${Math.round(file.size / 1024)} KB`,
-      uploadedAt: new Date().toISOString().split("T")[0],
-      uploadedBy: "Current User",
-    }));
+    const res = await fetch("/api/upload/brand-asset", {
+      method: "POST",
+      body: formData,
+    });
 
+    const data = await res.json();
+
+    if (!res.ok) {
+      toast.error("Upload failed");
+      return;
+    }
+
+    // Update UI immediately
     setClients((prev) =>
-      prev.map((client) =>
-        client.id === clientId
-          ? {
-              ...client,
-              brandAssets: [...client.brandAssets, ...mockAssets],
-            }
-          : client
+      prev.map((c) =>
+        c.id === clientId
+          ? { ...c, brandAssets: [...c.brandAssets, data.asset] }
+          : c
       )
     );
 
-    toast.success(`${mockAssets.length} file(s) uploaded`);
+    toast.success("Uploaded successfully");
   };
 
   const ClientDetailsDialog = () => {
@@ -1221,9 +1230,54 @@ const handleDeleteClient = async (clientId: string) => {
 
             <TabsContent value="brand" className="space-y-4">
               <Card className="bg-white border-gray-200">
+                {/* <CardHeader>
+                  <CardTitle className="text-gray-900">Brand Assets</CardTitle>
+                </CardHeader> */}
+
                 <CardHeader>
                   <CardTitle className="text-gray-900">Brand Assets</CardTitle>
+
+                  {/* Folder selector */}
+                  <Select value={uploadFolder} onValueChange={setUploadFolder}>
+                    <SelectTrigger className="w-48 bg-white border-gray-200">
+                      <SelectValue placeholder="Select Folder" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="elements">Elements Folder</SelectItem>
+                      <SelectItem value="raw-footage">
+                        Raw Footage Folder
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) =>
+                      handleFileUpload(
+                        selectedClient.id,
+                        uploadFolder,
+                        e.target.files
+                      )
+                    }
+                  />
+
+                  {/* Button that triggers the input */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2 mt-3"
+                    onClick={() => {
+                      if (fileInputRef.current) fileInputRef.current.click();
+                    }}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Upload Asset
+                  </Button>
                 </CardHeader>
+
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4">
                     {(selectedClient.brandAssets ?? []).map((asset) => (

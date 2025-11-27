@@ -92,6 +92,7 @@ const WEEKDAY_MAP: Record<string, number> = {
 };
 
 async function autoGenerateRemainingTasksForMonth(task: any) {
+  console.log("task:", task.id);
   if (!task.clientId || !task.dueDate) return;
 
   const client = await prisma.client.findUnique({
@@ -99,9 +100,13 @@ async function autoGenerateRemainingTasksForMonth(task: any) {
     include: { monthlyDeliverables: true },
   });
 
+  console.log("client:", client);
+
   if (!client || !client.monthlyDeliverables.length) return;
 
   const deliverable = client.monthlyDeliverables[0];
+
+  console.log("deliverable:", deliverable);
 
   const createdAt = new Date(task.createdAt || Date.now());
   const createdDateStr = createdAt.toISOString().slice(0, 10);
@@ -336,6 +341,7 @@ export async function POST(req: Request) {
     });
 
     // 🔁 AUTO GENERATE TASKS
+    console.log("autoGenerateRemainingTasksForMonth");
     await autoGenerateRemainingTasksForMonth(task);
 
     return NextResponse.json(task, { status: 201 });
