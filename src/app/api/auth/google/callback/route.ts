@@ -56,8 +56,8 @@ export async function GET(req: Request) {
   const response = NextResponse.redirect(`${process.env.BASE_URL}/dashboard`);
   response.cookies.set("authToken", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: false,
+    sameSite: "lax",
     maxAge: 60 * 60,
     path: "/",
   });
