@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { uploadBufferToS3 } from "@/lib/s3";
 import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
+import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
+
 
 // ─────────────────────────────────────────
 // Helpers
@@ -341,8 +343,8 @@ export async function POST(req: Request) {
     });
 
     // 🔁 AUTO GENERATE TASKS
-    console.log("autoGenerateRemainingTasksForMonth");
-    await autoGenerateRemainingTasksForMonth(task);
+    console.log("generateMonthlyTasksFromTemplate");
+    await generateMonthlyTasksFromTemplate(task.id);
 
     return NextResponse.json(task, { status: 201 });
   } catch (err: any) {

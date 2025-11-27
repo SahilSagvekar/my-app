@@ -170,6 +170,7 @@ model Client {
   updatedAt           DateTime @updatedAt
 
   // RELATIONS
+  monthlyRuns         MonthlyRun[]
   tasks               Task[]
   monthlyDeliverables MonthlyDeliverable[]
   brandAssets         BrandAsset[]
@@ -286,6 +287,17 @@ model NotificationPreference {
 
   @@unique([userId, channel])
 }
+
+model MonthlyRun {
+  id        String   @id @default(cuid())
+  clientId  String
+  month     Int
+  year      Int
+  runAt     DateTime @default(now())
+
+  client    Client   @relation(fields: [clientId], references: [id])
+}
+
 
 
 
