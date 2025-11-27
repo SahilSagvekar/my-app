@@ -28,7 +28,7 @@ export async function authMiddleware(
     return res.status(401).json({ error: "Invalid token" });
   }
 
-  const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+  const user = await prisma.user.findFirst({ where: { id: decoded.userId } });
   if (!user || !allowedRoles.includes(user.role)) {
     return res.status(403).json({ error: "Forbidden" });
   }

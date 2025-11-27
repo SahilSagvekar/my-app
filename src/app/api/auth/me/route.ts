@@ -30,7 +30,7 @@ export async function GET(req: Request) {
 
     const { userId } = decoded;
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { id: Number(userId) },
       select: {
         id: true,

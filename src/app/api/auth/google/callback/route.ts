@@ -35,7 +35,7 @@ export async function GET(req: Request) {
   const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
   const { data } = await oauth2.userinfo.get();
 
-  let user = await prisma.user.findUnique({ where: { email: data.email! } });
+  let user = await prisma.user.findFirst({ where: { email: data.email! } });
   if (!user) {
     user = await prisma.user.create({
       data: {
