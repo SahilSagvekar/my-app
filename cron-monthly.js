@@ -11,6 +11,8 @@ async function runCron() {
   } catch (err) {
     console.error("[CRON ERROR]:", err);
   }
+
+  process.exit(0);
 }
 
 runCron();
