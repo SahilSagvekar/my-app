@@ -261,6 +261,7 @@ export async function POST(req: Request) {
     const videographer = Number(form.get("videographer"));
     const clientId = form.get("clientId") as string;
     const folderType = form.get("folderType") as string;
+    const monthlyDeliverableId = form.get("monthlyDeliverableId") as string;
 
     if (!assignedTo || !clientId || !folderType) {
       return NextResponse.json(
@@ -309,6 +310,7 @@ export async function POST(req: Request) {
         videographer,
         createdBy: decoded.userId,
         clientId,
+        monthlyDeliverableId:monthlyDeliverableId ,
         driveLinks: uploadedLinks,
         folderType,
       },

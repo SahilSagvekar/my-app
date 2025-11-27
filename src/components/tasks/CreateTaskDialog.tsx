@@ -2,16 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
-
-declare global {
-  interface Window {
-    __taskContext: {
-      availableMembers: any[];
-      formData: any;
-      update: (field: string, value: any) => void;
-    };
-  }
-}
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -37,6 +27,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Card, CardContent } from "../ui/card";
 import { useAuth } from "../auth/AuthContext";
 
+declare global {
+  interface Window {
+    __taskContext: {
+      availableMembers: any[];
+      formData: any;
+      update: (field: string, value: any) => void;
+    };
+  }
+}
+
 interface CreateTaskDialogProps {
   trigger?: React.ReactNode;
   onTaskCreated?: (task: any) => void;
@@ -49,23 +49,15 @@ const taskTypes = [
   { value: "schedule", label: "Schedule Planning", roles: ["scheduler"] },
   { value: "copywriting", label: "Copywriting", roles: ["editor"] },
   { value: "audit", label: "Content Audit", roles: ["qc_specialist"] },
-  {
-    value: "coordination",
-    label: "Project Coordination",
-    roles: ["scheduler"],
-  },
+  { value: "coordination", label: "Project Coordination", roles: ["scheduler"] },
 ];
 
-
-export function CreateTaskDialog({
-  trigger,
-  onTaskCreated,
-}: CreateTaskDialogProps) {
+export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogProps) {
   const [open, setOpen] = useState(false);
 
+  // ------------ form data (include monthlyDeliverableId) ------------
   const [formData, setFormData] = useState({
     description: "",
-    // type: "",
     assignedTo: "",
     editor: "",
     scheduler: "",
@@ -74,112 +66,169 @@ export function CreateTaskDialog({
     dueDate: "",
     clientId: "",
     folderType: "",
+    monthlyDeliverableId: "",
   });
-
-  
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
-  // const [availableMembers, setAvailableMembers] = useState<any[]>([]);
-  
-  
+
+  // list of available people for roles
   const [availableMembers, setAvailableMembers] = useState<any[]>([]);
   const [files, setFiles] = useState<FileList | null>(null);
 
-  // move this up
+  // --- clients must be declared BEFORE any effect which references it ---
+  const [clients, setClients] = useState<any[]>([]);
+
+  // deliverables derived from selected client
+  const [deliverables, setDeliverables] = useState<any[]>([]);
+  const [selectedDeliverable, setSelectedDeliverable] = useState<string>("");
+
+  // helper to update form
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
-  // now assign context AFTER function exists
+  // expose lightweight context for outside scripts if needed
   useEffect(() => {
-  window.__taskContext = {
-    availableMembers,
-    formData,
-    update: handleInputChange,
-  };
-}, [availableMembers, formData]);
+    window.__taskContext = {
+      availableMembers,
+      formData,
+      update: handleInputChange,
+    };
+  }, [availableMembers, formData]);
 
+  // reload members every time dialog opens
+  useEffect(() => {
+    if (!open) return;
 
+    async function fetchMembers() {
+      try {
+        const res = await fetch("/api/roles?all=true");
+        if (!res.ok) throw new Error("Failed to load members");
+        const data = await res.json();
+        setAvailableMembers(data.users || []);
+      } catch {
+        setAvailableMembers([]);
+      }
+    }
 
-  // const [files, setFiles] = useState<FileList | null>(null);
-  const [clients, setClients] = useState<any[]>([]);
+    fetchMembers();
+  }, [open]);
 
-  // const handleInputChange = (field: string, value: any) => {
-  //   setFormData((prev) => ({ ...prev, [field]: value }));
-  //   if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
-  // };
+  // fetch clients once (on mount)
+  useEffect(() => {
+    async function fetchClients() {
+      try {
+        const res = await fetch("/api/clients");
+        if (!res.ok) {
+          // try text parse fallback
+          const txt = await res.text();
+          const parsed = txt ? JSON.parse(txt) : {};
+          setClients(Array.isArray(parsed.clients) ? parsed.clients : []);
+          return;
+        }
+        const data = await res.json();
+        setClients(Array.isArray(data.clients) ? data.clients : []);
+      } catch (err) {
+        setClients([]);
+      }
+    }
+    fetchClients();
+  }, []);
 
+  // when clientId changes, populate deliverables from embedded clients or fetch endpoint
+  useEffect(() => {
+    async function populateDeliverables() {
+      if (!formData.clientId) {
+        setDeliverables([]);
+        setSelectedDeliverable("");
+        handleInputChange("monthlyDeliverableId", "");
+        return;
+      }
+
+      const client = clients.find((c) => String(c.id) === String(formData.clientId));
+
+      if (client && Array.isArray(client.monthlyDeliverables)) {
+        // filter to only items with valid ids
+        const filtered = client.monthlyDeliverables.filter((d: any) => d && d.id && String(d.id).trim() !== "");
+        setDeliverables(filtered);
+        if (filtered.length === 1) {
+          setSelectedDeliverable(filtered[0].id);
+          handleInputChange("monthlyDeliverableId", filtered[0].id);
+        } else {
+          setSelectedDeliverable("");
+          handleInputChange("monthlyDeliverableId", "");
+        }
+        return;
+      }
+
+      // fallback: fetch from API endpoint for client deliverables (if available)
+      try {
+        const res = await fetch(`/api/clients/${formData.clientId}/deliverables`);
+        if (!res.ok) throw new Error("no deliverables");
+        const payload = await res.json();
+        const list = Array.isArray(payload.monthlyDeliverables) ? payload.monthlyDeliverables : [];
+        const filtered = list.filter((d: any) => d && d.id && String(d.id).trim() !== "");
+        setDeliverables(filtered);
+        if (filtered.length === 1) {
+          setSelectedDeliverable(filtered[0].id);
+          handleInputChange("monthlyDeliverableId", filtered[0].id);
+        } else {
+          setSelectedDeliverable("");
+          handleInputChange("monthlyDeliverableId", "");
+        }
+      } catch {
+        setDeliverables([]);
+        setSelectedDeliverable("");
+        handleInputChange("monthlyDeliverableId", "");
+      }
+    }
+
+    populateDeliverables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.clientId, clients]);
+
+  // file input handler
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFiles(e.target.files);
   };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    // if (!formData.type) newErrors.type = "Task type is required";
     if (!formData.assignedTo) newErrors.assignedTo = "Please assign this task";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     if (!formData.clientId) newErrors.clientId = "Client is required";
     if (!formData.folderType) newErrors.folderType = "Choose folder type";
+    if (!formData.monthlyDeliverableId) newErrors.monthlyDeliverableId = "Choose a deliverable for this task";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
-  // 🔥 Reload members every time dialog opens
-useEffect(() => {
-  if (!open) return;
-
-  async function fetchMembers() {
-    try {
-      const res = await fetch("/api/roles?all=true");
-      const data = await res.json();
-      setAvailableMembers(data.users || []);
-    } catch {
-      setAvailableMembers([]);
-    }
-  }
-
-  fetchMembers();
-}, [open]);
-
-
-  // useEffect(() => {
-  //   fetchMembers();
-  // }, []);
-
-  useEffect(() => {
-    const fetchClients = async () => {
-      try {
-        const res = await fetch("/api/clients");
-        const raw = await res.text();
-        const data = raw ? JSON.parse(raw) : {};
-        setClients(Array.isArray(data.clients) ? data.clients : []);
-      } catch {
-        setClients([]);
-      }
-    };
-    fetchClients();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
     setLoading(true);
 
+    if (formData.monthlyDeliverableId === "__no_deliverables__") {
+      setErrors((prev) => ({ ...prev, monthlyDeliverableId: "Choose a valid deliverable" }));
+      setLoading(false);
+      return;
+    }
+
     try {
       const formPayload = new FormData();
 
       formPayload.append("description", formData.description || "");
-      // formPayload.append("taskType", formData.type);
       formPayload.append("dueDate", formData.dueDate);
-      formPayload.append("assignedTo", formData.assignedTo);
-      formPayload.append("qc_specialist", formData.qc_specialist);
-      formPayload.append("scheduler", formData.scheduler);
-      formPayload.append("videographer", formData.videographer);
+      formPayload.append("assignedTo", String(formData.assignedTo));
+      formPayload.append("qc_specialist", String(formData.qc_specialist || ""));
+      formPayload.append("scheduler", String(formData.scheduler || ""));
+      formPayload.append("videographer", String(formData.videographer || ""));
       formPayload.append("clientId", formData.clientId);
       formPayload.append("folderType", formData.folderType);
+      formPayload.append("monthlyDeliverableId", formData.monthlyDeliverableId);
 
       if (files) {
         Array.from(files).forEach((file) => formPayload.append("files", file));
@@ -195,9 +244,9 @@ useEffect(() => {
       if (!res.ok) throw new Error(data.message || "Failed to create task");
 
       onTaskCreated?.(data);
+
       setFormData({
         description: "",
-        // type: "",
         assignedTo: "",
         editor: "",
         scheduler: "",
@@ -206,10 +255,13 @@ useEffect(() => {
         dueDate: "",
         clientId: "",
         folderType: "",
+        monthlyDeliverableId: "",
       });
 
       setFiles(null);
       setAvailableMembers([]);
+      setDeliverables([]);
+      setSelectedDeliverable("");
       setOpen(false);
     } catch (err: any) {
       setErrors((prev) => ({ ...prev, submit: err.message }));
@@ -218,9 +270,7 @@ useEffect(() => {
     }
   };
 
-  const selectedMember = availableMembers.find(
-    (m) => String(m.id) === String(formData.assignedTo)
-  );
+  const selectedMember = availableMembers.find((m) => String(m.id) === String(formData.assignedTo));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -235,9 +285,7 @@ useEffect(() => {
       <DialogContent className="!max-w-[1200px] w-[95vw] h-[95vh] !max-h-[95vh] overflow-y-auto bg-white border border-gray-200 rounded-lg">
         <DialogHeader>
           <DialogTitle>Create Task</DialogTitle>
-          <DialogDescription>
-            Assign the task and upload files.
-          </DialogDescription>
+          <DialogDescription>Assign the task and upload files.</DialogDescription>
 
           {user && (
             <div className="text-xs text-muted-foreground">
@@ -247,11 +295,8 @@ useEffect(() => {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {errors.submit && (
-            <p className="text-sm text-destructive">{errors.submit}</p>
-          )}
+          {errors.submit && <p className="text-sm text-destructive">{errors.submit}</p>}
 
-          {/* DESCRIPTION */}
           <div className="space-y-2">
             <Label>Description</Label>
             <Textarea
@@ -261,41 +306,28 @@ useEffect(() => {
             />
           </div>
 
-          {/* CLIENT */}
           <div className="space-y-2">
             <Label>Client</Label>
-            <Select
-              value={formData.clientId}
-              onValueChange={(v) => handleInputChange("clientId", v)}
-            >
-              <SelectTrigger
-                className={errors.clientId ? "border-destructive" : ""}
-              >
+            <Select value={formData.clientId} onValueChange={(v) => handleInputChange("clientId", v)}>
+              <SelectTrigger className={errors.clientId ? "border-destructive" : ""}>
                 <SelectValue placeholder="Select a client" />
               </SelectTrigger>
               <SelectContent>
                 {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
+                  <SelectItem key={client.id} value={String(client.id)}>
                     {client.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.clientId && (
-              <p className="text-sm text-destructive">{errors.clientId}</p>
-            )}
+            {errors.clientId && <p className="text-sm text-destructive">{errors.clientId}</p>}
           </div>
 
-          {/* FOLDER TYPE */}
+          {/* Folder type */}
           <div className="space-y-2">
             <Label>Folder Type</Label>
-            <Select
-              value={formData.folderType}
-              onValueChange={(v) => handleInputChange("folderType", v)}
-            >
-              <SelectTrigger
-                className={errors.folderType ? "border-destructive" : ""}
-              >
+            <Select value={formData.folderType} onValueChange={(v) => handleInputChange("folderType", v)}>
+              <SelectTrigger className={errors.folderType ? "border-destructive" : ""}>
                 <SelectValue placeholder="raw footage / elements" />
               </SelectTrigger>
               <SelectContent>
@@ -303,36 +335,42 @@ useEffect(() => {
                 <SelectItem value="essentials">Elements</SelectItem>
               </SelectContent>
             </Select>
-            {errors.folderType && (
-              <p className="text-sm text-destructive">{errors.folderType}</p>
-            )}
+            {errors.folderType && <p className="text-sm text-destructive">{errors.folderType}</p>}
           </div>
 
-          {/* TYPE */}
-          {/* <div className="space-y-2">
-            <Label>Task Type</Label>
+          {/* MONTHLY DELIVERABLE */}
+          <div className="space-y-2">
+            <Label>Monthly Deliverable</Label>
             <Select
-              value={formData.type}
-              onValueChange={(value) => {
-                handleInputChange("type", value);
-                handleInputChange("assignedTo", "");
+              value={formData.monthlyDeliverableId || selectedDeliverable || ""}
+              onValueChange={(v) => {
+                if (v === "__no_deliverables__") return;
+                handleInputChange("monthlyDeliverableId", v);
+                setSelectedDeliverable(v);
               }}
             >
-              <SelectTrigger className={errors.type ? "border-destructive" : ""}>
-                <SelectValue placeholder="Select task type" />
+              <SelectTrigger className={errors.monthlyDeliverableId ? "border-destructive" : ""}>
+                <SelectValue placeholder="Select deliverable for this task" />
               </SelectTrigger>
+
               <SelectContent>
-                {taskTypes.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
+                {deliverables.length > 0 ? (
+                  deliverables.map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>
+                      {d.type} {d.quantity ? `— ${d.quantity}` : ""}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="__no_deliverables__" disabled>
+                    No deliverables found for selected client
                   </SelectItem>
-                ))}
+                )}
               </SelectContent>
             </Select>
-            {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
-          </div> */}
 
-          {/* DUE DATE */}
+            {errors.monthlyDeliverableId && <p className="text-sm text-destructive">{errors.monthlyDeliverableId}</p>}
+          </div>
+
           <div className="space-y-2">
             <Label>Due Date</Label>
             <Input
@@ -342,12 +380,9 @@ useEffect(() => {
               className={errors.dueDate ? "border-destructive" : ""}
               min={new Date().toISOString().split("T")[0]}
             />
-            {errors.dueDate && (
-              <p className="text-sm text-destructive">{errors.dueDate}</p>
-            )}
+            {errors.dueDate && <p className="text-sm text-destructive">{errors.dueDate}</p>}
           </div>
 
-          {/* FILES */}
           <div className="space-y-2">
             <Label>Upload Files</Label>
             <Input type="file" multiple onChange={handleFileChange} />
@@ -360,51 +395,6 @@ useEffect(() => {
             )}
           </div>
 
-          {/* ASSIGN TO */}
-          {/* <div className="space-y-3">
-            <Label>Assign To</Label>
-
-            <div className="space-y-3 max-h-48 overflow-y-auto">
-              {availableMembers.length > 0 ? (
-                availableMembers.map((member) => (
-                  <Card
-                    key={member.id}
-                    className={`cursor-pointer transition ${
-                      String(formData.assignedTo) === String(member.id)
-                        ? "border-primary bg-primary/10"
-                        : "hover:bg-accent"
-                    }`}
-                    onClick={() =>
-                      handleInputChange("assignedTo", String(member.id))
-                    }
-                  >
-                    <CardContent className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={member.avatarUrl || ""} />
-                          <AvatarFallback>
-                            {member.name?.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <h4 className="text-sm">{member.name}</h4>
-                      </div>
-                      <Badge>{member.availability}</Badge>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No members available.
-                </p>
-              )}
-            </div>
-
-            {errors.assignedTo && (
-              <p className="text-sm text-destructive">{errors.assignedTo}</p>
-            )}
-          </div> */}
-
-          {/* ROLE SECTIONS */}
           <RoleAssign
             title="Assign Editor"
             role="editor"
@@ -446,11 +436,7 @@ useEffect(() => {
           />
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
@@ -463,7 +449,7 @@ useEffect(() => {
   );
 }
 
-function RoleAssign({ title, role, field, formData, update, availableMembers, error }) {
+function RoleAssign({ title, role, field, formData, update, availableMembers, error }: any) {
   const members = availableMembers.filter((m) => m.role === role);
 
   return (
@@ -472,14 +458,10 @@ function RoleAssign({ title, role, field, formData, update, availableMembers, er
 
       <div className="space-y-3 max-h-48 overflow-y-auto">
         {members.length > 0 ? (
-          members.map((member) => (
+          members.map((member: any) => (
             <Card
               key={member.id}
-              className={`cursor-pointer transition ${
-                String(formData[field]) === String(member.id)
-                  ? "border-primary bg-primary/10"
-                  : "hover:bg-accent"
-              }`}
+              className={`cursor-pointer transition ${String(formData[field]) === String(member.id) ? "border-primary bg-primary/10" : "hover:bg-accent"}`}
               onClick={() => update(field, String(member.id))}
             >
               <CardContent className="p-3 flex items-center justify-between">
@@ -503,4 +485,3 @@ function RoleAssign({ title, role, field, formData, update, availableMembers, er
     </div>
   );
 }
-

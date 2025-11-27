@@ -96,6 +96,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
             scheduler: templateTask.scheduler,
             videographer: templateTask.videographer,
             qc_specialist: templateTask.qc_specialist,
+            monthlyDeliverableId: templateTask.monthlyDeliverableId,
           },
         })
       );
