@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 export async function generateMonthlyTasksFromTemplate(taskId: string) {
-  // STEP 1 — Fetch the template task
+  // STEP 1 — Fetch template task
   const templateTask = await prisma.task.findUnique({
     where: { id: taskId },
   });
@@ -12,7 +12,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
 
   const clientId = templateTask.clientId;
 
-  // STEP 2 — Fetch the client + deliverable
+  // STEP 2 — Fetch client + deliverable
   const client = await prisma.client.findUnique({
     where: { id: clientId },
     include: { monthlyDeliverables: true },
@@ -28,9 +28,8 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
   const videosPerDay = deliverable.videosPerDay ?? 1;
   const postingDays = deliverable.postingDays ?? [];
 
-  // Step 3 — Month boundaries
-  const firstDate = new Date(templateTask.dueDate); // Option A
-  const now = new Date();
+  // STEP 3 — Month boundaries
+  const firstDate = new Date(templateTask.dueDate);
   const monthStart = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
   const monthEnd = new Date(firstDate.getFullYear(), firstDate.getMonth() + 1, 0);
 
@@ -48,34 +47,35 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
     .map((d) => WEEKDAY[d as keyof typeof WEEKDAY])
     .filter((v) => v !== undefined);
 
-  // STEP 4 — Get all posting dates
-  const allPostingDates: Date[] = [];
+  // STEP 4 — Build posting date list
+  const dates: Date[] = [];
   const cursor = new Date(monthStart);
 
   while (cursor <= monthEnd) {
     if (validDays.includes(cursor.getDay())) {
-      allPostingDates.push(new Date(cursor));
+      dates.push(new Date(cursor));
     }
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  // STEP 5 — Count how many were already created
-  // Your template task is #1
-  let count = 1;
-
+  // STEP 5 — Naming parts
   const clientSlug = client.name.replace(/\s+/g, "");
   const deliverableSlug = deliverable.type.replace(/\s+/g, "");
-  const createdAtStr = templateTask.createdAt?.toISOString().slice(0, 10) ?? now.toISOString().slice(0, 10);
+  const createdAtStr = templateTask.createdAt.toISOString().slice(0, 10);
 
   // STEP 6 — Create remaining tasks
   const creates = [];
+  let count = 1; // template task = #1
 
-  for (const date of allPostingDates) {
-    for (let v = 0; v < videosPerDay; v++) {
+  for (const date of dates) {
+    for (let i = 0; i < videosPerDay; i++) {
       if (count >= quantity) break;
 
-      // Skip the date that matches the user's first task
-      if (date.getTime() === firstDate.getTime()) continue;
+      // Skip only the FIRST slot of the FIRST posting date
+      if (date.toDateString() === firstDate.toDateString() && count === 1) {
+        count++;
+        continue;
+      }
 
       count++;
       const title = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
@@ -90,7 +90,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
             dueDate: date,
             clientId,
 
-            // Copy ALL assignments from the first task
+            // Copy assignments
             assignedTo: templateTask.assignedTo,
             createdBy: templateTask.createdBy,
             scheduler: templateTask.scheduler,

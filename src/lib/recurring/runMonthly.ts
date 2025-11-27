@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { generateMonthlyTasksForClient } from "./generateMonthly";
+import { generateMonthlyTasksFromTemplate } from "./generateMonthly";
 
 export async function runMonthlyRecurringForClient(clientId: string) {
   const now = new Date();
@@ -16,7 +16,7 @@ export async function runMonthlyRecurringForClient(clientId: string) {
   }
 
   // Generate tasks for this month
-  const result = await generateMonthlyTasksForClient(clientId);
+  const result = await generateMonthlyTasksFromTemplate(clientId);
 
   // Log that we've run it
   await prisma.monthlyRun.create({

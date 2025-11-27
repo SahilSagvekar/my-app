@@ -14,7 +14,7 @@ export async function GET() {
     processed++;
 
     // Only count if it created tasks
-    if (!result.alreadyRan) {
+    if (!result.alreadyRan && 'created' in result) {
       generated += result.created ?? 0;
     }
   }
