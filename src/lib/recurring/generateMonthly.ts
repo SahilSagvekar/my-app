@@ -65,7 +65,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
 
   // STEP 6 — Create remaining tasks
   const creates = [];
-  let count = 1; // template task = #1
+  let count = 0; // template task = #1
 
   for (const date of dates) {
     for (let i = 0; i < videosPerDay; i++) {
