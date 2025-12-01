@@ -18,6 +18,24 @@ enum Role {
   qc
 }
 
+enum EmployeeStatus {
+ACTIVE
+INACTIVE
+}
+
+
+enum LeaveStatus {
+PENDING
+APPROVED
+REJECTED
+}
+
+
+enum PayrollStatus {
+PENDING
+PAID
+}
+
 model User {
   id        Int      @id @default(autoincrement())
   name      String?
@@ -25,12 +43,25 @@ model User {
   password  String?
   image     String?
   role      Role     @default(client)
+
+    // --- payroll / employee fields (Option 1: extend User)
+  hourlyRate Decimal? @db.Decimal(10,2)
+  monthlyBaseHours Int?
+  employeeStatus EmployeeStatus? @default(ACTIVE)
+  joinedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   client    Client?
   accounts  Account[]
   sessions  Session[]
   assignedTasks Task[] @relation("AssignedTasks")
+
+  // relations to payroll models
+  bonuses Bonus[]
+  leaves Leave[]
+  deductions Deduction[]
+  payrolls Payroll[]
 }
 
 model Account {
@@ -166,6 +197,8 @@ model Client {
   startDate           DateTime?
   renewalDate         DateTime?
   lastActivity        DateTime?
+  requiresClientReview Boolean  @default(false)
+
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -299,6 +332,65 @@ model MonthlyRun {
   client    Client   @relation(fields: [clientId], references: [id])
 }
 
+
+// --- Payroll + Leave models
+
+
+model Bonus {
+id Int @id @default(autoincrement())
+employee User @relation(fields: [employeeId], references: [id])
+employeeId Int
+amount Decimal @db.Decimal(12,2)
+addedBy Int? // admin user id; optional
+createdAt DateTime @default(now())
+}
+
+
+model Leave {
+  id           Int      @id @default(autoincrement())
+  employee     User     @relation(fields: [employeeId], references: [id])
+  employeeId   Int
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  numberOfDays Int
+  approvedBy   Int?
+  createdAt    DateTime @default(now())
+
+  deduction    Deduction?
+}
+
+
+model Deduction {
+  id         Int      @id @default(autoincrement())
+  employee   User     @relation(fields: [employeeId], references: [id])
+  employeeId Int
+  amount     Decimal  @db.Decimal(12,2)
+
+  leave      Leave?   @relation(fields: [leaveId], references: [id])
+  leaveId    Int?     @unique  // <-- required to make 1:1 valid
+
+  month      DateTime
+  createdAt  DateTime @default(now())
+}
+
+
+
+model Payroll {
+id Int @id @default(autoincrement())
+employee User @relation(fields: [employeeId], references: [id])
+employeeId Int
+periodStart DateTime
+periodEnd DateTime
+baseSalary Decimal @db.Decimal(12,2)
+totalBonuses Decimal @db.Decimal(12,2) @default(0)
+totalDeductions Decimal @db.Decimal(12,2) @default(0)
+netPay Decimal @db.Decimal(12,2)
+status PayrollStatus @default(PENDING)
+createdAt DateTime @default(now())
+paidAt DateTime?
+}
 
 
 
