@@ -49,6 +49,7 @@ model User {
   monthlyBaseHours Int?
   employeeStatus EmployeeStatus? @default(ACTIVE)
   joinedAt DateTime?
+  worksOnSaturday  Boolean         @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
