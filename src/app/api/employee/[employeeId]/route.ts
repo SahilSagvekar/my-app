@@ -10,12 +10,12 @@ const PatchSchema = z.object({
   employeeStatus: z.enum(['ACTIVE', 'INACTIVE']).optional(),
 });
 
-export async function PATCH(req: Request, context: { params: { id: string } }) {
+export async function PATCH(req: Request, context: { params: { employeeId: string } }) {
   try {
     await requireAdmin(req as any);
     const payload = PatchSchema.parse(await req.json());
     const { params } = await Promise.resolve(context);
-    const id = Number(params.id);
+    const id = Number(params.employeeId);
 
     const user = await prisma.user.update({
       where: { id },

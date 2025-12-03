@@ -8,11 +8,11 @@ const BonusSchema = z.object({
   addedBy: z.number().optional(), // or use req user id
 });
 
-export async function POST(req: Request, context: { params: { id: string } }) {
+export async function POST(req: Request, context: { params: { employeeId: string } }) {
   try {
     await requireAdmin(req as any);
     const { params } = await Promise.resolve(context);
-    const employeeId = Number(params.id);
+    const employeeId = Number(params.employeeId);
     const body = BonusSchema.parse(await req.json());
 
     const bonus = await prisma.bonus.create({

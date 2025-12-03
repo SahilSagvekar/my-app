@@ -47,7 +47,8 @@ export async function POST(
     const { params } = await Promise.resolve(context);
     console.log('Creating leave for employeeId:', params, 'by user:', currentUser);
 
-    const employeeId = Number(params.employeeId);
+    // const employeeId = Number(params.employeeId);
+    const employeeId = currentUser.userId;
 
     if (!employeeId || Number.isNaN(employeeId)) {
       return NextResponse.json(

@@ -8,7 +8,7 @@ export async function PATCH(
   context: { params: { payrollId: string } }
 ) {
   try {
-    await requireAdmin(req);
+    await requireAdmin  (req);
     const { payrollId } = await Promise.resolve(context.params);
 
     const updated = await prisma.payroll.update({

@@ -7,6 +7,7 @@ import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { RecentTasksCard } from '../tasks/RecentTasksCard';
 import { AnalyticsTab } from '../admin/AnalyticsTab';
 import { UserManagementTab } from '../admin/UserManagementTab';
+import LeavesComponent from '../admin/LeavesComponent';
 import { ReportsTab } from '../admin/ReportsTab';
 import { AuditLogTab } from '../admin/AuditLogTab';
 import { FinanceTab } from '../admin/FinanceTab';
@@ -433,6 +434,9 @@ async function loadTasks() {
 
       case 'finance':
         return <FinanceTab />;
+
+      case 'leaves':
+        return <LeavesComponent />;
 
       default:
         return (

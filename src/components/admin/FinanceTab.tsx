@@ -1,38 +1,55 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Input } from '../ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Calendar } from '../ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { VisuallyHidden } from '../ui/visually-hidden';
-import { 
-  DollarSign, 
-  Receipt, 
-  Users, 
-  TrendingUp, 
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "../ui/card";
+import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
+import { Input } from "../ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
+import { Avatar, AvatarFallback } from "../ui/avatar";
+import { Calendar } from "../ui/calendar";
+import { Popover, PopoverContent, PopperTrigger, PopoverTrigger } from "../ui/popover";
+import {
+  DollarSign,
+  Users,
   Plus,
   Search,
-  Filter,
-  Download,
-  Send,
-  CheckCircle,
   Clock,
   AlertCircle,
   Calendar as CalendarIcon,
   Edit,
   Eye,
-  MoreHorizontal
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { Toaster } from '../ui/sonner';
+  Receipt,
+  Gift,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Toaster } from "../ui/sonner";
 
-// Types
+// ---------- Types ----------
+
 interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -41,7 +58,7 @@ interface Invoice {
   amount: number;
   dueDate: string;
   issueDate: string;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
   description: string;
   items: InvoiceItem[];
   paymentDate?: string;
@@ -56,24 +73,21 @@ interface InvoiceItem {
 }
 
 interface Employee {
-  id: string;
+  id: number;
   name: string;
   email: string;
   role: string;
+  hourlyRate: number;
   monthlyRate: number;
   hireDate: string;
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
   avatar: string;
-  bankDetails?: {
-    accountNumber: string;
-    routingNumber: string;
-    bankName: string;
-  };
+  worksOnSaturday: boolean;
 }
 
 interface PayrollRecord {
-  id: string;
-  employeeId: string;
+  id: number;
+  employeeId: number;
   employeeName: string;
   month: string;
   year: number;
@@ -81,361 +95,625 @@ interface PayrollRecord {
   bonuses: number;
   deductions: number;
   netPay: number;
-  status: 'pending' | 'processed' | 'paid';
+  status: "pending" | "paid";
   payDate?: string;
 }
 
-// Mock data
+// ---------- Mock invoices only ----------
+
 const mockInvoices: Invoice[] = [
   {
-    id: 'inv-001',
-    invoiceNumber: 'INV-2024-001',
-    clientName: 'Acme Corporation',
-    clientId: 'client-001',
+    id: "inv-001",
+    invoiceNumber: "INV-2024-001",
+    clientName: "Acme Corporation",
+    clientId: "client-001",
     amount: 15000,
-    dueDate: '2024-08-25',
-    issueDate: '2024-08-01',
-    status: 'sent',
-    description: 'Monthly content creation services',
+    dueDate: "2024-08-25",
+    issueDate: "2024-08-01",
+    status: "sent",
+    description: "Monthly content creation services",
     items: [
-      { id: '1', description: 'Video Production Services', quantity: 5, rate: 2000, amount: 10000 },
-      { id: '2', description: 'Social Media Content', quantity: 20, rate: 250, amount: 5000 }
-    ]
+      {
+        id: "1",
+        description: "Video Production Services",
+        quantity: 5,
+        rate: 2000,
+        amount: 10000,
+      },
+      {
+        id: "2",
+        description: "Social Media Content",
+        quantity: 20,
+        rate: 250,
+        amount: 5000,
+      },
+    ],
   },
   {
-    id: 'inv-002',
-    invoiceNumber: 'INV-2024-002',
-    clientName: 'TechStart Inc.',
-    clientId: 'client-002',
+    id: "inv-002",
+    invoiceNumber: "INV-2024-002",
+    clientName: "TechStart Inc.",
+    clientId: "client-002",
     amount: 8500,
-    dueDate: '2024-08-15',
-    issueDate: '2024-07-20',
-    status: 'paid',
-    description: 'Brand guidelines and website assets',
-    paymentDate: '2024-08-12',
+    dueDate: "2024-08-15",
+    issueDate: "2024-07-20",
+    status: "paid",
+    description: "Brand guidelines and website assets",
+    paymentDate: "2024-08-12",
     items: [
-      { id: '1', description: 'Brand Guidelines Development', quantity: 1, rate: 5000, amount: 5000 },
-      { id: '2', description: 'Website Assets Package', quantity: 1, rate: 3500, amount: 3500 }
-    ]
+      {
+        id: "1",
+        description: "Brand Guidelines Development",
+        quantity: 1,
+        rate: 5000,
+        amount: 5000,
+      },
+      {
+        id: "2",
+        description: "Website Assets Package",
+        quantity: 1,
+        rate: 3500,
+        amount: 3500,
+      },
+    ],
   },
   {
-    id: 'inv-003',
-    invoiceNumber: 'INV-2024-003',
-    clientName: 'Fashion Forward',
-    clientId: 'client-003',
+    id: "inv-003",
+    invoiceNumber: "INV-2024-003",
+    clientName: "Fashion Forward",
+    clientId: "client-003",
     amount: 12000,
-    dueDate: '2024-08-05',
-    issueDate: '2024-07-15',
-    status: 'overdue',
-    description: 'Q4 marketing campaign assets',
+    dueDate: "2024-08-05",
+    issueDate: "2024-07-15",
+    status: "overdue",
+    description: "Q4 marketing campaign assets",
     items: [
-      { id: '1', description: 'Photography Sessions', quantity: 3, rate: 2000, amount: 6000 },
-      { id: '2', description: 'Graphic Design Work', quantity: 12, rate: 500, amount: 6000 }
-    ]
-  }
+      {
+        id: "1",
+        description: "Photography Sessions",
+        quantity: 3,
+        rate: 2000,
+        amount: 6000,
+      },
+      {
+        id: "2",
+        description: "Graphic Design Work",
+        quantity: 12,
+        rate: 500,
+        amount: 6000,
+      },
+    ],
+  },
 ];
 
-const mockEmployees: Employee[] = [
-  {
-    id: 'emp-001',
-    name: 'Sarah Wilson',
-    email: 'sarah.wilson@company.com',
-    role: 'Senior Editor',
-    monthlyRate: 6500,
-    hireDate: '2023-03-15',
-    status: 'active',
-    avatar: 'SW'
-  },
-  {
-    id: 'emp-002',
-    name: 'Mike Johnson',
-    email: 'mike.johnson@company.com',
-    role: 'Video Editor',
-    monthlyRate: 5800,
-    hireDate: '2023-06-01',
-    status: 'active',
-    avatar: 'MJ'
-  },
-  {
-    id: 'emp-003',
-    name: 'Lisa Davis',
-    email: 'lisa.davis@company.com',
-    role: 'QC Specialist',
-    monthlyRate: 5200,
-    hireDate: '2023-01-10',
-    status: 'active',
-    avatar: 'LD'
-  },
-  {
-    id: 'emp-004',
-    name: 'Alex Chen',
-    email: 'alex.chen@company.com',
-    role: 'Content Scheduler',
-    monthlyRate: 4800,
-    hireDate: '2023-09-01',
-    status: 'active',
-    avatar: 'AC'
-  },
-  {
-    id: 'emp-005',
-    name: 'Emma White',
-    email: 'emma.white@company.com',
-    role: 'Project Manager',
-    monthlyRate: 7200,
-    hireDate: '2022-11-15',
-    status: 'active',
-    avatar: 'EW'
-  }
-];
+// ---------- Helpers ----------
 
-const mockPayroll: PayrollRecord[] = [
-  {
-    id: 'pay-001',
-    employeeId: 'emp-001',
-    employeeName: 'Sarah Wilson',
-    month: 'August',
-    year: 2024,
-    baseSalary: 6500,
-    bonuses: 500,
-    deductions: 150,
-    netPay: 6850,
-    status: 'paid',
-    payDate: '2024-08-01'
-  },
-  {
-    id: 'pay-002',
-    employeeId: 'emp-002',
-    employeeName: 'Mike Johnson',
-    month: 'August',
-    year: 2024,
-    baseSalary: 5800,
-    bonuses: 200,
-    deductions: 120,
-    netPay: 5880,
-    status: 'paid',
-    payDate: '2024-08-01'
-  },
-  {
-    id: 'pay-003',
-    employeeId: 'emp-003',
-    employeeName: 'Lisa Davis',
-    month: 'August',
-    year: 2024,
-    baseSalary: 5200,
-    bonuses: 300,
-    deductions: 100,
-    netPay: 5400,
-    status: 'processed'
-  }
-];
-
-// Helper functions
 const getInvoiceStatusColor = (status: string) => {
   switch (status) {
-    case 'paid': return 'bg-green-100 text-green-800';
-    case 'sent': return 'bg-blue-100 text-blue-800';
-    case 'overdue': return 'bg-red-100 text-red-800';
-    case 'draft': return 'bg-gray-100 text-gray-800';
-    case 'cancelled': return 'bg-red-100 text-red-800';
-    default: return 'bg-gray-100 text-gray-800';
+    case "paid":
+      return "bg-green-100 text-green-800";
+    case "sent":
+      return "bg-blue-100 text-blue-800";
+    case "overdue":
+      return "bg-red-100 text-red-800";
+    case "draft":
+      return "bg-gray-100 text-gray-800";
+    case "cancelled":
+      return "bg-red-100 text-red-800";
+    default:
+      return "bg-gray-100 text-gray-800";
   }
 };
 
-const getPayrollStatusColor = (status: string) => {
+const getPayrollStatusColor = (status: PayrollRecord["status"]) => {
   switch (status) {
-    case 'paid': return 'bg-green-100 text-green-800';
-    case 'processed': return 'bg-blue-100 text-blue-800';
-    case 'pending': return 'bg-yellow-100 text-yellow-800';
-    default: return 'bg-gray-100 text-gray-800';
+    case "paid":
+      return "bg-green-100 text-green-800";
+    case "pending":
+      return "bg-yellow-100 text-yellow-800";
+    default:
+      return "bg-gray-100 text-gray-800";
   }
 };
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount || 0);
 };
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'short', 
-    day: '2-digit' 
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
   });
 };
 
+const monthNames = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+// Approx default working days per month (for UI only; backend uses proper logic)
+const DEFAULT_WORKING_DAYS = 22;
+
+// Small helper to hit your backend with JWT automatically
+async function apiFetch(path: string, options: RequestInit = {}) {
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    const message = (data && data.message) || "Request failed";
+    throw new Error(message);
+  }
+
+  return data;
+}
+
+// ---------- Component ----------
+
 export function FinanceTab() {
+  // Backend-connected state
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [payroll, setPayroll] = useState<PayrollRecord[]>([]);
+
+  // Invoices remain mock
   const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
-  const [payroll, setPayroll] = useState<PayrollRecord[]>(mockPayroll);
-  
-  // UI State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all');
+
+  // UI state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [showNewInvoiceDialog, setShowNewInvoiceDialog] = useState(false);
   const [showNewEmployeeDialog, setShowNewEmployeeDialog] = useState(false);
   const [showPayrollDialog, setShowPayrollDialog] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
-  // New Invoice Form
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [loadingPayroll, setLoadingPayroll] = useState(false);
+
+  // Bonus + hourly modals state
+  const [bonusModalOpen, setBonusModalOpen] = useState(false);
+  const [hourlyModalOpen, setHourlyModalOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
+    null
+  );
+  const [bonusAmount, setBonusAmount] = useState<string>("");
+  const [hourlyRateInput, setHourlyRateInput] = useState<string>("");
+
+  // New Invoice Form (mock only)
   const [newInvoice, setNewInvoice] = useState({
-    clientName: '',
-    amount: '',
+    clientName: "",
+    amount: "",
     dueDate: undefined as Date | undefined,
-    description: '',
-    items: [{ description: '', quantity: 1, rate: 0 }] as Omit<InvoiceItem, 'id' | 'amount'>[]
+    description: "",
+    items: [
+      { description: "", quantity: 1, rate: 0 },
+    ] as Omit<InvoiceItem, "id" | "amount">[],
   });
 
-  // New Employee Form
+  // New Employee Form (backed by POST /api/employee)
   const [newEmployee, setNewEmployee] = useState({
-    name: '',
-    email: '',
-    role: '',
-    monthlyRate: '',
-    hireDate: undefined as Date | undefined
+    name: "",
+    email: "",
+    role: "",
+    hourlyRate: "",
+    hireDate: undefined as Date | undefined,
+    worksOnSaturday: false,
   });
 
-  // New Payroll Form
+  // Payroll generation form – month/year for all employees
   const [newPayroll, setNewPayroll] = useState({
-    employeeId: '',
-    month: '',
+    month: "",
     year: new Date().getFullYear(),
-    bonuses: 0,
-    deductions: 0
   });
 
-  // Calculations
-  const totalRevenue = invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + inv.amount, 0);
-  const pendingRevenue = invoices.filter(inv => inv.status === 'sent').reduce((sum, inv) => sum + inv.amount, 0);
-  const overdueAmount = invoices.filter(inv => inv.status === 'overdue').reduce((sum, inv) => sum + inv.amount, 0);
-  const monthlyPayrollCost = employees.filter(emp => emp.status === 'active').reduce((sum, emp) => sum + emp.monthlyRate, 0);
+  // ---------- Backend fetches ----------
 
-  // Filtered data
-  const filteredInvoices = invoices.filter(invoice => {
-    const matchesSearch = invoice.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = invoiceStatusFilter === 'all' || invoice.status === invoiceStatusFilter;
+  const loadEmployees = async () => {
+    try {
+      setLoadingEmployees(true);
+      const data = await apiFetch("/api/employee/list", {
+        method: "GET",
+      });
+
+      const mapped: Employee[] =
+        data?.employees?.map((u: any) => {
+          const name = u.name || u.email || "Unnamed";
+          const avatar =
+            name
+              .split(" ")
+              .map((n: string) => n[0])
+              .join("")
+              .toUpperCase() || "U";
+
+          const hourly = u.hourlyRate ? Number(u.hourlyRate) : 0;
+          const monthlyRate = hourly * 8 * DEFAULT_WORKING_DAYS;
+
+          return {
+            id: u.id,
+            name,
+            email: u.email,
+            role: u.role,
+            hourlyRate: hourly,
+            monthlyRate,
+            hireDate: u.joinedAt || u.createdAt,
+            status: u.employeeStatus === "INACTIVE" ? "inactive" : "active",
+            avatar,
+            worksOnSaturday: !!u.worksOnSaturday,
+          };
+        }) ?? [];
+
+      setEmployees(mapped);
+    } catch (err: any) {
+      console.error("Failed to load employees", err);
+      toast("Error loading employees", {
+        description: err.message,
+      });
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  const loadPayroll = async () => {
+    try {
+      setLoadingPayroll(true);
+      const data = await apiFetch("/api/payroll/list", { method: "GET" });
+
+      const mapped: PayrollRecord[] =
+        data?.payrolls?.map((p: any) => {
+          const periodStart = new Date(p.periodStart);
+          const monthName = monthNames[periodStart.getUTCMonth()] || "-";
+          const year = periodStart.getUTCFullYear();
+
+          const employeeName = p.employee?.name || `Employee #${p.employeeId}`;
+
+          return {
+            id: p.id,
+            employeeId: p.employeeId,
+            employeeName,
+            month: monthName,
+            year,
+            baseSalary: Number(p.baseSalary),
+            bonuses: Number(p.totalBonuses),
+            deductions: Number(p.totalDeductions),
+            netPay: Number(p.netPay),
+            status: p.status === "PAID" ? "paid" : "pending",
+            payDate: p.paidAt || undefined,
+          };
+        }) ?? [];
+
+      setPayroll(mapped);
+    } catch (err: any) {
+      console.error("Failed to load payroll", err);
+      toast("Error loading payroll", {
+        description: err.message,
+      });
+    } finally {
+      setLoadingPayroll(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEmployees();
+    loadPayroll();
+  }, []);
+
+  // ---------- Calculations ----------
+
+  const totalRevenue = invoices
+    .filter((inv) => inv.status === "paid")
+    .reduce((sum, inv) => sum + inv.amount, 0);
+
+  const pendingRevenue = invoices
+    .filter((inv) => inv.status === "sent")
+    .reduce((sum, inv) => sum + inv.amount, 0);
+
+  const overdueAmount = invoices
+    .filter((inv) => inv.status === "overdue")
+    .reduce((sum, inv) => sum + inv.amount, 0);
+
+  const monthlyPayrollCost = payroll.reduce(
+    (sum, p) => sum + (p.netPay || 0),
+    0
+  );
+
+  const filteredInvoices = invoices.filter((invoice) => {
+    const matchesSearch =
+      invoice.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      invoiceStatusFilter === "all" || invoice.status === invoiceStatusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  // Handlers
+  // ---------- Handlers (Invoices) ----------
+
   const handleCreateInvoice = () => {
     if (!newInvoice.clientName || !newInvoice.amount || !newInvoice.dueDate) {
-      toast('❌ Error', { description: 'Please fill in all required fields.' });
+      toast("❌ Error", {
+        description: "Please fill in all required fields.",
+      });
       return;
     }
 
     const invoice: Invoice = {
       id: `inv-${Date.now()}`,
-      invoiceNumber: `INV-2024-${String(invoices.length + 1).padStart(3, '0')}`,
+      invoiceNumber: `INV-${new Date().getFullYear()}-${String(
+        invoices.length + 1
+      ).padStart(3, "0")}`,
       clientName: newInvoice.clientName,
       clientId: `client-${Date.now()}`,
       amount: parseFloat(newInvoice.amount),
-      dueDate: newInvoice.dueDate.toISOString().split('T')[0],
-      issueDate: new Date().toISOString().split('T')[0],
-      status: 'draft',
+      dueDate: newInvoice.dueDate.toISOString().split("T")[0],
+      issueDate: new Date().toISOString().split("T")[0],
+      status: "draft",
       description: newInvoice.description,
       items: newInvoice.items.map((item, index) => ({
         id: String(index + 1),
         ...item,
-        amount: item.quantity * item.rate
-      }))
+        amount: item.quantity * item.rate,
+      })),
     };
 
-    setInvoices(prev => [invoice, ...prev]);
+    setInvoices((prev) => [invoice, ...prev]);
     setNewInvoice({
-      clientName: '',
-      amount: '',
+      clientName: "",
+      amount: "",
       dueDate: undefined,
-      description: '',
-      items: [{ description: '', quantity: 1, rate: 0 }]
+      description: "",
+      items: [{ description: "", quantity: 1, rate: 0 }],
     });
     setShowNewInvoiceDialog(false);
-    toast('✅ Invoice Created', { description: 'New invoice has been created successfully.' });
+    toast("✅ Invoice Created", {
+      description: "New invoice has been created successfully.",
+    });
   };
 
-  const handleAddEmployee = () => {
-    if (!newEmployee.name || !newEmployee.email || !newEmployee.monthlyRate || !newEmployee.hireDate) {
-      toast('❌ Error', { description: 'Please fill in all required fields.' });
+  const handleUpdateInvoiceStatus = (
+    invoiceId: string,
+    newStatus: Invoice["status"]
+  ) => {
+    setInvoices((prev) =>
+      prev.map((inv) =>
+        inv.id === invoiceId
+          ? {
+              ...inv,
+              status: newStatus,
+              paymentDate:
+                newStatus === "paid"
+                  ? new Date().toISOString().split("T")[0]
+                  : undefined,
+            }
+          : inv
+      )
+    );
+    toast("✅ Status Updated", {
+      description: "Invoice status has been updated.",
+    });
+  };
+
+  // ---------- Handlers (Employees) ----------
+
+  const handleAddEmployee = async () => {
+    if (
+      !newEmployee.name ||
+      !newEmployee.email ||
+      !newEmployee.hourlyRate ||
+      !newEmployee.hireDate
+    ) {
+      toast("❌ Error", {
+        description: "Please fill in all required fields.",
+      });
       return;
     }
 
-    const employee: Employee = {
-      id: `emp-${Date.now()}`,
-      name: newEmployee.name,
-      email: newEmployee.email,
-      role: newEmployee.role,
-      monthlyRate: parseFloat(newEmployee.monthlyRate),
-      hireDate: newEmployee.hireDate.toISOString().split('T')[0],
-      status: 'active',
-      avatar: newEmployee.name.split(' ').map(n => n[0]).join('').toUpperCase()
-    };
+    try {
+      const hourlyRate = parseFloat(newEmployee.hourlyRate);
 
-    setEmployees(prev => [employee, ...prev]);
-    setNewEmployee({
-      name: '',
-      email: '',
-      role: '',
-      monthlyRate: '',
-      hireDate: undefined
-    });
-    setShowNewEmployeeDialog(false);
-    toast('✅ Employee Added', { description: 'New employee has been added successfully.' });
+      await apiFetch("/api/employee", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newEmployee.name,
+          email: newEmployee.email,
+          role: newEmployee.role || "editor",
+          hourlyRate,
+          joinedAt: newEmployee.hireDate.toISOString(),
+          worksOnSaturday: newEmployee.worksOnSaturday,
+        }),
+      });
+
+      toast("✅ Employee Added", {
+        description: "New employee has been added successfully.",
+      });
+
+      setNewEmployee({
+        name: "",
+        email: "",
+        role: "",
+        hourlyRate: "",
+        hireDate: undefined,
+        worksOnSaturday: false,
+      });
+      setShowNewEmployeeDialog(false);
+      await loadEmployees();
+    } catch (err: any) {
+      console.error(err);
+      toast("❌ Error", {
+        description: err.message || "Failed to add employee.",
+      });
+    }
   };
 
-  const handleProcessPayroll = () => {
-    if (!newPayroll.employeeId || !newPayroll.month) {
-      toast('❌ Error', { description: 'Please select employee and month.' });
+  const openBonusModal = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setBonusAmount("");
+    setBonusModalOpen(true);
+  };
+
+  const openHourlyModal = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setHourlyRateInput(
+      employee.hourlyRate ? String(employee.hourlyRate.toFixed(2)) : ""
+    );
+    setHourlyModalOpen(true);
+  };
+
+  const handleSaveBonus = async () => {
+    if (!selectedEmployee) return;
+    const value = parseFloat(bonusAmount);
+    if (!value || value <= 0) {
+      toast("Invalid bonus amount");
       return;
     }
 
-    const employee = employees.find(emp => emp.id === newPayroll.employeeId);
-    if (!employee) return;
+    try {
+      await apiFetch(`/api/employee/${selectedEmployee.id}/bonus`, {
+        method: "POST",
+        body: JSON.stringify({ amount: value }),
+      });
 
-    const payrollRecord: PayrollRecord = {
-      id: `pay-${Date.now()}`,
-      employeeId: employee.id,
-      employeeName: employee.name,
-      month: newPayroll.month,
-      year: newPayroll.year,
-      baseSalary: employee.monthlyRate,
-      bonuses: newPayroll.bonuses,
-      deductions: newPayroll.deductions,
-      netPay: employee.monthlyRate + newPayroll.bonuses - newPayroll.deductions,
-      status: 'pending'
-    };
+      toast("✅ Bonus added", {
+        description: `Bonus of ${formatCurrency(value)} added to ${selectedEmployee.name}`,
+      });
 
-    setPayroll(prev => [payrollRecord, ...prev]);
-    setNewPayroll({
-      employeeId: '',
-      month: '',
-      year: new Date().getFullYear(),
-      bonuses: 0,
-      deductions: 0
-    });
-    setShowPayrollDialog(false);
-    toast('✅ Payroll Processed', { description: 'Payroll record has been created successfully.' });
+      setBonusModalOpen(false);
+      setBonusAmount("");
+      // Optionally reload payroll, but not required here
+    } catch (err: any) {
+      console.error(err);
+      toast("❌ Error", {
+        description: err.message || "Failed to add bonus.",
+      });
+    }
   };
 
-  const handleUpdateInvoiceStatus = (invoiceId: string, newStatus: Invoice['status']) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === invoiceId 
-        ? { ...inv, status: newStatus, paymentDate: newStatus === 'paid' ? new Date().toISOString().split('T')[0] : undefined }
-        : inv
-    ));
-    toast('✅ Status Updated', { description: 'Invoice status has been updated.' });
+  const handleSaveHourlyRate = async () => {
+    if (!selectedEmployee) return;
+    const value = parseFloat(hourlyRateInput);
+    if (!value || value <= 0) {
+      toast("Invalid hourly rate");
+      return;
+    }
+
+    try {
+      await apiFetch(`/api/employee/${selectedEmployee.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          hourlyRate: value,
+        }),
+      });
+
+      toast("✅ Hourly rate updated", {
+        description: `${selectedEmployee.name}'s hourly rate set to ${formatCurrency(
+          value
+        )}/hr`,
+      });
+
+      setHourlyModalOpen(false);
+      setHourlyRateInput("");
+      await loadEmployees();
+    } catch (err: any) {
+      console.error(err);
+      toast("❌ Error", {
+        description: err.message || "Failed to update hourly rate.",
+      });
+    }
   };
 
-  const handleUpdatePayrollStatus = (payrollId: string, newStatus: PayrollRecord['status']) => {
-    setPayroll(prev => prev.map(pay => 
-      pay.id === payrollId 
-        ? { ...pay, status: newStatus, payDate: newStatus === 'paid' ? new Date().toISOString().split('T')[0] : undefined }
-        : pay
-    ));
-    toast('✅ Status Updated', { description: 'Payroll status has been updated.' });
+  // ---------- Handlers (Payroll) ----------
+
+  const handleProcessPayroll = async () => {
+    if (!newPayroll.month || !newPayroll.year) {
+      toast("❌ Error", {
+        description: "Please select month and year.",
+      });
+      return;
+    }
+
+    const monthIndex = monthNames.indexOf(newPayroll.month);
+    if (monthIndex === -1) {
+      toast("❌ Error", { description: "Invalid month." });
+      return;
+    }
+
+    try {
+      await apiFetch(
+        `/api/payroll/generate/${newPayroll.year}/${monthIndex + 1}`,
+        {
+          method: "POST",
+        }
+      );
+
+      toast("✅ Payroll Generated", {
+        description: "Payroll has been generated for all active employees.",
+      });
+
+      setNewPayroll({
+        month: "",
+        year: new Date().getFullYear(),
+      });
+      setShowPayrollDialog(false);
+      await loadPayroll();
+    } catch (err: any) {
+      console.error(err);
+      toast("❌ Error", {
+        description: err.message || "Failed to generate payroll.",
+      });
+    }
   };
+
+  const handleUpdatePayrollStatus = async (
+    record: PayrollRecord,
+    newStatus: PayrollRecord["status"]
+  ) => {
+    if (newStatus === "paid" && record.status !== "paid") {
+      try {
+        await apiFetch(`/api/payroll/${record.id}/mark-paid`, {
+          method: "PATCH",
+        });
+        toast("✅ Status Updated", {
+          description: "Payroll marked as paid.",
+        });
+        await loadPayroll();
+      } catch (err: any) {
+        console.error(err);
+        toast("❌ Error", {
+          description: err.message || "Failed to update payroll.",
+        });
+      }
+    }
+  };
+
+  // ---------- Render ----------
 
   return (
     <>
@@ -455,7 +733,9 @@ export function FinanceTab() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Revenue</p>
-                  <p className="text-2xl font-medium text-green-600">{formatCurrency(totalRevenue)}</p>
+                  <p className="text-2xl font-medium text-green-600">
+                    {formatCurrency(totalRevenue)}
+                  </p>
                 </div>
                 <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
                   <DollarSign className="h-6 w-6 text-green-600" />
@@ -468,8 +748,12 @@ export function FinanceTab() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Pending Revenue</p>
-                  <p className="text-2xl font-medium text-blue-600">{formatCurrency(pendingRevenue)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Pending Revenue
+                  </p>
+                  <p className="text-2xl font-medium text-blue-600">
+                    {formatCurrency(pendingRevenue)}
+                  </p>
                 </div>
                 <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
                   <Clock className="h-6 w-6 text-blue-600" />
@@ -482,8 +766,12 @@ export function FinanceTab() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Overdue Amount</p>
-                  <p className="text-2xl font-medium text-red-600">{formatCurrency(overdueAmount)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Overdue Amount
+                  </p>
+                  <p className="text-2xl font-medium text-red-600">
+                    {formatCurrency(overdueAmount)}
+                  </p>
                 </div>
                 <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
                   <AlertCircle className="h-6 w-6 text-red-600" />
@@ -496,8 +784,12 @@ export function FinanceTab() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Monthly Payroll</p>
-                  <p className="text-2xl font-medium text-purple-600">{formatCurrency(monthlyPayrollCost)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Monthly Payroll (Net)
+                  </p>
+                  <p className="text-2xl font-medium text-purple-600">
+                    {formatCurrency(monthlyPayrollCost)}
+                  </p>
                 </div>
                 <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
                   <Users className="h-6 w-6 text-purple-600" />
@@ -508,14 +800,14 @@ export function FinanceTab() {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="invoices" className="space-y-6">
+        <Tabs defaultValue="employees" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
             <TabsTrigger value="employees">Employees</TabsTrigger>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
           </TabsList>
 
-          {/* Invoices Tab */}
+          {/* Invoices Tab (still mock) */}
           <TabsContent value="invoices" className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -528,7 +820,10 @@ export function FinanceTab() {
                     className="pl-10 w-80"
                   />
                 </div>
-                <Select value={invoiceStatusFilter} onValueChange={setInvoiceStatusFilter}>
+                <Select
+                  value={invoiceStatusFilter}
+                  onValueChange={setInvoiceStatusFilter}
+                >
                   <SelectTrigger className="w-40">
                     <SelectValue />
                   </SelectTrigger>
@@ -541,27 +836,43 @@ export function FinanceTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <Dialog open={showNewInvoiceDialog} onOpenChange={setShowNewInvoiceDialog}>
+              <Dialog
+                open={showNewInvoiceDialog}
+                onOpenChange={setShowNewInvoiceDialog}
+              >
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
                     New Invoice
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl" aria-describedby="new-invoice-description">
+                <DialogContent
+                  className="max-w-2xl"
+                  aria-describedby="new-invoice-description"
+                >
                   <DialogHeader>
-                    <DialogTitle id="new-invoice-title">Create New Invoice</DialogTitle>
+                    <DialogTitle id="new-invoice-title">
+                      Create New Invoice
+                    </DialogTitle>
                     <DialogDescription id="new-invoice-description">
-                      Fill in the details below to create a new invoice for a client.
+                      Fill in the details below to create a new invoice for a
+                      client.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-sm font-medium">Client Name</label>
+                        <label className="text-sm font-medium">
+                          Client Name
+                        </label>
                         <Input
                           value={newInvoice.clientName}
-                          onChange={(e) => setNewInvoice(prev => ({ ...prev, clientName: e.target.value }))}
+                          onChange={(e) =>
+                            setNewInvoice((prev) => ({
+                              ...prev,
+                              clientName: e.target.value,
+                            }))
+                          }
                           placeholder="Enter client name"
                         />
                       </div>
@@ -570,7 +881,12 @@ export function FinanceTab() {
                         <Input
                           type="number"
                           value={newInvoice.amount}
-                          onChange={(e) => setNewInvoice(prev => ({ ...prev, amount: e.target.value }))}
+                          onChange={(e) =>
+                            setNewInvoice((prev) => ({
+                              ...prev,
+                              amount: e.target.value,
+                            }))
+                          }
                           placeholder="0.00"
                         />
                       </div>
@@ -579,16 +895,26 @@ export function FinanceTab() {
                       <label className="text-sm font-medium">Due Date</label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start text-left">
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left"
+                          >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {newInvoice.dueDate ? newInvoice.dueDate.toLocaleDateString() : 'Pick a date'}
+                            {newInvoice.dueDate
+                              ? newInvoice.dueDate.toLocaleDateString()
+                              : "Pick a date"}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
                           <Calendar
                             mode="single"
                             selected={newInvoice.dueDate}
-                            onSelect={(date) => setNewInvoice(prev => ({ ...prev, dueDate: date }))}
+                            onSelect={(date) =>
+                              setNewInvoice((prev) => ({
+                                ...prev,
+                                dueDate: date ?? undefined,
+                              }))
+                            }
                             initialFocus
                           />
                         </PopoverContent>
@@ -598,15 +924,25 @@ export function FinanceTab() {
                       <label className="text-sm font-medium">Description</label>
                       <Input
                         value={newInvoice.description}
-                        onChange={(e) => setNewInvoice(prev => ({ ...prev, description: e.target.value }))}
+                        onChange={(e) =>
+                          setNewInvoice((prev) => ({
+                            ...prev,
+                            description: e.target.value,
+                          }))
+                        }
                         placeholder="Invoice description"
                       />
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setShowNewInvoiceDialog(false)}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowNewInvoiceDialog(false)}
+                      >
                         Cancel
                       </Button>
-                      <Button onClick={handleCreateInvoice}>Create Invoice</Button>
+                      <Button onClick={handleCreateInvoice}>
+                        Create Invoice
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
@@ -628,18 +964,30 @@ export function FinanceTab() {
                 <TableBody>
                   {filteredInvoices.map((invoice) => (
                     <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                      <TableCell className="font-medium">
+                        {invoice.invoiceNumber}
+                      </TableCell>
                       <TableCell>{invoice.clientName}</TableCell>
                       <TableCell>{formatCurrency(invoice.amount)}</TableCell>
                       <TableCell>{formatDate(invoice.dueDate)}</TableCell>
                       <TableCell>
-                        <Badge className={getInvoiceStatusColor(invoice.status)}>
+                        <Badge
+                          className={getInvoiceStatusColor(invoice.status)}
+                        >
                           {invoice.status}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Select value={invoice.status} onValueChange={(value) => handleUpdateInvoiceStatus(invoice.id, value as Invoice['status'])}>
+                          <Select
+                            value={invoice.status}
+                            onValueChange={(value) =>
+                              handleUpdateInvoiceStatus(
+                                invoice.id,
+                                value as Invoice["status"]
+                              )
+                            }
+                          >
                             <SelectTrigger className="w-32">
                               <SelectValue />
                             </SelectTrigger>
@@ -648,7 +996,9 @@ export function FinanceTab() {
                               <SelectItem value="sent">Sent</SelectItem>
                               <SelectItem value="paid">Paid</SelectItem>
                               <SelectItem value="overdue">Overdue</SelectItem>
-                              <SelectItem value="cancelled">Cancelled</SelectItem>
+                              <SelectItem value="cancelled">
+                                Cancelled
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <Button size="sm" variant="outline">
@@ -668,9 +1018,14 @@ export function FinanceTab() {
             <div className="flex items-center justify-between">
               <div>
                 <h3>Employee Management</h3>
-                <p className="text-sm text-muted-foreground">Manage employee information and monthly rates</p>
+                <p className="text-sm text-muted-foreground">
+                  Manage employee information and hourly rates
+                </p>
               </div>
-              <Dialog open={showNewEmployeeDialog} onOpenChange={setShowNewEmployeeDialog}>
+              <Dialog
+                open={showNewEmployeeDialog}
+                onOpenChange={setShowNewEmployeeDialog}
+              >
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
@@ -679,9 +1034,12 @@ export function FinanceTab() {
                 </DialogTrigger>
                 <DialogContent aria-describedby="new-employee-description">
                   <DialogHeader>
-                    <DialogTitle id="new-employee-title">Add New Employee</DialogTitle>
+                    <DialogTitle id="new-employee-title">
+                      Add New Employee
+                    </DialogTitle>
                     <DialogDescription id="new-employee-description">
-                      Add a new employee to the payroll system with their salary information.
+                      Add a new employee with their hourly rate. Monthly rate
+                      will be calculated automatically.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -689,7 +1047,12 @@ export function FinanceTab() {
                       <label className="text-sm font-medium">Full Name</label>
                       <Input
                         value={newEmployee.name}
-                        onChange={(e) => setNewEmployee(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) =>
+                          setNewEmployee((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
                         placeholder="Enter full name"
                       />
                     </div>
@@ -698,7 +1061,12 @@ export function FinanceTab() {
                       <Input
                         type="email"
                         value={newEmployee.email}
-                        onChange={(e) => setNewEmployee(prev => ({ ...prev, email: e.target.value }))}
+                        onChange={(e) =>
+                          setNewEmployee((prev) => ({
+                            ...prev,
+                            email: e.target.value,
+                          }))
+                        }
                         placeholder="employee@company.com"
                       />
                     </div>
@@ -706,16 +1074,28 @@ export function FinanceTab() {
                       <label className="text-sm font-medium">Role</label>
                       <Input
                         value={newEmployee.role}
-                        onChange={(e) => setNewEmployee(prev => ({ ...prev, role: e.target.value }))}
-                        placeholder="Enter job role"
+                        onChange={(e) =>
+                          setNewEmployee((prev) => ({
+                            ...prev,
+                            role: e.target.value,
+                          }))
+                        }
+                        placeholder="Editor, Manager, etc."
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium">Monthly Rate ($)</label>
+                      <label className="text-sm font-medium">
+                        Hourly Rate ($)
+                      </label>
                       <Input
                         type="number"
-                        value={newEmployee.monthlyRate}
-                        onChange={(e) => setNewEmployee(prev => ({ ...prev, monthlyRate: e.target.value }))}
+                        value={newEmployee.hourlyRate}
+                        onChange={(e) =>
+                          setNewEmployee((prev) => ({
+                            ...prev,
+                            hourlyRate: e.target.value,
+                          }))
+                        }
                         placeholder="0.00"
                       />
                     </div>
@@ -723,23 +1103,58 @@ export function FinanceTab() {
                       <label className="text-sm font-medium">Hire Date</label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="w-full justify-start text-left">
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left"
+                          >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {newEmployee.hireDate ? newEmployee.hireDate.toLocaleDateString() : 'Pick a date'}
+                            {newEmployee.hireDate
+                              ? newEmployee.hireDate.toLocaleDateString()
+                              : "Pick a date"}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0">
                           <Calendar
                             mode="single"
                             selected={newEmployee.hireDate}
-                            onSelect={(date) => setNewEmployee(prev => ({ ...prev, hireDate: date }))}
+                            onSelect={(date) =>
+                              setNewEmployee((prev) => ({
+                                ...prev,
+                                hireDate: date ?? undefined,
+                              }))
+                            }
                             initialFocus
                           />
                         </PopoverContent>
                       </Popover>
                     </div>
+                    {
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="worksOnSaturday"
+                          checked={newEmployee.worksOnSaturday}
+                          onChange={(e) =>
+                            setNewEmployee((prev) => ({
+                              ...prev,
+                              worksOnSaturday: e.target.checked,
+                            }))
+                          }
+                        />
+                        <label
+                          htmlFor="worksOnSaturday"
+                          className="text-sm font-medium"
+                        >
+                          Works on Saturday
+                        </label>
+                      </div>
+                    }
+                    {/* Optional: worksOnSaturday toggle later if you want */}
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setShowNewEmployeeDialog(false)}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowNewEmployeeDialog(false)}
+                      >
                         Cancel
                       </Button>
                       <Button onClick={handleAddEmployee}>Add Employee</Button>
@@ -749,9 +1164,18 @@ export function FinanceTab() {
               </Dialog>
             </div>
 
+            {loadingEmployees && (
+              <p className="text-sm text-muted-foreground">
+                Loading employees...
+              </p>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {employees.map((employee) => (
-                <Card key={employee.id} className="hover:shadow-md transition-shadow">
+                <Card
+                  key={employee.id}
+                  className="hover:shadow-md transition-shadow"
+                >
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
@@ -760,46 +1184,75 @@ export function FinanceTab() {
                         </Avatar>
                         <div>
                           <h3 className="font-medium">{employee.name}</h3>
-                          <p className="text-sm text-muted-foreground">{employee.role}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {employee.role}
+                          </p>
                         </div>
                       </div>
-                      <Badge variant={employee.status === 'active' ? 'default' : 'secondary'}>
+                      <Badge
+                        variant={
+                          employee.status === "active" ? "default" : "secondary"
+                        }
+                      >
                         {employee.status}
                       </Badge>
                     </div>
-                    
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between text-sm">
-                        <span>Monthly Rate:</span>
-                        <span className="font-medium">{formatCurrency(employee.monthlyRate)}</span>
+
+                    <div className="space-y-2 mb-4 text-sm">
+                      <div className="flex justify-between">
+                        <span>Hourly Rate:</span>
+                        <span className="font-medium">
+                          {formatCurrency(employee.hourlyRate)}/hr
+                        </span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between">
+                        <span>Approx Monthly:</span>
+                        <span className="font-medium">
+                          {formatCurrency(employee.monthlyRate)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
                         <span>Hire Date:</span>
                         <span>{formatDate(employee.hireDate)}</span>
                       </div>
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between">
                         <span>Email:</span>
                         <span className="truncate ml-2">{employee.email}</span>
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1">
-                        <Edit className="h-4 w-4 mr-1" />
-                        Edit
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        className="flex-1"
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 w-full"
+                          onClick={() => openHourlyModal(employee)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Set Hourly
+                        </Button>
+                        <Button
+                          size="sm"
+                          // variant="outline"
+                          className="flex-1 w-full"
+                          onClick={() => openBonusModal(employee)}
+                        >
+                          <Gift className="h-4 w-4 mr-1" />
+                          Add Bonus
+                        </Button>
+                      </div>
+                      {/* <Button
+                        size="sm"
+                        className="w-full"
                         onClick={() => {
                           setSelectedEmployee(employee);
-                          setNewPayroll(prev => ({ ...prev, employeeId: employee.id }));
                           setShowPayrollDialog(true);
                         }}
                       >
                         <Receipt className="h-4 w-4 mr-1" />
-                        Payroll
-                      </Button>
+                        Generate Payroll
+                      </Button> */}
                     </div>
                   </CardContent>
                 </Card>
@@ -812,49 +1265,52 @@ export function FinanceTab() {
             <div className="flex items-center justify-between">
               <div>
                 <h3>Payroll Management</h3>
-                <p className="text-sm text-muted-foreground">Process and track employee payroll</p>
+                <p className="text-sm text-muted-foreground">
+                  Generate and track payroll based on hourly rates, bonuses, and
+                  leave deductions
+                </p>
               </div>
-              <Dialog open={showPayrollDialog} onOpenChange={setShowPayrollDialog}>
+              <Dialog
+                open={showPayrollDialog}
+                onOpenChange={setShowPayrollDialog}
+              >
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
-                    Process Payroll
+                    Generate Payroll
                   </Button>
                 </DialogTrigger>
                 <DialogContent aria-describedby="payroll-dialog-description">
                   <DialogHeader>
-                    <DialogTitle id="payroll-dialog-title">Process Employee Payroll</DialogTitle>
+                    <DialogTitle id="payroll-dialog-title">
+                      Generate Monthly Payroll
+                    </DialogTitle>
                     <DialogDescription id="payroll-dialog-description">
-                      Process monthly payroll for an employee including bonuses and deductions.
+                      This will generate payroll for all active employees for
+                      the selected month and year.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium">Employee</label>
-                      <Select value={newPayroll.employeeId} onValueChange={(value) => setNewPayroll(prev => ({ ...prev, employeeId: value }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select employee" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {employees.filter(emp => emp.status === 'active').map((employee) => (
-                            <SelectItem key={employee.id} value={employee.id}>
-                              {employee.name} - {formatCurrency(employee.monthlyRate)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-sm font-medium">Month</label>
-                        <Select value={newPayroll.month} onValueChange={(value) => setNewPayroll(prev => ({ ...prev, month: value }))}>
+                        <Select
+                          value={newPayroll.month}
+                          onValueChange={(value) =>
+                            setNewPayroll((prev) => ({
+                              ...prev,
+                              month: value,
+                            }))
+                          }
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select month" />
                           </SelectTrigger>
                           <SelectContent>
-                            {['January', 'February', 'March', 'April', 'May', 'June', 
-                              'July', 'August', 'September', 'October', 'November', 'December'].map((month) => (
-                              <SelectItem key={month} value={month}>{month}</SelectItem>
+                            {monthNames.map((month) => (
+                              <SelectItem key={month} value={month}>
+                                {month}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -864,62 +1320,46 @@ export function FinanceTab() {
                         <Input
                           type="number"
                           value={newPayroll.year}
-                          onChange={(e) => setNewPayroll(prev => ({ ...prev, year: parseInt(e.target.value) }))}
+                          onChange={(e) =>
+                            setNewPayroll((prev) => ({
+                              ...prev,
+                              year: parseInt(e.target.value) || prev.year,
+                            }))
+                          }
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium">Bonuses ($)</label>
-                        <Input
-                          type="number"
-                          value={newPayroll.bonuses}
-                          onChange={(e) => setNewPayroll(prev => ({ ...prev, bonuses: parseFloat(e.target.value) || 0 }))}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Deductions ($)</label>
-                        <Input
-                          type="number"
-                          value={newPayroll.deductions}
-                          onChange={(e) => setNewPayroll(prev => ({ ...prev, deductions: parseFloat(e.target.value) || 0 }))}
-                          placeholder="0.00"
-                        />
-                      </div>
+
+                    <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md">
+                      <p>Backend will calculate:</p>
+                      <ul className="list-disc ml-4">
+                        <li>Base salary = hourly × working days × 8</li>
+                        <li>Sum of bonuses for that month</li>
+                        <li>Leave-based deductions</li>
+                      </ul>
                     </div>
-                    {newPayroll.employeeId && (
-                      <div className="bg-muted p-4 rounded-lg">
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span>Base Salary:</span>
-                            <span>{formatCurrency(employees.find(emp => emp.id === newPayroll.employeeId)?.monthlyRate || 0)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Bonuses:</span>
-                            <span className="text-green-600">+{formatCurrency(newPayroll.bonuses)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Deductions:</span>
-                            <span className="text-red-600">-{formatCurrency(newPayroll.deductions)}</span>
-                          </div>
-                          <div className="border-t pt-2 flex justify-between font-medium">
-                            <span>Net Pay:</span>
-                            <span>{formatCurrency((employees.find(emp => emp.id === newPayroll.employeeId)?.monthlyRate || 0) + newPayroll.bonuses - newPayroll.deductions)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setShowPayrollDialog(false)}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowPayrollDialog(false)}
+                      >
                         Cancel
                       </Button>
-                      <Button onClick={handleProcessPayroll}>Process Payroll</Button>
+                      <Button onClick={handleProcessPayroll}>
+                        Generate Payroll
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
               </Dialog>
             </div>
+
+            {loadingPayroll && (
+              <p className="text-sm text-muted-foreground">
+                Loading payroll records...
+              </p>
+            )}
 
             <Card>
               <Table>
@@ -942,33 +1382,51 @@ export function FinanceTab() {
                         <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6">
                             <AvatarFallback className="text-xs">
-                              {employees.find(emp => emp.id === record.employeeId)?.avatar}
+                              {
+                                employees.find(
+                                  (emp) => emp.id === record.employeeId
+                                )?.avatar
+                              }
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-medium">{record.employeeName}</span>
+                          <span className="font-medium">
+                            {record.employeeName}
+                          </span>
                         </div>
                       </TableCell>
-                      <TableCell>{record.month} {record.year}</TableCell>
+                      <TableCell>
+                        {record.month} {record.year}
+                      </TableCell>
                       <TableCell>{formatCurrency(record.baseSalary)}</TableCell>
-                      <TableCell className="text-green-600">{formatCurrency(record.bonuses)}</TableCell>
-                      <TableCell className="text-red-600">{formatCurrency(record.deductions)}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(record.netPay)}</TableCell>
+                      <TableCell className="text-green-600">
+                        {formatCurrency(record.bonuses)}
+                      </TableCell>
+                      <TableCell className="text-red-600">
+                        {formatCurrency(record.deductions)}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(record.netPay)}
+                      </TableCell>
                       <TableCell>
                         <Badge className={getPayrollStatusColor(record.status)}>
                           {record.status}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Select 
-                          value={record.status} 
-                          onValueChange={(value) => handleUpdatePayrollStatus(record.id, value as PayrollRecord['status'])}
+                        <Select
+                          value={record.status}
+                          onValueChange={(value) =>
+                            handleUpdatePayrollStatus(
+                              record,
+                              value as PayrollRecord["status"]
+                            )
+                          }
                         >
                           <SelectTrigger className="w-32">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="processed">Processed</SelectItem>
                             <SelectItem value="paid">Paid</SelectItem>
                           </SelectContent>
                         </Select>
@@ -981,6 +1439,98 @@ export function FinanceTab() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Bonus Modal */}
+      <Dialog open={bonusModalOpen} onOpenChange={setBonusModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Bonus</DialogTitle>
+            <DialogDescription>
+              Add a one-time bonus for{" "}
+              <span className="font-semibold">
+                {selectedEmployee?.name || "this employee"}
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Amount</label>
+              <Input
+                type="number"
+                value={bonusAmount}
+                onChange={(e) => setBonusAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setBonusModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveBonus}>Save Bonus</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hourly Rate Modal */}
+      <Dialog open={hourlyModalOpen} onOpenChange={setHourlyModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Hourly Rate</DialogTitle>
+            <DialogDescription>
+              Update hourly rate for{" "}
+              <span className="font-semibold">
+                {selectedEmployee?.name || "this employee"}
+              </span>
+              . Monthly salary will be calculated from this.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Hourly Rate ($)</label>
+              <Input
+                type="number"
+                value={hourlyRateInput}
+                onChange={(e) => setHourlyRateInput(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md">
+              <p>
+                Approx monthly = hourly × {DEFAULT_WORKING_DAYS} working days ×
+                8 hours.
+              </p>
+              {hourlyRateInput && (
+                <p className="mt-1">
+                  Preview:{" "}
+                  <span className="font-semibold">
+                    {formatCurrency(
+                      parseFloat(hourlyRateInput || "0") *
+                        DEFAULT_WORKING_DAYS *
+                        8
+                    )}
+                  </span>{" "}
+                  / month
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setHourlyModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveHourlyRate}>Save Rate</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Toaster />
     </>
   );

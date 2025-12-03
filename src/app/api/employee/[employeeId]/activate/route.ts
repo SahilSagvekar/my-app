@@ -3,11 +3,11 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 
-export async function PATCH(req: Request, context: { params: { id: string } }) {
+export async function PATCH(req: Request, context: { params: { employeeId: string } }) {
   try {
     await requireAdmin(req as any);
     const { params } = await Promise.resolve(context);
-    const id = Number(params.id);
+    const id = Number(params.employeeId);
     const user = await prisma.user.update({
       where: { id },
       data: { employeeStatus: 'ACTIVE' }

@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 import { FileUploadDialog } from "../workflow/FileUploadDialog";
 import { useAuth } from "../auth/AuthContext";
+import { useRouter } from "next/navigation";
+
+
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -66,6 +69,7 @@ interface WorkflowTask {
 
 function TaskCard({ task, onUploadComplete, onStartTask }: any) {
   const isOverdue = new Date(task.dueDate) < new Date();
+  const router = useRouter();
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -161,6 +165,8 @@ export function EditorDashboard() {
     role: "editor",
   };
 
+  const router = useRouter();
+
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
 
   useEffect(() => {
@@ -252,13 +258,22 @@ export function EditorDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1>Editor Portal</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your assigned tasks and complete work for QC review
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1>Editor Portal</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your assigned tasks and complete work for QC review
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            className="w-full"
+            onClick={() => router.push("/leave-request")}
+          >
+            Request Leave
+          </Button>
+        </div>
       </div>
-
       <Card>
         <CardContent className="p-4">
           Logged in as: {currentUser.name}

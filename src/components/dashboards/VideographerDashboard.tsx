@@ -9,6 +9,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Calendar } from '../ui/calendar';
+import { useRouter } from "next/navigation";
 import { 
   Camera, 
   Upload, 
@@ -43,6 +44,8 @@ export function VideographerDashboard() {
     title: '',
     notes: ''
   });
+
+  const router = useRouter();
 
 
 
@@ -81,6 +84,26 @@ export function VideographerDashboard() {
             Manage your shooting schedule, upload footage, and track equipment
           </p>
         </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            className="w-full"
+            onClick={() => router.push("/leave-request")}
+          >
+            Request Leave
+          </Button>
+        </div>
+        {/* <div className="flex items-center justify-between">
+        <div>
+          <h1>Videographer Portal</h1>
+          <p className="text-muted-foreground mt-2">
+            Manage your shooting schedule, upload footage, and track equipment
+          </p>
+        </div>
+        
+      </div> */}
+
+
         <div className="flex items-center gap-3">
           <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
             <DialogTrigger asChild>

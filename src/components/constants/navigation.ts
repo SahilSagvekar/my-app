@@ -30,6 +30,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'finance', label: 'Finance', icon: DollarSign },
+    { id: 'leaves', label: 'Leaves', icon: DollarSign },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   editor: [

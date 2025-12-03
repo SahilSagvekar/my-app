@@ -9,6 +9,7 @@ import { RecentTasksCard } from '../tasks/RecentTasksCard';
 import { ClientManagement } from '../management/ClientManagement';
 import { DeliverablesOverview } from '../management/DeliverablesOverview';
 import { Button } from '../ui/button';
+import { useRouter } from "next/navigation";
 
 const projectHealthData = [
   {
@@ -175,6 +176,8 @@ export function ManagerDashboard({ currentPage = 'dashboard' }: ManagerDashboard
     // In a real app, this would update the task list, refresh workload data, etc.
   };
 
+   const router = useRouter();
+
   const TeamOverview = () => (
     <div className="space-y-6">
       {/* Performance Metrics */}
@@ -280,6 +283,14 @@ export function ManagerDashboard({ currentPage = 'dashboard' }: ManagerDashboard
             Monitor team performance, manage content assignments, and track deliverables
           </p>
         </div>
+        <div className="flex margin left-3">
+        <Button
+          className="w-full"
+          onClick={() => router.push("/leave-request")}
+        >
+          Request Leave
+        </Button>
+      </div>
         <div className="flex items-center gap-3">
           <CreateTaskDialog 
             onTaskCreated={handleTaskCreated}

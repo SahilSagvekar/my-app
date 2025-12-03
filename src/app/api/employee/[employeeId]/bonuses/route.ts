@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(req: Request, context: { params: { id: string } }) {
+export async function GET(req: Request, context: { params: { employeeId: string } }) {
   try {
     const { params } = await Promise.resolve(context);
-    const employeeId = Number(params.id);
+    const employeeId = Number(params.employeeId);
     const url = new URL(req.url);
 
     const year = Number(url.searchParams.get("year") || new Date().getFullYear());

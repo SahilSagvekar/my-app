@@ -11,6 +11,7 @@ import { useGlobalTasks } from '../workflow/GlobalTaskManager';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { FilePreviewModal } from "@/components/FileViewerModal";
+import { useRouter } from "next/navigation";
 
 
 // Enhanced task type definitions for workflow routing
@@ -219,6 +220,8 @@ export function QCDashboard() {
   const { tasks: globalTasks } = useGlobalTasks();
   const { user } = useAuth();
 
+  const router = useRouter();
+  
   const [previewFile, setPreviewFile] = useState<any | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -280,6 +283,8 @@ export function QCDashboard() {
 
   const handleReviewComplete = async (approved: boolean, feedback?: string) => {
     if (!selectedTask) return;
+
+    
 
     const taskId = selectedTask.id;
 
@@ -453,6 +458,8 @@ export function QCDashboard() {
 
   // Convert task to review asset format
   const getVideoAssetFromTask = (task: EnhancedWorkflowTask) => {
+
+    
     const videoFile = task.files?.find(file => file.mimeType?.startsWith('video/'));
     if (!videoFile) return null;
 
@@ -574,11 +581,28 @@ export function QCDashboard() {
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Page Header */}
-      <div>
+      {/* <div>
         <h1>Review Queue</h1>
         <p className="text-muted-foreground mt-2">
           Review submitted work and approve or reject with feedback
         </p>
+      </div> */}
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1>Review Queue</h1>
+          <p className="text-muted-foreground mt-2">
+            Review submitted work and approve or reject with feedback
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            className="w-full"
+            onClick={() => router.push("/leave-request")}
+          >
+            Request Leave
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

@@ -15,13 +15,13 @@ function countWeekdaysBetween(start: Date, end: Date) {
   return count;
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { employeeId: string } }) {
   try {
     const requesting = await getRequestingUser(req as any);
     // allow admin or the employee themself
     if (!requesting) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
-    const id = Number(params.id);
+    const id = Number(params.employeeId);
     if (!id) return NextResponse.json({ ok: false, message: 'Invalid id' }, { status: 400 });
 
     if (!(requesting.role === 'admin' || requesting.id === id)) {

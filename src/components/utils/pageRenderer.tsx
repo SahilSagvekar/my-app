@@ -20,6 +20,7 @@ import { VideographerDashboard } from '../dashboards/VideographerDashboard';
 import { EditorProjects } from '../EditorProjects';
 import { EditorResources } from '../EditorResources';
 import { FeedbackSystem } from '../FeedbackSystem';
+import LeavesComponent from '../admin/LeavesComponent';
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="p-8 text-center text-muted-foreground">{title} - Coming Soon</div>
@@ -40,6 +41,8 @@ export function renderPage(role: string, page: string): JSX.Element {
         return <AdminDashboard currentPage={page} />;
       case 'feedback': 
         return <FeedbackSystem currentRole={role} />;
+      case 'leaves':
+        return <LeavesComponent />;
       default: 
         return <AdminDashboard currentPage="dashboard" />;
     }
