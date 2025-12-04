@@ -92,17 +92,53 @@ export async function POST(
 
       const netPay = baseSalary + totalBonuses - totalDeductions;
 
-      const payroll = await prisma.payroll.create({
-        data: {
-          employeeId: emp.id,
-          periodStart,
-          periodEnd,
-          baseSalary,
-          totalBonuses,
-          totalDeductions,
-          netPay
-        }
-      });
+      // const payroll = await prisma.payroll.create({
+      //   data: {
+      //     employeeId: emp.id,
+      //     periodStart,
+      //     periodEnd,
+      //     baseSalary,
+      //     totalBonuses,
+      //     totalDeductions,
+      //     netPay
+      //   }
+      // });
+
+      // Check if payroll already exists for this employee & month
+const existing = await prisma.payroll.findFirst({
+  where: {
+    employeeId: emp.id,
+    periodStart,
+    periodEnd
+  }
+});
+
+let payroll;
+
+if (existing) {
+  payroll = await prisma.payroll.update({
+    where: { id: existing.id },
+    data: {
+      baseSalary,
+      totalBonuses,
+      totalDeductions,
+      netPay
+    }
+  });
+} else {
+  payroll = await prisma.payroll.create({
+    data: {
+      employeeId: emp.id,
+      periodStart,
+      periodEnd,
+      baseSalary,
+      totalBonuses,
+      totalDeductions,
+      netPay
+    }
+  });
+}
+
 
       payrolls.push(payroll);
     }

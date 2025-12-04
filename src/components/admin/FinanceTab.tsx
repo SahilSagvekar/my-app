@@ -97,6 +97,8 @@ interface PayrollRecord {
   netPay: number;
   status: "pending" | "paid";
   payDate?: string;
+  // periodStart: Date;
+  // periodEnd: Date;
 }
 
 // ---------- Mock invoices only ----------
@@ -248,6 +250,25 @@ const monthNames = [
   "December",
 ];
 
+function formatMonthRange(month: number, year: number) {
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0);
+
+  const opts: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  };
+
+  const startStr = start.toLocaleDateString("en-US", opts);
+  const endStr = end.toLocaleDateString("en-US", opts);
+
+  return `${startStr} – ${endStr}`;
+}
+
+
+
+
 // Approx default working days per month (for UI only; backend uses proper logic)
 const DEFAULT_WORKING_DAYS = 22;
 
@@ -388,28 +409,47 @@ export function FinanceTab() {
       setLoadingPayroll(true);
       const data = await apiFetch("/api/payroll/list", { method: "GET" });
 
-      const mapped: PayrollRecord[] =
-        data?.payrolls?.map((p: any) => {
-          const periodStart = new Date(p.periodStart);
-          const monthName = monthNames[periodStart.getUTCMonth()] || "-";
-          const year = periodStart.getUTCFullYear();
+      // const mapped: PayrollRecord[] =
+      //   data?.payrolls?.map((p: any) => {
+      //     const periodStart = new Date(p.periodStart);
+      //     const monthName = monthNames[periodStart.getUTCMonth()] || "-";
+      //     const year = periodStart.getUTCFullYear();
 
-          const employeeName = p.employee?.name || `Employee #${p.employeeId}`;
+      //     const employeeName = p.employee?.name || `Employee #${p.employeeId}`;
 
-          return {
-            id: p.id,
-            employeeId: p.employeeId,
-            employeeName,
-            month: monthName,
-            year,
-            baseSalary: Number(p.baseSalary),
-            bonuses: Number(p.totalBonuses),
-            deductions: Number(p.totalDeductions),
-            netPay: Number(p.netPay),
-            status: p.status === "PAID" ? "paid" : "pending",
-            payDate: p.paidAt || undefined,
-          };
-        }) ?? [];
+      //     return {
+      //       id: p.id,
+      //       employeeId: p.employeeId,
+      //       employeeName,
+      //       month: monthName,
+      //       year,
+      //       baseSalary: Number(p.baseSalary),
+      //       bonuses: Number(p.totalBonuses),
+      //       deductions: Number(p.totalDeductions),
+      //       netPay: Number(p.netPay),
+      //       status: p.status === "PAID" ? "paid" : "pending",
+      //       payDate: p.paidAt || undefined,
+      //     };
+      //   }) ?? [];
+
+      const mapped = data?.payrolls?.map((p: any) => {
+  return {
+    id: p.id,
+    employeeId: p.employeeId,
+    employeeName: p.employee?.name || `Employee #${p.employeeId}`,
+    month: p.periodStart ? new Date(p.periodStart).getMonth() + 1 : null,
+    year: p.periodStart ? new Date(p.periodStart).getFullYear() : null,
+    periodStart: p.periodStart,
+    periodEnd: p.periodEnd,
+    baseSalary: Number(p.baseSalary),
+    bonuses: Number(p.totalBonuses),
+    deductions: Number(p.totalDeductions),
+    netPay: Number(p.netPay),
+    status: p.status === "PAID" ? "paid" : "pending",
+    payDate: p.paidAt || undefined,
+  };
+});
+
 
       setPayroll(mapped);
     } catch (err: any) {
@@ -1395,7 +1435,11 @@ export function FinanceTab() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {record.month} {record.year}
+                        {formatMonthRange(Number(record.month), Number(record.year))}
+
+
+                        {/* {record.month} {record.year} */}
+
                       </TableCell>
                       <TableCell>{formatCurrency(record.baseSalary)}</TableCell>
                       <TableCell className="text-green-600">
