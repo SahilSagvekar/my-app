@@ -28,9 +28,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize,
-  RotateCcw
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getVideoSource } from '../workflow/VideoUrlHelper';
 
 interface Version {
   id: string;
@@ -68,7 +70,7 @@ interface FullScreenReviewModalProps {
   onApprove: (asset: ReviewAsset, confirmFinal: boolean) => void;
   onRequestRevisions: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
   onNextAsset?: () => void;
-  userRole?: 'client' | 'qc_specialist';
+  userRole?: 'client' | 'qc';
   onSendToClient?: (asset: ReviewAsset) => void;
   onSendBackToEditor?: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
 }
@@ -135,6 +137,8 @@ export function FullScreenReviewModal({
 
   const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
   const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   
   // Revision logging system
   const [revisionEntries, setRevisionEntries] = useState<Array<{
@@ -146,9 +150,13 @@ export function FullScreenReviewModal({
   }>>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  
+  // Determine video source type
+  const videoSource = asset ? getVideoSource(asset.videoUrl) : { type: 'video' as const, src: '' };
 
   useEffect(() => {
     if (asset) {
@@ -160,6 +168,8 @@ export function FullScreenReviewModal({
       setShowRevisionSuccess(false);
       setIsDragging(false);
       setHoverTime(null);
+      setVideoError(false);
+      setIframeLoaded(false);
       resetRevisionForm();
     }
   }, [asset]);
@@ -349,9 +359,7 @@ export function FullScreenReviewModal({
       entries: revisionEntries
     };
 
-    console.log('Submitting revisions:', userRole);
-
-    if (userRole === 'qc_specialist' && onSendBackToEditor) {
+    if (userRole === 'qc' && onSendBackToEditor) {
       onSendBackToEditor(asset, revisionData);
     } else {
       onRequestRevisions(asset, revisionData);
@@ -452,14 +460,13 @@ export function FullScreenReviewModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !bg-black/95 !backdrop-blur-sm !overflow-hidden !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog"
-        aria-describedby="review-modal-description"
       >
         {/* Accessibility: Hidden title and description for screen readers */}
         <div className="sr-only">
-          <DialogTitle id="review-modal-title">
+          <DialogTitle>
             {asset?.title ? `Review ${asset.title}` : 'Asset Review'}
           </DialogTitle>
-          <DialogDescription id="review-modal-description">
+          <DialogDescription>
             Review and provide feedback on this video asset. Use the controls to watch the video, then either approve the final version or request revisions with specific notes. The approval section is located in the right panel.
           </DialogDescription>
         </div>
@@ -474,10 +481,10 @@ export function FullScreenReviewModal({
                 <CardContent className="p-8 text-center">
                   <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
                   <h3 className="text-xl font-medium text-green-900 mb-2">
-                    {userRole === 'qc_specialist' ? 'Sent to Client!' : 'Version Approved!'}
+                    {userRole === 'qc' ? 'Sent to Client!' : 'Version Approved!'}
                   </h3>
                   <p className="text-green-700">
-                    {userRole === 'qc_specialist' 
+                    {userRole === 'qc' 
                       ? 'Asset has been sent to client for review' 
                       : 'Asset has been approved for publishing'
                     }
@@ -493,10 +500,10 @@ export function FullScreenReviewModal({
                 <CardContent className="p-8 text-center">
                   <MessageSquare className="h-16 w-16 text-blue-600 mx-auto mb-4" />
                   <h3 className="text-xl font-medium text-blue-900 mb-2">
-                    {userRole === 'qc_specialist' ? 'Sent Back to Editor' : 'Revisions Requested'}
+                    {userRole === 'qc' ? 'Sent Back to Editor' : 'Revisions Requested'}
                   </h3>
                   <p className="text-blue-700">
-                    {userRole === 'qc_specialist' ? 'Feedback has been sent to the editor' : 'Feedback has been sent to the team'}
+                    {userRole === 'qc' ? 'Feedback has been sent to the editor' : 'Feedback has been sent to the team'}
                   </p>
                 </CardContent>
               </Card>
@@ -566,33 +573,114 @@ export function FullScreenReviewModal({
             {/* Video Player */}
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="relative w-full max-w-6xl aspect-video bg-black rounded-xl shadow-2xl overflow-hidden">
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-contain bg-black"
-                  src={asset.videoUrl}
-                  onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                  onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  playsInline
-                >
-                  Your browser does not support the video tag.
-                </video>
-
-                {/* Video Overlay Controls */}
-                <div 
-                  className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
-                  onClick={togglePlay}
-                >
-                  {!isPlaying && (
-                    <div className="bg-black/50 rounded-full p-4">
-                      <Play className="h-12 w-12 text-white" />
+                {videoError ? (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-900 text-white">
+                    <div className="text-center p-8 max-w-2xl">
+                      <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
+                      <h3 className="text-xl mb-2">Video Failed to Load</h3>
+                      <p className="text-sm text-gray-400 mb-4">
+                        {videoSource.type === 'iframe' 
+                          ? 'The video may be private or require special permissions. Please ensure the Google Drive file sharing settings are set to "Anyone with the link can view".' 
+                          : 'Please ensure the video file is accessible and in a supported format.'}
+                      </p>
+                      <div className="bg-gray-800 p-4 rounded-lg mb-4">
+                        <p className="text-xs text-gray-400 mb-2">Original URL:</p>
+                        <p className="text-xs text-gray-500 font-mono break-all mb-3">
+                          {asset.videoUrl}
+                        </p>
+                        {videoSource.type === 'iframe' && (
+                          <>
+                            <p className="text-xs text-gray-400 mb-2">Embed URL:</p>
+                            <p className="text-xs text-gray-500 font-mono break-all">
+                              {videoSource.src}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex gap-2 justify-center">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setVideoError(false);
+                          }}
+                        >
+                          Retry Loading
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => window.open(asset.videoUrl, '_blank')}
+                        >
+                          Open in New Tab
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : videoSource.type === 'iframe' ? (
+                  <div className="relative w-full h-full">
+                    {!iframeLoaded && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white z-10">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                          <p className="text-sm text-gray-400">Loading video from Google Drive...</p>
+                        </div>
+                      </div>
+                    )}
+                    <iframe
+                      ref={iframeRef}
+                      className="w-full h-full bg-black"
+                      src={videoSource.src}
+                      title={`Video player for ${asset.title}`}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                      onLoad={() => {
+                        console.log('✅ Iframe loaded successfully:', videoSource.src);
+                        setIframeLoaded(true);
+                      }}
+                      onError={(e) => {
+                        console.error('❌ Video iframe failed to load:', asset.videoUrl);
+                        console.error('Attempted embed URL:', videoSource.src);
+                        setVideoError(true);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <video
+                    ref={videoRef}
+                    className="w-full h-full object-contain bg-black"
+                    src={videoSource.src}
+                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                    onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onError={(e) => {
+                      console.error('Video failed to load:', asset.videoUrl);
+                      setVideoError(true);
+                    }}
+                    playsInline
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                )}
 
-                {/* Interactive Timeline */}
-                <div className="absolute bottom-0 left-0 right-0 p-4">
+                {/* Video Overlay Controls - Only for direct video files */}
+                {videoSource.type === 'video' && (
+                  <>
+                    <div 
+                      className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+                      onClick={togglePlay}
+                    >
+                      {!isPlaying && (
+                        <div className="bg-black/50 rounded-full p-4">
+                          <Play className="h-12 w-12 text-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Interactive Timeline */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4">
                   <div className="relative">
                     {/* Time tooltip */}
                     {hoverTime !== null && (
@@ -648,6 +736,16 @@ export function FullScreenReviewModal({
                     </div>
                   </div>
                 </div>
+                  </>
+                )}
+                
+                {/* Info for iframe videos */}
+                {videoSource.type === 'iframe' && !videoError && iframeLoaded && (
+                  <div className="absolute bottom-4 left-4 bg-black/80 text-white text-xs px-3 py-2 rounded max-w-sm">
+                    <p className="font-medium mb-1">📹 Google Drive Video</p>
+                    <p className="opacity-80">Use the built-in player controls to play, pause, and seek.</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -718,15 +816,15 @@ export function FullScreenReviewModal({
 
               {/* Review Actions */}
               {((userRole === 'client' && asset.status === 'client_review') || 
-                (userRole === 'qc_specialist' && asset.status === 'in_qc')) && 
+                (userRole === 'qc' && asset.status === 'in_qc')) && 
                 !asset.approvalLocked && (
                 <div className="mt-8 space-y-4">
                   <h4 className="font-medium mb-4">
-                    {userRole === 'qc_specialist' ? 'QC Review Actions' : 'Review Actions'}
+                    {userRole === 'qc' ? 'QC Review Actions' : 'Review Actions'}
                   </h4>
                   
                   {/* QC Approval Section */}
-                  {userRole === 'qc_specialist' && (
+                  {userRole === 'qc' && (
                     <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
                       <div className="space-y-3">
                         <p className="text-sm text-white/80">
@@ -787,14 +885,14 @@ export function FullScreenReviewModal({
                           className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />
-                          {userRole === 'qc_specialist' ? 'Send Back to Editor' : 'Request Revisions'}
+                          {userRole === 'qc' ? 'Send Back to Editor' : 'Request Revisions'}
                         </Button>
                       </SheetTrigger>
                       <SheetContent className="sm:max-w-2xl w-full">
                         <div className="h-full flex flex-col">
                           <SheetHeader className="px-6 py-4 border-b">
                             <SheetTitle>
-                              {userRole === 'qc_specialist' ? 'QC Feedback for Editor' : 'Request Revisions'}
+                              {userRole === 'qc' ? 'QC Feedback for Editor' : 'Request Revisions'}
                             </SheetTitle>
                             <p className="text-sm text-muted-foreground">
                               Add revision notes with timestamps. Current video time: {formatTime(currentTime)}
@@ -948,7 +1046,7 @@ export function FullScreenReviewModal({
                                 className="flex-1"
                                 disabled={revisionEntries.length === 0}
                               >
-                                {userRole === 'qc_specialist' 
+                                {userRole === 'qc' 
                                   ? `Send Back ${revisionEntries.length} Issue${revisionEntries.length !== 1 ? 's' : ''}`
                                   : `Submit ${revisionEntries.length} Revision${revisionEntries.length !== 1 ? 's' : ''}`
                                 }

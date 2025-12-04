@@ -1,6 +1,8 @@
 // lib/s3.ts
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand  } from "@aws-sdk/client-s3";
 import fs from "fs";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
 
 let _s3: S3Client | null = null;
 
@@ -140,3 +142,70 @@ export async function uploadBufferToS3({
     url: `https://${BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${Key}`,
   };
 }
+
+/**
+ * Extract S3 key from full S3 URL
+ */
+export function extractS3KeyFromUrl(s3Url: string): string | null {
+  if (!s3Url) return null;
+
+  try {
+    // Handle s3:// format
+    if (s3Url.startsWith("s3://")) {
+      const parts = s3Url.replace("s3://", "").split("/");
+      return parts.slice(1).join("/");
+    }
+
+    // Handle https:// format
+    const url = new URL(s3Url);
+    const pathname = url.pathname;
+    return pathname.startsWith("/") ? pathname.substring(1) : pathname;
+  } catch (error) {
+    console.error("Error extracting S3 key:", error);
+    return null;
+  }
+}
+
+/**
+ * Generate a pre-signed URL for viewing/streaming
+ */
+export async function generateSignedUrl(
+  key: string,
+  expiresIn: number = 7200 // 2 hours default
+): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+  });
+
+  const signedUrl = await getSignedUrl(s3, command, { expiresIn });
+  return signedUrl;
+}
+
+/**
+ * Add signed URLs to file objects
+ */
+export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
+  if (!files || files.length === 0) return [];
+
+  return Promise.all(
+    files.map(async (file) => {
+      try {
+        const s3Key = extractS3KeyFromUrl(file.url);
+        if (!s3Key) return file;
+
+        const signedUrl = await generateSignedUrl(s3Key);
+        return {
+          ...file,
+          url: signedUrl, // Replace with signed URL
+          originalUrl: file.url, // Keep original for reference
+        };
+      } catch (error) {
+        console.error(`Failed to generate signed URL for file ${file.id}:`, error);
+        return file; // Return original if signing fails
+      }
+    })
+  );
+}
+
+
