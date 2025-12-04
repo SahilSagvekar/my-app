@@ -224,6 +224,7 @@ export async function GET(req: Request) {
         workflowStep: true,
         files: true,
         folderType: true,
+        qcNotes: true,
       },
 
     });

@@ -837,7 +837,7 @@ export function FullScreenReviewModal({
                           className="w-full bg-green-600 hover:bg-green-700"
                         >
                           <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Send to Client
+                          Send to Client/Schedular
                         </Button>
                       </div>
                     </div>

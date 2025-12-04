@@ -2,14 +2,26 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink } from 'lucide-react';
 import { FullScreenReviewModal } from '../client/FullScreenReviewModal';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { useRouter } from "next/navigation";
 
-// Enhanced task type definitions for workflow routing
+// Enhanced task type definitions
 type TaskDestination = 'editor' | 'client' | 'scheduler';
+
+interface TaskFile {
+  id: string;
+  name: string;
+  url: string;
+  uploadedAt: string;
+  uploadedBy: string;
+  driveFileId: string;
+  mimeType: string;
+  size: number;
+}
 
 interface EnhancedWorkflowTask {
   id: string;
@@ -31,16 +43,7 @@ interface EnhancedWorkflowTask {
   nextDestination?: TaskDestination;
   requiresClientReview?: boolean;
   feedback?: string;
-  files?: Array<{
-    id: string;
-    name: string;
-    url: string;
-    uploadedAt: string;
-    uploadedBy: string;
-    driveFileId: string;
-    mimeType: string;
-    size: number;
-  }>;
+  files?: TaskFile[];
   projectId: string;
 }
 
@@ -94,6 +97,8 @@ const persistQCResult = async ({
 export function QCDashboard() {
   const [qcTasks, setQCTasks] = useState<EnhancedWorkflowTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<EnhancedWorkflowTask | null>(null);
+  const [selectedFile, setSelectedFile] = useState<TaskFile | null>(null);
+  const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
@@ -167,26 +172,13 @@ export function QCDashboard() {
         )
       );
 
-      toast("✅ Video Approved – Sent to Client", {
-        description:
-          "Video has been sent to client for review before scheduling.",
+      toast("✅ Approved – Sent to Client", {
+        description: "Content has been sent to client for review.",
       });
 
       setShowVideoReview(false);
+      setSelectedFile(null);
       setSelectedTask(null);
-
-      const pendingTasks = qcTasks.filter(
-        (task) => task.status === "pending" && task.id !== selectedTask.id
-      );
-      const nextTask = pendingTasks.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      )[0];
-
-      if (nextTask) {
-        setSelectedTask(nextTask);
-        setShowVideoReview(true);
-      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to update task status");
@@ -219,56 +211,58 @@ export function QCDashboard() {
       );
 
       toast("📝 Issues Reported – Back to Editor", {
-        description:
-          "Rejection notes have been saved and sent back to the assigned editor.",
+        description: "Rejection notes have been sent to the editor.",
       });
 
       setShowVideoReview(false);
+      setSelectedFile(null);
       setSelectedTask(null);
-
-      const pendingTasks = qcTasks.filter(
-        (task) => task.status === "pending" && task.id !== selectedTask.id
-      );
-      const nextTask = pendingTasks.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      )[0];
-
-      if (nextTask) {
-        setSelectedTask(nextTask);
-        setShowVideoReview(true);
-      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to update task status");
     }
   };
 
-  // Convert task to review asset format
-  const getVideoAssetFromTask = (task: EnhancedWorkflowTask) => {
-    const videoFile = task.files?.find(file => file.mimeType?.startsWith('video/'));
-    if (!videoFile) return null;
+  // Handle file selection
+  const handleFileSelect = (file: TaskFile) => {
+    setSelectedFile(file);
+    setShowFileSelector(false);
+
+    // If video, open fullscreen review modal
+    if (file.mimeType?.startsWith('video/')) {
+      setShowVideoReview(true);
+    } else {
+      // For other files, open in new tab
+      window.open(file.url, '_blank');
+      // Reset selections
+      setSelectedFile(null);
+    }
+  };
+
+  // Convert selected file to review asset format
+  const getVideoAssetFromFile = (file: TaskFile) => {
+    if (!selectedTask) return null;
 
     return {
-      id: task.id,
-      title: task.title.replace('QC Review: ', ''),
-      subtitle: `Project: ${task.projectId}`,
-      videoUrl: videoFile.url,
+      id: selectedTask.id,
+      title: `${selectedTask.title.replace('QC Review: ', '')} - ${file.name}`,
+      subtitle: `Project: ${selectedTask.projectId}`,
+      videoUrl: file.url,
       thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
       runtime: '2:30',
       status: 'in_qc' as const,
       client: 'Unknown Client',
       platform: 'Web',
       resolution: '1920x1080',
-      fileSize: formatFileSize(videoFile.size),
+      fileSize: formatFileSize(file.size),
       uploader: 'Editor',
-      uploadDate: new Date(videoFile.uploadedAt).toLocaleDateString(),
+      uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
       versions: [{
         id: 'v1',
         number: '1',
         thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
         duration: '2:30',
-        uploadDate: new Date(videoFile.uploadedAt).toLocaleDateString(),
+        uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
         status: 'in_qc' as const
       }],
       currentVersion: 'v1',
@@ -277,16 +271,28 @@ export function QCDashboard() {
     };
   };
 
-  const hasVideoFile = (task: EnhancedWorkflowTask) => {
-    return task.files?.some(file => file.mimeType?.startsWith('video/'));
-  };
-
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType?.startsWith('video/')) return <Video className="h-5 w-5 text-blue-600" />;
+    if (mimeType?.startsWith('image/')) return <ImageIcon className="h-5 w-5 text-green-600" />;
+    if (mimeType?.includes('pdf')) return <FileText className="h-5 w-5 text-red-600" />;
+    return <File className="h-5 w-5 text-gray-600" />;
+  };
+
+  const getFileTypeLabel = (mimeType: string) => {
+    if (mimeType?.startsWith('video/')) return 'Video';
+    if (mimeType?.startsWith('image/')) return 'Image';
+    if (mimeType?.includes('pdf')) return 'PDF';
+    if (mimeType?.includes('document') || mimeType?.includes('word')) return 'Document';
+    if (mimeType?.includes('sheet') || mimeType?.includes('excel')) return 'Spreadsheet';
+    return 'File';
   };
 
   const getStatusIcon = (status: string) => {
@@ -355,6 +361,12 @@ export function QCDashboard() {
   };
 
   const isOverdue = (task: EnhancedWorkflowTask) => new Date(task.dueDate) < new Date();
+
+  // Handle task click - always show file selector
+  const handleTaskClick = (task: EnhancedWorkflowTask) => {
+    setSelectedTask(task);
+    setShowFileSelector(true);
+  };
 
   // Stats
   const pendingReviews = qcTasks.filter(task => task.status === 'pending').length;
@@ -435,7 +447,7 @@ export function QCDashboard() {
                 Automated QC Workflow - FIFO System
               </h4>
               <p className="text-sm text-muted-foreground mb-3">
-                Tasks are automatically sorted by submission time (oldest first). Click on any task to review it in fullscreen.
+                Tasks are automatically sorted by submission time (oldest first). Click any task to view and select files.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                 <div className="flex items-center gap-2">
@@ -468,7 +480,7 @@ export function QCDashboard() {
           <CardHeader>
             <CardTitle>Review Queue ({pendingReviews})</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Click on any task to open fullscreen review
+              Click on any task to view files
             </p>
           </CardHeader>
           <CardContent className="p-0 flex-1 overflow-hidden">
@@ -487,10 +499,7 @@ export function QCDashboard() {
                     } ${getPriorityColor(task.priority)} ${
                       isOverdue(task) ? "border-r-4 border-r-red-500" : ""
                     }`}
-                    onClick={() => {
-                      setSelectedTask(task);
-                      setShowVideoReview(true);
-                    }}
+                    onClick={() => handleTaskClick(task)}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -546,11 +555,12 @@ export function QCDashboard() {
                           {isOverdue(task) && " (Overdue)"}
                         </span>
                       </div>
+                      
                       {task.files && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <FileText className="h-3 w-3" />
-                          <span>{task.files.length}</span>
-                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          <FileText className="h-3 w-3 mr-1" />
+                          {task.files.length} file{task.files.length !== 1 ? 's' : ''}
+                        </Badge>
                       )}
                     </div>
 
@@ -578,17 +588,96 @@ export function QCDashboard() {
         </Card>
       </div>
 
+      {/* File Selector Dialog */}
+      {selectedTask && (
+        <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>Select File to Review</DialogTitle>
+              <DialogDescription>
+                Choose a file to review from {selectedTask.title}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="overflow-y-auto max-h-[60vh]">
+              {selectedTask.files && selectedTask.files.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedTask.files.map((file, index) => (
+                    <Card
+                      key={file.id}
+                      className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+                      onClick={() => handleFileSelect(file)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          {/* File Icon */}
+                          <div className={`p-3 rounded-lg ${
+                            file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
+                            file.mimeType?.startsWith('image/') ? 'bg-green-100' :
+                            'bg-gray-100'
+                          }`}>
+                            {getFileIcon(file.mimeType)}
+                          </div>
+
+                          {/* File Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium text-sm truncate">
+                                {file.name}
+                              </p>
+                              <Badge variant="secondary" className="text-xs">
+                                {getFileTypeLabel(file.mimeType)}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span>{formatFileSize(file.size)}</span>
+                              <span>•</span>
+                              <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+
+                          {/* Action Icon */}
+                          <div className="flex items-center gap-2">
+                            {file.mimeType?.startsWith('video/') ? (
+                              <Button size="sm" variant="default">
+                                <Play className="h-4 w-4 mr-2" />
+                                Review
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="outline">
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                View
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p>No files found in this task</p>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Fullscreen Video Review Modal */}
-      {selectedTask && hasVideoFile(selectedTask) && (
+      {selectedTask && selectedFile && selectedFile.mimeType?.startsWith('video/') && (
         <FullScreenReviewModal
           open={showVideoReview}
           onOpenChange={(open) => {
             setShowVideoReview(open);
             if (!open) {
+              setSelectedFile(null);
               setSelectedTask(null);
             }
           }}
-          asset={getVideoAssetFromTask(selectedTask)}
+          asset={getVideoAssetFromFile(selectedFile)}
           onApprove={() => {}}
           onRequestRevisions={() => {}}
           userRole="qc"
