@@ -199,6 +199,7 @@ model Client {
   renewalDate         DateTime?
   lastActivity        DateTime?
   requiresClientReview Boolean  @default(false)
+  requiresVideographer Boolean  @default(false)
 
 
   createdAt           DateTime @default(now())

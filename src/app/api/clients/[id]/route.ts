@@ -30,6 +30,9 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     const { id } = await context.params;
     const data = await req.json();
 
+    let clientReview = false;
+    let videographer = false;
+
     const {
       name,
       email,
@@ -41,8 +44,18 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       projectSettings,
       billing,
       postingSchedule,
+      requiresClientReview,
+      requiresVideographer,
       monthlyDeliverables = [], // array coming from UI
     } = data;
+
+    if (requiresClientReview == "yes") {
+      clientReview = true;
+    }
+
+    if (requiresVideographer == "yes") {
+      videographer = true;
+    }
 
     // STEP 1 — Update main client record
     const updatedClient = await prisma.client.update({
@@ -58,6 +71,8 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         projectSettings,
         billing,
         postingSchedule,
+        requiresClientReview: clientReview,
+        requiresVideographer: videographer,
       },
     });
 

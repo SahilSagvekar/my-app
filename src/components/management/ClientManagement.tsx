@@ -119,6 +119,8 @@ interface Client {
     total: number;
   };
   lastActivity: string;
+  clientReviewRequired: string;
+  videographerRequired: string;
   brandAssets: BrandAsset[];
   brandGuidelines: {
     primaryColors: string[];
@@ -482,6 +484,8 @@ export function ClientManagement() {
     startDate: "",
     renewalDate: "",
     status: "active",
+    clientReviewRequired: "no",
+    videographerRequired: "no",
     monthlyDeliverables: [],
     brandAssets: [],
     brandGuidelines: {
@@ -1726,6 +1730,105 @@ const handleDeleteClient = async (clientId: string) => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* <div className="space-y-2">
+                  <Label htmlFor="accountManager" className="text-gray-700">
+                    Account Manager
+                  </Label>
+                  <Select
+                    value={newClient.accountManagerId}
+                    onValueChange={(value) =>
+                      setNewClient({ ...newClient, accountManagerId: value })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select manager" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mockAccountManagers.map((manager) => (
+                        <SelectItem key={manager.id} value={manager.id}>
+                          {manager.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status" className="text-gray-700">
+                    Status
+                  </Label>
+                  <Select
+                    value={newClient.status}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        status: value as "active" | "pending" | "expired",
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="expired">Expired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div> */}
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="clientReviewRequired"
+                    className="text-gray-700"
+                  >
+                    Client Review Required
+                  </Label>
+                  <Select
+                    value={newClient.clientReviewRequired ?? "no"}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        clientReviewRequired: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="videographerRequired"
+                    className="text-gray-700"
+                  >
+                    Videographer Required
+                  </Label>
+                  <Select
+                    value={newClient.videographerRequired ?? "no"}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        videographerRequired: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="startDate" className="text-gray-700">
                     Start Date

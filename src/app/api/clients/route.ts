@@ -92,6 +92,10 @@ export async function POST(req: Request) {
         { status: 403 }
       );
 
+    let clientReview = false;
+    let videographer = false;
+
+
     const body = await req.json();
     const {
       name,
@@ -106,6 +110,8 @@ export async function POST(req: Request) {
       projectSettings,
       billing,
       postingSchedule,
+      requiresClientReview,
+      requiresVideographer,
     } = body;
 
     if (!name || !email)
@@ -113,6 +119,14 @@ export async function POST(req: Request) {
         { message: "Name and email required" },
         { status: 400 }
       );
+
+    if (requiresClientReview == "yes") {
+      clientReview = true;
+    }
+
+    if (requiresVideographer == "yes") {
+      videographer = true;
+    }
 
     // STEP 1 — Create Drive Folders
     const folders = await createClientFolders(name);
@@ -135,7 +149,10 @@ export async function POST(req: Request) {
         companyName: company || null,
         phone,
         createdBy: decoded.userId.toString(),
-        userId: user.id,
+
+        user: {
+          connect: { id: user.id },
+        },
 
         accountManagerId,
         status: "active",
@@ -147,17 +164,18 @@ export async function POST(req: Request) {
         rawFootageFolderId: folders.rawFolderId,
         essentialsFolderId: folders.essentialsFolderId,
 
-        monthlyDeliverables: undefined, // Don't store raw JSON here
-        brandAssets: undefined,
-
         brandGuidelines,
         projectSettings,
         billing,
         postingSchedule,
 
+        requiresClientReview: clientReview,
+        requiresVideographer: videographer,
+
         currentProgress: { completed: 0, total: 0 },
       },
     });
+
 
     // STEP 3 — Insert deliverables into SQL
     const createdDeliverables = await Promise.all(
