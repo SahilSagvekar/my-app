@@ -25,6 +25,8 @@ export async function PATCH(
     const body = await req.json();
     const { status, feedback, qcNotes, route } = body;
 
+    let finalStatus = status;
+
     if (!status)
       return NextResponse.json({ message: "Status is required" }, { status: 400 });
 
@@ -35,7 +37,13 @@ export async function PATCH(
     if (route !== undefined) updateData.route = route;
 
     // Get current task
-    const task = await prisma.task.findUnique({ where: { id } });
+    const task = await prisma.task.findUnique({
+      where: { id },
+      include: {
+        client: true, // assuming relation name is "client"
+      },
+    });
+
     if (!task)
       return NextResponse.json({ message: "Task not found" }, { status: 404 });
 
@@ -43,6 +51,7 @@ export async function PATCH(
     const allowedTransitions: Record<string, string[]> = {
       editor: ["IN_PROGRESS", "READY_FOR_QC", "ON_HOLD"],
       qc: ["QC_IN_PROGRESS", "COMPLETED", "REJECTED"],
+      client: ["CLIENT_REVIEW", "COMPLETED", "REJECTED"],
       scheduler: [],
       manager: [
         "PENDING",
@@ -73,12 +82,32 @@ export async function PATCH(
       );
     }
 
+    console.log(role.toLowerCase(), status)
+
+    if (
+      role.toLowerCase() === "qc" &&
+      status === "COMPLETED" &&
+      task.client?.requiresClientReview === true
+    ) {
+      finalStatus = "CLIENT_REVIEW";
+    }
+
+    // Client approving or rejecting
+    if (role.toLowerCase() === "client") {
+      if (status === "COMPLETED") {
+        finalStatus = "COMPLETED"; // approve
+      } else if (status === "REJECTED") {
+        finalStatus = "REJECTED"; // reject
+      }
+    }
+
+
     // ✅ Update task status
     const updatedTask = await prisma.task.update({
       where: { id },
       data: {
         ...updateData,
-        status,
+        status: finalStatus,
         updatedAt: new Date(),
       },
     });

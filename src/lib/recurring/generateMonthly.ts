@@ -1,6 +1,25 @@
 import { prisma } from "@/lib/prisma";
 
+function getDeliverableShortCode(type: string) {
+  const normalized = type.toLowerCase().trim();
+
+  if (normalized === "short form videos") return "SFVideos";
+  if (normalized === "long form videos") return "LFVideos";
+
+  // fallback: original slug behavior
+  return type.replace(/\s+/g, "");
+}
+
+function formatDateYYYYMMDD(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+
 export async function generateMonthlyTasksFromTemplate(taskId: string) {
+
   // STEP 1 — Fetch template task
   const templateTask = await prisma.task.findUnique({
     where: { id: taskId },
@@ -60,14 +79,26 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
 
   // STEP 5 — Naming parts
   const clientSlug = client.name.replace(/\s+/g, "");
-  const deliverableSlug = deliverable.type.replace(/\s+/g, "");
-  const createdAtStr = templateTask.createdAt.toISOString().slice(0, 10);
+  // const deliverableSlug = deliverable.type.replace(/\s+/g, "");
+  // const createdAtStr = templateTask.createdAt.toISOString().slice(0, 10);
+
+  const deliverableSlug = getDeliverableShortCode(deliverable.type);
+const createdAtStr = formatDateYYYYMMDD(templateTask.createdAt);
+
 
   // STEP 6 — Create remaining tasks
   const creates = [];
-  let count = 0; // template task = #1
+  let count = 1; // template task = #1
+
+   const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}_1`;
+
+   const updatedTask = await prisma.task.update({
+     where: { id: taskId },
+     data: { title: title1 },
+   });
 
   for (const date of dates) {
+
     for (let i = 0; i < videosPerDay; i++) {
       if (count >= quantity) break;
 

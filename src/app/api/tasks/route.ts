@@ -70,7 +70,26 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
 
     case "client":
       return {
-        AND: [{ requiresClientReview: true }, { clientUserId: userId }],
+        AND: [
+          { clientUserId: userId },
+          {
+            status: {
+              in: [TaskStatus.CLIENT_REVIEW],
+            },
+          },
+        ],
+      };
+
+      case "videographer":
+      return {
+        AND: [
+          { videographer: userId },
+          {
+            status: {
+              in: [TaskStatus.VIDEOGRAPHER_ASSIGNED],
+            },
+          },
+        ],
       };
 
     case "manager":
@@ -274,7 +293,14 @@ export async function POST(req: Request) {
     // 📁 GET CLIENT FOLDERS FROM DB
     const client = await prisma.client.findUnique({
       where: { id: clientId },
-      select: { rawFootageFolderId: true, essentialsFolderId: true },
+      select: {
+        name: true,
+        rawFootageFolderId: true,
+        essentialsFolderId: true,
+        requiresClientReview: true,
+        requiresVideographer: true,
+        // monthlyDeliverables: true
+      },
     });
 
     if (!client)
@@ -314,6 +340,10 @@ export async function POST(req: Request) {
         monthlyDeliverableId:monthlyDeliverableId ,
         driveLinks: uploadedLinks,
         folderType,
+        requiresClientReview: client.requiresClientReview,
+        status: client.requiresVideographer
+          ? "VIDEOGRAPHER_ASSIGNED"
+          : "PENDING",
       },
     });
 

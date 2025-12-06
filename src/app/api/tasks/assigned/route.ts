@@ -55,7 +55,10 @@ export async function GET(req: Request) {
 
       case "client":
         tasks = await prisma.task.findMany({
-          where: { clientId: userId },
+          where: { 
+            status: 'CLIENT_REVIEW',
+            // clientId: userId 
+          },
           include: { user: true },
           orderBy: { updatedAt: "desc" },
         });

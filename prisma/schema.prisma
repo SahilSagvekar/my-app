@@ -180,6 +180,8 @@ enum TaskStatus {
   SCHEDULED
   ON_HOLD
   REJECTED
+  CLIENT_REVIEW
+  VIDEOGRAPHER_ASSIGNED
 }
 
 model Client {

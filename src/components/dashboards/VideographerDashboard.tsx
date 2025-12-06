@@ -85,14 +85,14 @@ export function VideographerDashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* <div className="flex items-center gap-3">
           <Button
             className="w-full"
             onClick={() => router.push("/leave-request")}
           >
             Request Leave
           </Button>
-        </div>
+        </div> */}
         {/* <div className="flex items-center justify-between">
         <div>
           <h1>Videographer Portal</h1>
@@ -103,26 +103,41 @@ export function VideographerDashboard() {
         
       </div> */}
 
-
         <div className="flex items-center gap-3">
-          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+          <Dialog
+            open={isUploadDialogOpen}
+            onOpenChange={setIsUploadDialogOpen}
+          >
             <DialogTrigger asChild>
-              <Button>
+              {/* <Button>
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Footage
+              </Button> */}
+
+              <Button
+                className="w-full"
+                onClick={() => router.push("/leave-request")}
+              >
+                Request Leave
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Upload Footage</DialogTitle>
                 <DialogDescription>
-                  Select the project and upload your recorded footage to Google Drive.
+                  Select the project and upload your recorded footage to Google
+                  Drive.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
                   <label className="text-sm">Project</label>
-                  <Select value={newUpload.projectId} onValueChange={(value) => setNewUpload({ ...newUpload, projectId: value })}>
+                  <Select
+                    value={newUpload.projectId}
+                    onValueChange={(value) =>
+                      setNewUpload({ ...newUpload, projectId: value })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select project" />
                     </SelectTrigger>
@@ -139,7 +154,9 @@ export function VideographerDashboard() {
                   <label className="text-sm">Upload Title</label>
                   <Input
                     value={newUpload.title}
-                    onChange={(e) => setNewUpload({ ...newUpload, title: e.target.value })}
+                    onChange={(e) =>
+                      setNewUpload({ ...newUpload, title: e.target.value })
+                    }
                     placeholder="e.g., Raw Footage - Batch 1"
                   />
                 </div>
@@ -147,18 +164,21 @@ export function VideographerDashboard() {
                   <label className="text-sm">Notes (Optional)</label>
                   <Textarea
                     value={newUpload.notes}
-                    onChange={(e) => setNewUpload({ ...newUpload, notes: e.target.value })}
+                    onChange={(e) =>
+                      setNewUpload({ ...newUpload, notes: e.target.value })
+                    }
                     placeholder="Any additional notes about the footage..."
                     rows={3}
                   />
                 </div>
                 <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsUploadDialogOpen(false)}
+                  >
                     Cancel
                   </Button>
-                  <Button onClick={handleStartUpload}>
-                    Start Upload
-                  </Button>
+                  <Button onClick={handleStartUpload}>Start Upload</Button>
                 </div>
               </div>
             </DialogContent>
@@ -197,7 +217,9 @@ export function VideographerDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Pending Uploads</p>
-                <h3 className="mt-2">{mockUploadTasks.filter(u => u.status === 'pending').length}</h3>
+                <h3 className="mt-2">
+                  {mockUploadTasks.filter((u) => u.status === "pending").length}
+                </h3>
               </div>
               <Upload className="h-8 w-8 text-green-600" />
             </div>
@@ -208,8 +230,12 @@ export function VideographerDashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Equipment Available</p>
-                <h3 className="mt-2">{mockEquipment.filter(e => e.status === 'available').length}</h3>
+                <p className="text-sm text-muted-foreground">
+                  Equipment Available
+                </p>
+                <h3 className="mt-2">
+                  {mockEquipment.filter((e) => e.status === "available").length}
+                </h3>
               </div>
               <Settings className="h-8 w-8 text-purple-600" />
             </div>
@@ -247,9 +273,16 @@ export function VideographerDashboard() {
                             <div className="flex items-center gap-3">
                               <h4 className="font-medium">{task.title}</h4>
                               <Badge className={statusColors[task.status]}>
-                                {task.status.replace('-', ' ')}
+                                {task.status.replace("-", " ")}
                               </Badge>
-                              <Badge variant="outline" className={task.priority === 'high' ? 'border-red-500 text-red-700' : 'border-orange-500 text-orange-700'}>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  task.priority === "high"
+                                    ? "border-red-500 text-red-700"
+                                    : "border-orange-500 text-orange-700"
+                                }
+                              >
                                 {task.priority} priority
                               </Badge>
                             </div>
@@ -268,10 +301,12 @@ export function VideographerDashboard() {
                               </div>
                             </div>
                             <div className="text-sm">
-                              <strong>Shot List:</strong> {task.shotList.join(', ')}
+                              <strong>Shot List:</strong>{" "}
+                              {task.shotList.join(", ")}
                             </div>
                             <div className="text-sm">
-                              <strong>Equipment:</strong> {task.equipment.join(', ')}
+                              <strong>Equipment:</strong>{" "}
+                              {task.equipment.join(", ")}
                             </div>
                             {task.notes && (
                               <div className="text-sm text-muted-foreground">
@@ -279,7 +314,9 @@ export function VideographerDashboard() {
                               </div>
                             )}
                           </div>
-                          <Button onClick={() => handleMarkAsCompleted(task.id)}>
+                          <Button
+                            onClick={() => handleMarkAsCompleted(task.id)}
+                          >
                             <CheckCircle2 className="h-4 w-4 mr-2" />
                             Complete Shoot
                           </Button>
@@ -308,9 +345,16 @@ export function VideographerDashboard() {
                           <div className="flex items-center gap-3">
                             <h4 className="font-medium">{task.title}</h4>
                             <Badge className={statusColors[task.status]}>
-                              {task.status.replace('-', ' ')}
+                              {task.status.replace("-", " ")}
                             </Badge>
-                            <Badge variant="outline" className={task.priority === 'high' ? 'border-red-500 text-red-700' : 'border-blue-500 text-blue-700'}>
+                            <Badge
+                              variant="outline"
+                              className={
+                                task.priority === "high"
+                                  ? "border-red-500 text-red-700"
+                                  : "border-blue-500 text-blue-700"
+                              }
+                            >
                               {task.priority} priority
                             </Badge>
                           </div>
@@ -329,10 +373,12 @@ export function VideographerDashboard() {
                             </div>
                           </div>
                           <div className="text-sm">
-                            <strong>Shot List:</strong> {task.shotList.join(', ')}
+                            <strong>Shot List:</strong>{" "}
+                            {task.shotList.join(", ")}
                           </div>
                           <div className="text-sm">
-                            <strong>Required Equipment:</strong> {task.equipment.join(', ')}
+                            <strong>Required Equipment:</strong>{" "}
+                            {task.equipment.join(", ")}
                           </div>
                           {task.notes && (
                             <div className="text-sm text-muted-foreground">
@@ -379,26 +425,36 @@ export function VideographerDashboard() {
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{upload.filesCount} files</span>
                           <span>{upload.totalSize}</span>
-                          {upload.uploadDate && <span>Uploaded: {upload.uploadDate}</span>}
+                          {upload.uploadDate && (
+                            <span>Uploaded: {upload.uploadDate}</span>
+                          )}
                         </div>
-                        
-                        {upload.status === 'uploading' && upload.progress && (
+
+                        {upload.status === "uploading" && upload.progress && (
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm">
                               <span>Uploading...</span>
                               <span>{upload.progress}%</span>
                             </div>
-                            <Progress value={upload.progress} className="w-full" />
+                            <Progress
+                              value={upload.progress}
+                              className="w-full"
+                            />
                             <div className="text-xs text-muted-foreground">
-                              {upload.uploadedSize} of {upload.totalSize} uploaded
+                              {upload.uploadedSize} of {upload.totalSize}{" "}
+                              uploaded
                             </div>
                           </div>
                         )}
-                        
-                        {upload.status === 'completed' && upload.driveLink && (
+
+                        {upload.status === "completed" && upload.driveLink && (
                           <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" asChild>
-                              <a href={upload.driveLink} target="_blank" rel="noopener noreferrer">
+                              <a
+                                href={upload.driveLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
                                 <Download className="h-4 w-4 mr-2" />
                                 View in Drive
                               </a>
@@ -406,9 +462,12 @@ export function VideographerDashboard() {
                           </div>
                         )}
                       </div>
-                      
-                      {upload.status === 'pending' && (
-                        <Button size="sm" onClick={() => setIsUploadDialogOpen(true)}>
+
+                      {upload.status === "pending" && (
+                        <Button
+                          size="sm"
+                          onClick={() => setIsUploadDialogOpen(true)}
+                        >
                           <Upload className="h-4 w-4 mr-2" />
                           Start Upload
                         </Button>
@@ -448,21 +507,27 @@ export function VideographerDashboard() {
                       <tr key={item.id} className="border-b hover:bg-muted/50">
                         <td className="py-3 px-4">
                           <div className="font-medium">{item.name}</div>
-                          <div className="text-sm text-muted-foreground">{item.id}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {item.id}
+                          </div>
                         </td>
                         <td className="py-3 px-4">{item.type}</td>
                         <td className="py-3 px-4">
                           <Badge className={equipmentStatusColors[item.status]}>
-                            {item.status.replace('-', ' ')}
+                            {item.status.replace("-", " ")}
                           </Badge>
                         </td>
                         <td className="py-3 px-4">
                           <div>{item.location}</div>
                           {item.assignedTo && (
-                            <div className="text-sm text-muted-foreground">{item.assignedTo}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {item.assignedTo}
+                            </div>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-sm">{item.lastMaintenance}</td>
+                        <td className="py-3 px-4 text-sm">
+                          {item.lastMaintenance}
+                        </td>
                         <td className="py-3 px-4 text-right">
                           <Button variant="ghost" size="sm">
                             <MoreHorizontal className="h-4 w-4" />
@@ -501,7 +566,11 @@ export function VideographerDashboard() {
               <CardContent>
                 <div className="space-y-4">
                   {mockShootingTasks
-                    .filter(task => task.scheduledDate === selectedDate?.toISOString().split('T')[0])
+                    .filter(
+                      (task) =>
+                        task.scheduledDate ===
+                        selectedDate?.toISOString().split("T")[0]
+                    )
                     .map((task) => (
                       <div key={task.id} className="border rounded-lg p-3">
                         <div className="flex items-center justify-between">
@@ -512,15 +581,18 @@ export function VideographerDashboard() {
                             </div>
                           </div>
                           <Badge className={statusColors[task.status]}>
-                            {task.status.replace('-', ' ')}
+                            {task.status.replace("-", " ")}
                           </Badge>
                         </div>
                       </div>
                     ))}
-                  
-                  {(!selectedDate || mockShootingTasks.filter(task => 
-                    task.scheduledDate === selectedDate?.toISOString().split('T')[0]
-                  ).length === 0) && (
+
+                  {(!selectedDate ||
+                    mockShootingTasks.filter(
+                      (task) =>
+                        task.scheduledDate ===
+                        selectedDate?.toISOString().split("T")[0]
+                    ).length === 0) && (
                     <div className="text-center text-muted-foreground py-8">
                       No shoots scheduled for this date
                     </div>
