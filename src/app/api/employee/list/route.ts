@@ -8,7 +8,10 @@ export async function GET(req: Request) {
 
     const employees = await prisma.user.findMany({
       where: {
-        role: { notIn: ["admin", "client"] }
+        OR: [
+          { role: null }, // Include users with no role
+          { role: { notIn: ["admin", "client"] } } // Include non-admin/client roles
+        ]
       },
       orderBy: { createdAt: "desc" }
     });
