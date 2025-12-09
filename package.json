@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "postinstall": "prisma generate"
-  },
+  "dev": "tsx server.ts",
+  "build": "NODE_OPTIONS='--max-old-space-size=4096' next build",
+  "start": "NODE_ENV=production tsx server.ts",
+  "lint": "next lint",
+  "postinstall": "prisma generate"
+},
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
