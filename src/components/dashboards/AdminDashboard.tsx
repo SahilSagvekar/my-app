@@ -14,6 +14,7 @@ import { FinanceTab } from '../admin/FinanceTab';
 import { ClientManagement } from '../management/ClientManagement';
 import { Button } from '../ui/button';
 import { useEffect, useState } from "react";
+import { useSocket } from '@/lib/useSocket';
 
 const kpiData = [
   {
@@ -111,6 +112,7 @@ interface AdminDashboardProps {
 export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProps) {
   
   const [tasks, setTasks] = useState([]);
+  const { isConnected } = useSocket();
 
   const handleTaskCreated = (task: any) => {
     console.log('New task created:', task);
@@ -118,6 +120,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
   };
 
  const [recentTasks, setRecentTasks] = useState([]);
+ 
 
 useEffect(() => {
   loadTasks();
@@ -154,6 +157,7 @@ async function loadTasks() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">{kpi.title}</p>
+                    <p>Socket: {isConnected ? '✅ Connected' : '❌ Disconnected'}</p>
                     <h3 className="mt-2">{kpi.value}</h3>
                     <p className={`text-sm mt-1 ${kpi.color}`}>
                       {kpi.change} from last month
@@ -200,7 +204,9 @@ async function loadTasks() {
           </CardHeader>
           <CardContent>
             <div className="h-48">
+              <p>Socket: {isConnected ? '✅ Connected' : '❌ Disconnected'}</p>
               <ResponsiveContainer width="100%" height="100%">
+                
                 <PieChart>
                   <Pie
                     data={projectHealthData}
@@ -445,11 +451,12 @@ async function loadTasks() {
               <div>
                 <h1>Admin Portal</h1>
                 <p className="text-muted-foreground mt-2">
-                  Overview of system performance, recent activity, and key metrics
+                  Overview of system performance, recent activity, and key
+                  metrics
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <CreateTaskDialog 
+                <CreateTaskDialog
                   onTaskCreated={handleTaskCreated}
                   trigger={
                     <Button>
@@ -461,6 +468,10 @@ async function loadTasks() {
               </div>
             </div>
             <DashboardOverview />
+            <div>
+              <p>Socket: {isConnected ? "✅" : "❌"}</p>
+              {/* Your existing page content */}
+            </div>
           </div>
         );
     }
