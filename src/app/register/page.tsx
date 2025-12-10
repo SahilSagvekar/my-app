@@ -3,10 +3,10 @@
 import { useState } from "react";
 
 export default function RegisterPage() {
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("client"); // default role
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -19,10 +19,17 @@ export default function RegisterPage() {
     setSuccess("");
 
     try {
+      const fullName = `${firstName} ${lastName}`.trim();
+      
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role, acceptTerms }),
+        body: JSON.stringify({ 
+          name: fullName, 
+          email, 
+          password, 
+          acceptTerms 
+        }),
       });
 
       const data = await res.json();
@@ -32,7 +39,7 @@ export default function RegisterPage() {
       } else {
         setSuccess("Account created successfully! Redirecting...");
         setTimeout(() => {
-          window.location.href = "/login"; // redirect to login
+          window.location.href = "/";
         }, 1500);
       }
     } catch (err) {
@@ -54,16 +61,30 @@ export default function RegisterPage() {
         {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
         {success && <p className="text-green-500 text-sm mb-2">{success}</p>}
 
-        {/* Name Field */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="Enter your name"
-          />
+        {/* First Name and Last Name Fields */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">First Name</label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="First name"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Last Name</label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Last name"
+              required
+            />
+          </div>
         </div>
 
         {/* Email Field */}
@@ -92,24 +113,6 @@ export default function RegisterPage() {
           />
         </div>
 
-        {/* Role Dropdown */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Role</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="admin">Admin</option>
-            <option value="manager">Manager</option>
-            <option value="editor">Editor</option>
-            <option value="videographer">Videographer</option>
-            <option value="qc_specialist">QC Specialist</option>
-            <option value="scheduler">Scheduler</option>
-            <option value="client">Client</option>
-          </select>
-        </div>
-
         {/* Terms Checkbox */}
         <div className="flex items-center mb-4">
           <input
@@ -117,6 +120,7 @@ export default function RegisterPage() {
             checked={acceptTerms}
             onChange={(e) => setAcceptTerms(e.target.checked)}
             className="mr-2"
+            required
           />
           <span className="text-sm">
             I agree to the{" "}
@@ -134,14 +138,6 @@ export default function RegisterPage() {
         >
           {loading ? "Registering..." : "Register"}
         </button>
-
-        {/* Link to Login */}
-        {/* <p className="text-center text-sm text-gray-500 mt-4">
-          Already have an account?{" "}
-          <a href="/login" className="text-primary hover:underline">
-            Login here
-          </a>
-        </p> */}
       </form>
     </div>
   );

@@ -31,7 +31,12 @@ import {
 } from "../ui/table";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Calendar } from "../ui/calendar";
-import { Popover, PopoverContent, PopperTrigger, PopoverTrigger } from "../ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopperTrigger,
+  PopoverTrigger,
+} from "../ui/popover";
 import {
   DollarSign,
   Users,
@@ -80,7 +85,7 @@ interface Employee {
   hourlyRate: number;
   monthlyRate: number;
   hireDate: string;
-  status: "active" | "inactive";
+  status: "active" | "inactive" | "terminated";
   avatar: string;
   worksOnSaturday: boolean;
 }
@@ -266,9 +271,6 @@ function formatMonthRange(month: number, year: number) {
   return `${startStr} – ${endStr}`;
 }
 
-
-
-
 // Approx default working days per month (for UI only; backend uses proper logic)
 const DEFAULT_WORKING_DAYS = 22;
 
@@ -336,9 +338,10 @@ export function FinanceTab() {
     amount: "",
     dueDate: undefined as Date | undefined,
     description: "",
-    items: [
-      { description: "", quantity: 1, rate: 0 },
-    ] as Omit<InvoiceItem, "id" | "amount">[],
+    items: [{ description: "", quantity: 1, rate: 0 }] as Omit<
+      InvoiceItem,
+      "id" | "amount"
+    >[],
   });
 
   // New Employee Form (backed by POST /api/employee)
@@ -357,6 +360,77 @@ export function FinanceTab() {
     year: new Date().getFullYear(),
   });
 
+  // Add after existing state
+  const [editEmployeeModalOpen, setEditEmployeeModalOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editEmployeeForm, setEditEmployeeForm] = useState({
+    name: "",
+    email: "",
+    role: "",
+    hourlyRate: "",
+    hireDate: undefined as Date | undefined,
+    status: "active" as "active" | "inactive",
+  });
+
+  const openEditEmployeeModal = (employee: Employee) => {
+    setEditingEmployee(employee);
+    setEditEmployeeForm({
+      name: employee.name,
+      email: employee.email,
+      role: employee.role,
+      hourlyRate: String(employee.hourlyRate),
+      hireDate: employee.hireDate ? new Date(employee.hireDate) : undefined,
+      status: employee.status,
+    });
+    setEditEmployeeModalOpen(true);
+  };
+
+  const handleEditEmployee = async () => {
+  if (!editingEmployee) return;
+  
+  if (!editEmployeeForm.name || !editEmployeeForm.email || !editEmployeeForm.hourlyRate) {
+    toast("❌ Error", {
+      description: "Please fill in all required fields.",
+    });
+    return;
+  }
+
+  try {
+    const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
+    
+    // Map status to database enum
+    const statusMap = {
+      active: "ACTIVE",
+      inactive: "INACTIVE",
+      terminated: "TERMINATED",
+    };
+
+    await apiFetch(`/api/employee/${editingEmployee.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: editEmployeeForm.name,
+        email: editEmployeeForm.email,
+        role: editEmployeeForm.role,
+        hourlyRate,
+        employeeStatus: statusMap[editEmployeeForm.status],
+        joinedAt: editEmployeeForm.hireDate?.toISOString(),
+      }),
+    });
+
+    toast("✅ Employee Updated", {
+      description: "Employee information has been updated successfully.",
+    });
+
+    setEditEmployeeModalOpen(false);
+    setEditingEmployee(null);
+    await loadEmployees();
+  } catch (err: any) {
+    console.error(err);
+    toast("❌ Error", {
+      description: err.message || "Failed to update employee.",
+    });
+  }
+};
   // ---------- Backend fetches ----------
 
   const loadEmployees = async () => {
@@ -387,7 +461,12 @@ export function FinanceTab() {
             hourlyRate: hourly,
             monthlyRate,
             hireDate: u.joinedAt || u.createdAt,
-            status: u.employeeStatus === "INACTIVE" ? "inactive" : "active",
+            status:
+              u.employeeStatus === "ACTIVE"
+                ? "active"
+                : u.employeeStatus === "TERMINATED"
+                ? "terminated"
+                : "inactive",
             avatar,
             worksOnSaturday: !!u.worksOnSaturday,
           };
@@ -433,23 +512,22 @@ export function FinanceTab() {
       //   }) ?? [];
 
       const mapped = data?.payrolls?.map((p: any) => {
-  return {
-    id: p.id,
-    employeeId: p.employeeId,
-    employeeName: p.employee?.name || `Employee #${p.employeeId}`,
-    month: p.periodStart ? new Date(p.periodStart).getMonth() + 1 : null,
-    year: p.periodStart ? new Date(p.periodStart).getFullYear() : null,
-    periodStart: p.periodStart,
-    periodEnd: p.periodEnd,
-    baseSalary: Number(p.baseSalary),
-    bonuses: Number(p.totalBonuses),
-    deductions: Number(p.totalDeductions),
-    netPay: Number(p.netPay),
-    status: p.status === "PAID" ? "paid" : "pending",
-    payDate: p.paidAt || undefined,
-  };
-});
-
+        return {
+          id: p.id,
+          employeeId: p.employeeId,
+          employeeName: p.employee?.name || `Employee #${p.employeeId}`,
+          month: p.periodStart ? new Date(p.periodStart).getMonth() + 1 : null,
+          year: p.periodStart ? new Date(p.periodStart).getFullYear() : null,
+          periodStart: p.periodStart,
+          periodEnd: p.periodEnd,
+          baseSalary: Number(p.baseSalary),
+          bonuses: Number(p.totalBonuses),
+          deductions: Number(p.totalDeductions),
+          netPay: Number(p.netPay),
+          status: p.status === "PAID" ? "paid" : "pending",
+          payDate: p.paidAt || undefined,
+        };
+      });
 
       setPayroll(mapped);
     } catch (err: any) {
@@ -642,7 +720,9 @@ export function FinanceTab() {
       });
 
       toast("✅ Bonus added", {
-        description: `Bonus of ${formatCurrency(value)} added to ${selectedEmployee.name}`,
+        description: `Bonus of ${formatCurrency(value)} added to ${
+          selectedEmployee.name
+        }`,
       });
 
       setBonusModalOpen(false);
@@ -673,9 +753,9 @@ export function FinanceTab() {
       });
 
       toast("✅ Hourly rate updated", {
-        description: `${selectedEmployee.name}'s hourly rate set to ${formatCurrency(
-          value
-        )}/hr`,
+        description: `${
+          selectedEmployee.name
+        }'s hourly rate set to ${formatCurrency(value)}/hr`,
       });
 
       setHourlyModalOpen(false);
@@ -1261,7 +1341,7 @@ export function FinanceTab() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
+                    {/* <div className="flex flex-col gap-2">
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -1274,7 +1354,6 @@ export function FinanceTab() {
                         </Button>
                         <Button
                           size="sm"
-                          // variant="outline"
                           className="flex-1 w-full"
                           onClick={() => openBonusModal(employee)}
                         >
@@ -1282,22 +1361,207 @@ export function FinanceTab() {
                           Add Bonus
                         </Button>
                       </div>
-                      {/* <Button
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          setSelectedEmployee(employee);
-                          setShowPayrollDialog(true);
-                        }}
-                      >
-                        <Receipt className="h-4 w-4 mr-1" />
-                        Generate Payroll
-                      </Button> */}
+                    </div> */}
+
+                    {/* Replace the existing button section with this: */}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 w-full"
+                          onClick={() => openEditEmployeeModal(employee)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit Employee
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="flex-1 w-full"
+                          onClick={() => openBonusModal(employee)}
+                        >
+                          <Gift className="h-4 w-4 mr-1" />
+                          Add Bonus
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
+            {/* Edit Employee Modal */}
+            <Dialog
+              open={editEmployeeModalOpen}
+              onOpenChange={setEditEmployeeModalOpen}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Employee</DialogTitle>
+                  <DialogDescription>
+                    Update employee information. Changes will be saved
+                    immediately.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">Full Name</label>
+                    <Input
+                      value={editEmployeeForm.name}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Email</label>
+                    <Input
+                      type="email"
+                      value={editEmployeeForm.email}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          email: e.target.value,
+                        }))
+                      }
+                      placeholder="employee@company.com"
+                    />
+                  </div>
+
+                  {/* UPDATED: Role Dropdown */}
+                  <div>
+                    <label className="text-sm font-medium">Role</label>
+                    <Select
+                      value={editEmployeeForm.role}
+                      onValueChange={(value) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          role: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="editor">Editor</SelectItem>
+                        <SelectItem value="videographer">
+                          Videographer
+                        </SelectItem>
+                        <SelectItem value="qc_specialist">
+                          QC Specialist
+                        </SelectItem>
+                        <SelectItem value="scheduler">Scheduler</SelectItem>
+                        <SelectItem value="qc">QC</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">
+                      Hourly Rate ($)
+                    </label>
+                    <Input
+                      type="number"
+                      value={editEmployeeForm.hourlyRate}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          hourlyRate: e.target.value,
+                        }))
+                      }
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Hire Date</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {editEmployeeForm.hireDate
+                            ? editEmployeeForm.hireDate.toLocaleDateString()
+                            : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={editEmployeeForm.hireDate}
+                          onSelect={(date) =>
+                            setEditEmployeeForm((prev) => ({
+                              ...prev,
+                              hireDate: date ?? undefined,
+                            }))
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* UPDATED: Status with 3 options and descriptions */}
+                  <div>
+                    <label className="text-sm font-medium">
+                      Employment Status
+                    </label>
+                    <Select
+                      value={editEmployeeForm.status}
+                      onValueChange={(
+                        value: "active" | "inactive" | "terminated"
+                      ) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          status: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                            <span>Active - Currently working, on payroll</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="inactive">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
+                            <span>Inactive - Not currently working</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="terminated">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-red-500"></span>
+                            <span>Terminated - Permanently removed</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditEmployeeModalOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleEditEmployee}>Save Changes</Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Payroll Tab */}
@@ -1435,11 +1699,12 @@ export function FinanceTab() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {formatMonthRange(Number(record.month), Number(record.year))}
-
+                        {formatMonthRange(
+                          Number(record.month),
+                          Number(record.year)
+                        )}
 
                         {/* {record.month} {record.year} */}
-
                       </TableCell>
                       <TableCell>{formatCurrency(record.baseSalary)}</TableCell>
                       <TableCell className="text-green-600">

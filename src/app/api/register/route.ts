@@ -32,7 +32,7 @@ export async function POST(req: Request) {
         name: name || null,
         email,
         password: hashedPassword,
-        role: "client",
+        // role: null,
       },
     });
 

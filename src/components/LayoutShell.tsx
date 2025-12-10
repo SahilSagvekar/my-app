@@ -34,7 +34,7 @@ import {
 import Image from 'next/image';
 
 interface LayoutShellProps {
-  currentRole: string;
+  currentRole: string | null;  // UPDATED: Allow null
   currentPage: string;
   onPageChange: (page: string) => void;
   onLogout: () => void;
@@ -51,11 +51,28 @@ export function LayoutShell({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const items = NAVIGATION_ITEMS[currentRole as NavigationRole] || [];
+  // UPDATED: Handle null role
+  const items = currentRole ? (NAVIGATION_ITEMS[currentRole as NavigationRole] || []) : [];
+  const roleDisplay = currentRole 
+    ? currentRole.charAt(0).toUpperCase() + currentRole.slice(1) 
+    : 'User';
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
+
+  // UPDATED: Show message if no role assigned
+  if (!currentRole) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">No Role Assigned</h1>
+          <p className="text-gray-600 mb-4">Please contact an administrator to assign you a role.</p>
+          <Button onClick={onLogout}>Sign Out</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -85,7 +102,7 @@ export function LayoutShell({
                 priority
               />
               <span className="hidden sm:block font-semibold text-lg text-gray-900">
-                {currentRole.charAt(0).toUpperCase() + currentRole.slice(1)} Portal
+                {roleDisplay} Portal
               </span>
             </div>
           </div>
@@ -121,7 +138,7 @@ export function LayoutShell({
                     <Badge
                       className={`text-xs ${ROLE_COLORS[currentRole as UserRole]}`}
                     >
-                      {currentRole.charAt(0).toUpperCase() + currentRole.slice(1)}
+                      {roleDisplay}
                     </Badge>
                   </div>
                 </Button>
@@ -199,7 +216,7 @@ export function LayoutShell({
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
             <div className="text-xs text-gray-500 text-center">
-              {currentRole.charAt(0).toUpperCase() + currentRole.slice(1)} Portal v2.1
+              {roleDisplay} Portal v2.1
             </div>
           </div>
         </div>

@@ -1,41 +1,16 @@
-import { NextResponse } from "next/server";
-import { google } from "googleapis";
-import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  `${process.env.BASE_URL}/api/auth/google/callback`
-);
+import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: ["profile", "email"],
-  });
-  return NextResponse.redirect(authUrl);
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = `${process.env.NEXTAUTH_URL}/api/auth/callback/google`;
+  
+  const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  googleAuthUrl.searchParams.set('client_id', clientId!);
+  googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
+  googleAuthUrl.searchParams.set('response_type', 'code');
+  googleAuthUrl.searchParams.set('scope', 'openid email profile');
+  googleAuthUrl.searchParams.set('access_type', 'offline');
+  googleAuthUrl.searchParams.set('prompt', 'consent');
+
+  return NextResponse.redirect(googleAuthUrl.toString());
 }
-
-
-
-
-// import { NextResponse } from "next/server";
-// import { google } from "googleapis";
-
-// export async function GET() {
-//   const oauth2Client = new google.auth.OAuth2(
-//     process.env.GOOGLE_CLIENT_ID,
-//     process.env.GOOGLE_CLIENT_SECRET,
-//     // process.env.GOOGLE_REDIRECT_URI
-//     `${process.env.BASE_URL}/api/auth/google/callback`
-//   );
-
-//   const url = oauth2Client.generateAuthUrl({
-//     access_type: "offline", // 🔑 Needed for refresh token
-//     scope: ["https://www.googleapis.com/auth/drive.file"],
-//     prompt: "consent", // 🔑 Forces Google to return refresh_token
-//   });
-
-//   return NextResponse.redirect(url);
-// }
