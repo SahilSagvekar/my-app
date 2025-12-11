@@ -6,6 +6,7 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { SimpleCalendar } from "../ui/simple-calendar";
 import {
   Select,
   SelectContent,
@@ -34,7 +35,6 @@ import { Calendar } from "../ui/calendar";
 import {
   Popover,
   PopoverContent,
-  PopperTrigger,
   PopoverTrigger,
 } from "../ui/popover";
 import {
@@ -223,6 +223,19 @@ const getPayrollStatusColor = (status: PayrollRecord["status"]) => {
   }
 };
 
+const getEmployeeStatusColor = (status: Employee["status"]) => {
+  switch (status) {
+    case "active":
+      return "bg-green-100 text-green-800";
+    case "inactive":
+      return "bg-yellow-100 text-yellow-800";
+    case "terminated":
+      return "bg-red-100 text-red-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
+
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -345,14 +358,14 @@ export function FinanceTab() {
   });
 
   // New Employee Form (backed by POST /api/employee)
-  const [newEmployee, setNewEmployee] = useState({
-    name: "",
-    email: "",
-    role: "",
-    hourlyRate: "",
-    hireDate: undefined as Date | undefined,
-    worksOnSaturday: false,
-  });
+  // const [newEmployee, setNewEmployee] = useState({
+  //   name: "",
+  //   email: "",
+  //   role: "",
+  //   hourlyRate: "",
+  //   hireDate: undefined as Date | undefined,
+  //   worksOnSaturday: false,
+  // });
 
   // Payroll generation form – month/year for all employees
   const [newPayroll, setNewPayroll] = useState({
@@ -364,18 +377,33 @@ export function FinanceTab() {
   const [editEmployeeModalOpen, setEditEmployeeModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [editEmployeeForm, setEditEmployeeForm] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     role: "",
     hourlyRate: "",
     hireDate: undefined as Date | undefined,
     status: "active" as "active" | "inactive",
   });
+  const [newEmployee, setNewEmployee] = useState({
+  firstName: "",
+  lastName: "",
+  email: "",
+  role: "",
+  hourlyRate: "",
+  hireDate: undefined as Date | undefined,
+  worksOnSaturday: false,
+});
+  
 
   const openEditEmployeeModal = (employee: Employee) => {
+    const [firstName, ...lastNameParts] = employee.name.split(" ");
+    const lastName = lastNameParts.join(" ");
+
     setEditingEmployee(employee);
     setEditEmployeeForm({
-      name: employee.name,
+      firstName: firstName || "",
+      lastName: lastName || "",
       email: employee.email,
       role: employee.role,
       hourlyRate: String(employee.hourlyRate),
@@ -385,10 +413,14 @@ export function FinanceTab() {
     setEditEmployeeModalOpen(true);
   };
 
-  const handleEditEmployee = async () => {
-  if (!editingEmployee) return;
-  
-  if (!editEmployeeForm.name || !editEmployeeForm.email || !editEmployeeForm.hourlyRate) {
+  const handleAddEmployee = async () => {
+  if (
+    !newEmployee.firstName ||
+    !newEmployee.lastName ||
+    !newEmployee.email ||
+    !newEmployee.hourlyRate ||
+    !newEmployee.hireDate
+  ) {
     toast("❌ Error", {
       description: "Please fill in all required fields.",
     });
@@ -396,41 +428,94 @@ export function FinanceTab() {
   }
 
   try {
-    const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
-    
-    // Map status to database enum
-    const statusMap = {
-      active: "ACTIVE",
-      inactive: "INACTIVE",
-      terminated: "TERMINATED",
-    };
+    const hourlyRate = parseFloat(newEmployee.hourlyRate);
+    const fullName = `${newEmployee.firstName} ${newEmployee.lastName}`.trim();
 
-    await apiFetch(`/api/employee/${editingEmployee.id}`, {
-      method: "PATCH",
+    await apiFetch("/api/employee", {
+      method: "POST",
       body: JSON.stringify({
-        name: editEmployeeForm.name,
-        email: editEmployeeForm.email,
-        role: editEmployeeForm.role,
+        name: fullName,
+        email: newEmployee.email,
+        role: newEmployee.role || "editor",
         hourlyRate,
-        employeeStatus: statusMap[editEmployeeForm.status],
-        joinedAt: editEmployeeForm.hireDate?.toISOString(),
+        joinedAt: newEmployee.hireDate.toISOString(),
+        worksOnSaturday: newEmployee.worksOnSaturday,
       }),
     });
 
-    toast("✅ Employee Updated", {
-      description: "Employee information has been updated successfully.",
+    toast("✅ Employee Added", {
+      description: "New employee has been added successfully.",
     });
 
-    setEditEmployeeModalOpen(false);
-    setEditingEmployee(null);
+    setNewEmployee({
+      firstName: "",
+      lastName: "",
+      email: "",
+      role: "",
+      hourlyRate: "",
+      hireDate: undefined,
+      worksOnSaturday: false,
+    });
+    setShowNewEmployeeDialog(false);
     await loadEmployees();
   } catch (err: any) {
     console.error(err);
     toast("❌ Error", {
-      description: err.message || "Failed to update employee.",
+      description: err.message || "Failed to add employee.",
     });
   }
 };
+
+  const handleEditEmployee = async () => {
+    if (!editingEmployee) return;
+
+    // if (
+    //   !editEmployeeForm.firstName ||
+    //   !editEmployeeForm.lastName ||
+    //   !editEmployeeForm.email ||
+    // ) {
+    //   toast("❌ Error", {
+    //     description: "Please fill in all required fields.",
+    //   });
+    //   return;
+    // }
+
+    try {
+      const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
+
+      // Map status to database enum
+      const statusMap = {
+        active: "ACTIVE",
+        inactive: "INACTIVE",
+        terminated: "TERMINATED",
+      };
+
+      await apiFetch(`/api/employee/${editingEmployee.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: editEmployeeForm.name,
+          email: editEmployeeForm.email,
+          role: editEmployeeForm.role,
+          hourlyRate,
+          employeeStatus: statusMap[editEmployeeForm.status],
+          joinedAt: editEmployeeForm.hireDate?.toISOString(),
+        }),
+      });
+
+      toast("✅ Employee Updated", {
+        description: "Employee information has been updated successfully.",
+      });
+
+      setEditEmployeeModalOpen(false);
+      setEditingEmployee(null);
+      await loadEmployees();
+    } catch (err: any) {
+      console.error(err);
+      toast("❌ Error", {
+        description: err.message || "Failed to update employee.",
+      });
+    }
+  };
   // ---------- Backend fetches ----------
 
   const loadEmployees = async () => {
@@ -641,55 +726,6 @@ export function FinanceTab() {
 
   // ---------- Handlers (Employees) ----------
 
-  const handleAddEmployee = async () => {
-    if (
-      !newEmployee.name ||
-      !newEmployee.email ||
-      !newEmployee.hourlyRate ||
-      !newEmployee.hireDate
-    ) {
-      toast("❌ Error", {
-        description: "Please fill in all required fields.",
-      });
-      return;
-    }
-
-    try {
-      const hourlyRate = parseFloat(newEmployee.hourlyRate);
-
-      await apiFetch("/api/employee", {
-        method: "POST",
-        body: JSON.stringify({
-          name: newEmployee.name,
-          email: newEmployee.email,
-          role: newEmployee.role || "editor",
-          hourlyRate,
-          joinedAt: newEmployee.hireDate.toISOString(),
-          worksOnSaturday: newEmployee.worksOnSaturday,
-        }),
-      });
-
-      toast("✅ Employee Added", {
-        description: "New employee has been added successfully.",
-      });
-
-      setNewEmployee({
-        name: "",
-        email: "",
-        role: "",
-        hourlyRate: "",
-        hireDate: undefined,
-        worksOnSaturday: false,
-      });
-      setShowNewEmployeeDialog(false);
-      await loadEmployees();
-    } catch (err: any) {
-      console.error(err);
-      toast("❌ Error", {
-        description: err.message || "Failed to add employee.",
-      });
-    }
-  };
 
   const openBonusModal = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -1163,18 +1199,35 @@ export function FinanceTab() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium">Full Name</label>
-                      <Input
-                        value={newEmployee.name}
-                        onChange={(e) =>
-                          setNewEmployee((prev) => ({
-                            ...prev,
-                            name: e.target.value,
-                          }))
-                        }
-                        placeholder="Enter full name"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium">
+                          First Name
+                        </label>
+                        <Input
+                          value={newEmployee.firstName}
+                          onChange={(e) =>
+                            setNewEmployee((prev) => ({
+                              ...prev,
+                              firstName: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter first name"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Last Name</label>
+                        <Input
+                          value={newEmployee.lastName}
+                          onChange={(e) =>
+                            setNewEmployee((prev) => ({
+                              ...prev,
+                              lastName: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter last name"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="text-sm font-medium">Email</label>
@@ -1221,55 +1274,36 @@ export function FinanceTab() {
                     </div>
                     <div>
                       <label className="text-sm font-medium">Hire Date</label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-start text-left"
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {newEmployee.hireDate
-                              ? newEmployee.hireDate.toLocaleDateString()
-                              : "Pick a date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={newEmployee.hireDate}
-                            onSelect={(date) =>
-                              setNewEmployee((prev) => ({
-                                ...prev,
-                                hireDate: date ?? undefined,
-                              }))
-                            }
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                    <SimpleCalendar
+    selected={newEmployee.hireDate}
+    onSelect={(date) =>
+      setNewEmployee((prev) => ({
+        ...prev,
+        hireDate: date,
+      }))
+    }
+    placeholder="Select hire date"
+  />
                     </div>
-                    {
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="worksOnSaturday"
-                          checked={newEmployee.worksOnSaturday}
-                          onChange={(e) =>
-                            setNewEmployee((prev) => ({
-                              ...prev,
-                              worksOnSaturday: e.target.checked,
-                            }))
-                          }
-                        />
-                        <label
-                          htmlFor="worksOnSaturday"
-                          className="text-sm font-medium"
-                        >
-                          Works on Saturday
-                        </label>
-                      </div>
-                    }
-                    {/* Optional: worksOnSaturday toggle later if you want */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="worksOnSaturday"
+                        checked={newEmployee.worksOnSaturday}
+                        onChange={(e) =>
+                          setNewEmployee((prev) => ({
+                            ...prev,
+                            worksOnSaturday: e.target.checked,
+                          }))
+                        }
+                      />
+                      <label
+                        htmlFor="worksOnSaturday"
+                        className="text-sm font-medium"
+                      >
+                        Works on Saturday
+                      </label>
+                    </div>
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
@@ -1310,9 +1344,7 @@ export function FinanceTab() {
                         </div>
                       </div>
                       <Badge
-                        variant={
-                          employee.status === "active" ? "default" : "secondary"
-                        }
+                        className={getEmployeeStatusColor(employee.status)}
                       >
                         {employee.status}
                       </Badge>
@@ -1404,16 +1436,29 @@ export function FinanceTab() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium">Full Name</label>
+                    <label className="text-sm font-medium">First Name</label>
                     <Input
-                      value={editEmployeeForm.name}
+                      value={editEmployeeForm.firstName}
                       onChange={(e) =>
                         setEditEmployeeForm((prev) => ({
                           ...prev,
-                          name: e.target.value,
+                          firstName: e.target.value,
                         }))
                       }
-                      placeholder="Enter full name"
+                      placeholder="Enter first name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Last Name</label>
+                    <Input
+                      value={editEmployeeForm.lastName}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          lastName: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter last name"
                     />
                   </div>
                   <div>
@@ -1453,9 +1498,9 @@ export function FinanceTab() {
                         <SelectItem value="videographer">
                           Videographer
                         </SelectItem>
-                        <SelectItem value="qc_specialist">
+                        {/* <SelectItem value="qc_specialist">
                           QC Specialist
-                        </SelectItem>
+                        </SelectItem> */}
                         <SelectItem value="scheduler">Scheduler</SelectItem>
                         <SelectItem value="qc">QC</SelectItem>
                       </SelectContent>
@@ -1480,32 +1525,16 @@ export function FinanceTab() {
                   </div>
                   <div>
                     <label className="text-sm font-medium">Hire Date</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {editEmployeeForm.hireDate
-                            ? editEmployeeForm.hireDate.toLocaleDateString()
-                            : "Pick a date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={editEmployeeForm.hireDate}
-                          onSelect={(date) =>
-                            setEditEmployeeForm((prev) => ({
-                              ...prev,
-                              hireDate: date ?? undefined,
-                            }))
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                   <SimpleCalendar
+    selected={editEmployeeForm.hireDate}
+    onSelect={(date) =>
+      setEditEmployeeForm((prev) => ({
+        ...prev,
+        hireDate: date,
+      }))
+    }
+    placeholder="Select hire date"
+  />
                   </div>
 
                   {/* UPDATED: Status with 3 options and descriptions */}

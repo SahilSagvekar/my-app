@@ -258,3 +258,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 } */
+
+/* Add to your globals.css or a component-level style */
+.rdp {
+  --rdp-cell-size: 40px;
+}
+
+.rdp-head_cell {
+  width: var(--rdp-cell-size);
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.rdp-cell {
+  width: var(--rdp-cell-size);
+  height: var(--rdp-cell-size);
+}
+
+.rdp-day {
+  width: var(--rdp-cell-size);
+  height: var(--rdp-cell-size);
+}
