@@ -1,136 +1,143 @@
-"use client";
+'use client';
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  ReactNode,
-} from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useSocket } from '@/lib/useSocket';
 
 interface Notification {
   id: string;
   type: string;
   title: string;
-  body?: string;
-  createdAt?: string;
+  message: string;
   read: boolean;
-  payload?: any;
-  link?: string;
+  priority: string;
+  timestamp: string;
+  actionRequired?: boolean;
+  user?: {
+    name: string;
+    avatar: string;
+  };
 }
 
 interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
-  addNotification: (n: Omit<Notification, "id" | "createdAt" | "read">) => Promise<void>;
-  markAsRead: (id: string) => Promise<void>;
+  markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   deleteNotification: (id: string) => void;
   clearAll: () => void;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(
-  undefined
-);
-
-export function useNotifications() {
-  const ctx = useContext(NotificationContext);
-  if (!ctx)
-    throw new Error("useNotifications must be used inside NotificationProvider");
-  return ctx;
-}
+const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const esRef = useRef<EventSource | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const { socket, isConnected } = useSocket();
 
-  // ----------------------------
-  // INITIAL FETCH FROM BACKEND
-  // ----------------------------
-  // useEffect(() => {
-  //   fetch("/api/notifications")
-  //     .then((res) => res.json())
-  //     .then((data) => {
-  //       if (data.notifications) {
-  //         setNotifications(data.notifications);
-  //       }
-  //     });
+  // Load notifications from API
+  useEffect(() => {
+    const loadNotifications = async () => {
+      try {
+        const res = await fetch('/api/notifications');
+        const data = await res.json();
+        
+        const formatted = data.map((n: any) => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          message: n.body || '',
+          read: n.read,
+          priority: 'medium',
+          timestamp: formatTimestamp(n.createdAt),
+          actionRequired: false,
+        }));
+        
+        setNotifications(formatted);
+        setUnreadCount(formatted.filter((n: Notification) => !n.read).length);
+      } catch (error) {
+        console.error('Failed to load notifications:', error);
+      }
+    };
 
-  //   // ----------------------------
-  //   // REALTIME CONNECTION (SSE)
-  //   // ----------------------------
-  //   const connect = () => {
-  //     const es = new EventSource("/api/notifications/stream");
-  //     esRef.current = es;
+    loadNotifications();
+  }, []);
 
-  //     es.addEventListener("notification", (e) => {
-  //       const notif = JSON.parse(e.data);
+  // Listen for real-time notifications via Socket.io
+  useEffect(() => {
+    if (!socket) return;
 
-  //       setNotifications((prev) => {
-  //         if (prev.some((item) => item.id === notif.id)) return prev;
-  //         return [notif, ...prev];
-  //       });
-  //     });
+    socket.on('notification', (notification: any) => {
+      console.log('🔔 New notification received:', notification);
+      
+      const formatted: Notification = {
+        id: notification.id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.body || '',
+        read: false,
+        priority: 'medium',
+        timestamp: 'Just now',
+        actionRequired: false,
+      };
 
-  //     es.onerror = () => {
-  //       es.close();
-  //       setTimeout(connect, 2000);
-  //     };
-  //   };
+      setNotifications(prev => [formatted, ...prev]);
+      setUnreadCount(prev => prev + 1);
 
-  //   connect();
-
-  //   return () => {
-  //     esRef.current?.close();
-  //   };
-  // }, []);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  // ----------------------------
-  // CREATE NEW NOTIFICATION (UI)
-  // ----------------------------
-  const addNotification = async (
-    n: Omit<Notification, "id" | "createdAt" | "read">
-  ) => {
-    await fetch("/api/notifications/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: n.type,
-        title: n.title,
-        body: n.body,
-        payload: n.payload,
-        channels: ["in-app"],
-      }),
+      // Show browser notification if permitted
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(formatted.title, {
+          body: formatted.message,
+          icon: '/images/logo.png',
+        });
+      }
     });
-  };
 
-  // ----------------------------
-  // MARK AS READ
-  // ----------------------------
+    return () => {
+      socket.off('notification');
+    };
+  }, [socket]);
+
   const markAsRead = async (id: string) => {
-    await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+    try {
+      await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: id }),
+      });
 
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+      setNotifications(prev =>
+        prev.map(n => (n.id === id ? { ...n, read: true } : n))
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    notifications.forEach((n) => markAsRead(n.id));
+  const markAllAsRead = async () => {
+    try {
+      await fetch('/api/notifications/mark-all-read', {
+        method: 'PUT',
+      });
+
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
   };
 
-  // ----------------------------
-  // DELETE (LOCAL ONLY)
-  // ----------------------------
   const deleteNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    setUnreadCount(prev => {
+      const notification = notifications.find(n => n.id === id);
+      return notification && !notification.read ? prev - 1 : prev;
+    });
   };
 
   const clearAll = () => {
     setNotifications([]);
+    setUnreadCount(0);
   };
 
   return (
@@ -138,7 +145,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       value={{
         notifications,
         unreadCount,
-        addNotification,
         markAsRead,
         markAllAsRead,
         deleteNotification,
@@ -148,4 +154,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       {children}
     </NotificationContext.Provider>
   );
+}
+
+export function useNotifications() {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error('useNotifications must be used within NotificationProvider');
+  }
+  return context;
+}
+
+function formatTimestamp(date: string): string {
+  const now = new Date();
+  const then = new Date(date);
+  const diff = now.getTime() - then.getTime();
+  
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  
+  return then.toLocaleDateString();
 }

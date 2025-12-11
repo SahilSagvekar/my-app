@@ -8,7 +8,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    fetch('/api/me')
+    fetch('/api/auth/me')
       .then(r => r.json())
       .then(data => {
         if (data.user?.id) {

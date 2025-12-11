@@ -8,7 +8,11 @@ import { uploadBufferToS3 } from "@/lib/s3";
 import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
-
+import { 
+  notifyTaskAssigned, 
+  notifyFileUploaded,
+  notifyReadyForQC 
+} from "@/lib/notificationTriggers";
 
 // ─────────────────────────────────────────
 // Helpers
@@ -214,11 +218,6 @@ export async function GET(req: Request) {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     const { role, userId } = decoded;
 
-    // const where =
-    //   ["admin", "manager"].includes(role)
-    //     ? {}
-    //     : { assignedTo: Number(userId) };
-
     const where = buildRoleWhereQuery(role, Number(userId));
 
     const tasks = await prisma.task.findMany({
@@ -245,7 +244,6 @@ export async function GET(req: Request) {
         folderType: true,
         qcNotes: true,
       },
-
     });
 
     return NextResponse.json({ tasks }, { status: 200 });
@@ -269,6 +267,12 @@ export async function POST(req: Request) {
     if (!["admin", "manager"].includes(decoded.role)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
+
+    // Get creator info for notifications
+    const creator = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { name: true, email: true }
+    });
 
     // 📝 Read FormData
     const form = await req.formData();
@@ -299,7 +303,6 @@ export async function POST(req: Request) {
         essentialsFolderId: true,
         requiresClientReview: true,
         requiresVideographer: true,
-        // monthlyDeliverables: true
       },
     });
 
@@ -337,7 +340,7 @@ export async function POST(req: Request) {
         videographer,
         createdBy: decoded.userId,
         clientId,
-        monthlyDeliverableId:monthlyDeliverableId ,
+        monthlyDeliverableId: monthlyDeliverableId,
         driveLinks: uploadedLinks,
         folderType,
         requiresClientReview: client.requiresClientReview,
@@ -381,6 +384,44 @@ export async function POST(req: Request) {
     // 🔁 AUTO GENERATE TASKS
     console.log("generateMonthlyTasksFromTemplate");
     await generateMonthlyTasksFromTemplate(task.id);
+
+    // 🔔 SEND NOTIFICATIONS
+    const taskTitle = task.title || `Task for ${client.name}`;
+    const creatorName = creator?.name || 'Manager';
+
+    // Notify assigned editor
+    if (assignedTo) {
+      await notifyTaskAssigned(
+        assignedTo,
+        taskTitle,
+        task.id,
+        creatorName
+      );
+    }
+
+    // Notify videographer if assigned
+    if (videographer && client.requiresVideographer) {
+      await notifyTaskAssigned(
+        videographer,
+        taskTitle,
+        task.id,
+        creatorName
+      );
+    }
+
+    // Notify about file uploads if any
+    if (files.length > 0) {
+      const notifyUsers = [assignedTo];
+      if (videographer) notifyUsers.push(videographer);
+      
+      await notifyFileUploaded(
+        notifyUsers,
+        `${files.length} file(s)`,
+        taskTitle,
+        task.id,
+        creatorName
+      );
+    }
 
     return NextResponse.json(task, { status: 201 });
   } catch (err: any) {

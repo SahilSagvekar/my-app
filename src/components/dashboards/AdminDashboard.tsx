@@ -468,10 +468,10 @@ async function loadTasks() {
               </div>
             </div>
             <DashboardOverview />
-            <div>
-              <p>Socket: {isConnected ? "✅" : "❌"}</p>
+            {/* <div> */}
+              {/* <p>Socket: {isConnected ? "✅" : "❌"}</p> */}
               {/* Your existing page content */}
-            </div>
+            {/* </div> */}
           </div>
         );
     }

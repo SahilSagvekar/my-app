@@ -6,9 +6,10 @@ import { countWorkingDaysBetween } from "@/lib/workdays";
 import type { NextRequest } from "next/server";
 import jwt from 'jsonwebtoken';
 import { Console } from "console";
+import { notifyLeaveRequestSubmitted } from "@/lib/notificationTriggers";
 
 const LeaveSchema = z.object({
-  startDate: z.string().datetime().or(z.string()), // we'll parse manually
+  startDate: z.string().datetime().or(z.string()),
   endDate: z.string().datetime().or(z.string()),
   reason: z.string().optional(),
 });
@@ -23,7 +24,7 @@ function getUserFromToken(req: NextRequest) {
     }
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    return decoded.user || decoded.currentUser || decoded; // Handle different token structures
+    return decoded.user || decoded.currentUser || decoded;
   } catch (error) {
     console.error('Token verification failed:', error);
     return null;
@@ -47,7 +48,6 @@ export async function POST(
     const { params } = await Promise.resolve(context);
     console.log('Creating leave for employeeId:', params, 'by user:', currentUser);
 
-    // const employeeId = Number(params.employeeId);
     const employeeId = currentUser.userId;
 
     if (!employeeId || Number.isNaN(employeeId)) {
@@ -56,17 +56,6 @@ export async function POST(
         { status: 400 }
       );
     }
-
-    // Only admin or the employee themself can create this leave
-    // if (
-    //   currentUser.role !== "admin" &&
-    //   !(isEmployee(currentUser) && currentUser.id === employeeId)
-    // ) {
-    //   return NextResponse.json(
-    //     { ok: false, message: "Forbidden" },
-    //     { status: 403 }
-    //   );
-    // }
 
     const bodyRaw = await req.json();
     const body = LeaveSchema.parse(bodyRaw);
@@ -91,7 +80,12 @@ export async function POST(
     // Fetch employee to know worksOnSaturday
     const employee = await prisma.user.findUnique({
       where: { id: employeeId },
-      select: { id: true, worksOnSaturday: true },
+      select: { 
+        id: true, 
+        name: true,
+        email: true,
+        worksOnSaturday: true 
+      },
     });
 
     if (!employee) {
@@ -129,12 +123,26 @@ export async function POST(
       },
     });
 
-    // hook: notify admin later (Slack, in-app, whatever)
+    // 🔔 SEND NOTIFICATIONS TO ADMINS
+    const admins = await prisma.user.findMany({
+      where: { role: 'admin' },
+      select: { id: true }
+    });
+
+    if (admins.length > 0) {
+      await notifyLeaveRequestSubmitted(
+        admins.map(a => a.id),
+        employee.name || employee.email,
+        leave.id,
+        start.toLocaleDateString(),
+        end.toLocaleDateString()
+      );
+    }
+
     return NextResponse.json({ ok: true, leave });
   } catch (err: any) {
     console.error('POST /api/employee/[id]/leave error:', err);
     
-    // Handle Zod validation errors
     if (err.name === 'ZodError') {
       return NextResponse.json(
         { ok: false, message: "Invalid request data", errors: err.errors },
@@ -155,7 +163,6 @@ export async function GET(
   context: { params: { employeeId: string } }
 ) {
   try {
-    // Get and verify user from token
     const user = getUserFromToken(req);
     
     if (!user) {
@@ -175,7 +182,6 @@ export async function GET(
       );
     }
 
-    // admin OR that employee
     if (
       user.role !== "admin" &&
       !(isEmployee(user) && user.id === employeeId)

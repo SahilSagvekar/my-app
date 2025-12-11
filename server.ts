@@ -2,8 +2,6 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { Server } from 'socket.io';
-import jwt from "jsonwebtoken";
-import { Judson } from 'next/font/google';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -30,66 +28,21 @@ app.prepare().then(() => {
     },
   });
 
-//  io.on('connection', (socket) => {
-//   console.log('✅ User connected:', socket.id);
-//    console.log('Auth token:', socket.handshake.auth.token);
-
-//   // Get token from handshake
-//   const token = socket.handshake.auth.token;
-  
-//   if (token) {
-//     try {
-//       // const jwt = require('jsonwebtoken');
-//       const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-//       const userId = decoded.userId;
-      
-//       // Auto-join user to their room
-//       socket.join(`user:${userId}`);
-//       console.log(`✅ User ${userId} joined their notification room`);
-//     } catch (err) {
-//       console.log('❌ Invalid token');
-//     }
-//   }
-
-//   socket.on('disconnect', () => {
-//     console.log('❌ User disconnected:', socket.id);
-//   });
-// });
-
-io.on('connection', (socket) => {
-  console.log('✅ User connected:', socket.id);
-  
-  // const userId = socket.handshake.auth.userId;  // Changed from token
-  // console.log('User ID:', userId);
-  
-  const token = socket.handshake.auth.token;
-  console.log(token)
-  
-  if (token) {
-    try {
-      // const jwt = require('jsonwebtoken');
-      const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-      const { userId } = decoded;
-
-      console.log(JSON.stringify(decoded));
-      console.log(userId);
-
-      // Auto-join user to their room
-      if (userId) {
-        socket.join(`user:${userId}`);
-        console.log(`✅ User ${userId} joined their notification room`);
-      }
-    } catch (err) {
-      console.log("❌ Invalid token");
+  io.on('connection', (socket) => {
+    console.log('✅ User connected:', socket.id);
+    
+    const userId = socket.handshake.auth.userId;
+    console.log('User ID:', userId);
+    
+    if (userId) {
+      socket.join(`user:${userId}`);
+      console.log(`✅ User ${userId} joined their notification room`);
     }
-  }
-  
-  
 
-  socket.on('disconnect', () => {
-    console.log('❌ User disconnected:', socket.id);
+    socket.on('disconnect', () => {
+      console.log('❌ User disconnected:', socket.id);
+    });
   });
-});
 
   (global as any).io = io;
 

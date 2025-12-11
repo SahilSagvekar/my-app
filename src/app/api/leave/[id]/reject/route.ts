@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import type { NextRequest } from "next/server";
+import { notifyLeaveRequestRejected } from "@/lib/notificationTriggers";
 
 export async function PATCH(
   req: NextRequest,
@@ -21,6 +22,14 @@ export async function PATCH(
 
     const leave = await prisma.leave.findUnique({
       where: { id: leaveId },
+      select: {
+        id: true,
+        status: true,
+        employeeId: true,
+        startDate: true,
+        endDate: true,
+        reason: true,
+      }
     });
 
     if (!leave) {
@@ -44,7 +53,13 @@ export async function PATCH(
       },
     });
 
-    // NOTE: we do NOT auto-delete deduction here because it should not exist for rejected leave.
+    // 🔔 NOTIFY EMPLOYEE OF REJECTION
+    await notifyLeaveRequestRejected(
+      leave.employeeId,
+      leave.startDate.toLocaleDateString(),
+      leave.endDate.toLocaleDateString(),
+      "Please contact your manager for details" // You can make this customizable
+    );
 
     return NextResponse.json({ ok: true, leave: updated });
   } catch (err: any) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
+import { notifyLeaveRequestApproved } from "@/lib/notificationTriggers";
 
 function calculateLeaveDays(
   startDate: Date,
@@ -11,7 +12,7 @@ function calculateLeaveDays(
   const d = new Date(startDate);
 
   while (d <= endDate) {
-    const day = d.getDay(); // 0 = Sun, 6 = Sat
+    const day = d.getDay();
     if (day !== 0) {
       if (day === 6 && !worksOnSaturday) {
         // skip Saturday
@@ -72,7 +73,6 @@ export async function PATCH(
     const hourlyRate = Number(employee.hourlyRate);
     const deductionAmount = hourlyRate * 8 * leaveDays;
 
-    // 🔥 FIX: convert (year, month) -> DateTime
     const firstDayOfMonth = new Date(
       Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)
     );
@@ -90,12 +90,17 @@ export async function PATCH(
           employeeId: employee.id,
           leaveId: leaveId,
           amount: deductionAmount,
-          month: firstDayOfMonth, // DateTime ✔
-          // year: firstDayOfMonth,  // DateTime ✔
-          // reason: "LEAVE",
+          month: firstDayOfMonth,
         },
       }),
     ]);
+
+    // 🔔 NOTIFY EMPLOYEE OF APPROVAL
+    await notifyLeaveRequestApproved(
+      employee.id,
+      start.toLocaleDateString(),
+      end.toLocaleDateString()
+    );
 
     return NextResponse.json({
       ok: true,
