@@ -17,7 +17,7 @@ const PatchSchema = z.object({
       "client",
     ])
     .optional(), // Changed 'qc_specialist' to 'qc'
-  hourlyRate: z.number().positive().optional(), // Added back hourlyRate
+  hourlyRate: z.number().min(0).optional(), // Added back hourlyRate
   monthlyBaseHours: z.number().int().positive().optional(),
   employeeStatus: z.enum(["ACTIVE", "INACTIVE", "TERMINATED"]).optional(),
   joinedAt: z.string().optional(),
