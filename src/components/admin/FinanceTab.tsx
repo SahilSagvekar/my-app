@@ -1243,18 +1243,33 @@ export function FinanceTab() {
                         placeholder="employee@company.com"
                       />
                     </div>
+                    {/* Around line 1280 - Replace the Role input field */}
                     <div>
                       <label className="text-sm font-medium">Role</label>
-                      <Input
+                      <Select
                         value={newEmployee.role}
-                        onChange={(e) =>
+                        onValueChange={(value) =>
                           setNewEmployee((prev) => ({
                             ...prev,
-                            role: e.target.value,
+                            role: value,
                           }))
                         }
-                        placeholder="Editor, Manager, etc."
-                      />
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="editor">Editor</SelectItem>
+                          <SelectItem value="videographer">
+                            Videographer
+                          </SelectItem>
+                          <SelectItem value="scheduler">Scheduler</SelectItem>
+                          <SelectItem value="qc">QC</SelectItem>
+                          <SelectItem value="client">Client</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <label className="text-sm font-medium">
@@ -1274,16 +1289,16 @@ export function FinanceTab() {
                     </div>
                     <div>
                       <label className="text-sm font-medium">Hire Date</label>
-                    <SimpleCalendar
-    selected={newEmployee.hireDate}
-    onSelect={(date) =>
-      setNewEmployee((prev) => ({
-        ...prev,
-        hireDate: date,
-      }))
-    }
-    placeholder="Select hire date"
-  />
+                      <SimpleCalendar
+                        selected={newEmployee.hireDate}
+                        onSelect={(date) =>
+                          setNewEmployee((prev) => ({
+                            ...prev,
+                            hireDate: date,
+                          }))
+                        }
+                        placeholder="Select hire date"
+                      />
                     </div>
                     <div className="flex items-center gap-2">
                       <input
@@ -1435,7 +1450,7 @@ export function FinanceTab() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div>
+                  {/* <div>
                     <label className="text-sm font-medium">First Name</label>
                     <Input
                       value={editEmployeeForm.firstName}
@@ -1447,8 +1462,37 @@ export function FinanceTab() {
                       }
                       placeholder="Enter first name"
                     />
-                  </div>
-                  <div>
+                  </div> */}
+
+                   <div>
+                        <label className="text-sm font-medium">
+                          First Name
+                        </label>
+                        <Input
+                          value={editEmployeeForm.firstName}
+                          onChange={(e) =>
+                            setEditEmployeeForm((prev) => ({
+                              ...prev,
+                              firstName: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter first name"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Last Name</label>
+                        <Input
+                          value={editEmployeeForm.lastName}
+                          onChange={(e) =>
+                            setEditEmployeeForm((prev) => ({
+                              ...prev,
+                              lastName: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter last name"
+                        />
+                      </div>
+                  {/* <div>
                     <label className="text-sm font-medium">Last Name</label>
                     <Input
                       value={editEmployeeForm.lastName}
@@ -1460,7 +1504,7 @@ export function FinanceTab() {
                       }
                       placeholder="Enter last name"
                     />
-                  </div>
+                  </div> */}
                   <div>
                     <label className="text-sm font-medium">Email</label>
                     <Input
@@ -1525,16 +1569,16 @@ export function FinanceTab() {
                   </div>
                   <div>
                     <label className="text-sm font-medium">Hire Date</label>
-                   <SimpleCalendar
-    selected={editEmployeeForm.hireDate}
-    onSelect={(date) =>
-      setEditEmployeeForm((prev) => ({
-        ...prev,
-        hireDate: date,
-      }))
-    }
-    placeholder="Select hire date"
-  />
+                    <SimpleCalendar
+                      selected={editEmployeeForm.hireDate}
+                      onSelect={(date) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          hireDate: date,
+                        }))
+                      }
+                      placeholder="Select hire date"
+                    />
                   </div>
 
                   {/* UPDATED: Status with 3 options and descriptions */}

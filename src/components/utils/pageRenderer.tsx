@@ -21,6 +21,7 @@ import { EditorProjects } from '../EditorProjects';
 import { EditorResources } from '../EditorResources';
 import { FeedbackSystem } from '../FeedbackSystem';
 import LeavesComponent from '../admin/LeavesComponent';
+import { ResetPasswordWithOTP } from '../auth/ResetPasswordWithOTP';
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="p-8 text-center text-muted-foreground">{title} - Coming Soon</div>
@@ -29,6 +30,11 @@ const ComingSoonPage = ({ title }: { title: string }) => (
 export function renderPage(role: string, page: string): JSX.Element {
 
   console.log(`Rendering page for role: ${role}, page: ${page}`);
+
+  if (page === 'forgot-password') {
+    return <ResetPasswordWithOTP onBackToLogin={() => window.location.href = '/login'} />;
+  }
+
   if (role === 'admin') {
     switch (page) {
       case 'dashboard':
