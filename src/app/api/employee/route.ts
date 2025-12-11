@@ -6,7 +6,7 @@ import { z } from "zod";
 const BodySchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
-  hourlyRate: z.number().optional(),
+  hourlyRate: z.number().min(0).optional(),
   monthlyBaseHours: z.number().int().positive().optional(),
   role: z.string().optional(), // string because you don’t want enum errors
 });
