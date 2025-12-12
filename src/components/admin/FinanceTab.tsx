@@ -125,7 +125,7 @@ const employees = [
   }
 ];
 
-export function UserManagementTab() {
+export function FinanceTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
