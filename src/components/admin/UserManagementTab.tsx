@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState,useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -137,6 +137,58 @@ export function UserManagementTab() {
     role: '',
     status: 'active'
   });
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+// FETCH EMPLOYEES FROM YOUR API
+  // ------------------------------
+  useEffect(() => {
+
+    async function loadEmployees() {
+      try {
+        const res = await fetch("api/employee/list");
+        const data = await res.json();
+
+        if (data.ok) {
+          const formatted = data.employees.map((u: any) => {
+            const initials =
+              u.name && u.name.trim() !== ""
+                ? u.name
+                    .split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                : "U";
+
+            return {
+              id: u.id,
+              name: u.name || "No Name",
+              email: u.email,
+              phone: "N/A", // because User model has no phone field
+              role: u.role,
+              status:
+                u.employeeStatus === "ACTIVE"
+                  ? "active"
+                  : u.employeeStatus === "INACTIVE"
+                  ? "inactive"
+                  : "active",
+              joinDate: u.joinedAt || null,
+              lastActive: "N/A", // field not in DB
+              tasksCompleted: 0, // field not in DB
+              avatar: initials
+            };
+          });
+
+          setEmployees(formatted);
+          
+        }
+      } catch (error) {
+        console.error("Failed to fetch employees →", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadEmployees();
+  }, []);
 
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
