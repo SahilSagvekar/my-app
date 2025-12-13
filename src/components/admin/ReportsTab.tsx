@@ -1,179 +1,268 @@
-import { useState } from 'react';
+// components/admin/ReportsTab.tsx
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DatePickerWithRange } from '../ui/date-picker-with-range';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
-import { FileText, CheckCircle, Clock, Calendar, Download, TrendingUp, TrendingDown, BarChart3, Filter, Users } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area, Tooltip } from 'recharts';
+import { FileText, CheckCircle, Clock, Calendar, Download, TrendingUp, TrendingDown, BarChart3, RefreshCw } from 'lucide-react';
 
-// Mock data for employee reports
-const employees = [
-  { id: 'all', name: 'All Employees' },
-  { id: 'sarah', name: 'Sarah Johnson (Admin)' },
-  { id: 'michael', name: 'Michael Chen (Manager)' },
-  { id: 'emma', name: 'Emma Wilson (Editor)' },
-  { id: 'david', name: 'David Rodriguez (QC)' },
-  { id: 'lisa', name: 'Lisa Park (Scheduler)' },
-  { id: 'james', name: 'James Thompson (Account Manager)' }
-];
+interface DailyReport {
+  date: string;
+  employee: string;
+  role: string;
+  tasksUploaded: number;
+  tasksApproved: number;
+  qcChecks: number;
+  schedulingTasks: number;
+  totalOutput: number;
+}
 
-const dailyOutputData = [
-  {
-    date: '2024-08-04',
-    employee: 'Emma Wilson',
-    role: 'Editor',
-    tasksUploaded: 8,
-    tasksApproved: 6,
-    qcChecks: 0,
-    schedulingTasks: 0,
-    totalOutput: 14
-  },
-  {
-    date: '2024-08-04',
-    employee: 'David Rodriguez',
-    role: 'QC',
-    tasksUploaded: 0,
-    tasksApproved: 0,
-    qcChecks: 12,
-    schedulingTasks: 0,
-    totalOutput: 12
-  },
-  {
-    date: '2024-08-04',
-    employee: 'Lisa Park',
-    role: 'Scheduler',
-    tasksUploaded: 0,
-    tasksApproved: 0,
-    qcChecks: 0,
-    schedulingTasks: 9,
-    totalOutput: 9
-  },
-  {
-    date: '2024-08-05',
-    employee: 'Emma Wilson',
-    role: 'Editor',
-    tasksUploaded: 7,
-    tasksApproved: 8,
-    qcChecks: 0,
-    schedulingTasks: 0,
-    totalOutput: 15
-  },
-  {
-    date: '2024-08-05',
-    employee: 'David Rodriguez',
-    role: 'QC',
-    tasksUploaded: 0,
-    tasksApproved: 0,
-    qcChecks: 10,
-    schedulingTasks: 0,
-    totalOutput: 10
-  },
-  {
-    date: '2024-08-05',
-    employee: 'Lisa Park',
-    role: 'Scheduler',
-    tasksUploaded: 0,
-    tasksApproved: 0,
-    qcChecks: 0,
-    schedulingTasks: 11,
-    totalOutput: 11
-  },
-  {
-    date: '2024-08-06',
-    employee: 'Emma Wilson',
-    role: 'Editor',
-    tasksUploaded: 9,
-    tasksApproved: 7,
-    qcChecks: 0,
-    schedulingTasks: 0,
-    totalOutput: 16
-  },
-  {
-    date: '2024-08-06',
-    employee: 'David Rodriguez',
-    role: 'QC',
-    tasksUploaded: 0,
-    tasksApproved: 0,
-    qcChecks: 14,
-    schedulingTasks: 0,
-    totalOutput: 14
-  },
-  {
-    date: '2024-08-07',
-    employee: 'Emma Wilson',
-    role: 'Editor',
-    tasksUploaded: 6,
-    tasksApproved: 9,
-    qcChecks: 0,
-    schedulingTasks: 0,
-    totalOutput: 15
-  }
-];
+interface EmployeePerformance {
+  employee: string;
+  role: string;
+  totalTasks: number;
+  avgDaily: number;
+  efficiency: number;
+  trend: 'up' | 'down' | 'stable';
+}
 
-const weeklyTrendData = [
-  { week: 'Week 1', tasksUploaded: 42, tasksApproved: 38, qcChecks: 56, schedulingTasks: 31 },
-  { week: 'Week 2', tasksUploaded: 48, tasksApproved: 41, qcChecks: 62, schedulingTasks: 35 },
-  { week: 'Week 3', tasksUploaded: 52, tasksApproved: 47, qcChecks: 58, schedulingTasks: 38 },
-  { week: 'Week 4', tasksUploaded: 45, tasksApproved: 43, qcChecks: 61, schedulingTasks: 33 }
-];
+interface WeeklyTrend {
+  week: string;
+  tasksUploaded: number;
+  tasksApproved: number;
+  qcChecks: number;
+  schedulingTasks: number;
+}
 
-const employeePerformance = [
-  {
-    employee: 'Emma Wilson',
-    role: 'Editor',
-    totalTasks: 45,
-    avgDaily: 6.4,
-    efficiency: 94,
-    trend: 'up'
-  },
-  {
-    employee: 'David Rodriguez',
-    role: 'QC',
-    totalTasks: 67,
-    avgDaily: 9.6,
-    efficiency: 91,
-    trend: 'up'
-  },
-  {
-    employee: 'Lisa Park',
-    role: 'Scheduler',
-    totalTasks: 31,
-    avgDaily: 4.4,
-    efficiency: 88,
-    trend: 'down'
-  },
-  {
-    employee: 'James Thompson',
-    role: 'Account Manager',
-    totalTasks: 23,
-    avgDaily: 3.3,
-    efficiency: 85,
-    trend: 'stable'
-  }
-];
+interface SummaryMetric {
+  value: number;
+  change: string;
+}
 
 export function ReportsTab() {
   const [selectedEmployee, setSelectedEmployee] = useState('all');
   const [dateRange, setDateRange] = useState({
-    from: new Date(2024, 7, 1), // Aug 1, 2024
-    to: new Date() // Today
+    from: new Date(new Date().setDate(new Date().getDate() - 30)),
+    to: new Date()
   });
+  
+  // Data states
+  const [dailyOutputData, setDailyOutputData] = useState<DailyReport[]>([]);
+  const [employeePerformance, setEmployeePerformance] = useState<EmployeePerformance[]>([]);
+  const [weeklyTrendData, setWeeklyTrendData] = useState<WeeklyTrend[]>([]);
+  const [summaryMetrics, setSummaryMetrics] = useState<{
+    tasksUploaded: SummaryMetric;
+    tasksApproved: SummaryMetric;
+    qcChecks: SummaryMetric;
+    schedulingTasks: SummaryMetric;
+  } | null>(null);
+  
+  // Loading states
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [employees, setEmployees] = useState<Array<{ id: string; name: string }>>([
+    { id: 'all', name: 'All Employees' }
+  ]);
+
+  // Load all data on mount and when filters change
+  useEffect(() => {
+    loadAllReports();
+  }, [selectedEmployee, dateRange]);
+
+  // Load employees on mount
+  useEffect(() => {
+    loadEmployees();
+  }, []);
+
+  async function loadEmployees() {
+    try {
+      const res = await fetch('/api/admin/employees?status=ACTIVE');
+      const data = await res.json();
+      
+      if (data.ok) {
+        const employeeList = data.employees.map((emp: any) => ({
+          id: emp.id.toString(),
+          name: `${emp.name} (${emp.role})`
+        }));
+        setEmployees([{ id: 'all', name: 'All Employees' }, ...employeeList]);
+      }
+    } catch (error) {
+      console.error('Failed to load employees:', error);
+    }
+  }
+
+  async function loadAllReports() {
+  try {
+    setLoading(true);
+    
+    const startDate = dateRange.from?.toISOString().split('T')[0];
+    const endDate = dateRange.to?.toISOString().split('T')[0];
+
+    console.log('Loading reports with:', { startDate, endDate, selectedEmployee });
+
+    // Fetch all data in parallel
+    const [dailyRes, performanceRes, weeklyRes, summaryRes] = await Promise.all([
+      fetch(`/api/admin/reports/daily?employeeId=${selectedEmployee}&startDate=${startDate}&endDate=${endDate}`),
+      fetch(`/api/admin/reports/performance?startDate=${startDate}&endDate=${endDate}`),
+      fetch(`/api/admin/reports/weekly-trends?weeks=4`),
+      fetch(`/api/admin/reports/summary?startDate=${startDate}&endDate=${endDate}`)
+    ]);
+
+    console.log('Response statuses:', {
+      daily: dailyRes.status,
+      performance: performanceRes.status,
+      weekly: weeklyRes.status,
+      summary: summaryRes.status
+    });
+
+    // Check if responses are OK
+    if (!dailyRes.ok) {
+      const errorText = await dailyRes.text();
+      console.error('Daily report error:', errorText);
+      throw new Error(`Daily report failed: ${dailyRes.status}`);
+    }
+
+    if (!performanceRes.ok) {
+      const errorText = await performanceRes.text();
+      console.error('Performance report error:', errorText);
+      throw new Error(`Performance report failed: ${performanceRes.status}`);
+    }
+
+    if (!weeklyRes.ok) {
+      const errorText = await weeklyRes.text();
+      console.error('Weekly trends error:', errorText);
+      throw new Error(`Weekly trends failed: ${weeklyRes.status}`);
+    }
+
+    if (!summaryRes.ok) {
+      const errorText = await summaryRes.text();
+      console.error('Summary error:', errorText);
+      throw new Error(`Summary failed: ${summaryRes.status}`);
+    }
+
+    // Parse JSON responses
+    const [dailyData, performanceData, weeklyData, summaryData] = await Promise.all([
+      dailyRes.json(),
+      performanceRes.json(),
+      weeklyRes.json(),
+      summaryRes.json()
+    ]);
+
+    console.log('Parsed data:', {
+      daily: dailyData,
+      performance: performanceData,
+      weekly: weeklyData,
+      summary: summaryData
+    });
+
+    if (dailyData.ok) {
+      setDailyOutputData(dailyData.reports || []);
+    } else {
+      console.error('Daily data error:', dailyData.message);
+    }
+
+    if (performanceData.ok) {
+      setEmployeePerformance(performanceData.performance || []);
+    } else {
+      console.error('Performance data error:', performanceData.message);
+    }
+
+    if (weeklyData.ok) {
+      setWeeklyTrendData(weeklyData.trends || []);
+    } else {
+      console.error('Weekly data error:', weeklyData.message);
+    }
+
+    if (summaryData.ok) {
+      setSummaryMetrics(summaryData.summary);
+    } else {
+      console.error('Summary data error:', summaryData.message);
+    }
+
+  } catch (error: any) {
+    console.error('Failed to load reports:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
+    
+    // Show user-friendly error
+    alert(`Failed to load reports: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadAllReports();
+    setRefreshing(false);
+    
+   console.log("Reports refreshed successfully");
+  }
+
+  async function handleExport(format: 'csv' | 'pdf') {
+    try {
+      const startDate = dateRange.from?.toISOString().split('T')[0];
+      const endDate = dateRange.to?.toISOString().split('T')[0];
+
+      const res = await fetch('/api/admin/reports/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          format,
+          employeeId: selectedEmployee,
+          startDate,
+          endDate
+        })
+      });
+
+      if (format === 'csv' && res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `daily-report-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        toast({
+          title: "Success",
+          description: "Report exported successfully",
+        });
+      } else {
+        const data = await res.json();
+        toast({
+          title: "Error",
+          description: data.message || "Failed to export report",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to export report",
+        variant: "destructive",
+      });
+    }
+  }
 
   const filteredData = selectedEmployee === 'all' 
     ? dailyOutputData 
     : dailyOutputData.filter(record => record.employee.toLowerCase().includes(selectedEmployee));
 
-  const totalMetrics = {
-    tasksUploaded: dailyOutputData.reduce((sum, record) => sum + record.tasksUploaded, 0),
-    tasksApproved: dailyOutputData.reduce((sum, record) => sum + record.tasksApproved, 0),
-    qcChecks: dailyOutputData.reduce((sum, record) => sum + record.qcChecks, 0),
-    schedulingTasks: dailyOutputData.reduce((sum, record) => sum + record.schedulingTasks, 0)
-  };
-
-  const handleExport = (format: string) => {
-    console.log(`Exporting data as ${format}`);
-    // In a real app, this would generate and download the file
+  const totalMetrics = summaryMetrics || {
+    tasksUploaded: { value: 0, change: '+0%' },
+    tasksApproved: { value: 0, change: '+0%' },
+    qcChecks: { value: 0, change: '+0%' },
+    schedulingTasks: { value: 0, change: '+0%' }
   };
 
   const getDayData = () => {
@@ -199,15 +288,37 @@ export function ReportsTab() {
     return Object.values(dayTotals).sort((a: any, b: any) => a.date.localeCompare(b.date));
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading reports...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Daily Output Reports
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Daily Output Reports
+            </CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-end gap-4">
@@ -256,10 +367,16 @@ export function ReportsTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Tasks Uploaded</p>
-                <h3 className="mt-2">{totalMetrics.tasksUploaded}</h3>
+                <h3 className="text-2xl font-bold mt-2">{totalMetrics.tasksUploaded.value}</h3>
                 <div className="flex items-center gap-1 mt-1">
-                  <TrendingUp className="h-3 w-3 text-green-600" />
-                  <span className="text-xs text-green-600">+12.5%</span>
+                  {totalMetrics.tasksUploaded.change.startsWith('+') ? (
+                    <TrendingUp className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-600" />
+                  )}
+                  <span className={`text-xs ${totalMetrics.tasksUploaded.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                    {totalMetrics.tasksUploaded.change}
+                  </span>
                 </div>
               </div>
               <FileText className="h-8 w-8 text-blue-600" />
@@ -272,10 +389,16 @@ export function ReportsTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Tasks Approved</p>
-                <h3 className="mt-2">{totalMetrics.tasksApproved}</h3>
+                <h3 className="text-2xl font-bold mt-2">{totalMetrics.tasksApproved.value}</h3>
                 <div className="flex items-center gap-1 mt-1">
-                  <TrendingUp className="h-3 w-3 text-green-600" />
-                  <span className="text-xs text-green-600">+8.3%</span>
+                  {totalMetrics.tasksApproved.change.startsWith('+') ? (
+                    <TrendingUp className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-600" />
+                  )}
+                  <span className={`text-xs ${totalMetrics.tasksApproved.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                    {totalMetrics.tasksApproved.change}
+                  </span>
                 </div>
               </div>
               <CheckCircle className="h-8 w-8 text-green-600" />
@@ -288,10 +411,16 @@ export function ReportsTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">QC Checks</p>
-                <h3 className="mt-2">{totalMetrics.qcChecks}</h3>
+                <h3 className="text-2xl font-bold mt-2">{totalMetrics.qcChecks.value}</h3>
                 <div className="flex items-center gap-1 mt-1">
-                  <TrendingUp className="h-3 w-3 text-green-600" />
-                  <span className="text-xs text-green-600">+15.7%</span>
+                  {totalMetrics.qcChecks.change.startsWith('+') ? (
+                    <TrendingUp className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-600" />
+                  )}
+                  <span className={`text-xs ${totalMetrics.qcChecks.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                    {totalMetrics.qcChecks.change}
+                  </span>
                 </div>
               </div>
               <Clock className="h-8 w-8 text-orange-600" />
@@ -304,10 +433,16 @@ export function ReportsTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Scheduling Tasks</p>
-                <h3 className="mt-2">{totalMetrics.schedulingTasks}</h3>
+                <h3 className="text-2xl font-bold mt-2">{totalMetrics.schedulingTasks.value}</h3>
                 <div className="flex items-center gap-1 mt-1">
-                  <TrendingDown className="h-3 w-3 text-red-600" />
-                  <span className="text-xs text-red-600">-2.1%</span>
+                  {totalMetrics.schedulingTasks.change.startsWith('+') ? (
+                    <TrendingUp className="h-3 w-3 text-green-600" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-600" />
+                  )}
+                  <span className={`text-xs ${totalMetrics.schedulingTasks.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                    {totalMetrics.schedulingTasks.change}
+                  </span>
                 </div>
               </div>
               <Calendar className="h-8 w-8 text-purple-600" />
@@ -330,6 +465,7 @@ export function ReportsTab() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
+                  <Tooltip />
                   <Area 
                     type="monotone" 
                     dataKey="tasksUploaded" 
@@ -337,6 +473,7 @@ export function ReportsTab() {
                     stroke="#3b82f6" 
                     fill="#3b82f6" 
                     fillOpacity={0.6}
+                    name="Tasks Uploaded"
                   />
                   <Area 
                     type="monotone" 
@@ -345,6 +482,7 @@ export function ReportsTab() {
                     stroke="#10b981" 
                     fill="#10b981" 
                     fillOpacity={0.6}
+                    name="Tasks Approved"
                   />
                   <Area 
                     type="monotone" 
@@ -353,6 +491,7 @@ export function ReportsTab() {
                     stroke="#f59e0b" 
                     fill="#f59e0b" 
                     fillOpacity={0.6}
+                    name="QC Checks"
                   />
                   <Area 
                     type="monotone" 
@@ -361,6 +500,7 @@ export function ReportsTab() {
                     stroke="#8b5cf6" 
                     fill="#8b5cf6" 
                     fillOpacity={0.6}
+                    name="Scheduling"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -380,17 +520,20 @@ export function ReportsTab() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="week" />
                   <YAxis />
+                  <Tooltip />
                   <Line 
                     type="monotone" 
                     dataKey="tasksUploaded" 
                     stroke="#3b82f6" 
                     strokeWidth={2}
+                    name="Tasks Uploaded"
                   />
                   <Line 
                     type="monotone" 
                     dataKey="qcChecks" 
                     stroke="#f59e0b" 
                     strokeWidth={2}
+                    name="QC Checks"
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -407,14 +550,15 @@ export function ReportsTab() {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={[
-                  { type: 'Uploaded', count: totalMetrics.tasksUploaded },
-                  { type: 'Approved', count: totalMetrics.tasksApproved },
-                  { type: 'QC Checks', count: totalMetrics.qcChecks },
-                  { type: 'Scheduling', count: totalMetrics.schedulingTasks }
+                  { type: 'Uploaded', count: totalMetrics.tasksUploaded.value },
+                  { type: 'Approved', count: totalMetrics.tasksApproved.value },
+                  { type: 'QC Checks', count: totalMetrics.qcChecks.value },
+                  { type: 'Scheduling', count: totalMetrics.schedulingTasks.value }
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="type" />
                   <YAxis />
+                  <Tooltip />
                   <Bar dataKey="count" fill="hsl(var(--primary))" radius={4} />
                 </BarChart>
               </ResponsiveContainer>
@@ -535,7 +679,7 @@ export function ReportsTab() {
                       {record.schedulingTasks || '-'}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <Badge className="bg-blue-100 text-blue-800">
+                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
                         {record.totalOutput}
                       </Badge>
                     </td>
