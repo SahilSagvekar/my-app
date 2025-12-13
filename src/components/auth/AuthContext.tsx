@@ -1,5 +1,8 @@
+// contexts/AuthContext.tsx
 "use client";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { SessionExpiredModal } from "@/components/auth/SessionExpiredModal";
 
 interface User {
   id: string;
@@ -14,6 +17,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  handleSessionExpired: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +26,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSessionExpired, setShowSessionExpired] = useState(false);
+  const router = useRouter();
 
   // Check auth status on mount
   useEffect(() => {
@@ -40,6 +46,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
     checkAuth();
+  }, []);
+
+  // Global fetch interceptor for JWT expiration
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      
+      // Clone response to read it without consuming the stream
+      const clonedResponse = response.clone();
+      
+      try {
+        const contentType = clonedResponse.headers.get("content-type");
+        
+        // Only parse JSON responses
+        if (contentType && contentType.includes("application/json")) {
+          const data = await clonedResponse.json();
+          
+          // Check for JWT expiration errors
+          if (
+            (response.status === 401 || response.status === 500) &&
+            (data.message?.includes('jwt expired') ||
+             data.message?.includes('Token expired') ||
+             data.message?.includes('TokenExpiredError') ||
+             data.error?.includes('jwt expired') ||
+             data.message?.includes('Unauthorized'))
+          ) {
+            // Show session expired modal
+            setShowSessionExpired(true);
+          }
+        }
+      } catch (e) {
+        // Response is not JSON or already consumed, ignore
+      }
+      
+      return response;
+    };
+
+    // Cleanup: restore original fetch
+    return () => {
+      window.fetch = originalFetch;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -63,14 +112,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    await fetch("/api/logout", { method: "POST" });
-    setUser(null);
-    setIsAuthenticated(false);
+    try {
+      await fetch("/api/logout", { method: "POST" });
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      // Clear auth token cookie
+      document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+      
+      setUser(null);
+      setIsAuthenticated(false);
+      router.push("/login");
+    }
+  };
+
+  const handleSessionExpired = () => {
+    setShowSessionExpired(false);
+    logout();
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, loading, login, logout }}>
+    <AuthContext.Provider 
+      value={{ 
+        isAuthenticated, 
+        user, 
+        loading, 
+        login, 
+        logout,
+        handleSessionExpired
+      }}
+    >
       {children}
+      
+      {/* Session Expired Modal */}
+      <SessionExpiredModal 
+        isOpen={showSessionExpired} 
+        onClose={handleSessionExpired} 
+      />
     </AuthContext.Provider>
   );
 }

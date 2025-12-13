@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
+import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -110,6 +111,25 @@ export async function PATCH(
         status: finalStatus,
         updatedAt: new Date(),
       },
+    });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    await createAuditLog({
+      userId: userId,
+      action: AuditAction.USER_UPDATED,
+      entity: "User",
+      entityId: userId.toString(),
+      details: `Updated employee: ${user?.name} (${user?.email})`,
+      metadata: {
+        employeeId: userId,
+        role: role,
+        email: user?.email,
+      },
+      // ipAddress,
+      // userAgent,
     });
 
     return NextResponse.json(updatedTask, { status: 200 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
+import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
 import { z } from "zod";
 
 const BodySchema = z.object({
@@ -36,6 +37,24 @@ export async function POST(req: Request) {
           monthlyBaseHours: data.monthlyBaseHours ?? existing.monthlyBaseHours,
         },
       });
+
+      // app/api/admin/employees/route.ts (POST method)
+
+      await createAuditLog({
+        userId: existing.id,
+        action: AuditAction.USER_UPDATED,
+        entity: "User",
+        entityId: existing.id.toString(),
+        details: `Updated employee: ${existing.name} (${existing.email})`,
+        metadata: {
+          employeeId: existing.id,
+          role: existing.role,
+          email: existing.email,
+        },
+        // ipAddress,
+        // userAgent,
+      });
+
     } else {
       // 3️⃣ Create new
       user = await prisma.user.create({
@@ -46,6 +65,21 @@ export async function POST(req: Request) {
           hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : undefined,
           monthlyBaseHours: data.monthlyBaseHours,
         },
+      });
+
+      await createAuditLog({
+        // userId: existing.id,
+        action: AuditAction.USER_UPDATED,
+        entity: "User",
+        // entityId: existing.id.toString(),
+        details: `Updated employee: ${data.name} (${data.email})`,
+        metadata: {
+          // employeeId: data.id,
+          role: data.role,
+          email: data.email,
+        },
+        // ipAddress,
+        // userAgent,
       });
     }
 
