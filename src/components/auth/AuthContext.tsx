@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       setUser(null);
       setIsAuthenticated(false);
-      router.push("/login");
+      router.push("/");
     }
   };
 

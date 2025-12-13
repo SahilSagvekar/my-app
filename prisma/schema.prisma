@@ -14,15 +14,17 @@ model User {
   password         String?
   image            String?
   role             Role?
-  resetOTP          String?
-  resetOTPExpiry    DateTime?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   employeeStatus   EmployeeStatus? @default(ACTIVE)
   hourlyRate       Decimal?        @db.Decimal(10, 2)
+  feedbackSent         Feedback[]         @relation("FeedbackSender")
+  feedbackResponses    FeedbackResponse[] @relation("FeedbackResponseSender")
   joinedAt         DateTime?
   monthlyBaseHours Int?
   worksOnSaturday  Boolean         @default(false)
+  resetOTP         String?
+  resetOTPExpiry   DateTime?
   accounts         Account[]
   bonuses          Bonus[]
   client           Client?
@@ -31,29 +33,7 @@ model User {
   payrolls         Payroll[]
   sessions         Session[]
   assignedTasks    Task[]          @relation("AssignedTasks")
-  auditLogs        AuditLog[]      @relation("UserAuditLogs")
-}
-
-model AuditLog {
-  id          Int      @id @default(autoincrement())
-  userId      Int?
-  action      String   // e.g., "TASK_CREATED", "USER_UPDATED", "PROJECT_COMPLETED"
-  entity      String?  // e.g., "Task", "User", "Client"
-  entityId    String?  // ID of the affected entity (using String since your IDs are mixed)
-  details     String?  @db.Text
-  metadata    Json?
-  ipAddress   String?
-  userAgent   String?
-  timestamp   DateTime @default(now())
-  
-  // Relations
-  user        User?    @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
-  
-  @@index([userId])
-  @@index([timestamp])
-  @@index([action])
-  @@index([entity, entityId])
-  @@map("audit_logs")
+  auditLogs        AuditLog[]
 }
 
 model Account {
@@ -305,6 +285,25 @@ model Payroll {
   employee        User          @relation(fields: [employeeId], references: [id])
 }
 
+model AuditLog  {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  action    String
+  entity    String?
+  entityId  String?
+  details   String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime @default(now())
+  User      User?    @relation(fields: [userId], references: [id])
+
+  @@index([action])
+  @@index([entity, entityId])
+  @@index([timestamp])
+  @@index([userId])
+}
+
 enum Role {
   admin
   manager
@@ -343,4 +342,64 @@ enum TaskStatus {
   SCHEDULED
   CLIENT_REVIEW
   VIDEOGRAPHER_ASSIGNED
+}
+
+model Feedback {
+  id          String           @id @default(cuid())
+  subject     String
+  message     String           @db.Text
+  category    FeedbackCategory
+  priority    FeedbackPriority
+  status      FeedbackStatus   @default(PENDING)
+  
+  senderId    Int
+  sender      User             @relation("FeedbackSender", fields: [senderId], references: [id])
+  
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  
+  responses   FeedbackResponse[]
+  
+  @@index([senderId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("feedback")
+}
+
+model FeedbackResponse {
+  id         String   @id @default(cuid())
+  message    String   @db.Text
+  
+  feedbackId String
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  
+  senderId   Int
+  sender     User     @relation("FeedbackResponseSender", fields: [senderId], references: [id])
+  
+  createdAt  DateTime @default(now())
+  
+  @@index([feedbackId])
+  @@index([senderId])
+  @@map("feedback_responses")
+}
+
+enum FeedbackCategory {
+  GENERAL
+  TECHNICAL
+  WORKFLOW
+  SUGGESTION
+  BUG_REPORT
+}
+
+enum FeedbackPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FeedbackStatus {
+  PENDING
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
 }
