@@ -31,6 +31,29 @@ model User {
   payrolls         Payroll[]
   sessions         Session[]
   assignedTasks    Task[]          @relation("AssignedTasks")
+  auditLogs        AuditLog[]      @relation("UserAuditLogs")
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?
+  action      String   // e.g., "TASK_CREATED", "USER_UPDATED", "PROJECT_COMPLETED"
+  entity      String?  // e.g., "Task", "User", "Client"
+  entityId    String?  // ID of the affected entity (using String since your IDs are mixed)
+  details     String?  @db.Text
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+  
+  // Relations
+  user        User?    @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([userId])
+  @@index([timestamp])
+  @@index([action])
+  @@index([entity, entityId])
+  @@map("audit_logs")
 }
 
 model Account {

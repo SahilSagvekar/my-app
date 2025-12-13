@@ -8,6 +8,7 @@ import { uploadBufferToS3 } from "@/lib/s3";
 import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
+import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
 
 
 // ─────────────────────────────────────────
@@ -266,6 +267,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+
+    const { role, userId } = decoded;
+
     if (!["admin", "manager"].includes(decoded.role)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
@@ -345,6 +349,21 @@ export async function POST(req: Request) {
           ? "VIDEOGRAPHER_ASSIGNED"
           : "PENDING",
       },
+    });
+
+    await createAuditLog({
+      userId: userId,
+      action: AuditAction.TASK_CREATED,
+      entity: 'Task',
+      entityId: task.id,
+      details: `Created task: ${task.title}`,
+      metadata: {
+        taskId: task.id,
+        assignedTo: assignedTo,
+        status: task.status
+      },
+      // ipAddress,
+      // userAgent
     });
 
     // 📤 UPLOAD FILES TO S3
