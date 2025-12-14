@@ -364,7 +364,7 @@ async function getRecentActivity() {
       timestamp: 'desc'
     },
     include: {
-      user: {
+      User: {
         select: {
           name: true
         }
