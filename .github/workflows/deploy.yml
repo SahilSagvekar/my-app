@@ -43,15 +43,15 @@ jobs:
       run: |
         # Setup SSH
         mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        ssh-add ~/.ssh/deploy_key
+        ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
         
         # Upload deployment package
-        scp -i ~/.ssh/deploy_key deploy.tar.gz ${EC2_USER}@${EC2_HOST}:/home/ubuntu/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no deploy.tar.gz ${EC2_USER}@${EC2_HOST}:/home/ubuntu/
         
         # Deploy on EC2
-        ssh -i ~/.ssh/deploy_key ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
           cd /home/ubuntu
           
           # Backup current version
