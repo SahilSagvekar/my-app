@@ -180,7 +180,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
     const kpiCards = [
       {
         title: 'Total Revenue',
-        value: kpiData?.totalRevenue?.value || '₹0',
+        value: kpiData?.totalRevenue?.value || '$0',
         change: kpiData?.totalRevenue?.change || '+0%',
         trend: kpiData?.totalRevenue?.trend || 'up',
         icon: DollarSign,
