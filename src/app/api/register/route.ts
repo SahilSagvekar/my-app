@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     const token = jwt.sign(
       { userId: newUser.id, email: newUser.email, role: newUser.role },
       process.env.JWT_SECRET || "your_jwt_secret",
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
     // Set httpOnly cookie

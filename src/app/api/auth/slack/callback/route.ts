@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   const token = jwt.sign(
     { userId: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET!,
-    { expiresIn: "1h" }
+    { expiresIn: "7d" }
   );
 
   const redirect = NextResponse.redirect(`${process.env.GOOGLE_REDIRECT_URI}/dashboard`);
