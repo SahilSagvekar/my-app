@@ -5,7 +5,7 @@ async function runCron() {
     console.log("[CRON] Running monthly cron job...");
 
     // const res = await fetch("http://localhost:3000/api/cron/monthly");
-    const res = await fetch("http://3.229.117.8/api/cron/monthly");
+    const res = await fetch("http://52.0.229.144/api/cron/monthly");
     const data = await res.json();
 
     console.log("[CRON RESULT]:", data);
