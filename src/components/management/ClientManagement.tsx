@@ -2530,7 +2530,7 @@ const handleDeleteClient = async (clientId: string) => {
                         : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                     }`}
                   >
-                    {platform}
+                    {platform.charAt(0).toUpperCase() + platform.slice(1)}
                   </div>
                 ))}
               </div>
