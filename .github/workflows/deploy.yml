@@ -2,7 +2,7 @@ name: Deploy to EC2
 
 on:
   push:
-    branches: [ master ]  # Change to 'master' if that's your branch name
+    branches: [ master ]
 
 jobs:
   deploy:
@@ -43,9 +43,9 @@ jobs:
       run: |
         # Setup SSH
         mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+        echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+        ssh-add ~/.ssh/deploy_key
         
         # Upload deployment package
         scp -i ~/.ssh/deploy_key deploy.tar.gz ${EC2_USER}@${EC2_HOST}:/home/ubuntu/
