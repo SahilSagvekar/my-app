@@ -1,0 +1,90 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ main ]  # Change to 'master' if that's your branch name
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci --legacy-peer-deps
+    
+    - name: Build application
+      run: npm run build
+    
+    - name: Create deployment package
+      run: |
+        tar -czf deploy.tar.gz \
+          .next \
+          public \
+          package.json \
+          package-lock.json \
+          prisma \
+          next.config.ts \
+          src
+    
+    - name: Deploy to EC2
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USER: ${{ secrets.EC2_USER }}
+      run: |
+        # Setup SSH
+        mkdir -p ~/.ssh
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+        
+        # Upload deployment package
+        scp -i ~/.ssh/deploy_key deploy.tar.gz ${EC2_USER}@${EC2_HOST}:/home/ubuntu/
+        
+        # Deploy on EC2
+        ssh -i ~/.ssh/deploy_key ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
+          cd /home/ubuntu
+          
+          # Backup current version
+          if [ -d "my-app/.next" ]; then
+            echo "Backing up current version..."
+            mv my-app/.next my-app/.next-backup-$(date +%Y%m%d-%H%M%S)
+          fi
+          
+          # Extract new version
+          echo "Extracting new version..."
+          tar -xzf deploy.tar.gz -C my-app/
+          cd my-app
+          
+          # Install production dependencies
+          echo "Installing dependencies..."
+          npm ci --omit=dev --legacy-peer-deps
+          
+          # Generate Prisma client
+          echo "Generating Prisma client..."
+          npx prisma generate
+          
+          # Restart app
+          echo "Restarting application..."
+          pm2 restart e8-app
+          
+          # Cleanup
+          rm /home/ubuntu/deploy.tar.gz
+          
+          # Remove old backups (keep last 3)
+          ls -t .next-backup-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null
+          
+          echo "Deployment complete!"
+        ENDSSH
+        
+        # Cleanup
+        rm ~/.ssh/deploy_key
