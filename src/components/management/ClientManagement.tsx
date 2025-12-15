@@ -62,12 +62,12 @@ import { toast } from "sonner";
 import { globalTaskManager } from "../workflow/GlobalTaskManager";
 
 type SocialPlatform =
-  | "instagram"
-  | "tiktok"
-  | "facebook"
-  | "youtube"
-  | "twitter"
-  | "linkedin";
+  | "Instagram"
+  | "Tiktok"
+  | "Facebook"
+  | "Youtube"
+  | "Twitter"
+  | "Linkedin";
 
 type DeliverableType =
   | "Short Form Videos"
@@ -147,32 +147,32 @@ interface Client {
     notes?: string;
   };
   postingSchedule?: {
-    instagram?: {
+    Instagram?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
     };
-    tiktok?: {
+    Tiktok?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
     };
-    youtube?: {
+    Youtube?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
     };
-    facebook?: {
+    Facebook?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
     };
-    twitter?: {
+    Twitter?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
     };
-    linkedin?: {
+    Linkedin?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
@@ -216,244 +216,244 @@ const mockBrandAssets: BrandAsset[] = [
   },
 ];
 
-const mockClients: Client[] = [
-  {
-    id: "client-001",
-    name: "Sarah Johnson",
-    companyName: "TechStartup Inc.",
-    email: "sarah@techstartup.com",
-    phone: "+1 (555) 123-4567",
-    accountManager: "Alex Chen",
-    accountManagerId: "mgr-001",
-    startDate: "2024-01-15",
-    renewalDate: "2025-01-15",
-    status: "active",
-    monthlyDeliverables: [
-      {
-        id: "del-001",
-        type: "Long Form Videos",
-        quantity: 4,
-        videosPerDay: 1,
-        platforms: ["youtube", "linkedin"],
-        postingSchedule: "weekly",
-        postingDays: ["Monday"],
-        postingTimes: ["10:00"],
-        description: "Weekly thought leadership content",
-      },
-      {
-        id: "del-002",
-        type: "Short Form Videos",
-        quantity: 8,
-        videosPerDay: 2,
-        platforms: ["instagram", "tiktok"],
-        postingSchedule: "bi-weekly",
-        postingDays: ["Tuesday", "Thursday"],
-        postingTimes: ["14:00", "16:00"],
-        description: "Bi-weekly tips and quick insights",
-      },
-    ],
-    currentProgress: {
-      completed: 22,
-      total: 28,
-    },
-    lastActivity: "2024-08-29",
-    brandAssets: mockBrandAssets,
-    brandGuidelines: {
-      primaryColors: ["#2563EB", "#1E40AF", "#3B82F6"],
-      secondaryColors: ["#64748B", "#475569", "#94A3B8"],
-      fonts: ["Inter", "Roboto", "Open Sans"],
-      logoUsage:
-        "Logo should maintain minimum clear space of 2x the height of the mark",
-      toneOfVoice: "Professional, innovative, approachable",
-      brandValues: "Innovation, reliability, customer-centric",
-      targetAudience: "Tech professionals, startup founders, developers",
-      contentStyle: "Clean, modern, data-driven with human touch",
-    },
-    projectSettings: {
-      defaultVideoLength: "60-90 seconds",
-      preferredPlatforms: ["LinkedIn", "Twitter", "YouTube"],
-      contentApprovalRequired: true,
-      quickTurnaroundAvailable: false,
-    },
-    postingSchedule: {
-      instagram: {
-        weekdays: "10am-12pm, 6-8pm",
-        weekends: "11am-1pm",
-        bestTimes: "Tue-Thu 6-8pm",
-      },
-      tiktok: {
-        weekdays: "7-9am, 8-10pm",
-        weekends: "10am-12pm",
-        bestTimes: "Wed-Fri 8-9pm",
-      },
-      youtube: {
-        weekdays: "3-5pm",
-        weekends: "10am-12pm",
-        bestTimes: "Thu-Fri 3-4pm",
-      },
-      linkedin: {
-        weekdays: "8-10am, 12-2pm",
-        weekends: "N/A - B2B audience",
-        bestTimes: "Tue-Wed 8-9am",
-      },
-      twitter: {
-        weekdays: "9am-12pm, 5-7pm",
-        weekends: "11am-1pm",
-        bestTimes: "Weekdays 9-10am",
-      },
-      facebook: {
-        weekdays: "1-3pm, 7-9pm",
-        weekends: "12-2pm",
-        bestTimes: "Wed-Thu 1-2pm",
-      },
-    },
-  },
-  {
-    id: "client-002",
-    name: "Michael Rodriguez",
-    companyName: "EcoFriendly Solutions",
-    email: "michael@ecofriendly.com",
-    phone: "+1 (555) 987-6543",
-    accountManager: "Sarah Wilson",
-    accountManagerId: "mgr-002",
-    startDate: "2024-03-01",
-    renewalDate: "2025-03-01",
-    status: "active",
-    monthlyDeliverables: [
-      {
-        id: "del-003",
-        type: "Long Form Videos",
-        quantity: 2,
-        videosPerDay: 1,
-        platforms: ["youtube", "facebook"],
-        postingSchedule: "bi-weekly",
-        postingDays: ["1st", "15th"],
-        postingTimes: ["12:00"],
-        description: "Bi-monthly educational content",
-      },
-      {
-        id: "del-004",
-        type: "Social/Hard Post",
-        quantity: 12,
-        videosPerDay: 1,
-        platforms: ["instagram", "facebook"],
-        postingSchedule: "custom",
-        postingDays: ["Monday", "Wednesday", "Friday"],
-        postingTimes: ["09:00"],
-        description: "Regular social media posts",
-      },
-    ],
-    currentProgress: {
-      completed: 18,
-      total: 20,
-    },
-    lastActivity: "2024-08-30",
-    brandAssets: [],
-    brandGuidelines: {
-      primaryColors: ["#059669", "#047857", "#10B981"],
-      secondaryColors: ["#6B7280", "#9CA3AF", "#D1D5DB"],
-      fonts: ["Poppins", "Lato"],
-      logoUsage: "Always use on light backgrounds, minimum size 24px",
-      toneOfVoice: "Caring, sustainable, educational",
-      brandValues: "Environmental responsibility, transparency, community",
-      targetAudience: "Environmentally conscious consumers, families",
-      contentStyle: "Natural, authentic, educational with emotional connection",
-    },
-    projectSettings: {
-      defaultVideoLength: "30-60 seconds",
-      preferredPlatforms: ["Instagram", "Facebook", "TikTok"],
-      contentApprovalRequired: false,
-      quickTurnaroundAvailable: true,
-    },
-    postingSchedule: {
-      instagram: {
-        weekdays: "11am-1pm, 5-7pm",
-        weekends: "10am-2pm",
-        bestTimes: "Daily 11am-12pm",
-      },
-      facebook: {
-        weekdays: "12-2pm, 6-8pm",
-        weekends: "11am-3pm",
-        bestTimes: "Weekdays 12-1pm",
-      },
-      tiktok: {
-        weekdays: "6-9am, 7-10pm",
-        weekends: "9am-12pm",
-        bestTimes: "Daily 7-9pm",
-      },
-    },
-  },
-  {
-    id: "client-003",
-    name: "Emily Davis",
-    companyName: "Fashion Forward",
-    email: "emily@fashionforward.com",
-    phone: "+1 (555) 456-7890",
-    accountManager: "David Park",
-    accountManagerId: "mgr-003",
-    startDate: "2024-02-10",
-    renewalDate: "2024-11-10",
-    status: "pending",
-    monthlyDeliverables: [
-      {
-        id: "del-005",
-        type: "Short Form Videos",
-        quantity: 12,
-        videosPerDay: 3,
-        platforms: ["instagram", "tiktok"],
-        postingSchedule: "custom",
-        postingDays: ["Monday", "Wednesday", "Friday", "Sunday"],
-        postingTimes: ["10:00", "14:00", "18:00"],
-        description: "Fashion tips and trends",
-      },
-      {
-        id: "del-006",
-        type: "Long Form Videos",
-        quantity: 6,
-        videosPerDay: 1,
-        platforms: ["youtube", "instagram"],
-        postingSchedule: "weekly",
-        postingDays: ["Friday"],
-        postingTimes: ["15:00"],
-        description: "Weekly lookbook and styling guides",
-      },
-    ],
-    currentProgress: {
-      completed: 35,
-      total: 42,
-    },
-    lastActivity: "2024-08-28",
-    brandAssets: [],
-    brandGuidelines: {
-      primaryColors: ["#EC4899", "#DB2777", "##F472B6"],
-      secondaryColors: ["#1F2937", "#374151", "#6B7280"],
-      fonts: ["Montserrat", "Playfair Display"],
-      logoUsage: "Versatile logo system for various applications",
-      toneOfVoice: "Trendy, confident, inspiring",
-      brandValues: "Style, individuality, empowerment",
-      targetAudience: "Fashion-forward individuals, 18-35 years old",
-      contentStyle: "Bold, vibrant, trend-focused with aspirational messaging",
-    },
-    projectSettings: {
-      defaultVideoLength: "15-30 seconds",
-      preferredPlatforms: ["Instagram", "TikTok", "Pinterest"],
-      contentApprovalRequired: true,
-      quickTurnaroundAvailable: true,
-    },
-    postingSchedule: {
-      instagram: {
-        weekdays: "9am-11am, 6-9pm",
-        weekends: "11am-4pm",
-        bestTimes: "Daily 6-7pm",
-      },
-      tiktok: {
-        weekdays: "7-10am, 8-11pm",
-        weekends: "10am-2pm",
-        bestTimes: "Daily 8-10pm",
-      },
-    },
-  },
-];
+// const mockClients: Client[] = [
+//   {
+//     id: "client-001",
+//     name: "Sarah Johnson",
+//     companyName: "TechStartup Inc.",
+//     email: "sarah@techstartup.com",
+//     phone: "+1 (555) 123-4567",
+//     accountManager: "Alex Chen",
+//     accountManagerId: "mgr-001",
+//     startDate: "2024-01-15",
+//     renewalDate: "2025-01-15",
+//     status: "active",
+//     monthlyDeliverables: [
+//       {
+//         id: "del-001",
+//         type: "Long Form Videos",
+//         quantity: 4,
+//         videosPerDay: 1,
+//         platforms: ["youtube", "linkedin"],
+//         postingSchedule: "weekly",
+//         postingDays: ["Monday"],
+//         postingTimes: ["10:00"],
+//         description: "Weekly thought leadership content",
+//       },
+//       {
+//         id: "del-002",
+//         type: "Short Form Videos",
+//         quantity: 8,
+//         videosPerDay: 2,
+//         platforms: ["instagram", "tiktok"],
+//         postingSchedule: "bi-weekly",
+//         postingDays: ["Tuesday", "Thursday"],
+//         postingTimes: ["14:00", "16:00"],
+//         description: "Bi-weekly tips and quick insights",
+//       },
+//     ],
+//     currentProgress: {
+//       completed: 22,
+//       total: 28,
+//     },
+//     lastActivity: "2024-08-29",
+//     brandAssets: mockBrandAssets,
+//     brandGuidelines: {
+//       primaryColors: ["#2563EB", "#1E40AF", "#3B82F6"],
+//       secondaryColors: ["#64748B", "#475569", "#94A3B8"],
+//       fonts: ["Inter", "Roboto", "Open Sans"],
+//       logoUsage:
+//         "Logo should maintain minimum clear space of 2x the height of the mark",
+//       toneOfVoice: "Professional, innovative, approachable",
+//       brandValues: "Innovation, reliability, customer-centric",
+//       targetAudience: "Tech professionals, startup founders, developers",
+//       contentStyle: "Clean, modern, data-driven with human touch",
+//     },
+//     projectSettings: {
+//       defaultVideoLength: "60-90 seconds",
+//       preferredPlatforms: ["LinkedIn", "Twitter", "YouTube"],
+//       contentApprovalRequired: true,
+//       quickTurnaroundAvailable: false,
+//     },
+//     postingSchedule: {
+//       instagram: {
+//         weekdays: "10am-12pm, 6-8pm",
+//         weekends: "11am-1pm",
+//         bestTimes: "Tue-Thu 6-8pm",
+//       },
+//       tiktok: {
+//         weekdays: "7-9am, 8-10pm",
+//         weekends: "10am-12pm",
+//         bestTimes: "Wed-Fri 8-9pm",
+//       },
+//       youtube: {
+//         weekdays: "3-5pm",
+//         weekends: "10am-12pm",
+//         bestTimes: "Thu-Fri 3-4pm",
+//       },
+//       linkedin: {
+//         weekdays: "8-10am, 12-2pm",
+//         weekends: "N/A - B2B audience",
+//         bestTimes: "Tue-Wed 8-9am",
+//       },
+//       twitter: {
+//         weekdays: "9am-12pm, 5-7pm",
+//         weekends: "11am-1pm",
+//         bestTimes: "Weekdays 9-10am",
+//       },
+//       facebook: {
+//         weekdays: "1-3pm, 7-9pm",
+//         weekends: "12-2pm",
+//         bestTimes: "Wed-Thu 1-2pm",
+//       },
+//     },
+//   },
+//   {
+//     id: "client-002",
+//     name: "Michael Rodriguez",
+//     companyName: "EcoFriendly Solutions",
+//     email: "michael@ecofriendly.com",
+//     phone: "+1 (555) 987-6543",
+//     accountManager: "Sarah Wilson",
+//     accountManagerId: "mgr-002",
+//     startDate: "2024-03-01",
+//     renewalDate: "2025-03-01",
+//     status: "active",
+//     monthlyDeliverables: [
+//       {
+//         id: "del-003",
+//         type: "Long Form Videos",
+//         quantity: 2,
+//         videosPerDay: 1,
+//         platforms: ["youtube", "facebook"],
+//         postingSchedule: "bi-weekly",
+//         postingDays: ["1st", "15th"],
+//         postingTimes: ["12:00"],
+//         description: "Bi-monthly educational content",
+//       },
+//       {
+//         id: "del-004",
+//         type: "Social/Hard Post",
+//         quantity: 12,
+//         videosPerDay: 1,
+//         platforms: ["instagram", "facebook"],
+//         postingSchedule: "custom",
+//         postingDays: ["Monday", "Wednesday", "Friday"],
+//         postingTimes: ["09:00"],
+//         description: "Regular social media posts",
+//       },
+//     ],
+//     currentProgress: {
+//       completed: 18,
+//       total: 20,
+//     },
+//     lastActivity: "2024-08-30",
+//     brandAssets: [],
+//     brandGuidelines: {
+//       primaryColors: ["#059669", "#047857", "#10B981"],
+//       secondaryColors: ["#6B7280", "#9CA3AF", "#D1D5DB"],
+//       fonts: ["Poppins", "Lato"],
+//       logoUsage: "Always use on light backgrounds, minimum size 24px",
+//       toneOfVoice: "Caring, sustainable, educational",
+//       brandValues: "Environmental responsibility, transparency, community",
+//       targetAudience: "Environmentally conscious consumers, families",
+//       contentStyle: "Natural, authentic, educational with emotional connection",
+//     },
+//     projectSettings: {
+//       defaultVideoLength: "30-60 seconds",
+//       preferredPlatforms: ["Instagram", "Facebook", "TikTok"],
+//       contentApprovalRequired: false,
+//       quickTurnaroundAvailable: true,
+//     },
+//     postingSchedule: {
+//       instagram: {
+//         weekdays: "11am-1pm, 5-7pm",
+//         weekends: "10am-2pm",
+//         bestTimes: "Daily 11am-12pm",
+//       },
+//       facebook: {
+//         weekdays: "12-2pm, 6-8pm",
+//         weekends: "11am-3pm",
+//         bestTimes: "Weekdays 12-1pm",
+//       },
+//       tiktok: {
+//         weekdays: "6-9am, 7-10pm",
+//         weekends: "9am-12pm",
+//         bestTimes: "Daily 7-9pm",
+//       },
+//     },
+//   },
+//   {
+//     id: "client-003",
+//     name: "Emily Davis",
+//     companyName: "Fashion Forward",
+//     email: "emily@fashionforward.com",
+//     phone: "+1 (555) 456-7890",
+//     accountManager: "David Park",
+//     accountManagerId: "mgr-003",
+//     startDate: "2024-02-10",
+//     renewalDate: "2024-11-10",
+//     status: "pending",
+//     monthlyDeliverables: [
+//       {
+//         id: "del-005",
+//         type: "Short Form Videos",
+//         quantity: 12,
+//         videosPerDay: 3,
+//         platforms: ["instagram", "tiktok"],
+//         postingSchedule: "custom",
+//         postingDays: ["Monday", "Wednesday", "Friday", "Sunday"],
+//         postingTimes: ["10:00", "14:00", "18:00"],
+//         description: "Fashion tips and trends",
+//       },
+//       {
+//         id: "del-006",
+//         type: "Long Form Videos",
+//         quantity: 6,
+//         videosPerDay: 1,
+//         platforms: ["youtube", "instagram"],
+//         postingSchedule: "weekly",
+//         postingDays: ["Friday"],
+//         postingTimes: ["15:00"],
+//         description: "Weekly lookbook and styling guides",
+//       },
+//     ],
+//     currentProgress: {
+//       completed: 35,
+//       total: 42,
+//     },
+//     lastActivity: "2024-08-28",
+//     brandAssets: [],
+//     brandGuidelines: {
+//       primaryColors: ["#EC4899", "#DB2777", "##F472B6"],
+//       secondaryColors: ["#1F2937", "#374151", "#6B7280"],
+//       fonts: ["Montserrat", "Playfair Display"],
+//       logoUsage: "Versatile logo system for various applications",
+//       toneOfVoice: "Trendy, confident, inspiring",
+//       brandValues: "Style, individuality, empowerment",
+//       targetAudience: "Fashion-forward individuals, 18-35 years old",
+//       contentStyle: "Bold, vibrant, trend-focused with aspirational messaging",
+//     },
+//     projectSettings: {
+//       defaultVideoLength: "15-30 seconds",
+//       preferredPlatforms: ["Instagram", "TikTok", "Pinterest"],
+//       contentApprovalRequired: true,
+//       quickTurnaroundAvailable: true,
+//     },
+//     postingSchedule: {
+//       instagram: {
+//         weekdays: "9am-11am, 6-9pm",
+//         weekends: "11am-4pm",
+//         bestTimes: "Daily 6-7pm",
+//       },
+//       tiktok: {
+//         weekdays: "7-10am, 8-11pm",
+//         weekends: "10am-2pm",
+//         bestTimes: "Daily 8-10pm",
+//       },
+//     },
+//   },
+// ];
 
 const mockAccountManagers = [
   { id: "mgr-001", name: "Alex Chen" },
@@ -510,7 +510,7 @@ export function ClientManagement() {
     Partial<MonthlyDeliverable>
   >({
     type: "Short Form Videos",
-    quantity: 1,
+    quantity: 0,
     videosPerDay: 1,
     platforms: [],
     postingSchedule: "weekly",
@@ -614,12 +614,12 @@ export function ClientManagement() {
 
   const getPlatformBadgeColor = (platform: SocialPlatform): string => {
     const colors: Record<SocialPlatform, string> = {
-      instagram: "bg-pink-100 text-pink-700 border-pink-300",
-      tiktok: "bg-gray-900 text-white border-gray-700",
-      facebook: "bg-blue-100 text-blue-700 border-blue-300",
-      youtube: "bg-red-100 text-red-700 border-red-300",
-      twitter: "bg-sky-100 text-sky-700 border-sky-300",
-      linkedin: "bg-indigo-100 text-indigo-700 border-indigo-300",
+      Instagram: "bg-pink-100 text-pink-700 border-pink-300",
+      Tiktok: "bg-gray-900 text-white border-gray-700",
+      Facebook: "bg-blue-100 text-blue-700 border-blue-300",
+      Youtube: "bg-red-100 text-red-700 border-red-300",
+      Twitter: "bg-sky-100 text-sky-700 border-sky-300",
+      Linkedin: "bg-indigo-100 text-indigo-700 border-indigo-300",
     };
     return colors[platform] || "bg-gray-100 text-gray-700";
   };
@@ -877,6 +877,24 @@ export function ClientManagement() {
   };
 
   const handleSaveClient = async () => {
+  // Validate required fields
+  if (!newClient.name?.trim()) {
+    toast.error("Contact name is required");
+    return;
+  }
+  if (!newClient.companyName?.trim()) {
+    toast.error("Company name is required");
+    return;
+  }
+  if (!newClient.email?.trim()) {
+    toast.error("Email is required");
+    return;
+  }
+  if (!newClient.phone?.trim()) {
+    toast.error("Phone number is required");
+    return;
+  }
+
   try {
     const url = editingClient 
       ? `/api/clients/${editingClient.id}`
@@ -897,7 +915,7 @@ export function ClientManagement() {
       return;
     }
 
-    toast.success(editingClient ? "Client updated" : "Client created");
+    toast.success(editingClient ? "Client updated successfully!" : "Client created successfully!");
 
     // Update UI list immediately
     if (editingClient) {
@@ -910,12 +928,43 @@ export function ClientManagement() {
 
     setShowAddDialog(false);
     setEditingClient(null);
+    
+    // Reset form
+    setNewClient({
+      name: "",
+      companyName: "",
+      email: "",
+      phone: "",
+      accountManagerId: "",
+      startDate: "",
+      renewalDate: "",
+      status: "active",
+      clientReviewRequired: "no",
+      videographerRequired: "no",
+      monthlyDeliverables: [],
+      brandAssets: [],
+      brandGuidelines: {
+        primaryColors: [],
+        secondaryColors: [],
+        fonts: [],
+        logoUsage: "",
+        toneOfVoice: "",
+        brandValues: "",
+        targetAudience: "",
+        contentStyle: "",
+      },
+      projectSettings: {
+        defaultVideoLength: "60 seconds",
+        preferredPlatforms: [],
+        contentApprovalRequired: true,
+        quickTurnaroundAvailable: false,
+      },
+    });
   } catch (err) {
     console.error("Save client failed:", err);
     toast.error("Server error");
   }
 };
-
 
   const handleEditClient = (client: Client) => {
     setEditingClient(client);
@@ -1100,12 +1149,35 @@ const handleDeleteClient = async (clientId: string) => {
                       {selectedClient.phone}
                     </div>
                   </div>
-                  <div className="space-y-1">
+                  {/* <div className="space-y-1">
                     <Label className="text-gray-500">Account Manager</Label>
                     <div className="flex items-center gap-2 text-gray-900">
                       <User className="h-4 w-4" />
                       {selectedClient.accountManager}
                     </div>
+                  </div> */}
+                  <div className="space-y-2">
+                    <Label htmlFor="accountManager" className="text-gray-700">
+                      Account Manager
+                    </Label>
+                    <Select
+                      value={newClient.accountManagerId || ""}
+                      onValueChange={(value) =>
+                        setNewClient({ ...newClient, accountManagerId: value })
+                      }
+                    >
+                      <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                        <SelectValue placeholder="Select manager (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {mockAccountManagers.map((manager) => (
+                          <SelectItem key={manager.id} value={manager.id}>
+                            {manager.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-gray-500">Status</Label>
@@ -2249,7 +2321,7 @@ const handleDeleteClient = async (clientId: string) => {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="quantity" className="text-gray-700">
                   Quantity per Month
@@ -2286,7 +2358,44 @@ const handleDeleteClient = async (clientId: string) => {
                   className="bg-white border-gray-200 text-gray-900"
                 />
               </div>
-            </div>
+            </div> */}
+
+            <div className="space-y-2">
+  <Label htmlFor="quantity" className="text-gray-700">
+    Quantity per Month
+  </Label>
+  <Input
+    id="quantity"
+    type="number"
+    min="1"
+    value={newDeliverable.quantity}
+    onChange={(e) =>
+      setNewDeliverable({
+        ...newDeliverable,
+        quantity: parseInt(e.target.value) || 1,
+      })
+    }
+    className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+  />
+</div>
+
+<div className="space-y-2">
+  <Label htmlFor="videosPerDay" className="text-gray-700">
+    Videos per Posting Day
+  </Label>
+  <Input
+    id="videosPerDay"
+    type="number"
+    min="1"
+    value={newDeliverable.videosPerDay}
+    onChange={(e) =>
+      syncPostingTimesWithVideosPerDay(
+        parseInt(e.target.value) || 1
+      )
+    }
+    className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+  />
+</div>
 
             <div className="space-y-2">
               <Label htmlFor="postingSchedule" className="text-gray-700">
@@ -2404,12 +2513,12 @@ const handleDeleteClient = async (clientId: string) => {
               <div className="grid grid-cols-3 gap-2">
                 {(
                   [
-                    "instagram",
-                    "tiktok",
-                    "facebook",
-                    "youtube",
-                    "twitter",
-                    "linkedin",
+                    "Instagram",
+                    "Tiktok",
+                    "Facebook",
+                    "Youtube",
+                    "Twitter",
+                    "Linkedin",
                   ] as SocialPlatform[]
                 ).map((platform) => (
                   <div
