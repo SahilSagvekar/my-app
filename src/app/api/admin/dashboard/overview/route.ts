@@ -397,7 +397,7 @@ async function getRecentActivity() {
       message: `${log.action}${log.details ? ' - ' + log.details : ''}`,
       time: '',
       status: status,
-      user: log.user?.name || 'System'
+      user: log.User?.name || 'System'
     };
   });
 

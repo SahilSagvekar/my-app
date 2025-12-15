@@ -78,7 +78,7 @@ export function ReportsTab() {
 
   async function loadEmployees() {
     try {
-      const res = await fetch('/api/admin/employees?status=ACTIVE');
+      const res = await fetch('/api/employee/list?status=ACTIVE');
       const data = await res.json();
       
       if (data.ok) {

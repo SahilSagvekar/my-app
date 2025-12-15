@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     const logs = await prisma.auditLog.findMany({
       where,
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             name: true,
@@ -107,9 +107,9 @@ export async function GET(req: NextRequest) {
         timestamp: log.timestamp.toISOString(),
         action: log.action,
         actionType,
-        user: log.user?.name || 'System',
+        user: log.User?.name || 'System',
         userId: log.userId,
-        userRole: log.user?.role || 'System',
+        userRole: log.User?.role || 'System',
         description: log.details || log.action,
         target: log.entity ? `${log.entity} #${log.entityId}` : 'N/A',
         targetType: log.entity?.toLowerCase() || 'unknown',
