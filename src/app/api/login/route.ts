@@ -18,6 +18,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
+    // **THIS IS WHAT WAS MISSING** - Compare password with hashed password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+    }
+
     console.log("email:", user.email);
 
     // Generate JWT
@@ -39,7 +45,7 @@ export async function POST(req: Request) {
     // Set httpOnly cookie
     response.cookies.set("authToken", token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production", // Should be true in production
       sameSite: "lax",
       maxAge: 24 * 60 * 60,
       path: "/",
