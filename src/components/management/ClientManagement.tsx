@@ -1161,16 +1161,30 @@ const handleDeleteClient = async (clientId: string) => {
                       Account Manager
                     </Label>
                     <Select
-                      value={newClient.accountManagerId || ""}
-                      onValueChange={(value) =>
-                        setNewClient({ ...newClient, accountManagerId: value })
-                      }
+                      value={selectedClient.accountManagerId || undefined} // ✅ Fixed: undefined instead of empty string
+                      onValueChange={async (value) => {
+                        // Update the client's account manager
+                        try {
+                          await fetch(`/api/clients/${selectedClient.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ accountManagerId: value }),
+                          });
+
+                          setSelectedClient({
+                            ...selectedClient,
+                            accountManagerId: value,
+                          });
+                          toast.success("Account manager updated");
+                        } catch (err) {
+                          toast.error("Failed to update");
+                        }
+                      }}
                     >
                       <SelectTrigger className="bg-white border-gray-200 text-gray-900">
                         <SelectValue placeholder="Select manager (optional)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
                         {mockAccountManagers.map((manager) => (
                           <SelectItem key={manager.id} value={manager.id}>
                             {manager.name}
@@ -1179,6 +1193,7 @@ const handleDeleteClient = async (clientId: string) => {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-1">
                     <Label className="text-gray-500">Status</Label>
                     <Badge variant={getStatusVariant(selectedClient.status)}>

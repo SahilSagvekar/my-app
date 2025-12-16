@@ -313,6 +313,7 @@ enum Role {
   scheduler
   client
   qc
+  null
 }
 
 enum EmployeeStatus {
