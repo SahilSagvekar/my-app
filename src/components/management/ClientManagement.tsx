@@ -1893,13 +1893,13 @@ const handleDeleteClient = async (clientId: string) => {
         <SelectTrigger className="bg-white border-gray-200 text-gray-900">
           <SelectValue placeholder="Select manager" />
         </SelectTrigger>
-        <SelectContent>
+        {/* <SelectContent>
           {mockAccountManagers.map((manager) => (
             <SelectItem key={manager.id} value={manager.id}>
               {manager.name}
             </SelectItem>
           ))}
-        </SelectContent>
+        </SelectContent> */}
       </Select>
     </div>
 
