@@ -1104,7 +1104,8 @@ const handleDeleteClient = async (clientId: string) => {
           </DialogHeader>
 
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 bg-gray-100">
+            <TabsList className="grid w-full grid-cols-4 gap-3 bg-gray-100">
+              {/* gap-3 for more spacing */}
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="deliverables">
                 Monthly Deliverables
@@ -1120,87 +1121,55 @@ const handleDeleteClient = async (clientId: string) => {
                     Contact Information
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-gray-500">Contact Name</Label>
-                    <div className="flex items-center gap-2 text-gray-900">
-                      <User className="h-4 w-4" />
-                      {selectedClient.name}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-gray-500">Company</Label>
-                    <div className="flex items-center gap-2 text-gray-900">
-                      <Building className="h-4 w-4" />
-                      {selectedClient.companyName}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-gray-500">Email</Label>
-                    <div className="flex items-center gap-2 text-gray-900">
-                      <Mail className="h-4 w-4" />
-                      {selectedClient.email}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-gray-500">Phone</Label>
-                    <div className="flex items-center gap-2 text-gray-900">
-                      <Phone className="h-4 w-4" />
-                      {selectedClient.phone}
-                    </div>
-                  </div>
-                  {/* <div className="space-y-1">
-                    <Label className="text-gray-500">Account Manager</Label>
-                    <div className="flex items-center gap-2 text-gray-900">
-                      <User className="h-4 w-4" />
-                      {selectedClient.accountManager}
-                    </div>
-                  </div> */}
-                  <div className="space-y-2">
-                    <Label htmlFor="accountManager" className="text-gray-700">
-                      Account Manager
-                    </Label>
-                    <Select
-                      value={selectedClient.accountManagerId || undefined} // ✅ Fixed: undefined instead of empty string
-                      onValueChange={async (value) => {
-                        // Update the client's account manager
-                        try {
-                          await fetch(`/api/clients/${selectedClient.id}`, {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ accountManagerId: value }),
-                          });
+               <CardContent className="grid grid-cols-2 gap-6">
+  {/* Changed from gap-4 to gap-6 for more spacing */}
+  
+  <div className="space-y-1">
+    <Label className="text-gray-500">Contact Name</Label>
+    <div className="flex items-center gap-2 text-gray-900">
+      <User className="h-4 w-4" />
+      {selectedClient.name}
+    </div>
+  </div>
+  <div className="space-y-1">
+    <Label className="text-gray-500">Company</Label>
+    <div className="flex items-center gap-2 text-gray-900">
+      <Building className="h-4 w-4" />
+      {selectedClient.companyName}
+    </div>
+  </div>
+  <div className="space-y-1">
+    <Label className="text-gray-500">Email</Label>
+    <div className="flex items-center gap-2 text-gray-900">
+      <Mail className="h-4 w-4" />
+      {selectedClient.email}
+    </div>
+  </div>
+  <div className="space-y-1">
+    <Label className="text-gray-500">Phone</Label>
+    <div className="flex items-center gap-2 text-gray-900">
+      <Phone className="h-4 w-4" />
+      {selectedClient.phone}
+    </div>
+  </div>
+  
+  <div className="space-y-1">
+    <Label className="text-gray-500">Account Manager</Label>
+    <div className="flex items-center gap-2 text-gray-900">
+      <User className="h-4 w-4" />
+      {mockAccountManagers.find(m => m.id === selectedClient.accountManagerId)?.name || "Not assigned"}
+    </div>
+  </div>
 
-                          setSelectedClient({
-                            ...selectedClient,
-                            accountManagerId: value,
-                          });
-                          toast.success("Account manager updated");
-                        } catch (err) {
-                          toast.error("Failed to update");
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                        <SelectValue placeholder="Select manager (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mockAccountManagers.map((manager) => (
-                          <SelectItem key={manager.id} value={manager.id}>
-                            {manager.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-gray-500">Status</Label>
-                    <Badge variant={getStatusVariant(selectedClient.status)}>
-                      {selectedClient.status}
-                    </Badge>
-                  </div>
-                </CardContent>
+  <div className="space-y-1">
+    <Label className="text-gray-500">Status</Label>
+    <div>
+      <Badge variant={getStatusVariant(selectedClient.status)}>
+        {selectedClient.status}
+      </Badge>
+    </div>
+  </div>
+</CardContent>
               </Card>
 
               <Card className="bg-white border-gray-200">
@@ -1321,55 +1290,59 @@ const handleDeleteClient = async (clientId: string) => {
 
             <TabsContent value="brand" className="space-y-4">
               <Card className="bg-white border-gray-200">
-                {/* <CardHeader>
-                  <CardTitle className="text-gray-900">Brand Assets</CardTitle>
-                </CardHeader> */}
-
                 <CardHeader>
                   <CardTitle className="text-gray-900">Brand Assets</CardTitle>
-
-                  {/* Folder selector */}
-                  <Select value={uploadFolder} onValueChange={setUploadFolder}>
-                    <SelectTrigger className="w-48 bg-white border-gray-200">
-                      <SelectValue placeholder="Select Folder" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="elements">Elements Folder</SelectItem>
-                      <SelectItem value="raw-footage">
-                        Raw Footage Folder
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {/* Hidden file input */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={(e) =>
-                      handleFileUpload(
-                        selectedClient.id,
-                        uploadFolder,
-                        e.target.files
-                      )
-                    }
-                  />
-
-                  {/* Button that triggers the input */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2 mt-3"
-                    onClick={() => {
-                      if (fileInputRef.current) fileInputRef.current.click();
-                    }}
-                  >
-                    <Upload className="h-4 w-4" />
-                    Upload Asset
-                  </Button>
                 </CardHeader>
 
-                <CardContent>
+                <CardContent className="space-y-4">
+                  {/* Upload controls */}
+                  <div className="flex items-center gap-3">
+                    <Select
+                      value={uploadFolder}
+                      onValueChange={setUploadFolder}
+                    >
+                      <SelectTrigger className="w-48 bg-white border-gray-200">
+                        <SelectValue placeholder="Select Folder" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="elements">
+                          Elements Folder
+                        </SelectItem>
+                        <SelectItem value="raw-footage">
+                          Raw Footage Folder
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* Hidden file input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={(e) =>
+                        handleFileUpload(
+                          selectedClient.id,
+                          uploadFolder as "elements" | "raw-footage",
+                          e.target.files
+                        )
+                      }
+                    />
+
+                    {/* Upload button */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        if (fileInputRef.current) fileInputRef.current.click();
+                      }}
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload Asset
+                    </Button>
+                  </div>
+
+                  {/* Assets grid */}
                   <div className="grid grid-cols-2 gap-4">
                     {(selectedClient.brandAssets ?? []).map((asset) => (
                       <div
