@@ -18,7 +18,43 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ client });
+    // Normalize the response with additional contacts
+    const normalized = {
+      ...client,
+      emails: client.emails ?? [],
+      phones: client.phones ?? [],
+      monthlyDeliverables: client.monthlyDeliverables ?? [],
+      brandAssets: client.brandAssets ?? [],
+      recurringTasks: client.recurringTasks ?? [],
+      brandGuidelines: client.brandGuidelines ?? {
+        primaryColors: [],
+        secondaryColors: [],
+        fonts: [],
+        logoUsage: "",
+        toneOfVoice: "",
+        brandValues: "",
+        targetAudience: "",
+        contentStyle: "",
+      },
+      projectSettings: client.projectSettings ?? {
+        defaultVideoLength: "60 seconds",
+        preferredPlatforms: [],
+        contentApprovalRequired: false,
+        quickTurnaroundAvailable: false,
+      },
+      billing: client.billing ?? {
+        monthlyFee: "",
+        billingFrequency: "monthly",
+        billingDay: 1,
+        paymentMethod: "credit-card",
+        nextBillingDate: "",
+        notes: "",
+      },
+      postingSchedule: client.postingSchedule ?? {},
+      currentProgress: client.currentProgress ?? { completed: 0, total: 0 },
+    };
+
+    return NextResponse.json({ client: normalized });
   } catch (err) {
     console.error("GET /clients/:id error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
@@ -36,8 +72,10 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     const {
       name,
       email,
+      emails, // NEW: Additional emails
       companyName,
       phone,
+      phones, // NEW: Additional phones
       status,
       accountManagerId,
       brandGuidelines,
@@ -57,14 +95,20 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       videographer = true;
     }
 
+    // Filter out empty emails and phones
+    const additionalEmails = (emails || []).filter((e: string) => e.trim() !== "");
+    const additionalPhones = (phones || []).filter((p: string) => p.trim() !== "");
+
     // STEP 1 — Update main client record
     const updatedClient = await prisma.client.update({
       where: { id },
       data: {
         name,
         email,
+        emails: additionalEmails, // NEW: Update additional emails
         companyName,
         phone,
+        phones: additionalPhones, // NEW: Update additional phones
         status,
         accountManagerId,
         brandGuidelines,
@@ -127,7 +171,14 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       }
     }
 
-    return NextResponse.json({ success: true, updated: updatedClient });
+    // Return normalized response
+    const normalized = {
+      ...updatedClient,
+      emails: additionalEmails,
+      phones: additionalPhones,
+    };
+
+    return NextResponse.json({ success: true, updated: normalized });
   } catch (err) {
     console.error("PUT client failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
@@ -214,7 +265,7 @@ export async function DELETE(
       where: { clientId: id },
     });
 
-    // STEP 5 — Delete the client record
+    // STEP 5 — Delete the client record (emails and phones will be deleted automatically)
     await prisma.client.delete({
       where: { id },
     });
@@ -226,11 +277,11 @@ export async function DELETE(
       });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: "Client deleted successfully" });
   } catch (err) {
     console.error("DELETE client failed:", err);
     return NextResponse.json(
-      { message: "Server error" },
+      { success: false, message: "Server error" },
       { status: 500 }
     );
   }

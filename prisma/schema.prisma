@@ -128,8 +128,10 @@ model Client {
   id                   String               @id @default(cuid())
   name                 String
   email                String
+  emails               String[] @default([])
   companyName          String?
-  phone                String?
+  phone                String
+  phones               String[] @default([])
   createdBy            String?
   status               String               @default("active")
   accountManagerId     String?

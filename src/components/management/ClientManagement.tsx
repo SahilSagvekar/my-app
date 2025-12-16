@@ -107,7 +107,9 @@ interface Client {
   name: string;
   companyName: string;
   email: string;
+  emails?: string[]; // Additional emails
   phone: string;
+  phones?: string[];
   accountManager: string;
   accountManagerId: string;
   startDate: string;
@@ -479,7 +481,9 @@ export function ClientManagement() {
     name: "",
     companyName: "",
     email: "",
+    emails: [], // Initialize additional emails
     phone: "",
+    phones: [],
     accountManagerId: "",
     startDate: "",
     renewalDate: "",
@@ -498,6 +502,8 @@ export function ClientManagement() {
       targetAudience: "",
       contentStyle: "",
     },
+
+    
     projectSettings: {
       defaultVideoLength: "60 seconds",
       preferredPlatforms: [],
@@ -505,6 +511,55 @@ export function ClientManagement() {
       quickTurnaroundAvailable: false,
     },
   });
+
+
+  const addEmail = () => {
+  setNewClient({
+    ...newClient,
+    emails: [...(newClient.emails || []), ""]
+  });
+};
+
+const updateEmail = (index: number, value: string) => {
+  const updatedEmails = [...(newClient.emails || [])];
+  updatedEmails[index] = value;
+  setNewClient({
+    ...newClient,
+    emails: updatedEmails
+  });
+};
+
+const removeEmail = (index: number) => {
+  const updatedEmails = (newClient.emails || []).filter((_, i) => i !== index);
+  setNewClient({
+    ...newClient,
+    emails: updatedEmails
+  });
+};
+
+const addPhone = () => {
+  setNewClient({
+    ...newClient,
+    phones: [...(newClient.phones || []), ""]
+  });
+};
+
+const updatePhone = (index: number, value: string) => {
+  const updatedPhones = [...(newClient.phones || [])];
+  updatedPhones[index] = value;
+  setNewClient({
+    ...newClient,
+    phones: updatedPhones
+  });
+};
+
+const removePhone = (index: number) => {
+  const updatedPhones = (newClient.phones || []).filter((_, i) => i !== index);
+  setNewClient({
+    ...newClient,
+    phones: updatedPhones
+  });
+};
 
   const [newDeliverable, setNewDeliverable] = useState<
     Partial<MonthlyDeliverable>
@@ -1687,241 +1742,276 @@ const handleDeleteClient = async (clientId: string) => {
           <div className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
-              <h3 className="text-gray-900">Basic Information</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-gray-700">
-                    Contact Name
-                  </Label>
-                  <Input
-                    id="name"
-                    value={newClient.name ?? ""}
-                    onChange={(e) =>
-                      setNewClient({ ...newClient, name: e.target.value })
-                    }
-                    className="bg-white border-gray-200 text-gray-900"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company" className="text-gray-700">
-                    Company
-                  </Label>
-                  <Input
-                    id="company"
-                    value={newClient.companyName ?? ""}
-                    onChange={(e) =>
-                      setNewClient({
-                        ...newClient,
-                        companyName: e.target.value,
-                      })
-                    }
-                    className="bg-white border-gray-200 text-gray-900"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-gray-700">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newClient.email ?? ""}
-                    onChange={(e) =>
-                      setNewClient({ ...newClient, email: e.target.value })
-                    }
-                    className="bg-white border-gray-200 text-gray-900"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-gray-700">
-                    Phone
-                  </Label>
-                  <Input
-                    id="phone"
-                    value={newClient.phone ?? ""}
-                    onChange={(e) =>
-                      setNewClient({ ...newClient, phone: e.target.value })
-                    }
-                    className="bg-white border-gray-200 text-gray-900"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="accountManager" className="text-gray-700">
-                    Account Manager
-                  </Label>
-                  <Select
-                    value={newClient.accountManagerId}
-                    onValueChange={(value) =>
-                      setNewClient({ ...newClient, accountManagerId: value })
-                    }
-                  >
-                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                      <SelectValue placeholder="Select manager" />
-                    </SelectTrigger>
-                    {/* <SelectContent>
-                      {mockAccountManagers.map((manager) => (
-                        <SelectItem key={manager.id} value={manager.id}>
-                          {manager.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent> */}
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status" className="text-gray-700">
-                    Status
-                  </Label>
-                  <Select
-                    value={newClient.status}
-                    onValueChange={(value) =>
-                      setNewClient({
-                        ...newClient,
-                        status: value as "active" | "pending" | "expired",
-                      })
-                    }
-                  >
-                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="expired">Expired</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+  <h3 className="text-gray-900">Basic Information</h3>
+  <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-2">
+      <Label htmlFor="name" className="text-gray-700">
+        Contact Name
+      </Label>
+      <Input
+        id="name"
+        value={newClient.name ?? ""}
+        onChange={(e) =>
+          setNewClient({ ...newClient, name: e.target.value })
+        }
+        className="bg-white border-gray-200 text-gray-900"
+      />
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="company" className="text-gray-700">
+        Company
+      </Label>
+      <Input
+        id="company"
+        value={newClient.companyName ?? ""}
+        onChange={(e) =>
+          setNewClient({
+            ...newClient,
+            companyName: e.target.value,
+          })
+        }
+        className="bg-white border-gray-200 text-gray-900"
+      />
+    </div>
 
-                {/* <div className="space-y-2">
-                  <Label htmlFor="accountManager" className="text-gray-700">
-                    Account Manager
-                  </Label>
-                  <Select
-                    value={newClient.accountManagerId}
-                    onValueChange={(value) =>
-                      setNewClient({ ...newClient, accountManagerId: value })
-                    }
-                  >
-                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                      <SelectValue placeholder="Select manager" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mockAccountManagers.map((manager) => (
-                        <SelectItem key={manager.id} value={manager.id}>
-                          {manager.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status" className="text-gray-700">
-                    Status
-                  </Label>
-                  <Select
-                    value={newClient.status}
-                    onValueChange={(value) =>
-                      setNewClient({
-                        ...newClient,
-                        status: value as "active" | "pending" | "expired",
-                      })
-                    }
-                  >
-                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="expired">Expired</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div> */}
+    {/* Primary Email */}
+    <div className="space-y-2">
+      <Label htmlFor="email" className="text-gray-700">
+        Primary Email *
+      </Label>
+      <Input
+        id="email"
+        type="email"
+        value={newClient.email ?? ""}
+        onChange={(e) =>
+          setNewClient({ ...newClient, email: e.target.value })
+        }
+        className="bg-white border-gray-200 text-gray-900"
+      />
+    </div>
 
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="clientReviewRequired"
-                    className="text-gray-700"
-                  >
-                    Client Review Required
-                  </Label>
-                  <Select
-                    value={newClient.clientReviewRequired ?? "no"}
-                    onValueChange={(value) =>
-                      setNewClient({
-                        ...newClient,
-                        clientReviewRequired: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                      <SelectValue placeholder="Select option" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="yes">Yes</SelectItem>
-                      <SelectItem value="no">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+    {/* Primary Phone */}
+    <div className="space-y-2">
+      <Label htmlFor="phone" className="text-gray-700">
+        Primary Phone *
+      </Label>
+      <Input
+        id="phone"
+        value={newClient.phone ?? ""}
+        onChange={(e) =>
+          setNewClient({ ...newClient, phone: e.target.value })
+        }
+        className="bg-white border-gray-200 text-gray-900"
+      />
+    </div>
 
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="videographerRequired"
-                    className="text-gray-700"
-                  >
-                    Videographer Required
-                  </Label>
-                  <Select
-                    value={newClient.videographerRequired ?? "no"}
-                    onValueChange={(value) =>
-                      setNewClient({
-                        ...newClient,
-                        videographerRequired: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                      <SelectValue placeholder="Select option" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="yes">Yes</SelectItem>
-                      <SelectItem value="no">No</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+    {/* Additional Emails Section */}
+    <div className="space-y-2 col-span-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-gray-700">Additional Emails</Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addEmail}
+          className="gap-1"
+        >
+          <Plus className="h-3 w-3" />
+          Add Email
+        </Button>
+      </div>
+      {(newClient.emails || []).map((email, index) => (
+        <div key={index} className="flex gap-2">
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => updateEmail(index, e.target.value)}
+            placeholder="additional@email.com"
+            className="bg-white border-gray-200 text-gray-900"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => removeEmail(index)}
+            className="text-red-600 hover:text-red-700"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="startDate" className="text-gray-700">
-                    Start Date
-                  </Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={newClient.startDate ?? ""}
-                    onChange={(e) =>
-                      setNewClient({ ...newClient, startDate: e.target.value })
-                    }
-                    className="bg-white border-gray-200 text-gray-900"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="renewalDate" className="text-gray-700">
-                    Renewal Date
-                  </Label>
-                  <Input
-                    id="renewalDate"
-                    type="date"
-                    value={newClient.renewalDate ?? ""}
-                    onChange={(e) =>
-                      setNewClient({
-                        ...newClient,
-                        renewalDate: e.target.value,
-                      })
-                    }
-                    className="bg-white border-gray-200 text-gray-900"
-                  />
-                </div>
-              </div>
-            </div>
+    {/* Additional Phones Section */}
+    <div className="space-y-2 col-span-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-gray-700">Additional Phone Numbers</Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addPhone}
+          className="gap-1"
+        >
+          <Plus className="h-3 w-3" />
+          Add Phone
+        </Button>
+      </div>
+      {(newClient.phones || []).map((phone, index) => (
+        <div key={index} className="flex gap-2">
+          <Input
+            type="tel"
+            value={phone}
+            onChange={(e) => updatePhone(index, e.target.value)}
+            placeholder="+1 (555) 000-0000"
+            className="bg-white border-gray-200 text-gray-900"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => removePhone(index)}
+            className="text-red-600 hover:text-red-700"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+    </div>
+
+    {/* Account Manager */}
+    <div className="space-y-2">
+      <Label htmlFor="accountManager" className="text-gray-700">
+        Account Manager
+      </Label>
+      <Select
+        value={newClient.accountManagerId || undefined}
+        onValueChange={(value) =>
+          setNewClient({ ...newClient, accountManagerId: value })
+        }
+      >
+        <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+          <SelectValue placeholder="Select manager" />
+        </SelectTrigger>
+        <SelectContent>
+          {mockAccountManagers.map((manager) => (
+            <SelectItem key={manager.id} value={manager.id}>
+              {manager.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="status" className="text-gray-700">
+        Status
+      </Label>
+      <Select
+        value={newClient.status}
+        onValueChange={(value) =>
+          setNewClient({
+            ...newClient,
+            status: value as "active" | "pending" | "expired",
+          })
+        }
+      >
+        <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="active">Active</SelectItem>
+          <SelectItem value="pending">Pending</SelectItem>
+          <SelectItem value="expired">Expired</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div className="space-y-2">
+      <Label
+        htmlFor="clientReviewRequired"
+        className="text-gray-700"
+      >
+        Client Review Required
+      </Label>
+      <Select
+        value={newClient.clientReviewRequired ?? "no"}
+        onValueChange={(value) =>
+          setNewClient({
+            ...newClient,
+            clientReviewRequired: value,
+          })
+        }
+      >
+        <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+          <SelectValue placeholder="Select option" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="yes">Yes</SelectItem>
+          <SelectItem value="no">No</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div className="space-y-2">
+      <Label
+        htmlFor="videographerRequired"
+        className="text-gray-700"
+      >
+        Videographer Required
+      </Label>
+      <Select
+        value={newClient.videographerRequired ?? "no"}
+        onValueChange={(value) =>
+          setNewClient({
+            ...newClient,
+            videographerRequired: value,
+          })
+        }
+      >
+        <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+          <SelectValue placeholder="Select option" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="yes">Yes</SelectItem>
+          <SelectItem value="no">No</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="startDate" className="text-gray-700">
+        Start Date
+      </Label>
+      <Input
+        id="startDate"
+        type="date"
+        value={newClient.startDate ?? ""}
+        onChange={(e) =>
+          setNewClient({ ...newClient, startDate: e.target.value })
+        }
+        className="bg-white border-gray-200 text-gray-900"
+      />
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="renewalDate" className="text-gray-700">
+        Renewal Date
+      </Label>
+      <Input
+        id="renewalDate"
+        type="date"
+        value={newClient.renewalDate ?? ""}
+        onChange={(e) =>
+          setNewClient({
+            ...newClient,
+            renewalDate: e.target.value,
+          })
+        }
+        className="bg-white border-gray-200 text-gray-900"
+      />
+    </div>
+  </div>
+</div>
 
             <Separator className="bg-gray-200" />
 

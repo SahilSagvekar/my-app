@@ -8,13 +8,11 @@ import { createRecurringTasksForClient } from "@/app/api/clients/recurring";
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
-  // You were using authToken here; keep it consistent
   const match = cookieHeader.match(/authToken=([^;]+)/);
   return match ? match[1] : null;
 }
 
 // ---------- GET /api/clients ----------
-// Returns full structured list tailored for your ClientManagement UI
 export async function GET() {
   try {
     const clients = await prisma.client.findMany({
@@ -29,11 +27,14 @@ export async function GET() {
     const normalized = clients.map((c) => ({
       ...c,
 
+      // Include emails and phones arrays
+      emails: c.emails ?? [],
+      phones: c.phones ?? [],
+
       monthlyDeliverables: c.monthlyDeliverables ?? [],
       brandAssets: c.brandAssets ?? [],
       recurringTasks: c.recurringTasks ?? [],
 
-      // JSON defaults
       brandGuidelines: c.brandGuidelines ?? {
         primaryColors: [],
         secondaryColors: [],
@@ -78,7 +79,6 @@ export async function GET() {
 }
 
 // ---------- POST /api/clients ----------
-// Accepts full client payload from your Add Client dialog
 export async function POST(req: Request) {
   try {
     const token = getTokenFromCookies(req);
@@ -95,13 +95,14 @@ export async function POST(req: Request) {
     let clientReview = false;
     let videographer = false;
 
-
     const body = await req.json();
     const {
       name,
       email,
-      company,
+      emails, // NEW: Additional emails
       phone,
+      phones, // NEW: Additional phones
+      company,
       accountManagerId,
 
       // Big UI chunks
@@ -128,11 +129,14 @@ export async function POST(req: Request) {
       videographer = true;
     }
 
+    // Filter out empty emails and phones
+    const additionalEmails = (emails || []).filter((e: string) => e.trim() !== "");
+    const additionalPhones = (phones || []).filter((p: string) => p.trim() !== "");
+
     // STEP 1 — Create Drive Folders
     const folders = await createClientFolders(name);
 
-    // STEP 2 — Create Client
-
+    // STEP 2 — Create User
     const user = await prisma.user.create({
       data: {
         name,
@@ -140,14 +144,17 @@ export async function POST(req: Request) {
         password: email,
         role: "client",
       }
-    })
+    });
 
+    // STEP 3 — Create Client
     const client = await prisma.client.create({
       data: {
         name,
         email,
+        emails: additionalEmails, // NEW: Store additional emails
         companyName: company || null,
         phone,
+        phones: additionalPhones, // NEW: Store additional phones
         createdBy: decoded.userId.toString(),
 
         user: {
@@ -176,8 +183,7 @@ export async function POST(req: Request) {
       },
     });
 
-
-    // STEP 3 — Insert deliverables into SQL
+    // STEP 4 — Insert deliverables into SQL
     const createdDeliverables = await Promise.all(
       (monthlyDeliverables || []).map((d: any) =>
         prisma.monthlyDeliverable.create({
@@ -196,13 +202,17 @@ export async function POST(req: Request) {
       )
     );
 
-    // STEP 4 — Create RecurringTask entries
+    // STEP 5 — Create RecurringTask entries
     await createRecurringTasksForClient(client.id);
 
     return NextResponse.json(
       {
         success: true,
-        client,
+        client: {
+          ...client,
+          emails: additionalEmails,
+          phones: additionalPhones,
+        },
         deliverables: createdDeliverables,
       },
       { status: 201 }
