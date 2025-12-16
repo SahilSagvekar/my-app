@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
+import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
+
 
 const PatchSchema = z.object({
   name: z.string().optional(),
@@ -18,6 +20,7 @@ const PatchSchema = z.object({
     ])
     .optional(), // Changed 'qc_specialist' to 'qc'
   hourlyRate: z.number().min(0).optional(), // Added back hourlyRate
+  hoursPerWeek: z.number().min(0).optional(),
   monthlyBaseHours: z.number().int().positive().optional(),
   employeeStatus: z.enum(["ACTIVE", "INACTIVE", "TERMINATED"]).optional(),
   joinedAt: z.string().optional(),
@@ -50,9 +53,21 @@ export async function PATCH(
         email: payload.email ?? undefined,
         role: payload.role ?? undefined,
         hourlyRate: payload.hourlyRate ?? undefined,
+        hoursPerWeek: Number(payload.hoursPerWeek)  ?? undefined,
         monthlyBaseHours: payload.monthlyBaseHours ?? undefined,
         employeeStatus: payload.employeeStatus ?? undefined,
         joinedAt: payload.joinedAt ? new Date(payload.joinedAt) : undefined,
+      },
+    });
+
+    await createAuditLog({
+      userId: user.id,
+      action: AuditAction.USER_UPDATED,
+      entity: "User",
+      entityId: user.id.toString(),
+      details: `Updated employee: ${user.name}`,
+      metadata: {
+        changes: payload,
       },
     });
 

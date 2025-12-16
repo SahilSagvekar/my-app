@@ -18,6 +18,7 @@ model User {
   updatedAt        DateTime        @updatedAt
   employeeStatus   EmployeeStatus? @default(ACTIVE)
   hourlyRate       Decimal?        @db.Decimal(10, 2)
+  hoursPerWeek      Decimal?       @db.Decimal(5, 2) @default(0)
   feedbackSent         Feedback[]         @relation("FeedbackSender")
   feedbackResponses    FeedbackResponse[] @relation("FeedbackResponseSender")
   joinedAt         DateTime?

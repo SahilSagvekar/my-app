@@ -83,6 +83,7 @@ interface Employee {
   email: string;
   role: string;
   hourlyRate: number;
+  hoursPerWeek: number;
   monthlyRate: number;
   hireDate: string;
   status: "active" | "inactive" | "terminated";
@@ -357,16 +358,6 @@ export function FinanceTab() {
     >[],
   });
 
-  // New Employee Form (backed by POST /api/employee)
-  // const [newEmployee, setNewEmployee] = useState({
-  //   name: "",
-  //   email: "",
-  //   role: "",
-  //   hourlyRate: "",
-  //   hireDate: undefined as Date | undefined,
-  //   worksOnSaturday: false,
-  // });
-
   // Payroll generation form – month/year for all employees
   const [newPayroll, setNewPayroll] = useState({
     month: "",
@@ -382,8 +373,9 @@ export function FinanceTab() {
     email: "",
     role: "",
     hourlyRate: "",
+    hoursPerWeek: "",
     hireDate: undefined as Date | undefined,
-    status: "active" as "active" | "inactive",
+    status: "active" as "active" | "inactive"| "terminated",
   });
   const [newEmployee, setNewEmployee] = useState({
   firstName: "",
@@ -391,6 +383,7 @@ export function FinanceTab() {
   email: "",
   role: "",
   hourlyRate: "",
+  hoursPerWeek: "", 
   hireDate: undefined as Date | undefined,
   worksOnSaturday: false,
 });
@@ -407,6 +400,7 @@ export function FinanceTab() {
       email: employee.email,
       role: employee.role,
       hourlyRate: String(employee.hourlyRate),
+      hoursPerWeek: String(employee.hoursPerWeek || 0),
       hireDate: employee.hireDate ? new Date(employee.hireDate) : undefined,
       status: employee.status,
     });
@@ -430,6 +424,7 @@ export function FinanceTab() {
   try {
     const hourlyRate = parseFloat(newEmployee.hourlyRate);
     const fullName = `${newEmployee.firstName} ${newEmployee.lastName}`.trim();
+    const hoursPerWeek = Number(newEmployee.hoursPerWeek);
 
     await apiFetch("/api/employee", {
       method: "POST",
@@ -438,6 +433,7 @@ export function FinanceTab() {
         email: newEmployee.email,
         role: newEmployee.role || "editor",
         hourlyRate,
+        hoursPerWeek,
         joinedAt: newEmployee.hireDate.toISOString(),
         worksOnSaturday: newEmployee.worksOnSaturday,
       }),
@@ -453,6 +449,7 @@ export function FinanceTab() {
       email: "",
       role: "",
       hourlyRate: "",
+      hoursPerWeek: "0",
       hireDate: undefined,
       worksOnSaturday: false,
     });
@@ -482,6 +479,9 @@ export function FinanceTab() {
 
     try {
       const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
+      // const hoursPerWeek = parseFloat(editEmployeeForm.hoursPerWeek);
+      const hoursPerWeek = Number(editEmployeeForm.hoursPerWeek);
+      const fullName = `${newEmployee.firstName} ${newEmployee.lastName}`.trim();
 
       // Map status to database enum
       const statusMap = {
@@ -493,10 +493,11 @@ export function FinanceTab() {
       await apiFetch(`/api/employee/${editingEmployee.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          name: editEmployeeForm.name,
+          name: fullName,
           email: editEmployeeForm.email,
           role: editEmployeeForm.role,
           hourlyRate,
+          hoursPerWeek,
           employeeStatus: statusMap[editEmployeeForm.status],
           joinedAt: editEmployeeForm.hireDate?.toISOString(),
         }),
@@ -536,7 +537,8 @@ export function FinanceTab() {
               .toUpperCase() || "U";
 
           const hourly = u.hourlyRate ? Number(u.hourlyRate) : 0;
-          const monthlyRate = hourly * 8 * DEFAULT_WORKING_DAYS;
+          const hoursPerWeek = u.hoursPerWeek ? Number(u.hoursPerWeek) : 40; // Default to 40
+          const monthlyRate = hourly * hoursPerWeek * 4; // Updated calculation
 
           return {
             id: u.id,
@@ -544,7 +546,8 @@ export function FinanceTab() {
             email: u.email,
             role: u.role,
             hourlyRate: hourly,
-            monthlyRate,
+            hoursPerWeek,
+            monthlyRate, // Now correctly calculated
             hireDate: u.joinedAt || u.createdAt,
             status:
               u.employeeStatus === "ACTIVE"
@@ -1272,21 +1275,61 @@ export function FinanceTab() {
                       </Select>
                     </div>
                     <div>
-                      <label className="text-sm font-medium">
-                        Hourly Rate ($)
-                      </label>
-                      <Input
-                        type="number"
-                        value={newEmployee.hourlyRate}
-                        onChange={(e) =>
-                          setNewEmployee((prev) => ({
-                            ...prev,
-                            hourlyRate: e.target.value,
-                          }))
-                        }
-                        placeholder="0.00"
-                      />
-                    </div>
+  <label className="text-sm font-medium">
+    Hourly Rate ($)
+  </label>
+  <Input
+    type="number"
+    value={newEmployee.hourlyRate}  // ✅ Correct
+    onChange={(e) =>
+      setNewEmployee((prev) => ({   // ✅ Correct
+        ...prev,
+        hourlyRate: e.target.value,
+      }))
+    }
+    placeholder="0.00"
+  />
+</div>
+
+{/* Add this new field */}
+<div>
+  <label className="text-sm font-medium">
+    Hours Per Week
+  </label>
+  <Input
+    type="number"
+    value={newEmployee.hoursPerWeek}  // ✅ Correct
+    onChange={(e) =>
+      setNewEmployee((prev) => ({     // ✅ Correct
+        ...prev,
+        hoursPerWeek: e.target.value,
+      }))
+    }
+    placeholder="40"
+  />
+  <p className="text-xs text-muted-foreground mt-1">
+    Typical full-time: 40 hours/week
+  </p>
+</div>
+
+{/* Add preview calculation */}
+{newEmployee.hourlyRate &&  // ✅ Correct
+  newEmployee.hoursPerWeek && (  // ✅ Correct
+    <div className="text-sm bg-muted p-3 rounded-md">
+      <p className="font-medium">Monthly Salary Preview:</p>
+      <p className="text-lg font-bold text-primary">
+        {formatCurrency(
+          parseFloat(newEmployee.hourlyRate || "0") *  // ✅ Correct
+            parseFloat(newEmployee.hoursPerWeek || "0") *  // ✅ Correct
+            4
+        )}
+      </p>
+      <p className="text-xs text-muted-foreground mt-1">
+        = ${newEmployee.hourlyRate}/hr ×{" "} 
+        {newEmployee.hoursPerWeek} hrs/week × 4 weeks 
+      </p>
+    </div>
+  )}
                     <div>
                       <label className="text-sm font-medium">Hire Date</label>
                       <SimpleCalendar
@@ -1370,6 +1413,12 @@ export function FinanceTab() {
                         <span>Hourly Rate:</span>
                         <span className="font-medium">
                           {formatCurrency(employee.hourlyRate)}/hr
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Hours/Week:</span>
+                        <span className="font-medium">
+                          {employee.hoursPerWeek} hrs
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -1464,34 +1513,32 @@ export function FinanceTab() {
                     />
                   </div> */}
 
-                   <div>
-                        <label className="text-sm font-medium">
-                          First Name
-                        </label>
-                        <Input
-                          value={editEmployeeForm.firstName}
-                          onChange={(e) =>
-                            setEditEmployeeForm((prev) => ({
-                              ...prev,
-                              firstName: e.target.value,
-                            }))
-                          }
-                          placeholder="Enter first name"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Last Name</label>
-                        <Input
-                          value={editEmployeeForm.lastName}
-                          onChange={(e) =>
-                            setEditEmployeeForm((prev) => ({
-                              ...prev,
-                              lastName: e.target.value,
-                            }))
-                          }
-                          placeholder="Enter last name"
-                        />
-                      </div>
+                  <div>
+                    <label className="text-sm font-medium">First Name</label>
+                    <Input
+                      value={editEmployeeForm.firstName}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          firstName: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter first name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Last Name</label>
+                    <Input
+                      value={editEmployeeForm.lastName}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          lastName: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter last name"
+                    />
+                  </div>
                   {/* <div>
                     <label className="text-sm font-medium">Last Name</label>
                     <Input
@@ -1567,6 +1614,46 @@ export function FinanceTab() {
                       placeholder="0.00"
                     />
                   </div>
+
+                  {/* Add this new field */}
+                  <div>
+                    <label className="text-sm font-medium">
+                      Hours Per Week
+                    </label>
+                    <Input
+                      type="number"
+                      value={editEmployeeForm.hoursPerWeek}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          hoursPerWeek: e.target.value,
+                        }))
+                      }
+                      placeholder="40"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Typical full-time: 40 hours/week
+                    </p>
+                  </div>
+
+                  {/* Add preview calculation */}
+                  {editEmployeeForm.hourlyRate &&
+                    editEmployeeForm.hoursPerWeek && (
+                      <div className="text-sm bg-muted p-3 rounded-md">
+                        <p className="font-medium">Monthly Salary Preview:</p>
+                        <p className="text-lg font-bold text-primary">
+                          {formatCurrency(
+                            parseFloat(editEmployeeForm.hourlyRate || "0") *
+                              parseFloat(editEmployeeForm.hoursPerWeek || "0") *
+                              4
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          = ${editEmployeeForm.hourlyRate}/hr ×{" "}
+                          {editEmployeeForm.hoursPerWeek} hrs/week × 4 weeks
+                        </p>
+                      </div>
+                    )}
                   <div>
                     <label className="text-sm font-medium">Hire Date</label>
                     <SimpleCalendar
