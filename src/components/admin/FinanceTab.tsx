@@ -63,7 +63,7 @@ interface Invoice {
   amount: number;
   dueDate: string;
   issueDate: string;
-  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
+  status: "Draft" | "Sent" | "Paid" | "Overdue" | "Cancelled";
   description: string;
   items: InvoiceItem[];
   paymentDate?: string;
