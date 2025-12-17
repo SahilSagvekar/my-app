@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Eye, EyeOff, Check, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Progress } from '../ui/progress';
-import logoImage from 'figma:asset/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
+// import logoImage from 'figma:asset/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
+import logoImage from '../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
 
 interface ResetPasswordScreenProps {
   onResetPassword: (newPassword: string, confirmPassword: string, token: string) => Promise<void>;
@@ -125,8 +127,8 @@ export function ResetPasswordScreen({ onResetPassword, token, loading, error }: 
           {/* Logo */}
           <div className="flex justify-center">
             <div className="w-12 h-12 flex items-center justify-center">
-              <img 
-                // src={logoImage} 
+              <Image 
+                src={logoImage} 
                 alt="E8 Logo" 
                 className="w-12 h-12 object-contain"
               />
