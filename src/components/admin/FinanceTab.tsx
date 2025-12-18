@@ -481,7 +481,9 @@ export function FinanceTab() {
       const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
       // const hoursPerWeek = parseFloat(editEmployeeForm.hoursPerWeek);
       const hoursPerWeek = Number(editEmployeeForm.hoursPerWeek);
-      const fullName = `${newEmployee.firstName} ${newEmployee.lastName}`.trim();
+      const fullName = `${editEmployeeForm.firstName} ${editEmployeeForm.lastName}`.trim();
+
+      console.log("fullName" + fullName);
 
       // Map status to database enum
       const statusMap = {
