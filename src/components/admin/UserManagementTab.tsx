@@ -333,7 +333,7 @@ export function UserManagementTab() {
       </div>
 
       {/* Filters and Search */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
@@ -450,7 +450,6 @@ export function UserManagementTab() {
             </Select>
           </div>
 
-          {/* Employee Table */}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -564,7 +563,7 @@ export function UserManagementTab() {
             </table>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }

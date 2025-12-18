@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import {  Card, CardContent, CardHeader, CardTitle  } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,14 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { toast } from "sonner";
+import { Users, UserPlus, Search, MoreHorizontal, Mail, Phone, Calendar, Edit, Trash2, UserCheck, UserX, Filter } from 'lucide-react';
+
+
 
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -42,6 +41,22 @@ interface LeaveRow {
   worksOnSaturday: boolean;
   createdAt?: string;
 }
+
+const roles = [
+  { id: 'admin', name: 'Admin', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+  { id: 'manager', name: 'Manager', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+  { id: 'editor', name: 'Editor', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  { id: 'qc', name: 'QC Specialist', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  { id: 'scheduler', name: 'Scheduler', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+  { id: 'videographer', name: 'Videographer', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' },
+  { id: 'account-manager', name: 'Account Manager', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' }
+];
+
+const statusOptions = [
+  { id: 'active', name: 'Active', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  { id: 'inactive', name: 'Inactive', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' },
+  { id: 'on-leave', name: 'On Leave', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' }
+];
 
 // local api wrapper, no external import
 const apiFetch = async (path: string, options: RequestInit = {}) => {
@@ -126,9 +141,6 @@ const ITEMS_PER_PAGE = 10;
 
 export default function LeavesComponent() {
   const [leaves, setLeaves] = useState<LeaveRow[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const [statusFilter, setStatusFilter] = useState<"ALL" | LeaveStatus>("ALL");
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -168,7 +180,127 @@ export default function LeavesComponent() {
     loadLeaves();
   }, []);
 
-  const filteredLeaves = useMemo(() => {
+
+
+ 
+
+  const [searchTerm, setSearchTerm] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+    const [newUser, setNewUser] = useState({
+      name: '',
+      email: '',
+      phone: '',
+      role: '',
+      status: 'active'
+    });
+    const [employees, setEmployees] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+  // FETCH EMPLOYEES FROM YOUR API
+    // ------------------------------
+    useEffect(() => {
+  
+      async function loadEmployees() {
+        try {
+          const res = await fetch("api/employee/management");
+          const data = await res.json();
+  
+          if (data.ok) {
+            const formatted = data.employees.map((u: any) => {
+              const initials =
+                u.name && u.name.trim() !== ""
+                  ? u.name
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                  : "U";
+
+              const tasksCount = u.assignedTasks?.length || 0;
+  
+              return {
+                id: u.id,
+                name: u.name || "No Name",
+                email: u.email,
+                phone: u.phone || "N/A",
+                role: u.role,
+                status:
+                  u.employeeStatus === "ACTIVE"
+                    ? "active"
+                    : u.employeeStatus === "INACTIVE"
+                    ? "inactive"
+                    : "active",
+                joinDate: u.joinedAt || null,
+                lastActive: "N/A", // field not in DB
+                tasksCompleted: tasksCount, // field not in DB
+                avatar: initials
+              };
+            });
+  
+            setEmployees(formatted);
+            
+          }
+        } catch (error) {
+          console.error("Failed to fetch employees →", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+  
+      loadEmployees();
+    }, []);
+  
+    const filteredEmployees = employees.filter(employee => {
+      const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           employee.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = roleFilter === 'all' || employee.role === roleFilter;
+      const matchesStatus = statusFilter === 'all' || employee.status === statusFilter;
+      
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  
+    const getRoleBadge = (roleId: string) => {
+      const role = roles.find(r => r.id === roleId);
+      return role ? (
+        <Badge className={role.color}>
+          {role.name}
+        </Badge>
+      ) : null;
+    };
+  
+    const getStatusBadge = (statusId: string) => {
+      const status = statusOptions.find(s => s.id === statusId);
+      return status ? (
+        <Badge className={status.color}>
+          {status.name}
+        </Badge>
+      ) : null;
+    };
+  
+    const handleAddUser = () => {
+      setIsAddUserDialogOpen(false);
+      setNewUser({ name: '', email: '', phone: '', role: '', status: 'active' });
+    };
+  
+    const handleDeleteUser = (userId: number) => {
+      console.log('Deleting user:', userId);
+    };
+  
+    const handleUpdateUserStatus = (userId: number, newStatus: string) => {
+      console.log('Updating user status:', userId, newStatus);
+    };
+  
+    const roleStats = roles.map(role => ({
+      ...role,
+      count: employees.filter(emp => emp.role === role.id).length
+    }));
+  
+    const statusStats = statusOptions.map(status => ({
+      ...status,
+      count: employees.filter(emp => emp.status === status.id).length
+    }));
+
+      const filteredLeaves = useMemo(() => {
     return leaves
       .filter((l) =>
         statusFilter === "ALL" ? true : l.status === statusFilter
@@ -201,7 +333,8 @@ export default function LeavesComponent() {
       });
   }, [leaves, statusFilter, search, fromDate, toDate]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredLeaves.length / ITEMS_PER_PAGE));
+
+     const totalPages = Math.max(1, Math.ceil(filteredLeaves.length / ITEMS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
   const paginatedLeaves = filteredLeaves.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -243,9 +376,244 @@ export default function LeavesComponent() {
       toast("Error rejecting leave", { description: err.message });
     }
   };
+  
 
   return (
     <div className="space-y-6">
+      {/* Filters and Search */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Employee Management
+            </CardTitle>
+            
+            <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add Employee
+                </Button>
+              </DialogTrigger>
+              <DialogContent aria-describedby="add-employee-description">
+                <DialogHeader>
+                  <DialogTitle id="add-employee-title">Add New Employee</DialogTitle>
+                  <DialogDescription id="add-employee-description">
+                    Fill in the details below to add a new employee to the system.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm">Full Name</label>
+                    <Input
+                      value={newUser.name}
+                      onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                      placeholder="Enter full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm">Email</label>
+                    <Input
+                      type="email"
+                      value={newUser.email}
+                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      placeholder="Enter email address"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm">Phone</label>
+                    <Input
+                      value={newUser.phone}
+                      onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm">Role</label>
+                    <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roles.map((role) => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddUser}>
+                      Add Employee
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-4 mb-6">
+            <div className="flex items-center gap-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search employees..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-64"
+              />
+            </div>
+
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                {roles.map((role) => (
+                  <SelectItem key={role.id} value={role.id}>
+                    {role.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {statusOptions.map((status) => (
+                  <SelectItem key={status.id} value={status.id}>
+                    {status.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Employee Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4">Employee</th>
+                  <th className="text-left py-3 px-4">Role</th>
+                  <th className="text-left py-3 px-4">Status</th>
+                  <th className="text-left py-3 px-4">Contact</th>
+                  <th className="text-left py-3 px-4">Join Date</th>
+                  <th className="text-left py-3 px-4">Last Active</th>
+                  <th className="text-left py-3 px-4">Tasks</th>
+                  <th className="text-right py-3 px-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEmployees.map((employee) => (
+                  <tr key={employee.id} className="border-b hover:bg-muted/50">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                          {employee.avatar}
+                        </div>
+                        <div>
+                          <div className="font-medium">{employee.name}</div>
+                          <div className="text-sm text-muted-foreground">{employee.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      {getRoleBadge(employee.role)}
+                    </td>
+                    <td className="py-3 px-4">
+                      {getStatusBadge(employee.status)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Mail className="h-3 w-3" />
+                          {employee.email}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="h-3 w-3" />
+                          {employee.phone}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      {new Date(employee.joinDate).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      {employee.lastActive}
+                    </td>
+                    <td className="py-3 px-4">
+                      <Badge variant="outline">
+                        {employee.tasksCompleted}
+                      </Badge>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleUpdateUserStatus(employee.id, employee.status === 'active' ? 'inactive' : 'active')}>
+                            {employee.status === 'active' ? (
+                              <>
+                                <UserX className="h-4 w-4 mr-2" />
+                                Deactivate
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck className="h-4 w-4 mr-2" />
+                                Activate
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete {employee.name}? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteUser(employee.id)} className="bg-red-600 hover:bg-red-700">
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Header + Filters */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>

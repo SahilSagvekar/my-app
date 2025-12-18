@@ -27,6 +27,10 @@ function getTokenFromCookies(req: Request) {
 }
 
 const buildRoleWhereQuery = (role: string, userId: number): any => {
+  if (!role) {
+    return {}; // Return empty query or default behavior
+  }
+  
   switch (role.toLowerCase()) {
     case "editor":
       return {

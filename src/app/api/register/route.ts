@@ -7,10 +7,14 @@ const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password, acceptTerms } = await req.json();
+    const { name, email, phone,  password, acceptTerms } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ message: "Email and password are required" }, { status: 400 });
+    }
+
+    if (!phone) {
+      return NextResponse.json({ message: "Phone is required" }, { status: 400 });
     }
 
     if (!acceptTerms) {
@@ -33,6 +37,7 @@ export async function POST(req: Request) {
         email,
         password: hashedPassword,
         // role: null,
+        phone: String(phone),
       },
     });
 

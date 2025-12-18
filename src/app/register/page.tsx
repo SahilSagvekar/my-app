@@ -6,6 +6,7 @@ export default function RegisterPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ 
           name: fullName, 
           email, 
+          phone,
           password, 
           acceptTerms 
         }),
@@ -86,6 +88,20 @@ export default function RegisterPage() {
             />
           </div>
         </div>
+
+         {/* Phone Field */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1">Phone Number</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Enter your phone number"
+            required
+          />
+        </div>
+
 
         {/* Email Field */}
         <div className="mb-4">
