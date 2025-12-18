@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { DatePickerWithRange } from '../ui/date-picker-with-range';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, TrendingDown, Eye, Heart, MessageCircle, Share, Users, MousePointer, DollarSign, Calendar, Download, Filter } from 'lucide-react';
+import { DateRangePicker } from '../ui/date-range-picker';
 
 // Mock data for client analytics
 const clients = [
@@ -135,10 +136,10 @@ const clientPerformance = [
 export function AnalyticsTab() {
   const [selectedClient, setSelectedClient] = useState('all');
   const [selectedPlatform, setSelectedPlatform] = useState('all');
-  const [dateRange, setDateRange] = useState({
-    from: new Date(2024, 0, 1), // Jan 1, 2024
-    to: new Date() // Today
-  });
+   const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
+  from: new Date(new Date().setDate(new Date().getDate() - 30)),
+  to: new Date()
+});
 
   return (
     <div className="space-y-6">
@@ -186,10 +187,7 @@ export function AnalyticsTab() {
 
             <div className="space-y-2">
               <label className="text-sm">Date Range</label>
-              <DatePickerWithRange 
-                date={dateRange}
-                setDate={setDateRange}
-              />
+             <DateRangePicker date={dateRange} setDate={setDateRange} />
             </div>
 
             <Button variant="outline" className="flex items-center gap-2">

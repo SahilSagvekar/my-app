@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { DatePickerWithRange } from '../ui/date-picker-with-range';
 import { ScrollArea } from '../ui/scroll-area';
 import { Shield, Search, Calendar, User, FileText, Settings, AlertTriangle, CheckCircle, Edit, Trash2, Plus, Download, Filter, RefreshCw } from 'lucide-react';
+import { SimpleCalendar } from "../ui/simple-calendar";
+import { DateRangePicker } from '../ui/date-range-picker';
 
 interface AuditLog {
   id: number;
@@ -59,10 +61,10 @@ export function AuditLogTab() {
   const [actionTypeFilter, setActionTypeFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('all');
-  const [dateRange, setDateRange] = useState({
-    from: new Date(new Date().setDate(new Date().getDate() - 30)),
-    to: new Date()
-  });
+const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
+  from: new Date(new Date().setDate(new Date().getDate() - 30)),
+  to: new Date()
+});
 
   // Data states
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -310,7 +312,9 @@ export function AuditLogTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">High Severity</p>
-                <h3 className="text-2xl font-bold mt-2">{stats.highSeverity}</h3>
+                <h3 className="text-2xl font-bold mt-2">
+                  {stats.highSeverity}
+                </h3>
               </div>
               <AlertTriangle className="h-8 w-8 text-red-600" />
             </div>
@@ -322,7 +326,9 @@ export function AuditLogTab() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Security Events</p>
-                <h3 className="text-2xl font-bold mt-2">{stats.securityEvents}</h3>
+                <h3 className="text-2xl font-bold mt-2">
+                  {stats.securityEvents}
+                </h3>
               </div>
               <Shield className="h-8 w-8 text-purple-600" />
             </div>
@@ -339,23 +345,25 @@ export function AuditLogTab() {
               Audit Log
             </CardTitle>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={handleRefresh}
                 disabled={refreshing}
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`}
+                />
                 Refresh
               </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleExport} 
+              <Button
+                variant="outline"
+                onClick={handleExport}
                 disabled={exporting}
                 className="flex items-center gap-2"
               >
                 <Download className="h-4 w-4" />
-                {exporting ? 'Exporting...' : 'Export Logs'}
+                {exporting ? "Exporting..." : "Export Logs"}
               </Button>
             </div>
           </div>
@@ -377,7 +385,10 @@ export function AuditLogTab() {
 
             <div className="space-y-2">
               <label className="text-sm">Action Type</label>
-              <Select value={actionTypeFilter} onValueChange={setActionTypeFilter}>
+              <Select
+                value={actionTypeFilter}
+                onValueChange={setActionTypeFilter}
+              >
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Filter by action" />
                 </SelectTrigger>
@@ -425,10 +436,7 @@ export function AuditLogTab() {
 
             <div className="space-y-2">
               <label className="text-sm">Date Range</label>
-              <DatePickerWithRange 
-                date={dateRange}
-                setDate={setDateRange}
-              />
+              <DateRangePicker date={dateRange} setDate={setDateRange} />
             </div>
           </div>
 
@@ -443,13 +451,25 @@ export function AuditLogTab() {
               <table className="w-full">
                 <thead className="sticky top-0 bg-background border-b">
                   <tr>
-                    <th className="text-left py-3 px-4 min-w-[140px]">Timestamp</th>
-                    <th className="text-left py-3 px-4 min-w-[120px]">Action</th>
+                    <th className="text-left py-3 px-4 min-w-[140px]">
+                      Timestamp
+                    </th>
+                    <th className="text-left py-3 px-4 min-w-[120px]">
+                      Action
+                    </th>
                     <th className="text-left py-3 px-4 min-w-[120px]">User</th>
-                    <th className="text-left py-3 px-4 min-w-[300px]">Description</th>
-                    <th className="text-left py-3 px-4 min-w-[200px]">Target</th>
-                    <th className="text-left py-3 px-4 min-w-[100px]">Severity</th>
-                    <th className="text-left py-3 px-4 min-w-[120px]">IP Address</th>
+                    <th className="text-left py-3 px-4 min-w-[300px]">
+                      Description
+                    </th>
+                    <th className="text-left py-3 px-4 min-w-[200px]">
+                      Target
+                    </th>
+                    <th className="text-left py-3 px-4 min-w-[100px]">
+                      Severity
+                    </th>
+                    <th className="text-left py-3 px-4 min-w-[120px]">
+                      IP Address
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -460,7 +480,9 @@ export function AuditLogTab() {
                         <tr key={log.id} className="border-b hover:bg-muted/50">
                           <td className="py-3 px-4 text-sm">
                             <div>{date}</div>
-                            <div className="text-muted-foreground text-xs">{time}</div>
+                            <div className="text-muted-foreground text-xs">
+                              {time}
+                            </div>
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
@@ -470,8 +492,12 @@ export function AuditLogTab() {
                           </td>
                           <td className="py-3 px-4">
                             <div>
-                              <div className="font-medium text-sm">{log.user}</div>
-                              <div className="text-xs text-muted-foreground">{log.userRole}</div>
+                              <div className="font-medium text-sm">
+                                {log.user}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {log.userRole}
+                              </div>
                             </div>
                           </td>
                           <td className="py-3 px-4">
@@ -487,7 +513,10 @@ export function AuditLogTab() {
                             {getSeverityBadge(log.severity)}
                           </td>
                           <td className="py-3 px-4 text-sm">
-                            <div className="max-w-[120px] truncate" title={log.ipAddress}>
+                            <div
+                              className="max-w-[120px] truncate"
+                              title={log.ipAddress}
+                            >
                               {log.ipAddress}
                             </div>
                           </td>
@@ -496,7 +525,10 @@ export function AuditLogTab() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                      <td
+                        colSpan={7}
+                        className="py-8 text-center text-muted-foreground"
+                      >
                         No audit logs found matching your filters
                       </td>
                     </tr>

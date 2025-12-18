@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const logs = await prisma.auditLog.findMany({
       where,
       include: {
-        user: {
+        User: {
           select: {
             name: true,
             email: true,
@@ -51,8 +51,8 @@ export async function POST(req: NextRequest) {
       logs.forEach(log => {
         const timestamp = log.timestamp.toISOString();
         const action = log.action;
-        const user = log.user?.name || 'System';
-        const userRole = log.user?.role || 'System';
+        const user = log.User?.name || 'System';
+        const userRole = log.User?.role || 'System';
         const description = (log.details || '').replace(/,/g, ';').replace(/\n/g, ' ');
         const entity = log.entity || 'N/A';
         const entityId = log.entityId || 'N/A';

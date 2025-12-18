@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { DatePickerWithRange } from '../ui/date-picker-with-range';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area, Tooltip } from 'recharts';
 import { FileText, CheckCircle, Clock, Calendar, Download, TrendingUp, TrendingDown, BarChart3, RefreshCw } from 'lucide-react';
-
+import { DateRangePicker } from '../ui/date-range-picker';
+import { toast } from '@/hooks/use-toast';
 interface DailyReport {
   date: string;
   employee: string;
@@ -43,10 +44,10 @@ interface SummaryMetric {
 
 export function ReportsTab() {
   const [selectedEmployee, setSelectedEmployee] = useState('all');
-  const [dateRange, setDateRange] = useState({
-    from: new Date(new Date().setDate(new Date().getDate() - 30)),
-    to: new Date()
-  });
+ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
+  from: new Date(new Date().setDate(new Date().getDate() - 30)),
+  to: new Date()
+});
   
   // Data states
   const [dailyOutputData, setDailyOutputData] = useState<DailyReport[]>([]);
@@ -340,10 +341,7 @@ export function ReportsTab() {
 
             <div className="space-y-2">
               <label className="text-sm">Date Range</label>
-              <DatePickerWithRange 
-                date={dateRange}
-                setDate={setDateRange}
-              />
+              <DateRangePicker date={dateRange} setDate={setDateRange} />
             </div>
 
             <div className="flex gap-2">

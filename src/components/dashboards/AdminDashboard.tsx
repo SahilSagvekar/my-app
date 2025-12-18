@@ -15,6 +15,7 @@ import { FinanceTab } from '../admin/FinanceTab';
 import { ClientManagement } from '../management/ClientManagement';
 import { Button } from '../ui/button';
 import { useEffect, useState } from "react";
+import { DateRangePicker } from '../ui/date-range-picker';
 
 interface KPIData {
   totalRevenue: {
@@ -104,6 +105,10 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
   const [systemStatus, setSystemStatus] = useState<SystemStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
+  from: new Date(new Date().setDate(new Date().getDate() - 30)),
+  to: new Date()
+});
 
   const handleTaskCreated = (task: any) => {
     console.log('New task created:', task);
