@@ -32,11 +32,7 @@ import {
 } from "../ui/table";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Calendar } from "../ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
   DollarSign,
   Users,
@@ -375,19 +371,18 @@ export function FinanceTab() {
     hourlyRate: "",
     hoursPerWeek: "",
     hireDate: undefined as Date | undefined,
-    status: "active" as "active" | "inactive"| "terminated",
+    status: "active" as "active" | "inactive" | "terminated",
   });
   const [newEmployee, setNewEmployee] = useState({
-  firstName: "",
-  lastName: "",
-  email: "",
-  role: "",
-  hourlyRate: "",
-  hoursPerWeek: "", 
-  hireDate: undefined as Date | undefined,
-  worksOnSaturday: false,
-});
-  
+    firstName: "",
+    lastName: "",
+    email: "",
+    role: "",
+    hourlyRate: "",
+    hoursPerWeek: "",
+    hireDate: undefined as Date | undefined,
+    worksOnSaturday: false,
+  });
 
   const openEditEmployeeModal = (employee: Employee) => {
     const [firstName, ...lastNameParts] = employee.name.split(" ");
@@ -408,60 +403,61 @@ export function FinanceTab() {
   };
 
   const handleAddEmployee = async () => {
-  if (
-    !newEmployee.firstName ||
-    !newEmployee.lastName ||
-    !newEmployee.email ||
-    !newEmployee.hourlyRate ||
-    !newEmployee.hireDate
-  ) {
-    toast("❌ Error", {
-      description: "Please fill in all required fields.",
-    });
-    return;
-  }
+    if (
+      !newEmployee.firstName ||
+      !newEmployee.lastName ||
+      !newEmployee.email ||
+      !newEmployee.hourlyRate ||
+      !newEmployee.hireDate
+    ) {
+      toast("❌ Error", {
+        description: "Please fill in all required fields.",
+      });
+      return;
+    }
 
-  try {
-    const hourlyRate = parseFloat(newEmployee.hourlyRate);
-    const fullName = `${newEmployee.firstName} ${newEmployee.lastName}`.trim();
-    const hoursPerWeek = Number(newEmployee.hoursPerWeek);
+    try {
+      const hourlyRate = parseFloat(newEmployee.hourlyRate);
+      const fullName =
+        `${newEmployee.firstName} ${newEmployee.lastName}`.trim();
+      const hoursPerWeek = Number(newEmployee.hoursPerWeek);
 
-    await apiFetch("/api/employee", {
-      method: "POST",
-      body: JSON.stringify({
-        name: fullName,
-        email: newEmployee.email,
-        role: newEmployee.role || "editor",
-        hourlyRate,
-        hoursPerWeek,
-        joinedAt: newEmployee.hireDate.toISOString(),
-        worksOnSaturday: newEmployee.worksOnSaturday,
-      }),
-    });
+      await apiFetch("/api/employee", {
+        method: "POST",
+        body: JSON.stringify({
+          name: fullName,
+          email: newEmployee.email,
+          role: newEmployee.role || "editor",
+          hourlyRate,
+          hoursPerWeek,
+          joinedAt: newEmployee.hireDate.toISOString(),
+          worksOnSaturday: newEmployee.worksOnSaturday,
+        }),
+      });
 
-    toast("✅ Employee Added", {
-      description: "New employee has been added successfully.",
-    });
+      toast("✅ Employee Added", {
+        description: "New employee has been added successfully.",
+      });
 
-    setNewEmployee({
-      firstName: "",
-      lastName: "",
-      email: "",
-      role: "",
-      hourlyRate: "",
-      hoursPerWeek: "0",
-      hireDate: undefined,
-      worksOnSaturday: false,
-    });
-    setShowNewEmployeeDialog(false);
-    await loadEmployees();
-  } catch (err: any) {
-    console.error(err);
-    toast("❌ Error", {
-      description: err.message || "Failed to add employee.",
-    });
-  }
-};
+      setNewEmployee({
+        firstName: "",
+        lastName: "",
+        email: "",
+        role: "",
+        hourlyRate: "",
+        hoursPerWeek: "0",
+        hireDate: undefined,
+        worksOnSaturday: false,
+      });
+      setShowNewEmployeeDialog(false);
+      await loadEmployees();
+    } catch (err: any) {
+      console.error(err);
+      toast("❌ Error", {
+        description: err.message || "Failed to add employee.",
+      });
+    }
+  };
 
   const handleEditEmployee = async () => {
     if (!editingEmployee) return;
@@ -481,7 +477,8 @@ export function FinanceTab() {
       const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
       // const hoursPerWeek = parseFloat(editEmployeeForm.hoursPerWeek);
       const hoursPerWeek = Number(editEmployeeForm.hoursPerWeek);
-      const fullName = `${editEmployeeForm.firstName} ${editEmployeeForm.lastName}`.trim();
+      const fullName =
+        `${editEmployeeForm.firstName} ${editEmployeeForm.lastName}`.trim();
 
       console.log("fullName" + fullName);
 
@@ -730,7 +727,6 @@ export function FinanceTab() {
   };
 
   // ---------- Handlers (Employees) ----------
-
 
   const openBonusModal = (employee: Employee) => {
     setSelectedEmployee(employee);
@@ -1277,61 +1273,63 @@ export function FinanceTab() {
                       </Select>
                     </div>
                     <div>
-  <label className="text-sm font-medium">
-    Hourly Rate ($)
-  </label>
-  <Input
-    type="number"
-    value={newEmployee.hourlyRate}  // ✅ Correct
-    onChange={(e) =>
-      setNewEmployee((prev) => ({   // ✅ Correct
-        ...prev,
-        hourlyRate: e.target.value,
-      }))
-    }
-    placeholder="0.00"
-  />
-</div>
+                      <label className="text-sm font-medium">
+                        Hourly Rate ($)
+                      </label>
+                      <Input
+                        type="number"
+                        value={newEmployee.hourlyRate} // ✅ Correct
+                        onChange={(e) =>
+                          setNewEmployee((prev) => ({
+                            // ✅ Correct
+                            ...prev,
+                            hourlyRate: e.target.value,
+                          }))
+                        }
+                        placeholder="0.00"
+                      />
+                    </div>
 
-{/* Add this new field */}
-<div>
-  <label className="text-sm font-medium">
-    Hours Per Week
-  </label>
-  <Input
-    type="number"
-    value={newEmployee.hoursPerWeek}  // ✅ Correct
-    onChange={(e) =>
-      setNewEmployee((prev) => ({     // ✅ Correct
-        ...prev,
-        hoursPerWeek: e.target.value,
-      }))
-    }
-    placeholder="40"
-  />
-  <p className="text-xs text-muted-foreground mt-1">
-    Typical full-time: 40 hours/week
-  </p>
-</div>
+                    {/* Add this new field */}
+                    <div>
+                      <label className="text-sm font-medium">
+                        Hours Per Week
+                      </label>
+                      <Input
+                        type="number"
+                        value={newEmployee.hoursPerWeek} // ✅ Correct
+                        onChange={(e) =>
+                          setNewEmployee((prev) => ({
+                            // ✅ Correct
+                            ...prev,
+                            hoursPerWeek: e.target.value,
+                          }))
+                        }
+                        placeholder="40"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Typical full-time: 40 hours/week
+                      </p>
+                    </div>
 
-{/* Add preview calculation */}
-{newEmployee.hourlyRate &&  // ✅ Correct
-  newEmployee.hoursPerWeek && (  // ✅ Correct
-    <div className="text-sm bg-muted p-3 rounded-md">
-      <p className="font-medium">Monthly Salary Preview:</p>
-      <p className="text-lg font-bold text-primary">
-        {formatCurrency(
-          parseFloat(newEmployee.hourlyRate || "0") *  // ✅ Correct
-            parseFloat(newEmployee.hoursPerWeek || "0") *  // ✅ Correct
-            4
-        )}
-      </p>
-      <p className="text-xs text-muted-foreground mt-1">
-        = ${newEmployee.hourlyRate}/hr ×{" "} 
-        {newEmployee.hoursPerWeek} hrs/week × 4 weeks 
-      </p>
-    </div>
-  )}
+                    {/* Add preview calculation */}
+                    {newEmployee.hourlyRate && // ✅ Correct
+                      newEmployee.hoursPerWeek && ( // ✅ Correct
+                        <div className="text-sm bg-muted p-3 rounded-md">
+                          <p className="font-medium">Monthly Salary Preview:</p>
+                          <p className="text-lg font-bold text-primary">
+                            {formatCurrency(
+                              parseFloat(newEmployee.hourlyRate || "0") * // ✅ Correct
+                                parseFloat(newEmployee.hoursPerWeek || "0") * // ✅ Correct
+                                4
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            = ${newEmployee.hourlyRate}/hr ×{" "}
+                            {newEmployee.hoursPerWeek} hrs/week × 4 weeks
+                          </p>
+                        </div>
+                      )}
                     <div>
                       <label className="text-sm font-medium">Hire Date</label>
                       <SimpleCalendar
