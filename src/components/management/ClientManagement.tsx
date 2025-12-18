@@ -1148,7 +1148,7 @@ const handleDeleteClient = async (clientId: string) => {
         open={showClientDetailsDialog}
         onOpenChange={setShowClientDetailsDialog}
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white border-gray-200">
+        <DialogContent className="w-auto min-w-[600px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col bg-white border-gray-200">
           <DialogHeader>
             <DialogTitle className="text-gray-900">
               {selectedClient.companyName} - Client Details
