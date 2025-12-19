@@ -337,7 +337,7 @@ export function SchedulerTrainingPage() {
   };
 
   const handleSubmitFinalQuiz = () => {
-    const allAnswered = finalQuiz.every(q => finalQuizAnswers[q.id] !== undefined);
+    const allAnswered = finalQuiz.every(q => finalQuizAnswers[q.id] !== undefined); 
     if (!allAnswered) {
       toast('⚠️ Incomplete Quiz', { description: 'Please answer all questions.' });
       return;

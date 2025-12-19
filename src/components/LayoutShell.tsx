@@ -32,6 +32,7 @@ import {
   type UserRole,
 } from './constants/roles';
 import Image from 'next/image';
+import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
 
 interface LayoutShellProps {
   currentRole: string | null;  // UPDATED: Allow null
@@ -94,7 +95,7 @@ export function LayoutShell({
             {/* Logo */}
             <div className="flex items-center gap-3">
               <Image
-                src="/images/logo.png"
+                src={logo}
                 alt="E8 Logo"
                 width={32}
                 height={32}

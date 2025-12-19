@@ -7,7 +7,6 @@ import { Separator } from "../ui/separator";
 import { Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-// import logoImage from 'figma:asset/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
 import logo from '../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png'
 
 interface LoginScreenProps {
@@ -59,12 +58,6 @@ export function LoginScreen({
         {/* Logo */}
         <div className="flex justify-center">
           <div className="w-12 h-12 flex items-center justify-center">
-            {/* <img
-              src="/images/logo.png"
-              alt="E8 Logo"
-              className="w-12 h-12 object-contain"
-            /> */}
-
             <Image
               src={logo}
               alt="E8 Logo"

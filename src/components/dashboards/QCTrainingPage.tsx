@@ -349,7 +349,7 @@ export function QCTrainingPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1>QC Training & Certification</h1>
+          <h1>Training & Certification</h1>
           <p className="text-muted-foreground mt-2">
             Complete the comprehensive QC training course to become certified
           </p>
@@ -655,7 +655,7 @@ export function QCTrainingPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1>QC Training & Certification</h1>
+        <h1>Training & Certification</h1>
         <p className="text-muted-foreground mt-2">
           Complete all modules and pass the final exam to become a Certified QC Reviewer
         </p>
@@ -765,7 +765,7 @@ export function QCTrainingPage() {
                 <CardTitle>{certified ? 'Certification Complete!' : 'Final Certification Exam'}</CardTitle>
                 <CardDescription>
                   {certified
-                    ? 'You have successfully completed the QC Training & Certification'
+                    ? 'You have successfully completed the Training & Certification'
                     : 'Complete the final exam to earn your QC Reviewer Certification (80% required to pass)'}
                 </CardDescription>
               </div>

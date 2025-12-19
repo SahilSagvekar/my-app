@@ -7,6 +7,8 @@ import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { Eye, EyeOff, Mail, Lock, User, Loader2 } from 'lucide-react';
+import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
+import Image from 'next/image';
 
 interface RegisterScreenProps {
   onRegister: (name: string, email: string, password: string, acceptTerms: boolean) => void;
@@ -38,9 +40,11 @@ export function RegisterScreen({ onRegister, onOAuthRegister, loading, error }: 
         {/* Logo */}
         <div className="flex justify-center">
           <div className="w-12 h-12 flex items-center justify-center">
-            <img 
-              src="/images/logo.png"  
-              alt="E8 Logo" 
+            <Image
+              src={logo}
+              alt="E8 Logo"
+              width={48}
+              height={48}
               className="w-12 h-12 object-contain"
             />
           </div>

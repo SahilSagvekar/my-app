@@ -29,14 +29,16 @@ export const NAVIGATION_ITEMS = {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
-    { id: 'finance', label: 'Finance', icon: DollarSign },
+    { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'leaves', label: 'Employee Management', icon: Users },
+    { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
     { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'resources', label: 'Resources', icon: BookOpen },
+    { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   qc: [
@@ -64,6 +66,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'team', label: 'Team', icon: Users },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
@@ -71,6 +74,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'approvals', label: 'Approvals', icon: CheckSquare },
     { id: 'projects', label: 'My Projects', icon: FolderOpen },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
+    { id: 'training', label: 'Training', icon: Layout },
     { id: 'archive', label: 'Archive', icon: Archive }
   ],
   videographer: [
@@ -79,6 +83,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'uploads', label: 'File Uploads', icon: Upload },
     { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
+    { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ]
 } as const;

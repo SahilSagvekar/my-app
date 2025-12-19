@@ -49,6 +49,7 @@ export function renderPage(role: string, page: string): JSX.Element {
         return <FeedbackSystem currentRole={role} />;
       case 'leaves':
         return <LeavesComponent />;
+      case 'training': return <QCTrainingPage />;
       default: 
         return <AdminDashboard currentPage="dashboard" />;
     }
@@ -59,6 +60,7 @@ export function renderPage(role: string, page: string): JSX.Element {
       case 'my-tasks': return <EditorDashboard />;
       case 'projects': return <EditorProjects />;
       case 'resources': return <EditorResources />;
+      case 'training': return <QCTrainingPage />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;
       default: return <EditorDashboard />;
     }
@@ -103,6 +105,7 @@ export function renderPage(role: string, page: string): JSX.Element {
       case 'team': return <ManagerDashboard currentPage="team" />; // Shows the team overview tab
       case 'performance': return <ComingSoonPage title="Performance" />;
       case 'reports': return <ComingSoonPage title="Reports" />;
+      case 'training': return <QCTrainingPage />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;
       default: return <ManagerDashboard currentPage="team" />;
     }
@@ -114,6 +117,7 @@ export function renderPage(role: string, page: string): JSX.Element {
       case 'approvals': return <ClientDashboard />;
       case 'projects': return <ComingSoonPage title="My Projects" />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;
+      case 'training': return <QCTrainingPage />;
       case 'archive': return <ComingSoonPage title="Archive" />;
       default: return <ClientMonthlyOverview />;
     }
@@ -126,6 +130,7 @@ export function renderPage(role: string, page: string): JSX.Element {
       case 'uploads': return <VideographerDashboard />; // Shows uploads tab
       case 'equipment': return <VideographerDashboard />; // Shows equipment tab
       case 'calendar': return <VideographerDashboard />; // Shows calendar tab
+      case 'training': return <QCTrainingPage />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;
       default: return <VideographerDashboard />;
     }

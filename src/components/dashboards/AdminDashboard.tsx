@@ -246,7 +246,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           {/* Pipeline Chart */}
           <Card className="col-span-1 lg:col-span-2">
             <CardHeader>
-              <CardTitle>Project Pipeline</CardTitle>
+              <CardTitle>Workflow Pipeline</CardTitle>
             </CardHeader>
             <CardContent>
               {pipelineData && pipelineData.length > 0 ? (

@@ -7,6 +7,8 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
 import { toast } from 'sonner';
+import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
+import Image from 'next/image';
 
 type Step = 'email' | 'otp' | 'password';
 
@@ -188,11 +190,13 @@ export function ForgotPasswordScreen({ onBackToLogin }: ForgotPasswordScreenProp
           {/* Logo */}
           <div className="flex justify-center">
             <div className="w-12 h-12 flex items-center justify-center">
-              <img 
-                src="/images/logo.png"
-                alt="E8 Logo" 
-                className="w-12 h-12 object-contain"
-              />
+              <Image
+              src={logo}
+              alt="E8 Logo"
+              width={48}
+              height={48}
+              className="w-12 h-12 object-contain"
+            />
             </div>
           </div>
 
