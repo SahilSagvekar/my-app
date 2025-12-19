@@ -24,6 +24,7 @@ const PatchSchema = z.object({
   monthlyBaseHours: z.number().int().positive().optional(),
   employeeStatus: z.enum(["ACTIVE", "INACTIVE", "TERMINATED"]).optional(),
   joinedAt: z.string().optional(),
+  phone: z.string().optional(),
 });
 
 export async function PATCH(
@@ -52,6 +53,7 @@ export async function PATCH(
         name: payload.name ?? undefined,
         email: payload.email ?? undefined,
         role: payload.role ?? undefined,
+        phone: payload.phone ?? undefined,
         hourlyRate: payload.hourlyRate ?? undefined,
         hoursPerWeek: Number(payload.hoursPerWeek)  ?? undefined,
         monthlyBaseHours: payload.monthlyBaseHours ?? undefined,
