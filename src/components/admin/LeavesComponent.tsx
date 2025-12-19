@@ -317,6 +317,7 @@ export default function LeavesComponent() {
             email: u.email,
             phone: u.phone || "N/A",
             role: u.role,
+            hourlyRate: u.hourlyRate,
             status:
               u.employeeStatus === "ACTIVE"
                 ? "active"
