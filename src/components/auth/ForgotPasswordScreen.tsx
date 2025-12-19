@@ -7,7 +7,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
 import { toast } from 'sonner';
-import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
+import logo from "../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
 import Image from 'next/image';
 
 type Step = 'email' | 'otp' | 'password';
