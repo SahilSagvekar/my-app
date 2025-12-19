@@ -34,6 +34,7 @@ export async function POST(
       select: {
         id: true,
         hourlyRate: true,
+        hoursPerWeek: true,
         worksOnSaturday: true,
         joinedAt: true
       }
@@ -61,7 +62,9 @@ export async function POST(
       }
 
       const hourly = Number(emp.hourlyRate);
-      const baseSalary = hourly * 8 * workingDays;
+      const hoursPerWeek = Number(emp.hoursPerWeek);
+      // const baseSalary = hourly * 8 * workingDays;
+      const baseSalary = hourly * hoursPerWeek * 4;
 
       // 3) Total Bonuses
       const bonuses = await prisma.bonus.findMany({
