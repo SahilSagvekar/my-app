@@ -12,6 +12,7 @@ interface CreateUserData {
   email: string;
   role?: Role;
   hourlyRate?: number | string;
+  phone?: string;
   hoursPerWeek?: number | string;
   monthlyBaseHours?: number;
   worksOnSaturday?: boolean;
@@ -25,6 +26,7 @@ const BodySchema = z.object({
   hoursPerWeek: z.number().min(0).optional().nullable().transform(val => val ?? 40),
   monthlyBaseHours: z.number().int().positive().optional().nullable(),
   role: z.string().optional(),
+  phone: z.string().optional(), 
   joinedAt: z.string().optional(),
   worksOnSaturday: z.boolean().optional(),
 });
@@ -97,6 +99,7 @@ export async function POST(req: Request) {
           name: data.name,
           email: data.email,
           password: hashedPassword, // ← Add hashed password
+          phone: data.phone,
           role: (data.role as Role) || null,
           hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : null,
           hoursPerWeek: data.hoursPerWeek ? Number(data.hoursPerWeek) : 40,

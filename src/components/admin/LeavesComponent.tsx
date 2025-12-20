@@ -313,12 +313,17 @@ export default function LeavesComponent() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    role: "",
-    status: "active",
-  });
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  role: "",
+  hourlyRate: "",
+  hoursPerWeek: "40",
+  hireDate: undefined as Date | undefined,
+  worksOnSaturday: false,
+  status: "active",
+});
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [leaves, setLeaves] = useState<LeaveRow[]>([]);
@@ -541,79 +546,80 @@ export default function LeavesComponent() {
   };
 
   const handleAddUser = async () => {
-    if (
-      !newUser.firstName ||
-      !newUser.lastName ||
-      !newUser.email ||
-      !newUser.hourlyRate ||
-      !newUser.hireDate
-    ) {
-      toast.error("Please fill in all required fields.");
-      return;
-    }
+  // if (
+  //   !newUser.firstName ||
+  //   !newUser.lastName ||
+  //   !newUser.email ||
+  //   !newUser.hourlyRate ||
+  //   !newUser.hireDate
+  // ) {
+  //   toast.error("Please fill in all required fields.");
+  //   return;
+  // }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newUser.email)) {
-      toast.error("Please enter a valid email address.");
-      return;
-    }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(newUser.email)) {
+    toast.error("Please enter a valid email address.");
+    return;
+  }
 
-    const hourlyRate = parseFloat(newUser.hourlyRate);
-    if (isNaN(hourlyRate) || hourlyRate <= 0) {
-      toast.error("Please enter a valid hourly rate.");
-      return;
-    }
+  const hourlyRate = parseFloat(newUser.hourlyRate);
+  if (isNaN(hourlyRate) || hourlyRate <= 0) {
+    toast.error("Please enter a valid hourly rate.");
+    return;
+  }
 
-    if (isAddingEmployee) return;
-    setIsAddingEmployee(true);
+  if (isAddingEmployee) return;
+  setIsAddingEmployee(true);
 
-    try {
-      const hoursPerWeek = Number(newUser.hoursPerWeek);
-      const fullName = `${newUser.firstName} ${newUser.lastName}`.trim();
+  try {
+    const hoursPerWeek = Number(newUser.hoursPerWeek);
+    const fullName = `${newUser.firstName} ${newUser.lastName}`.trim();
 
-      await apiFetch("/api/employee", {
-        method: "POST",
-        body: JSON.stringify({
-          name: fullName,
-          email: newUser.email,
-          role: newUser.role || "editor",
-          hourlyRate,
-          hoursPerWeek,
-          joinedAt: newUser.hireDate.toISOString(),
-          worksOnSaturday: newUser.worksOnSaturday,
-        }),
-      });
+    await apiFetch("/api/employee", {
+      method: "POST",
+      body: JSON.stringify({
+        name: fullName,
+        email: newUser.email,
+        role: newUser.role || "editor",
+        phone: newUser.phone,
+        hourlyRate,
+        hoursPerWeek,
+        joinedAt: newUser.hireDate.toISOString(),
+        worksOnSaturday: newUser.worksOnSaturday,
+      }),
+    });
 
-      toast.success("✅ Employee Added", {
-        description: `${fullName} has been added. Welcome email sent to ${newUser.email}`,
-      });
+    toast.success("✅ Employee Added", {
+      description: `${fullName} has been added. Welcome email sent to ${newUser.email}`,
+    });
 
-      setNewUser({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        role: "",
-        hourlyRate: "",
-        hoursPerWeek: "40",
-        hireDate: undefined,
-        worksOnSaturday: false,
-        status: "active",
-      });
+    setNewUser({
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      role: "",
+      hourlyRate: "",
+      hoursPerWeek: "40",
+      hireDate: undefined,
+      worksOnSaturday: false,
+      status: "active",
+    });
 
-      setIsAddUserDialogOpen(false);
+    setIsAddUserDialogOpen(false);
 
-      // Reload in background without blocking
-      setTimeout(() => loadEmployees(), 100);
-    } catch (err: any) {
-      console.error("Add employee error:", err);
-      toast.error("Failed to add employee", {
-        description: err.message || "An error occurred.",
-      });
-    } finally {
-      setIsAddingEmployee(false);
-    }
-  };
+    // Reload employees
+    await loadEmployees();
+  } catch (err: any) {
+    console.error("Add employee error:", err);
+    toast.error("Failed to add employee", {
+      description: err.message || "An error occurred.",
+    });
+  } finally {
+    setIsAddingEmployee(false);
+  }
+};
 
   const openEditEmployeeModal = (employee: any) => {
   console.log('Opening edit modal for:', employee);
@@ -836,90 +842,201 @@ export default function LeavesComponent() {
               Employee Management
             </CardTitle>
 
-            <Dialog
-              open={isAddUserDialogOpen}
-              onOpenChange={setIsAddUserDialogOpen}
-            >
-              <DialogTrigger asChild>
-                <Button>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Add Employee
-                </Button>
-              </DialogTrigger>
-              <DialogContent aria-describedby="add-employee-description">
-                <DialogHeader>
-                  <DialogTitle id="add-employee-title">
-                    Add New Employee
-                  </DialogTitle>
-                  <DialogDescription id="add-employee-description">
-                    Fill in the details below to add a new employee to the
-                    system.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm">Full Name</label>
-                    <Input
-                      value={newUser.name}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, name: e.target.value })
-                      }
-                      placeholder="Enter full name"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm">Email</label>
-                    <Input
-                      type="email"
-                      value={newUser.email}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, email: e.target.value })
-                      }
-                      placeholder="Enter email address"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm">Phone</label>
-                    <Input
-                      value={newUser.phone}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, phone: e.target.value })
-                      }
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm">Role</label>
-                    <Select
-                      value={newUser.role}
-                      onValueChange={(value) =>
-                        setNewUser({ ...newUser, role: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roles.map((role) => (
-                          <SelectItem key={role.id} value={role.id}>
-                            {role.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsAddUserDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddUser}>Add Employee</Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+  <DialogTrigger asChild>
+    <Button>
+      <UserPlus className="h-4 w-4 mr-2" />
+      Add Employee
+    </Button>
+  </DialogTrigger>
+  <DialogContent aria-describedby="add-employee-description">
+    <DialogHeader>
+      <DialogTitle id="add-employee-title">Add New Employee</DialogTitle>
+      <DialogDescription id="add-employee-description">
+        Add a new employee with their hourly rate. Monthly rate will be
+        calculated automatically.
+      </DialogDescription>
+    </DialogHeader>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">First Name</label>
+          <Input
+            value={newUser.firstName}
+            onChange={(e) =>
+              setNewUser((prev) => ({
+                ...prev,
+                firstName: e.target.value,
+              }))
+            }
+            placeholder="Enter first name"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Last Name</label>
+          <Input
+            value={newUser.lastName}
+            onChange={(e) =>
+              setNewUser((prev) => ({
+                ...prev,
+                lastName: e.target.value,
+              }))
+            }
+            placeholder="Enter last name"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Email</label>
+        <Input
+          type="email"
+          value={newUser.email}
+          onChange={(e) =>
+            setNewUser((prev) => ({
+              ...prev,
+              email: e.target.value,
+            }))
+          }
+          placeholder="employee@company.com"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Phone</label>
+        <Input
+          value={newUser.phone}
+          onChange={(e) =>
+            setNewUser((prev) => ({
+              ...prev,
+              phone: e.target.value,
+            }))
+          }
+          placeholder="Enter phone number"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Role</label>
+        <Select
+          value={newUser.role}
+          onValueChange={(value) =>
+            setNewUser((prev) => ({
+              ...prev,
+              role: value,
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="manager">Manager</SelectItem>
+            <SelectItem value="editor">Editor</SelectItem>
+            <SelectItem value="videographer">Videographer</SelectItem>
+            <SelectItem value="scheduler">Scheduler</SelectItem>
+            <SelectItem value="qc">QC</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Hourly Rate ($)</label>
+        <Input
+          type="number"
+          value={newUser.hourlyRate}
+          onChange={(e) =>
+            setNewUser((prev) => ({
+              ...prev,
+              hourlyRate: e.target.value,
+            }))
+          }
+          placeholder="0.00"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Hours Per Week</label>
+        <Input
+          type="number"
+          value={newUser.hoursPerWeek}
+          onChange={(e) =>
+            setNewUser((prev) => ({
+              ...prev,
+              hoursPerWeek: e.target.value,
+            }))
+          }
+          placeholder="40"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Typical full-time: 40 hours/week
+        </p>
+      </div>
+
+      {/* Preview calculation */}
+      {newUser.hourlyRate && newUser.hoursPerWeek && (
+        <div className="text-sm bg-muted p-3 rounded-md">
+          <p className="font-medium">Monthly Salary Preview:</p>
+          <p className="text-lg font-bold text-primary">
+            {formatCurrency(
+              parseFloat(newUser.hourlyRate || "0") *
+                parseFloat(newUser.hoursPerWeek || "0") *
+                4
+            )}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            = ${newUser.hourlyRate}/hr × {newUser.hoursPerWeek} hrs/week × 4
+            weeks
+          </p>
+        </div>
+      )}
+
+      <div>
+        <label className="text-sm font-medium">Hire Date</label>
+        <SimpleCalendar
+          selected={newUser.hireDate}
+          onSelect={(date) =>
+            setNewUser((prev) => ({
+              ...prev,
+              hireDate: date,
+            }))
+          }
+          placeholder="Select hire date"
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="worksOnSaturday"
+          checked={newUser.worksOnSaturday}
+          onChange={(e) =>
+            setNewUser((prev) => ({
+              ...prev,
+              worksOnSaturday: e.target.checked,
+            }))
+          }
+        />
+        <label htmlFor="worksOnSaturday" className="text-sm font-medium">
+          Works on Saturday
+        </label>
+      </div>
+
+      <div className="flex justify-end gap-3">
+        <Button
+          variant="outline"
+          onClick={() => setIsAddUserDialogOpen(false)}
+        >
+          Cancel
+        </Button>
+        <Button onClick={handleAddUser} disabled={isAddingEmployee}>
+          {isAddingEmployee ? "Adding..." : "Add Employee"}
+        </Button>
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
           </div>
         </CardHeader>
         <CardContent>
