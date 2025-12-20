@@ -1,6 +1,29 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,40 +35,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "../ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../ui/dialog";
-import { toast } from "sonner";
+import { VisuallyHidden } from "../ui/visually-hidden";
 import {
   Users,
   UserPlus,
@@ -53,12 +43,16 @@ import {
   MoreHorizontal,
   Mail,
   Phone,
+  Calendar,
   Edit,
   Trash2,
   UserCheck,
   UserX,
+  Filter,
 } from "lucide-react";
 import { SimpleCalendar } from "../ui/simple-calendar";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -207,44 +201,135 @@ const calculateDays = (
 
 const ITEMS_PER_PAGE = 10;
 
+const employees = [
+  {
+    id: 1,
+    name: "Sarah Johnson",
+    email: "sarah.johnson@company.com",
+    phone: "+1 (555) 123-4567",
+    role: "admin",
+    status: "active",
+    joinDate: "2023-01-15",
+    lastActive: "2024-08-10 14:30",
+    tasksCompleted: 45,
+    avatar: "SJ",
+  },
+  {
+    id: 2,
+    name: "Michael Chen",
+    email: "michael.chen@company.com",
+    phone: "+1 (555) 234-5678",
+    role: "manager",
+    status: "active",
+    joinDate: "2023-03-20",
+    lastActive: "2024-08-10 16:15",
+    tasksCompleted: 32,
+    avatar: "MC",
+  },
+  {
+    id: 3,
+    name: "Emma Wilson",
+    email: "emma.wilson@company.com",
+    phone: "+1 (555) 345-6789",
+    role: "editor",
+    status: "active",
+    joinDate: "2023-05-10",
+    lastActive: "2024-08-10 15:45",
+    tasksCompleted: 87,
+    avatar: "EW",
+  },
+  {
+    id: 4,
+    name: "David Rodriguez",
+    email: "david.rodriguez@company.com",
+    phone: "+1 (555) 456-7890",
+    role: "qc",
+    status: "active",
+    joinDate: "2023-07-22",
+    lastActive: "2024-08-10 13:20",
+    tasksCompleted: 63,
+    avatar: "DR",
+  },
+  {
+    id: 5,
+    name: "Lisa Park",
+    email: "lisa.park@company.com",
+    phone: "+1 (555) 567-8901",
+    role: "scheduler",
+    status: "on-leave",
+    joinDate: "2023-09-05",
+    lastActive: "2024-08-07 17:00",
+    tasksCompleted: 28,
+    avatar: "LP",
+  },
+  {
+    id: 6,
+    name: "James Thompson",
+    email: "james.thompson@company.com",
+    phone: "+1 (555) 678-9012",
+    role: "account-manager",
+    status: "active",
+    joinDate: "2023-11-18",
+    lastActive: "2024-08-10 12:10",
+    tasksCompleted: 19,
+    avatar: "JT",
+  },
+  {
+    id: 7,
+    name: "Maria Garcia",
+    email: "maria.garcia@company.com",
+    phone: "+1 (555) 789-0123",
+    role: "editor",
+    status: "inactive",
+    joinDate: "2024-01-08",
+    lastActive: "2024-08-02 09:30",
+    tasksCompleted: 12,
+    avatar: "MG",
+  },
+  {
+    id: 8,
+    name: "Alex Rodriguez",
+    email: "alex.rodriguez@company.com",
+    phone: "+1 (555) 890-1234",
+    role: "videographer",
+    status: "active",
+    joinDate: "2024-02-15",
+    lastActive: "2024-08-10 18:20",
+    tasksCompleted: 34,
+    avatar: "AR",
+  },
+];
+
 export default function LeavesComponent() {
-  // ========== STATE - FIXED: SEPARATE FILTERS ==========
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [newUser, setNewUser] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "",
+    status: "active",
+  });
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [leaves, setLeaves] = useState<LeaveRow[]>([]);
   const [leaveSearch, setLeaveSearch] = useState(""); // Renamed from 'search'
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
-  const [selectedLeave, setSelectedLeave] = useState<LeaveRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [leaveStatusFilter, setLeaveStatusFilter] = useState("ALL"); // Renamed from 'statusFilter'
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
   const [employeeStatusFilter, setEmployeeStatusFilter] = useState("all"); // Renamed from 'statusFilter'
-  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
-  const [employees, setEmployees] = useState<any[]>([]);
-
   // SEPARATE LOADING STATES
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [loadingLeaves, setLoadingLeaves] = useState(true);
-
-  const [newUser, setNewUser] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    role: "",
-    hourlyRate: "",
-    hoursPerWeek: "40",
-    hireDate: undefined as Date | undefined,
-    worksOnSaturday: false,
-    status: "active",
-  });
-
   const [editEmployeeModalOpen, setEditEmployeeModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
   const [isEditingEmployee, setIsEditingEmployee] = useState(false);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
+  const [selectedLeave, setSelectedLeave] = useState<LeaveRow | null>(null);
 
   const [editEmployeeForm, setEditEmployeeForm] = useState({
     firstName: "",
@@ -257,8 +342,110 @@ export default function LeavesComponent() {
     hireDate: undefined as Date | undefined,
     status: "active" as "active" | "inactive" | "terminated",
   });
+  const [isSavingEmployee, setIsSavingEmployee] = useState(false);
 
-  // ========== FUNCTIONS ==========
+  // FETCH EMPLOYEES FROM YOUR API
+  // ------------------------------
+  // useEffect(() => {
+
+  //   async function loadEmployees() {
+  //     try {
+  //       const res = await fetch("api/employee/list");
+  //       const data = await res.json();
+
+  //       if (data.ok) {
+  //         const formatted = data.employees.map((u: any) => {
+  //           const initials =
+  //             u.name && u.name.trim() !== ""
+  //               ? u.name
+  //                   .split(" ")
+  //                   .map((n: string) => n[0])
+  //                   .join("")
+  //               : "U";
+
+  //           return {
+  //             id: u.id,
+  //             name: u.name || "No Name",
+  //             email: u.email,
+  //             phone: "N/A", // because User model has no phone field
+  //             role: u.role,
+  //             status:
+  //               u.employeeStatus === "ACTIVE"
+  //                 ? "active"
+  //                 : u.employeeStatus === "INACTIVE"
+  //                 ? "inactive"
+  //                 : "active",
+  //             joinDate: u.joinedAt || null,
+  //             lastActive: "N/A", // field not in DB
+  //             tasksCompleted: 0, // field not in DB
+  //             avatar: initials
+  //           };
+  //         });
+
+  //         setEmployees(formatted);
+
+  //       }
+  //     } catch (error) {
+  //       console.error("Failed to fetch employees →", error);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   }
+
+  //   loadEmployees();
+  // }, []);
+
+  // const filteredEmployees = employees.filter(employee => {
+  //   const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //                        employee.email.toLowerCase().includes(searchTerm.toLowerCase());
+  //   const matchesRole = roleFilter === 'all' || employee.role === roleFilter;
+  //   const matchesStatus = statusFilter === 'all' || employee.status === statusFilter;
+
+  //   return matchesSearch && matchesRole && matchesStatus;
+  // });
+
+  // const getRoleBadge = (roleId: string) => {
+  //   const role = roles.find(r => r.id === roleId);
+  //   return role ? (
+  //     <Badge className={role.color}>
+  //       {role.name}
+  //     </Badge>
+  //   ) : null;
+  // };
+
+  // const getStatusBadge = (statusId: string) => {
+  //   const status = statusOptions.find(s => s.id === statusId);
+  //   return status ? (
+  //     <Badge className={status.color}>
+  //       {status.name}
+  //     </Badge>
+  //   ) : null;
+  // };
+
+  // const handleAddUser = () => {
+  //   setIsAddUserDialogOpen(false);
+  //   setNewUser({ name: '', email: '', phone: '', role: '', status: 'active' });
+  // };
+
+  // const handleDeleteUser = (userId: number) => {
+  //   console.log('Deleting user:', userId);
+  // };
+
+  // const handleUpdateUserStatus = (userId: number, newStatus: string) => {
+  //   console.log('Updating user status:', userId, newStatus);
+  // };
+
+  const roleStats = roles.map((role) => ({
+    ...role,
+    count: employees.filter((emp) => emp.role === role.id).length,
+  }));
+
+  const statusStats = statusOptions.map((status) => ({
+    ...status,
+    count: employees.filter((emp) => emp.status === status.id).length,
+  }));
+
+  //funtions
 
   const loadLeaves = async () => {
     try {
@@ -420,51 +607,45 @@ export default function LeavesComponent() {
   };
 
   const openEditEmployeeModal = (employee: any) => {
-    const [firstName, ...lastNameParts] = employee.name.split(" ");
-    const lastName = lastNameParts.join(" ");
+  console.log('Opening edit modal for:', employee);
+  
+  const [firstName, ...lastNameParts] = (employee.name || '').split(" ");
+  const lastName = lastNameParts.join(" ");
 
-    setEditingEmployee(employee);
+  setEditingEmployee(employee);
+  
+  // Use setTimeout to batch state updates
+  setTimeout(() => {
     setEditEmployeeForm({
       firstName: firstName || "",
       lastName: lastName || "",
-      email: employee.email,
+      email: employee.email || "",
       phone: employee.phone || "",
-      role: employee.role,
+      role: employee.role || "",
       hourlyRate: String(employee.hourlyRate || 0),
       hoursPerWeek: String(employee.hoursPerWeek || 40),
       hireDate: employee.joinDate ? new Date(employee.joinDate) : undefined,
-      status: employee.status,
+      status: employee.status || "active",
     });
     setEditEmployeeModalOpen(true);
-  };
+  }, 0);
+};
 
-  const handleEditEmployee = async () => {
-    if (!editingEmployee || isEditingEmployee) return;
+  const router = useRouter();
 
-    if (
-      !editEmployeeForm.firstName ||
-      !editEmployeeForm.lastName ||
-      !editEmployeeForm.email
-    ) {
-      toast.error("Please fill in all required fields.");
+  // Add this at the top with other state
+  const isUpdatingRef = useRef(false);
+
+  const handleEditEmployee = useCallback(async () => {
+    if (!editingEmployee || isSavingEmployee || isUpdatingRef.current) {
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(editEmployeeForm.email)) {
-      toast.error("Please enter a valid email address.");
-      return;
-    }
-
-    const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
-    if (isNaN(hourlyRate) || hourlyRate < 0) {
-      toast.error("Please enter a valid hourly rate.");
-      return;
-    }
-
-    setIsEditingEmployee(true);
+    isUpdatingRef.current = true;
+    setIsSavingEmployee(true);
 
     try {
+      const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
       const hoursPerWeek = Number(editEmployeeForm.hoursPerWeek);
       const fullName =
         `${editEmployeeForm.firstName} ${editEmployeeForm.lastName}`.trim();
@@ -483,32 +664,26 @@ export default function LeavesComponent() {
           role: editEmployeeForm.role,
           hourlyRate,
           hoursPerWeek,
-          phone: editEmployeeForm.phone,
           employeeStatus: statusMap[editEmployeeForm.status],
           joinedAt: editEmployeeForm.hireDate?.toISOString(),
         }),
       });
 
-      toast.success("✅ Employee Updated", {
-        description: `${fullName}'s information has been updated successfully.`,
-      });
+      toast.success("Employee Updated");
 
-      // Close modal IMMEDIATELY
-      setEditEmployeeModalOpen(false);
-      setEditingEmployee(null);
-      // setIsEditingEmployee(false);
-      setEditEmployeeModalOpen(false);
+      // Store current page in localStorage before reload
+      localStorage.setItem("returnToPage", "leaves");
 
-      // Reload in background after a tiny delay
-      setTimeout(() => loadEmployees(), 100);
+      window.location.reload();
     } catch (err: any) {
-      console.error("Edit employee error:", err);
+      console.error(err);
       toast.error("Failed to update employee", {
         description: err.message || "An error occurred.",
       });
-      setIsEditingEmployee(false);
+      isUpdatingRef.current = false;
+      setIsSavingEmployee(false);
     }
-  };
+  }, [editingEmployee, editEmployeeForm, isSavingEmployee]);
 
   const handleDeleteUser = (userId: number) => {
     console.log("Deleting user:", userId);
@@ -564,17 +739,19 @@ export default function LeavesComponent() {
   }, []);
 
   // ========== COMPUTED VALUES - FIXED FILTER NAMES ==========
-  const filteredEmployees = employees.filter((employee) => {
-    const matchesSearch =
-      employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employee.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === "all" || employee.role === roleFilter;
-    const matchesStatus =
-      employeeStatusFilter === "all" ||
-      employee.status === employeeStatusFilter;
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((employee) => {
+      const matchesSearch =
+        employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employee.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = roleFilter === "all" || employee.role === roleFilter;
+      const matchesStatus =
+        employeeStatusFilter === "all" ||
+        employee.status === employeeStatusFilter;
 
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [employees, searchTerm, roleFilter, employeeStatusFilter]);
 
   const getRoleBadge = (roleId: string) => {
     const role = roles.find((r) => r.id === roleId);
@@ -589,11 +766,8 @@ export default function LeavesComponent() {
   };
 
   const filteredLeaves = useMemo(() => {
-    console.log("🔍 Filtering leaves:", {
-      totalLeaves: leaves.length,
-      leaveStatusFilter,
-      leaveSearch,
-    });
+    // DELETE THIS LINE if it exists:
+    // console.log("🔍 Filtering leaves:", {...});
 
     return leaves
       .filter((l) => {
@@ -628,8 +802,6 @@ export default function LeavesComponent() {
       });
   }, [leaves, leaveStatusFilter, leaveSearch, fromDate, toDate]);
 
-  console.log("📊 Filtered leaves count:", filteredLeaves.length);
-
   const totalPages = Math.max(
     1,
     Math.ceil(filteredLeaves.length / ITEMS_PER_PAGE)
@@ -640,10 +812,9 @@ export default function LeavesComponent() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  // ========== RENDER ==========
   return (
     <div className="space-y-6">
-      {/* Employee Management Card */}
+      {/* Filters and Search */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -662,10 +833,7 @@ export default function LeavesComponent() {
                   Add Employee
                 </Button>
               </DialogTrigger>
-              <DialogContent
-                aria-describedby="add-employee-description"
-                className="max-h-[90vh] overflow-y-auto"
-              >
+              <DialogContent aria-describedby="add-employee-description">
                 <DialogHeader>
                   <DialogTitle id="add-employee-title">
                     Add New Employee
@@ -676,45 +844,29 @@ export default function LeavesComponent() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">
-                        First Name *
-                      </label>
-                      <Input
-                        value={newUser.firstName}
-                        onChange={(e) =>
-                          setNewUser({ ...newUser, firstName: e.target.value })
-                        }
-                        placeholder="Enter first name"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Last Name *</label>
-                      <Input
-                        value={newUser.lastName}
-                        onChange={(e) =>
-                          setNewUser({ ...newUser, lastName: e.target.value })
-                        }
-                        placeholder="Enter last name"
-                      />
-                    </div>
-                  </div>
-
                   <div>
-                    <label className="text-sm font-medium">Email *</label>
+                    <label className="text-sm">Full Name</label>
+                    <Input
+                      value={newUser.name}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, name: e.target.value })
+                      }
+                      placeholder="Enter full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm">Email</label>
                     <Input
                       type="email"
                       value={newUser.email}
                       onChange={(e) =>
                         setNewUser({ ...newUser, email: e.target.value })
                       }
-                      placeholder="employee@company.com"
+                      placeholder="Enter email address"
                     />
                   </div>
-
                   <div>
-                    <label className="text-sm font-medium">Phone</label>
+                    <label className="text-sm">Phone</label>
                     <Input
                       value={newUser.phone}
                       onChange={(e) =>
@@ -723,9 +875,8 @@ export default function LeavesComponent() {
                       placeholder="Enter phone number"
                     />
                   </div>
-
                   <div>
-                    <label className="text-sm font-medium">Role *</label>
+                    <label className="text-sm">Role</label>
                     <Select
                       value={newUser.role}
                       onValueChange={(value) =>
@@ -736,121 +887,22 @@ export default function LeavesComponent() {
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="videographer">
-                          Videographer
-                        </SelectItem>
-                        <SelectItem value="scheduler">Scheduler</SelectItem>
-                        <SelectItem value="qc">QC Specialist</SelectItem>
-                        <SelectItem value="client">Client</SelectItem>
+                        {roles.map((role) => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-
-                  <div>
-                    <label className="text-sm font-medium">
-                      Hourly Rate ($) *
-                    </label>
-                    <Input
-                      type="number"
-                      value={newUser.hourlyRate}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, hourlyRate: e.target.value })
-                      }
-                      placeholder="0.00"
-                      step="0.01"
-                      min="0"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">
-                      Hours Per Week
-                    </label>
-                    <Input
-                      type="number"
-                      value={newUser.hoursPerWeek}
-                      onChange={(e) =>
-                        setNewUser({ ...newUser, hoursPerWeek: e.target.value })
-                      }
-                      placeholder="40"
-                      min="0"
-                      max="168"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Typical full-time: 40 hours/week
-                    </p>
-                  </div>
-
-                  {newUser.hourlyRate && newUser.hoursPerWeek && (
-                    <div className="text-sm bg-muted p-3 rounded-md">
-                      <p className="font-medium">Monthly Salary Preview:</p>
-                      <p className="text-lg font-bold text-primary">
-                        $
-                        {(
-                          parseFloat(newUser.hourlyRate || "0") *
-                          parseFloat(newUser.hoursPerWeek || "0") *
-                          4
-                        ).toFixed(2)}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        = ${newUser.hourlyRate}/hr × {newUser.hoursPerWeek}{" "}
-                        hrs/week × 4 weeks
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="text-sm font-medium">Hire Date *</label>
-                    <SimpleCalendar
-                      selected={newUser.hireDate}
-                      onSelect={(date) =>
-                        setNewUser({ ...newUser, hireDate: date })
-                      }
-                      placeholder="Select hire date"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="worksOnSaturday"
-                      checked={newUser.worksOnSaturday}
-                      onChange={(e) =>
-                        setNewUser({
-                          ...newUser,
-                          worksOnSaturday: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4"
-                    />
-                    <label
-                      htmlFor="worksOnSaturday"
-                      className="text-sm font-medium cursor-pointer"
-                    >
-                      Works on Saturday
-                    </label>
-                  </div>
-
-                  <div className="flex justify-end gap-3 pt-4">
+                  <div className="flex justify-end gap-3">
                     <Button
                       variant="outline"
                       onClick={() => setIsAddUserDialogOpen(false)}
                     >
                       Cancel
                     </Button>
-                    <Button onClick={handleAddUser} disabled={isAddingEmployee}>
-                      {isAddingEmployee ? (
-                        <>
-                          <span className="animate-spin mr-2">⏳</span>
-                          Adding...
-                        </>
-                      ) : (
-                        "Add Employee"
-                      )}
-                    </Button>
+                    <Button onClick={handleAddUser}>Add Employee</Button>
                   </div>
                 </div>
               </DialogContent>
@@ -883,10 +935,7 @@ export default function LeavesComponent() {
               </SelectContent>
             </Select>
 
-            <Select
-              value={employeeStatusFilter}
-              onValueChange={setEmployeeStatusFilter}
-            >
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
@@ -902,378 +951,135 @@ export default function LeavesComponent() {
           </div>
 
           <div className="overflow-x-auto">
-            {loadingEmployees ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                <span className="ml-3 text-muted-foreground">
-                  Loading employees...
-                </span>
-              </div>
-            ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4">Employee</th>
-                    <th className="text-left py-3 px-4">Role</th>
-                    <th className="text-left py-3 px-4">Status</th>
-                    <th className="text-left py-3 px-4">Contact</th>
-                    <th className="text-left py-3 px-4">Join Date</th>
-                    <th className="text-left py-3 px-4">Last Active</th>
-                    <th className="text-left py-3 px-4">Tasks</th>
-                    <th className="text-right py-3 px-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredEmployees.map((employee) => (
-                    <tr
-                      key={employee.id}
-                      className="border-b hover:bg-muted/50"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
-                            {employee.avatar}
-                          </div>
-                          <div>
-                            <div className="font-medium">{employee.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {employee.email}
-                            </div>
-                          </div>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4">Employee</th>
+                  <th className="text-left py-3 px-4">Role</th>
+                  <th className="text-left py-3 px-4">Status</th>
+                  <th className="text-left py-3 px-4">Contact</th>
+                  <th className="text-left py-3 px-4">Join Date</th>
+                  <th className="text-left py-3 px-4">Last Active</th>
+                  <th className="text-left py-3 px-4">Tasks</th>
+                  <th className="text-right py-3 px-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEmployees.map((employee) => (
+                  <tr key={employee.id} className="border-b hover:bg-muted/50">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                          {employee.avatar}
                         </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        {getRoleBadge(employee.role)}
-                      </td>
-                      <td className="py-3 px-4">
-                        {getStatusBadge(employee.status)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Mail className="h-3 w-3" />
+                        <div>
+                          <div className="font-medium">{employee.name}</div>
+                          <div className="text-sm text-muted-foreground">
                             {employee.email}
                           </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Phone className="h-3 w-3" />
-                            {employee.phone}
-                          </div>
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        {employee.joinDate
-                          ? new Date(employee.joinDate).toLocaleDateString()
-                          : "-"}
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        {employee.lastActive}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant="outline">
-                          {employee.tasksCompleted}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => openEditEmployeeModal(employee)}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                handleUpdateUserStatus(
-                                  employee.id,
-                                  employee.status === "active"
-                                    ? "inactive"
-                                    : "active"
-                                )
-                              }
-                            >
-                              {employee.status === "active" ? (
-                                <>
-                                  <UserX className="h-4 w-4 mr-2" />
-                                  Deactivate
-                                </>
-                              ) : (
-                                <>
-                                  <UserCheck className="h-4 w-4 mr-2" />
-                                  Activate
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem
-                                  onSelect={(e) => e.preventDefault()}
-                                  className="text-red-600"
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">{getRoleBadge(employee.role)}</td>
+                    <td className="py-3 px-4">
+                      {getStatusBadge(employee.status)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Mail className="h-3 w-3" />
+                          {employee.email}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="h-3 w-3" />
+                          {employee.phone}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm">
+                      {new Date(employee.joinDate).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 px-4 text-sm">{employee.lastActive}</td>
+                    <td className="py-3 px-4">
+                      <Badge variant="outline">{employee.tasksCompleted}</Badge>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => openEditEmployeeModal(employee)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleUpdateUserStatus(
+                                employee.id,
+                                employee.status === "active"
+                                  ? "inactive"
+                                  : "active"
+                              )
+                            }
+                          >
+                            {employee.status === "active" ? (
+                              <>
+                                <UserX className="h-4 w-4 mr-2" />
+                                Deactivate
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck className="h-4 w-4 mr-2" />
+                                Activate
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem
+                                onSelect={(e) => e.preventDefault()}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Delete Employee
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete{" "}
+                                  {employee.name}? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteUser(employee.id)}
+                                  className="bg-red-600 hover:bg-red-700"
                                 >
-                                  <Trash2 className="h-4 w-4 mr-2" />
                                   Delete
-                                </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Delete Employee
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete{" "}
-                                    {employee.name}? This action cannot be
-                                    undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() =>
-                                      handleDeleteUser(employee.id)
-                                    }
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>
-
-      {/* Edit Employee Modal */}
-      <Dialog
-        key={editingEmployee?.id ?? "edit-employee"}
-        open={editEmployeeModalOpen}
-        onOpenChange={setEditEmployeeModalOpen}
-      >
-        <DialogContent
-          className="max-h-[90vh] overflow-y-auto"
-          aria-describedby="edit-employee-description"
-        >
-          <DialogHeader>
-            <DialogTitle id="edit-employee-title">Edit Employee</DialogTitle>
-            <DialogDescription id="edit-employee-description">
-              Update employee information.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium">First Name *</label>
-                <Input
-                  value={editEmployeeForm.firstName}
-                  onChange={(e) =>
-                    setEditEmployeeForm((prev) => ({
-                      ...prev,
-                      firstName: e.target.value,
-                    }))
-                  }
-                  placeholder="Enter first name"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Last Name *</label>
-                <Input
-                  value={editEmployeeForm.lastName}
-                  onChange={(e) =>
-                    setEditEmployeeForm((prev) => ({
-                      ...prev,
-                      lastName: e.target.value,
-                    }))
-                  }
-                  placeholder="Enter last name"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Email *</label>
-              <Input
-                type="email"
-                value={editEmployeeForm.email}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    email: e.target.value,
-                  }))
-                }
-                placeholder="employee@company.com"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Phone</label>
-              <Input
-                value={editEmployeeForm.phone}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    phone: e.target.value,
-                  }))
-                }
-                placeholder="Enter phone number"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Role *</label>
-              <Select
-                value={editEmployeeForm.role}
-                onValueChange={(value) =>
-                  setEditEmployeeForm((prev) => ({ ...prev, role: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="editor">Editor</SelectItem>
-                  <SelectItem value="videographer">Videographer</SelectItem>
-                  <SelectItem value="scheduler">Scheduler</SelectItem>
-                  <SelectItem value="qc">QC Specialist</SelectItem>
-                  <SelectItem value="client">Client</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Hourly Rate ($) *</label>
-              <Input
-                type="number"
-                value={editEmployeeForm.hourlyRate}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    hourlyRate: e.target.value,
-                  }))
-                }
-                placeholder="0.00"
-                step="0.01"
-                min="0"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Hours Per Week</label>
-              <Input
-                type="number"
-                value={editEmployeeForm.hoursPerWeek}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    hoursPerWeek: e.target.value,
-                  }))
-                }
-                placeholder="40"
-                min="0"
-                max="168"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Typical full-time: 40 hours/week
-              </p>
-            </div>
-
-            {editEmployeeForm.hourlyRate && editEmployeeForm.hoursPerWeek && (
-              <div className="text-sm bg-muted p-3 rounded-md">
-                <p className="font-medium">Monthly Salary Preview:</p>
-                <p className="text-lg font-bold text-primary">
-                  $
-                  {(
-                    parseFloat(editEmployeeForm.hourlyRate || "0") *
-                    parseFloat(editEmployeeForm.hoursPerWeek || "0") *
-                    4
-                  ).toFixed(2)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  = ${editEmployeeForm.hourlyRate}/hr ×{" "}
-                  {editEmployeeForm.hoursPerWeek} hrs/week × 4 weeks
-                </p>
-              </div>
-            )}
-
-            <div>
-              <label className="text-sm font-medium">Hire Date</label>
-              <SimpleCalendar
-                selected={editEmployeeForm.hireDate}
-                onSelect={(date) =>
-                  setEditEmployeeForm((prev) => ({ ...prev, hireDate: date }))
-                }
-                placeholder="Select hire date"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Employment Status</label>
-              <Select
-                value={editEmployeeForm.status}
-                onValueChange={(value: "active" | "inactive" | "terminated") =>
-                  setEditEmployeeForm((prev) => ({ ...prev, status: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                      <span>Active</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="inactive">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
-                      <span>Inactive</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="terminated">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-red-500"></span>
-                      <span>Terminated</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setEditEmployeeModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleEditEmployee} disabled={isEditingEmployee}>
-                {isEditingEmployee ? (
-                  <>
-                    <span className="animate-spin mr-2">⏳</span>
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Leave Management Section */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1509,6 +1315,224 @@ export default function LeavesComponent() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Employee Modal */}
+      {/* Edit Employee Modal */}
+      {/* Edit Employee Modal - Simplified */}
+      {/* <Dialog
+        // key={editingEmployee?.id || 'closed'}
+        open={editEmployeeModalOpen}
+        onOpenChange={setEditEmployeeModalOpen}
+      > */}
+      <Dialog 
+  open={editEmployeeModalOpen} 
+  onOpenChange={setEditEmployeeModalOpen}
+>
+  <DialogContent 
+    className="max-w-2xl"
+    onEscapeKeyDown={(e) => {
+      e.preventDefault();
+      setEditEmployeeModalOpen(false);
+      setEditingEmployee(null);
+    }}
+    onPointerDownOutside={(e) => {
+      e.preventDefault();
+      setEditEmployeeModalOpen(false);
+      setEditingEmployee(null);
+    }}
+  >
+        {/* <DialogContent className="max-w-2xl"> */}
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>
+              Update employee information and settings.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">First Name</label>
+                <Input
+                  value={editEmployeeForm.firstName}
+                  onChange={(e) =>
+                    setEditEmployeeForm({
+                      ...editEmployeeForm,
+                      firstName: e.target.value,
+                    })
+                  }
+                  placeholder="First name"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Last Name</label>
+                <Input
+                  value={editEmployeeForm.lastName}
+                  onChange={(e) =>
+                    setEditEmployeeForm({
+                      ...editEmployeeForm,
+                      lastName: e.target.value,
+                    })
+                  }
+                  placeholder="Last name"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                value={editEmployeeForm.email}
+                onChange={(e) =>
+                  setEditEmployeeForm({
+                    ...editEmployeeForm,
+                    email: e.target.value,
+                  })
+                }
+                placeholder="Email address"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Phone</label>
+              <Input
+                value={editEmployeeForm.phone}
+                onChange={(e) =>
+                  setEditEmployeeForm({
+                    ...editEmployeeForm,
+                    phone: e.target.value,
+                  })
+                }
+                placeholder="Phone number"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Role</label>
+                <Select
+                  value={editEmployeeForm.role}
+                  onValueChange={(value) =>
+                    setEditEmployeeForm({ ...editEmployeeForm, role: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Status</label>
+                <Select
+                  value={editEmployeeForm.status}
+                  onValueChange={(
+                    value: "active" | "inactive" | "terminated"
+                  ) =>
+                    setEditEmployeeForm({ ...editEmployeeForm, status: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((status) => (
+                      <SelectItem key={status.id} value={status.id}>
+                        {status.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Hourly Rate (₹)</label>
+                <Input
+                  type="number"
+                  value={editEmployeeForm.hourlyRate}
+                  onChange={(e) =>
+                    setEditEmployeeForm({
+                      ...editEmployeeForm,
+                      hourlyRate: e.target.value,
+                    })
+                  }
+                  placeholder="0"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Hours/Week</label>
+                <Input
+                  type="number"
+                  value={editEmployeeForm.hoursPerWeek}
+                  onChange={(e) =>
+                    setEditEmployeeForm({
+                      ...editEmployeeForm,
+                      hoursPerWeek: e.target.value,
+                    })
+                  }
+                  placeholder="40"
+                />
+              </div>
+            </div>
+
+            {/* TEMPORARILY REMOVED CALENDAR - USING SIMPLE DATE INPUT */}
+            <div>
+              <label className="text-sm font-medium">Hire Date</label>
+              <Input
+                type="date"
+                value={
+                  editEmployeeForm.hireDate
+                    ? editEmployeeForm.hireDate.toISOString().split("T")[0]
+                    : ""
+                }
+                onChange={(e) => {
+                  const date = e.target.value
+                    ? new Date(e.target.value)
+                    : undefined;
+                  setEditEmployeeForm({ ...editEmployeeForm, hireDate: date });
+                }}
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button
+  type="button"
+  variant="outline"
+  onClick={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Cancel clicked');
+    setEditEmployeeModalOpen(false);
+    setEditingEmployee(null);
+  }}
+>
+  Cancel
+</Button>
+              <Button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleEditEmployee();
+                }}
+              >
+                Update Employee
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

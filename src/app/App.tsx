@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect  } from 'react';
 import { AuthProvider, useAuth } from '../components/auth/AuthContext';
 import { NotificationProvider } from '../components/NotificationContext';
 import { SearchProvider } from '../components/SearchContext';
@@ -19,6 +19,15 @@ type AuthScreen = 'login' | 'forgot-password' | 'reset-password' | 'two-factor';
 function AuthenticatedApp() {
   const { user, logout, loading  } = useAuth();
   const [currentPage, setCurrentPage] = useState(() => getDefaultPage(user?.role || 'admin'));
+
+   useEffect(() => {
+    const savedPage = localStorage.getItem('returnToPage');
+    if (savedPage) {
+      console.log('Restoring page:', savedPage);
+      localStorage.removeItem('returnToPage');
+      setCurrentPage(savedPage);
+    }
+  }, []);
 
   const handlePageChange = (newPage: string) => {
     setCurrentPage(newPage);

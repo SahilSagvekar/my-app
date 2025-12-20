@@ -66,6 +66,8 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     const { id } = await context.params;
     const data = await req.json();
 
+    console.log("PUT /clients/:id data:", JSON.stringify(data));
+
     let clientReview = false;
     let videographer = false;
 
@@ -82,12 +84,15 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       projectSettings,
       billing,
       postingSchedule,
-      requiresClientReview,
+      clientReviewRequired,
       requiresVideographer,
       monthlyDeliverables = [], // array coming from UI
     } = data;
 
-    if (requiresClientReview == "yes") {
+    console.log("clientReviewRequired:", clientReviewRequired);
+    console.log("requiresVideographer:", requiresVideographer);
+
+    if (clientReviewRequired == "yes") {
       clientReview = true;
     }
 
