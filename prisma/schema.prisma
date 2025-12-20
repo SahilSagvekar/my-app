@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  
 }
 
 model User {
@@ -16,6 +17,7 @@ model User {
   role              Role?
   hourlyRate        Decimal?           @db.Decimal(10, 2)
   monthlyBaseHours  Int?
+  monthlyRate       Int?
   employeeStatus    EmployeeStatus?    @default(ACTIVE)
   joinedAt          DateTime?
   worksOnSaturday   Boolean            @default(false)

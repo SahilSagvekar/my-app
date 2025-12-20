@@ -24,6 +24,7 @@ const PatchSchema = z.object({
   monthlyBaseHours: z.number().int().positive().optional(),
   employeeStatus: z.enum(["ACTIVE", "INACTIVE", "TERMINATED"]).optional(),
   joinedAt: z.string().optional(),
+  monthlyRate: z.number().optional(),
   phone: z.string().optional(),
 });
 
@@ -47,6 +48,8 @@ export async function PATCH(
     const params = await context.params;
     const id = Number(params.employeeId);
 
+    console.log("Updating employee with ID:", id, "Payload:", payload.hoursPerWeek);
+
     const user = await prisma.user.update({
       where: { id },
       data: {
@@ -56,6 +59,7 @@ export async function PATCH(
         phone: payload.phone ?? undefined,
         hourlyRate: payload.hourlyRate ?? undefined,
         hoursPerWeek: Number(payload.hoursPerWeek)  ?? undefined,
+        monthlyRate: Number(payload.monthlyRate)  ?? undefined,
         monthlyBaseHours: payload.monthlyBaseHours ?? undefined,
         employeeStatus: payload.employeeStatus ?? undefined,
         joinedAt: payload.joinedAt ? new Date(payload.joinedAt) : undefined,

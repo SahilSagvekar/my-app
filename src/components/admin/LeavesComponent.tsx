@@ -68,6 +68,13 @@ interface LeaveRow {
   createdAt?: string;
 }
 
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount || 0);
+};
+
 const roles = [
   {
     id: "admin",
@@ -505,6 +512,8 @@ export default function LeavesComponent() {
             phone: u.phone || "N/A",
             role: u.role,
             hourlyRate: u.hourlyRate,
+            monthlyRate: u.monthlyRate,
+            hoursPerWeek: u.hoursPerWeek,
             status:
               u.employeeStatus === "ACTIVE"
                 ? "active"
@@ -645,10 +654,12 @@ export default function LeavesComponent() {
     setIsSavingEmployee(true);
 
     try {
-      const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
+      // const hourlyRate = parseFloat(editEmployeeForm.hourlyRate);
+      const hourlyRate = Number(editEmployeeForm.hourlyRate);
       const hoursPerWeek = Number(editEmployeeForm.hoursPerWeek);
       const fullName =
         `${editEmployeeForm.firstName} ${editEmployeeForm.lastName}`.trim();
+      const monthlyRate = Number(hourlyRate) * Number(hoursPerWeek) * 4
 
       const statusMap = {
         active: "ACTIVE",
@@ -664,6 +675,8 @@ export default function LeavesComponent() {
           role: editEmployeeForm.role,
           hourlyRate,
           hoursPerWeek,
+          monthlyRate: monthlyRate,
+          phone: editEmployeeForm.phone,
           employeeStatus: statusMap[editEmployeeForm.status],
           joinedAt: editEmployeeForm.hireDate?.toISOString(),
         }),
@@ -1319,31 +1332,24 @@ export default function LeavesComponent() {
       </Dialog>
 
       {/* Edit Employee Modal */}
-      {/* Edit Employee Modal */}
-      {/* Edit Employee Modal - Simplified */}
+
       {/* <Dialog
-        // key={editingEmployee?.id || 'closed'}
         open={editEmployeeModalOpen}
         onOpenChange={setEditEmployeeModalOpen}
-      > */}
-      <Dialog 
-  open={editEmployeeModalOpen} 
-  onOpenChange={setEditEmployeeModalOpen}
->
-  <DialogContent 
-    className="max-w-2xl"
-    onEscapeKeyDown={(e) => {
-      e.preventDefault();
-      setEditEmployeeModalOpen(false);
-      setEditingEmployee(null);
-    }}
-    onPointerDownOutside={(e) => {
-      e.preventDefault();
-      setEditEmployeeModalOpen(false);
-      setEditingEmployee(null);
-    }}
-  >
-        {/* <DialogContent className="max-w-2xl"> */}
+      >
+        <DialogContent
+          className="max-w-2xl"
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+            setEditEmployeeModalOpen(false);
+            setEditingEmployee(null);
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault();
+            setEditEmployeeModalOpen(false);
+            setEditingEmployee(null);
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Edit Employee</DialogTitle>
             <DialogDescription>
@@ -1488,7 +1494,6 @@ export default function LeavesComponent() {
               </div>
             </div>
 
-            {/* TEMPORARILY REMOVED CALENDAR - USING SIMPLE DATE INPUT */}
             <div>
               <label className="text-sm font-medium">Hire Date</label>
               <Input
@@ -1509,18 +1514,18 @@ export default function LeavesComponent() {
 
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button
-  type="button"
-  variant="outline"
-  onClick={(e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log('Cancel clicked');
-    setEditEmployeeModalOpen(false);
-    setEditingEmployee(null);
-  }}
->
-  Cancel
-</Button>
+                type="button"
+                variant="outline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log("Cancel clicked");
+                  setEditEmployeeModalOpen(false);
+                  setEditingEmployee(null);
+                }}
+              >
+                Cancel
+              </Button>
               <Button
                 type="button"
                 onClick={(e) => {
@@ -1531,6 +1536,243 @@ export default function LeavesComponent() {
               >
                 Update Employee
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog> */}
+
+      <Dialog
+        open={editEmployeeModalOpen}
+        onOpenChange={setEditEmployeeModalOpen}
+      >
+        <DialogContent
+          className="max-w-2xl"
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+            setEditEmployeeModalOpen(false);
+            setEditingEmployee(null);
+          }}
+          onPointerDownOutside={(e) => {
+            e.preventDefault();
+            setEditEmployeeModalOpen(false);
+            setEditingEmployee(null);
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>
+              Update employee information. Changes will be saved immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* <div>
+                    <label className="text-sm font-medium">First Name</label>
+                    <Input
+                      value={editEmployeeForm.firstName}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          firstName: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter first name"
+                    />
+                  </div> */}
+
+            <div>
+              <label className="text-sm font-medium">First Name</label>
+              <Input
+                value={editEmployeeForm.firstName}
+                onChange={(e) =>
+                  setEditEmployeeForm((prev) => ({
+                    ...prev,
+                    firstName: e.target.value,
+                  }))
+                }
+                placeholder="Enter first name"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Last Name</label>
+              <Input
+                value={editEmployeeForm.lastName}
+                onChange={(e) =>
+                  setEditEmployeeForm((prev) => ({
+                    ...prev,
+                    lastName: e.target.value,
+                  }))
+                }
+                placeholder="Enter last name"
+              />
+            </div>
+            <div>
+                    <label className="text-sm font-medium">Phone</label>
+                    <Input
+                      value={editEmployeeForm.phone}
+                      onChange={(e) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          phone: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+            <div>
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                value={editEmployeeForm.email}
+                onChange={(e) =>
+                  setEditEmployeeForm((prev) => ({
+                    ...prev,
+                    email: e.target.value,
+                  }))
+                }
+                placeholder="employee@company.com"
+              />
+            </div>
+
+            {/* UPDATED: Role Dropdown */}
+            <div>
+              <label className="text-sm font-medium">Role</label>
+              <Select
+                value={editEmployeeForm.role}
+                onValueChange={(value) =>
+                  setEditEmployeeForm((prev) => ({
+                    ...prev,
+                    role: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="videographer">Videographer</SelectItem>
+                  {/* <SelectItem value="qc_specialist">
+                          QC Specialist
+                        </SelectItem> */}
+                  <SelectItem value="scheduler">Scheduler</SelectItem>
+                  <SelectItem value="qc">QC</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Hourly Rate ($)</label>
+              <Input
+                type="number"
+                value={editEmployeeForm.hourlyRate}
+                onChange={(e) =>
+                  setEditEmployeeForm((prev) => ({
+                    ...prev,
+                    hourlyRate: e.target.value,
+                  }))
+                }
+                placeholder="0.00"
+              />
+            </div>
+
+            {/* Add this new field */}
+            <div>
+              <label className="text-sm font-medium">Hours Per Week</label>
+              <Input
+                type="number"
+                value={editEmployeeForm.hoursPerWeek}
+                onChange={(e) =>
+                  setEditEmployeeForm((prev) => ({
+                    ...prev,
+                    hoursPerWeek: e.target.value,
+                  }))
+                }
+                placeholder="40"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Typical full-time: 40 hours/week
+              </p>
+            </div>
+
+            {/* Add preview calculation */}
+            {editEmployeeForm.hourlyRate && editEmployeeForm.hoursPerWeek && (
+              <div className="text-sm bg-muted p-3 rounded-md">
+                <p className="font-medium">Monthly Salary Preview:</p>
+                <p className="text-lg font-bold text-primary">
+                  {formatCurrency(
+                    parseFloat(editEmployeeForm.hourlyRate || "0") *
+                      parseFloat(editEmployeeForm.hoursPerWeek || "0") *
+                      4
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  = ${editEmployeeForm.hourlyRate}/hr ×{" "}
+                  {editEmployeeForm.hoursPerWeek} hrs/week × 4 weeks
+                </p>
+              </div>
+            )}
+            <div>
+              <label className="text-sm font-medium">Hire Date</label>
+              <SimpleCalendar
+                selected={editEmployeeForm.hireDate}
+                onSelect={(date) =>
+                  setEditEmployeeForm((prev) => ({
+                    ...prev,
+                    hireDate: date,
+                  }))
+                }
+                placeholder="Select hire date"
+              />
+            </div>
+
+            {/* UPDATED: Status with 3 options and descriptions */}
+            <div>
+              <label className="text-sm font-medium">Employment Status</label>
+              <Select
+                value={editEmployeeForm.status}
+                onValueChange={(value: "active" | "inactive" | "terminated") =>
+                  setEditEmployeeForm((prev) => ({
+                    ...prev,
+                    status: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                      <span>Active - Currently working, on payroll</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="inactive">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
+                      <span>Inactive - Not currently working</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="terminated">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-red-500"></span>
+                      <span>Terminated - Permanently removed</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setEditEmployeeModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleEditEmployee}>Save Changes</Button>
             </div>
           </div>
         </DialogContent>
