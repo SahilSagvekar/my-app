@@ -51,6 +51,14 @@ import {
   Filter,
 } from "lucide-react";
 import { SimpleCalendar } from "../ui/simple-calendar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -576,6 +584,12 @@ export default function LeavesComponent() {
     const hoursPerWeek = Number(newUser.hoursPerWeek);
     const fullName = `${newUser.firstName} ${newUser.lastName}`.trim();
 
+    if (!newUser.hireDate) {
+      toast.error("Please select a hire date.");
+      setIsAddingEmployee(false);
+      return;
+    }
+
     await apiFetch("/api/employee", {
       method: "POST",
       body: JSON.stringify({
@@ -849,7 +863,7 @@ export default function LeavesComponent() {
       Add Employee
     </Button>
   </DialogTrigger>
-  <DialogContent aria-describedby="add-employee-description">
+  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby="add-employee-description">
     <DialogHeader>
       <DialogTitle id="add-employee-title">Add New Employee</DialogTitle>
       <DialogDescription id="add-employee-description">
@@ -858,7 +872,8 @@ export default function LeavesComponent() {
       </DialogDescription>
     </DialogHeader>
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      {/* First Name and Last Name in grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium">First Name</label>
           <Input
@@ -887,35 +902,38 @@ export default function LeavesComponent() {
         </div>
       </div>
 
-      <div>
-        <label className="text-sm font-medium">Email</label>
-        <Input
-          type="email"
-          value={newUser.email}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              email: e.target.value,
-            }))
-          }
-          placeholder="employee@company.com"
-        />
+      {/* Email and Phone in grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">Email</label>
+          <Input
+            type="email"
+            value={newUser.email}
+            onChange={(e) =>
+              setNewUser((prev) => ({
+                ...prev,
+                email: e.target.value,
+              }))
+            }
+            placeholder="employee@company.com"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Phone</label>
+          <Input
+            value={newUser.phone}
+            onChange={(e) =>
+              setNewUser((prev) => ({
+                ...prev,
+                phone: e.target.value,
+              }))
+            }
+            placeholder="Enter phone number"
+          />
+        </div>
       </div>
 
-      <div>
-        <label className="text-sm font-medium">Phone</label>
-        <Input
-          value={newUser.phone}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              phone: e.target.value,
-            }))
-          }
-          placeholder="Enter phone number"
-        />
-      </div>
-
+      {/* Role */}
       <div>
         <label className="text-sm font-medium">Role</label>
         <Select
@@ -941,37 +959,39 @@ export default function LeavesComponent() {
         </Select>
       </div>
 
-      <div>
-        <label className="text-sm font-medium">Hourly Rate ($)</label>
-        <Input
-          type="number"
-          value={newUser.hourlyRate}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              hourlyRate: e.target.value,
-            }))
-          }
-          placeholder="0.00"
-        />
-      </div>
-
-      <div>
-        <label className="text-sm font-medium">Hours Per Week</label>
-        <Input
-          type="number"
-          value={newUser.hoursPerWeek}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              hoursPerWeek: e.target.value,
-            }))
-          }
-          placeholder="40"
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Typical full-time: 40 hours/week
-        </p>
+      {/* Hourly Rate and Hours Per Week in grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">Hourly Rate ($)</label>
+          <Input
+            type="number"
+            value={newUser.hourlyRate}
+            onChange={(e) =>
+              setNewUser((prev) => ({
+                ...prev,
+                hourlyRate: e.target.value,
+              }))
+            }
+            placeholder="0.00"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Hours Per Week</label>
+          <Input
+            type="number"
+            value={newUser.hoursPerWeek}
+            onChange={(e) =>
+              setNewUser((prev) => ({
+                ...prev,
+                hoursPerWeek: e.target.value,
+              }))
+            }
+            placeholder="40"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Typical full-time: 40 hours/week
+          </p>
+        </div>
       </div>
 
       {/* Preview calculation */}
@@ -992,38 +1012,40 @@ export default function LeavesComponent() {
         </div>
       )}
 
-      <div>
-        <label className="text-sm font-medium">Hire Date</label>
-        <SimpleCalendar
-          selected={newUser.hireDate}
-          onSelect={(date) =>
-            setNewUser((prev) => ({
-              ...prev,
-              hireDate: date,
-            }))
-          }
-          placeholder="Select hire date"
-        />
+      {/* Hire Date and Works on Saturday in grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">Hire Date</label>
+          <SimpleCalendar
+            selected={newUser.hireDate}
+            onSelect={(date) =>
+              setNewUser((prev) => ({
+                ...prev,
+                hireDate: date,
+              }))
+            }
+            placeholder="Select hire date"
+          />
+        </div>
+        <div className="flex items-center gap-2 pt-8">
+          <input
+            type="checkbox"
+            id="worksOnSaturday"
+            checked={newUser.worksOnSaturday}
+            onChange={(e) =>
+              setNewUser((prev) => ({
+                ...prev,
+                worksOnSaturday: e.target.checked,
+              }))
+            }
+          />
+          <label htmlFor="worksOnSaturday" className="text-sm font-medium">
+            Works on Saturday
+          </label>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="worksOnSaturday"
-          checked={newUser.worksOnSaturday}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              worksOnSaturday: e.target.checked,
-            }))
-          }
-        />
-        <label htmlFor="worksOnSaturday" className="text-sm font-medium">
-          Works on Saturday
-        </label>
-      </div>
-
-      <div className="flex justify-end gap-3">
+      <div className="flex justify-end gap-3 pt-2">
         <Button
           variant="outline"
           onClick={() => setIsAddUserDialogOpen(false)}
@@ -1321,7 +1343,7 @@ export default function LeavesComponent() {
                           </Badge>
                         </TableCell>
                         <TableCell
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           className="space-x-2"
                         >
                           {l.status === "PENDING" && (
@@ -1663,7 +1685,7 @@ export default function LeavesComponent() {
         onOpenChange={setEditEmployeeModalOpen}
       >
         <DialogContent
-          className="max-w-2xl"
+          className="max-w-3xl max-h-[90vh] overflow-y-auto"
           onEscapeKeyDown={(e) => {
             e.preventDefault();
             setEditEmployeeModalOpen(false);
@@ -1682,75 +1704,68 @@ export default function LeavesComponent() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* <div>
-                    <label className="text-sm font-medium">First Name</label>
-                    <Input
-                      value={editEmployeeForm.firstName}
-                      onChange={(e) =>
-                        setEditEmployeeForm((prev) => ({
-                          ...prev,
-                          firstName: e.target.value,
-                        }))
-                      }
-                      placeholder="Enter first name"
-                    />
-                  </div> */}
-
-            <div>
-              <label className="text-sm font-medium">First Name</label>
-              <Input
-                value={editEmployeeForm.firstName}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    firstName: e.target.value,
-                  }))
-                }
-                placeholder="Enter first name"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Last Name</label>
-              <Input
-                value={editEmployeeForm.lastName}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    lastName: e.target.value,
-                  }))
-                }
-                placeholder="Enter last name"
-              />
-            </div>
-            <div>
-                    <label className="text-sm font-medium">Phone</label>
-                    <Input
-                      value={editEmployeeForm.phone}
-                      onChange={(e) =>
-                        setEditEmployeeForm((prev) => ({
-                          ...prev,
-                          phone: e.target.value,
-                        }))
-                      }
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-            <div>
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={editEmployeeForm.email}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    email: e.target.value,
-                  }))
-                }
-                placeholder="employee@company.com"
-              />
+            {/* First Name and Last Name in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">First Name</label>
+                <Input
+                  value={editEmployeeForm.firstName}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      firstName: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter first name"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Last Name</label>
+                <Input
+                  value={editEmployeeForm.lastName}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      lastName: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter last name"
+                />
+              </div>
             </div>
 
-            {/* UPDATED: Role Dropdown */}
+            {/* Email and Phone in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <Input
+                  type="email"
+                  value={editEmployeeForm.email}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      email: e.target.value,
+                    }))
+                  }
+                  placeholder="employee@company.com"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Phone</label>
+                <Input
+                  value={editEmployeeForm.phone}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      phone: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter phone number"
+                />
+              </div>
+            </div>
+
+            {/* Role */}
             <div>
               <label className="text-sm font-medium">Role</label>
               <Select
@@ -1770,50 +1785,48 @@ export default function LeavesComponent() {
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="editor">Editor</SelectItem>
                   <SelectItem value="videographer">Videographer</SelectItem>
-                  {/* <SelectItem value="qc_specialist">
-                          QC Specialist
-                        </SelectItem> */}
                   <SelectItem value="scheduler">Scheduler</SelectItem>
                   <SelectItem value="qc">QC</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Hourly Rate ($)</label>
-              <Input
-                type="number"
-                value={editEmployeeForm.hourlyRate}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    hourlyRate: e.target.value,
-                  }))
-                }
-                placeholder="0.00"
-              />
+            {/* Hourly Rate and Hours Per Week in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Hourly Rate ($)</label>
+                <Input
+                  type="number"
+                  value={editEmployeeForm.hourlyRate}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      hourlyRate: e.target.value,
+                    }))
+                  }
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Hours Per Week</label>
+                <Input
+                  type="number"
+                  value={editEmployeeForm.hoursPerWeek}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      hoursPerWeek: e.target.value,
+                    }))
+                  }
+                  placeholder="40"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Typical full-time: 40 hours/week
+                </p>
+              </div>
             </div>
 
-            {/* Add this new field */}
-            <div>
-              <label className="text-sm font-medium">Hours Per Week</label>
-              <Input
-                type="number"
-                value={editEmployeeForm.hoursPerWeek}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    hoursPerWeek: e.target.value,
-                  }))
-                }
-                placeholder="40"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Typical full-time: 40 hours/week
-              </p>
-            </div>
-
-            {/* Add preview calculation */}
+            {/* Monthly Salary Preview */}
             {editEmployeeForm.hourlyRate && editEmployeeForm.hoursPerWeek && (
               <div className="text-sm bg-muted p-3 rounded-md">
                 <p className="font-medium">Monthly Salary Preview:</p>
@@ -1830,59 +1843,61 @@ export default function LeavesComponent() {
                 </p>
               </div>
             )}
-            <div>
-              <label className="text-sm font-medium">Hire Date</label>
-              <SimpleCalendar
-                selected={editEmployeeForm.hireDate}
-                onSelect={(date) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    hireDate: date,
-                  }))
-                }
-                placeholder="Select hire date"
-              />
+
+            {/* Hire Date and Employment Status in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Hire Date</label>
+                <SimpleCalendar
+                  selected={editEmployeeForm.hireDate}
+                  onSelect={(date) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      hireDate: date,
+                    }))
+                  }
+                  placeholder="Select hire date"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Employment Status</label>
+                <Select
+                  value={editEmployeeForm.status}
+                  onValueChange={(value: "active" | "inactive" | "terminated") =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      status: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                        <span>Active - Currently working, on payroll</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="inactive">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
+                        <span>Inactive - Not currently working</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="terminated">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-red-500"></span>
+                        <span>Terminated - Permanently removed</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {/* UPDATED: Status with 3 options and descriptions */}
-            <div>
-              <label className="text-sm font-medium">Employment Status</label>
-              <Select
-                value={editEmployeeForm.status}
-                onValueChange={(value: "active" | "inactive" | "terminated") =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    status: value,
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                      <span>Active - Currently working, on payroll</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="inactive">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
-                      <span>Inactive - Not currently working</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="terminated">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-red-500"></span>
-                      <span>Terminated - Permanently removed</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="outline"
                 onClick={() => setEditEmployeeModalOpen(false)}
