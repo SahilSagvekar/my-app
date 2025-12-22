@@ -1,45 +1,33 @@
+// components/workflow/FileUploadDialog.tsx
 "use client";
 
-import { useState, useRef } from "react";
-import {
-  Upload,
-  File,
-  X,
-  CheckCircle,
-  AlertCircle,
-  ExternalLink,
-} from "lucide-react";
-import { Button } from "../ui/button";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "../ui/dialog";
-import { Badge } from "../ui/badge";
-import { Progress } from "../ui/progress";
-import { Alert, AlertDescription } from "../ui/alert";
-import { Textarea } from "../ui/textarea";
-import { Label } from "../ui/label";
-import { WorkflowTask, WorkflowFile, useTaskWorkflow } from "./TaskWorkflowEngine";
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  Upload, 
+  X, 
+  CheckCircle, 
+  AlertCircle, 
+  File as FileIcon 
+} from "lucide-react";
+import { useAuth } from "@/components/auth/AuthContext";
+
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
 
 interface FileUploadDialogProps {
-  task: WorkflowTask;
-  onUploadComplete?: (files: WorkflowFile[]) => void;
+  task: any;
+  onUploadComplete: (files: any[]) => void;
   trigger?: React.ReactNode;
-}
-
-interface UploadingFile {
-  id: string;
-  file: File;
-  progress: number;
-  status: "uploading" | "completed" | "error";
-  driveFileId?: string;
-  url?: string;
-  error?: string;
 }
 
 export function FileUploadDialog({
@@ -48,207 +36,375 @@ export function FileUploadDialog({
   trigger,
 }: FileUploadDialogProps) {
   const [open, setOpen] = useState(false);
-  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [folderType, setFolderType] = useState<"rawFootage" | "essentials">(
+    "rawFootage"
+  );
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [uploadSpeed, setUploadSpeed] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
-  const { createQCReviewTask } = useTaskWorkflow();
+  const { user } = useAuth();
 
-  // 🔥 REAL Google Drive Upload
-  async function uploadFileToBackend(uploadingFile: UploadingFile) {
-    const formData = new FormData();
-
-    if (!task.clientId) {
-      console.error("❌ MISSING task.clientId", task);
-    }
-
-    formData.append("file", uploadingFile.file);
-    formData.append("taskId", task.id);
-    formData.append("clientId", String(task.clientId));
-    formData.append("folderType", "rawFootage");
-
-    try {
-      const res = await fetch("/api/tasks/upload/google-drive", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message);
-
-      setUploadingFiles((prev) =>
-        prev.map((f) =>
-          f.id === uploadingFile.id
-            ? {
-                ...f,
-                status: "completed",
-                progress: 100,
-                driveFileId: data.driveFileId,
-                url: data.webViewLink,
-              }
-            : f
-        )
-      );
-    } catch (err: any) {
-      setUploadingFiles((prev) =>
-        prev.map((f) =>
-          f.id === uploadingFile.id
-            ? { ...f, status: "error", error: err.message }
-            : f
-        )
-      );
-    }
-  }
-
-  const handleFileSelect = (files: FileList | null) => {
-    if (!files) return;
-
-    const newFiles: UploadingFile[] = Array.from(files).map((file) => ({
-      id: `upload-${Date.now()}-${Math.random()}`,
-      file,
-      progress: 0,
-      status: "uploading" as const,
-    }));
-
-
-    setUploadingFiles((prev) => [...prev, ...newFiles]);
-
-    newFiles.forEach(uploadFileToBackend);
+  const formatSpeed = (mbps: number) => {
+    return `${mbps.toFixed(2)} MB/s`;
   };
 
-  const handleCompleteTask = async () => {
-    const allDone =
-      uploadingFiles.length > 0 &&
-      uploadingFiles.every((f) => f.status === "completed");
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(2)} KB`;
+    } else if (bytes < 1024 * 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    } else {
+      return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    }
+  };
 
-    if (!allDone) return;
+  const uploadFileMultipart = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    setProgress(0);
 
-    const workflowFiles: WorkflowFile[] = uploadingFiles.map((f) => ({
-      id: f.driveFileId || f.id,
-      name: f.file.name,
-      url: f.url || "#",
-      uploadedAt: new Date().toISOString(),
-      uploadedBy: "editor",
-      driveFileId: f.driveFileId,
-      mimeType: f.file.type,
-      size: f.file.size,
-    }));
+    const controller = new AbortController();
+    setAbortController(controller);
 
-    // 🔥 Mark this task as READY_FOR_QC
-    await fetch(`/api/tasks/${task.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "READY_FOR_QC" }),
-    });
+    try {
+      console.log("📋 Task Details:", {
+        taskId: task.id,
+        clientId: task.clientId,
+        folderType,
+      });
 
-    // 🔥 Auto-create QC Task
-    await createQCReviewTask(task, workflowFiles);
+      // Step 1: Initiate multipart upload
+      console.log("🚀 Initiating multipart upload...");
+      const initResponse = await fetch("/api/upload/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+          taskId: task.id,
+          clientId: task.clientId,
+          folderType,
+        }),
+      });
 
-    onUploadComplete?.(workflowFiles);
-    setOpen(false);
-    setUploadingFiles([]);
+      if (!initResponse.ok) {
+        const errorData = await initResponse.json();
+        throw new Error(errorData.error || "Failed to initiate upload");
+      }
+
+      const { uploadId, key } = await initResponse.json();
+      console.log("✅ Upload initiated:", { uploadId, key });
+
+      // Step 2: Upload file in chunks
+      const numChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
+
+      let uploadedBytes = 0;
+      const startTime = Date.now();
+
+      for (let i = 0; i < numChunks; i++) {
+        if (controller.signal.aborted) {
+          // Abort the upload on S3
+          await fetch("/api/upload/abort", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key, uploadId }),
+          });
+          throw new Error("Upload cancelled");
+        }
+
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        const partNumber = i + 1;
+
+        console.log(`📤 Uploading part ${partNumber}/${numChunks}...`);
+
+        // Get presigned URL for this part
+        const partUrlResponse = await fetch("/api/upload/part-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key,
+            uploadId,
+            partNumber,
+          }),
+        });
+
+        if (!partUrlResponse.ok) {
+          throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+        }
+
+        const { presignedUrl } = await partUrlResponse.json();
+
+        // Upload chunk directly to S3
+        const uploadResponse = await fetch(presignedUrl, {
+          method: "PUT",
+          body: chunk,
+          headers: {
+            "Content-Type": file.type,
+          },
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload part ${partNumber}`);
+        }
+
+        const etag = uploadResponse.headers.get("ETag");
+        if (!etag) {
+          throw new Error("Failed to get ETag from upload response");
+        }
+
+        uploadedParts.push({
+          ETag: etag.replace(/"/g, ""), // Remove quotes from ETag
+          PartNumber: partNumber,
+        });
+
+        // Update progress
+        uploadedBytes += chunk.size;
+        const progressPercent = Math.round((uploadedBytes / file.size) * 100);
+        setProgress(progressPercent);
+
+        // Calculate upload speed
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        const speedMBps = uploadedBytes / (1024 * 1024) / elapsedSeconds;
+        setUploadSpeed(speedMBps);
+
+        console.log(`✅ Part ${partNumber} uploaded (${progressPercent}%)`);
+      }
+
+      // Step 3: Complete multipart upload
+      console.log("🔄 Completing multipart upload...");
+      const completeResponse = await fetch("/api/upload/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key,
+          uploadId,
+          parts: uploadedParts,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          taskId: task.id,
+          userId: user?.id,
+        }),
+      });
+
+      if (!completeResponse.ok) {
+        const errorData = await completeResponse.json();
+        throw new Error(errorData.error || "Failed to complete upload");
+      }
+
+      const result = await completeResponse.json();
+      console.log("✅ Upload complete:", result);
+
+      setProgress(100);
+
+      // Notify parent component with the uploaded file info
+      const uploadedFile = {
+        id: result.fileId,
+        name: result.fileName,
+        url: result.fileUrl,
+        mimeType: file.type,
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: user?.name || "Unknown",
+      };
+
+      // Call onUploadComplete with the new file added to existing files
+      onUploadComplete([...(task.files || []), uploadedFile]);
+
+      setTimeout(() => {
+        setOpen(false);
+        setUploading(false);
+        setSelectedFile(null);
+        setProgress(0);
+        setUploadSpeed(0);
+      }, 1500);
+    } catch (error: any) {
+      console.error("❌ Upload failed:", error);
+
+      if (error.message !== "Upload cancelled") {
+        setError(error.message || "Upload failed. Please try again.");
+      } else {
+        setError("Upload cancelled");
+      }
+
+      setUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setError(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      setError("Please select a file");
+      return;
+    }
+
+    await uploadFileMultipart(selectedFile);
+  };
+
+  const cancelUpload = () => {
+    if (abortController) {
+      abortController.abort();
+      setError("Upload cancelled");
+      setUploading(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger asChild>
+        {trigger || (
+          <Button size="sm">
+            <Upload className="h-4 w-4 mr-2" />
+            Upload File
+          </Button>
+        )}
+      </DialogTrigger>
 
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Complete Task & Upload Files</DialogTitle>
-          <DialogDescription>
-            Upload completed files. QC review is generated automatically.
-          </DialogDescription>
+          <DialogTitle>Upload File</DialogTitle>
         </DialogHeader>
 
-        {/* Task Info */}
-        <div className="p-4 bg-accent/50 rounded-lg">
-          <h4 className="font-medium mb-1">{task.title}</h4>
-          <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
-          <Badge variant="outline">{task.type}</Badge>
-        </div>
-
-        {/* Upload Area */}
-        <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center mt-4 ${
-            isDragging ? "border-primary bg-primary/5" : "border-border"
-          }`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            handleFileSelect(e.dataTransfer.files);
-          }}
-        >
-          <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <p className="mb-4 text-sm">Drop files or click to browse</p>
-
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-            Select Files
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => handleFileSelect(e.target.files)}
-          />
-        </div>
-
-        {/* File List */}
-        {uploadingFiles.map((file) => (
-          <div
-            key={file.id}
-            className="flex items-center gap-3 p-3 mt-3 border rounded-lg"
-          >
-            <File className="h-4 w-4" />
-
-            <div className="flex-1">
-              <p className="text-sm truncate">{file.file.name}</p>
-              <Progress value={file.progress} />
-            </div>
-
-            {file.status === "completed" && (
-              <CheckCircle className="h-4 w-4 text-green-500" />
-            )}
-            {file.status === "error" && (
-              <AlertCircle className="h-4 w-4 text-red-500" />
-            )}
-
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
-                setUploadingFiles((prev) =>
-                  prev.filter((f) => f.id !== file.id)
-                )
+        <div className="space-y-4">
+          {/* Folder Selection */}
+          <div>
+            <Label>Upload to</Label>
+            <RadioGroup
+              value={folderType}
+              onValueChange={(val) =>
+                setFolderType(val as "rawFootage" | "essentials")
               }
+              disabled={uploading}
+              className="flex gap-4 mt-2"
             >
-              <X className="h-3 w-3" />
-            </Button>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="rawFootage" id="raw" />
+                <Label htmlFor="raw" className="cursor-pointer">
+                  Raw Footage
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="essentials" id="essentials" />
+                <Label htmlFor="essentials" className="cursor-pointer">
+                  Elements
+                </Label>
+              </div>
+            </RadioGroup>
           </div>
-        ))}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
+          {/* File Selection */}
+          {!uploading && !selectedFile && (
+            <div>
+              <input
+                type="file"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="file-input"
+                accept="video/*,image/*,.pdf,.doc,.docx"
+              />
+              <label
+                htmlFor="file-input"
+                className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-8 cursor-pointer hover:border-primary transition-colors"
+              >
+                <Upload className="h-6 w-6 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Click to select file
+                </span>
+              </label>
+            </div>
+          )}
 
-          <Button
-            disabled={
-              uploadingFiles.length === 0 ||
-              uploadingFiles.some((f) => f.status === "uploading")
-            }
-            onClick={handleCompleteTask}
-          >
-            Complete Task
-          </Button>
-        </DialogFooter>
+          {/* Selected File Display */}
+          {selectedFile && !uploading && (
+            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+              <FileIcon className="h-5 w-5 text-muted-foreground" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {selectedFile.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatSize(selectedFile.size)}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedFile(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* Upload Progress */}
+          {uploading && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {selectedFile?.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {uploadSpeed > 0 && `${formatSpeed(uploadSpeed)} • `}
+                    {progress}% complete
+                  </p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={cancelUpload}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="relative w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="absolute top-0 left-0 bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Error Display */}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Success Display */}
+          {progress === 100 && !error && (
+            <Alert>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <AlertDescription>Upload complete!</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Upload Button */}
+          {selectedFile && !uploading && (
+            <Button
+              onClick={handleUpload}
+              className="w-full"
+              disabled={uploading}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Start Upload
+            </Button>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
