@@ -842,201 +842,215 @@ export default function LeavesComponent() {
               Employee Management
             </CardTitle>
 
-            <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
-  <DialogTrigger asChild>
-    <Button>
-      <UserPlus className="h-4 w-4 mr-2" />
-      Add Employee
-    </Button>
-  </DialogTrigger>
-  <DialogContent aria-describedby="add-employee-description">
-    <DialogHeader>
-      <DialogTitle id="add-employee-title">Add New Employee</DialogTitle>
-      <DialogDescription id="add-employee-description">
-        Add a new employee with their hourly rate. Monthly rate will be
-        calculated automatically.
-      </DialogDescription>
-    </DialogHeader>
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-sm font-medium">First Name</label>
-          <Input
-            value={newUser.firstName}
-            onChange={(e) =>
-              setNewUser((prev) => ({
-                ...prev,
-                firstName: e.target.value,
-              }))
-            }
-            placeholder="Enter first name"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium">Last Name</label>
-          <Input
-            value={newUser.lastName}
-            onChange={(e) =>
-              setNewUser((prev) => ({
-                ...prev,
-                lastName: e.target.value,
-              }))
-            }
-            placeholder="Enter last name"
-          />
-        </div>
-      </div>
+            <Dialog
+              open={isAddUserDialogOpen}
+              onOpenChange={setIsAddUserDialogOpen}
+            >
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add Employee
+                </Button>
+              </DialogTrigger>
+              <DialogContent aria-describedby="add-employee-description">
+                <DialogHeader>
+                  <DialogTitle id="add-employee-title">
+                    Add New Employee
+                  </DialogTitle>
+                  <DialogDescription id="add-employee-description">
+                    Add a new employee with their hourly rate. Monthly rate will
+                    be calculated automatically.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">First Name</label>
+                      <Input
+                        value={newUser.firstName}
+                        onChange={(e) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            firstName: e.target.value,
+                          }))
+                        }
+                        placeholder="Enter first name"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Last Name</label>
+                      <Input
+                        value={newUser.lastName}
+                        onChange={(e) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            lastName: e.target.value,
+                          }))
+                        }
+                        placeholder="Enter last name"
+                      />
+                    </div>
+                  </div>
 
-      <div>
-        <label className="text-sm font-medium">Email</label>
-        <Input
-          type="email"
-          value={newUser.email}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              email: e.target.value,
-            }))
-          }
-          placeholder="employee@company.com"
-        />
-      </div>
+                  <div>
+                    <label className="text-sm font-medium">Email</label>
+                    <Input
+                      type="email"
+                      value={newUser.email}
+                      onChange={(e) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          email: e.target.value,
+                        }))
+                      }
+                      placeholder="employee@company.com"
+                    />
+                  </div>
 
-      <div>
-        <label className="text-sm font-medium">Phone</label>
-        <Input
-          value={newUser.phone}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              phone: e.target.value,
-            }))
-          }
-          placeholder="Enter phone number"
-        />
-      </div>
+                  <div>
+                    <label className="text-sm font-medium">Phone</label>
+                    <Input
+                      value={newUser.phone}
+                      onChange={(e) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          phone: e.target.value,
+                        }))
+                      }
+                      placeholder="Enter phone number"
+                    />
+                  </div>
 
-      <div>
-        <label className="text-sm font-medium">Role</label>
-        <Select
-          value={newUser.role}
-          onValueChange={(value) =>
-            setNewUser((prev) => ({
-              ...prev,
-              role: value,
-            }))
-          }
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="admin">Admin</SelectItem>
-            <SelectItem value="manager">Manager</SelectItem>
-            <SelectItem value="editor">Editor</SelectItem>
-            <SelectItem value="videographer">Videographer</SelectItem>
-            <SelectItem value="scheduler">Scheduler</SelectItem>
-            <SelectItem value="qc">QC</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+                  <div>
+                    <label className="text-sm font-medium">Role</label>
+                    <Select
+                      value={newUser.role}
+                      onValueChange={(value) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          role: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="editor">Editor</SelectItem>
+                        <SelectItem value="videographer">
+                          Videographer
+                        </SelectItem>
+                        <SelectItem value="scheduler">Scheduler</SelectItem>
+                        <SelectItem value="qc">QC</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-      <div>
-        <label className="text-sm font-medium">Hourly Rate ($)</label>
-        <Input
-          type="number"
-          value={newUser.hourlyRate}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              hourlyRate: e.target.value,
-            }))
-          }
-          placeholder="0.00"
-        />
-      </div>
+                  <div>
+                    <label className="text-sm font-medium">
+                      Hourly Rate ($)
+                    </label>
+                    <Input
+                      type="number"
+                      value={newUser.hourlyRate}
+                      onChange={(e) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          hourlyRate: e.target.value,
+                        }))
+                      }
+                      placeholder="0.00"
+                    />
+                  </div>
 
-      <div>
-        <label className="text-sm font-medium">Hours Per Week</label>
-        <Input
-          type="number"
-          value={newUser.hoursPerWeek}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              hoursPerWeek: e.target.value,
-            }))
-          }
-          placeholder="40"
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Typical full-time: 40 hours/week
-        </p>
-      </div>
+                  <div>
+                    <label className="text-sm font-medium">
+                      Hours Per Week
+                    </label>
+                    <Input
+                      type="number"
+                      value={newUser.hoursPerWeek}
+                      onChange={(e) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          hoursPerWeek: e.target.value,
+                        }))
+                      }
+                      placeholder="40"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Typical full-time: 40 hours/week
+                    </p>
+                  </div>
 
-      {/* Preview calculation */}
-      {newUser.hourlyRate && newUser.hoursPerWeek && (
-        <div className="text-sm bg-muted p-3 rounded-md">
-          <p className="font-medium">Monthly Salary Preview:</p>
-          <p className="text-lg font-bold text-primary">
-            {formatCurrency(
-              parseFloat(newUser.hourlyRate || "0") *
-                parseFloat(newUser.hoursPerWeek || "0") *
-                4
-            )}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            = ${newUser.hourlyRate}/hr × {newUser.hoursPerWeek} hrs/week × 4
-            weeks
-          </p>
-        </div>
-      )}
+                  {/* Preview calculation */}
+                  {newUser.hourlyRate && newUser.hoursPerWeek && (
+                    <div className="text-sm bg-muted p-3 rounded-md">
+                      <p className="font-medium">Monthly Salary Preview:</p>
+                      <p className="text-lg font-bold text-primary">
+                        {formatCurrency(
+                          parseFloat(newUser.hourlyRate || "0") *
+                            parseFloat(newUser.hoursPerWeek || "0") *
+                            4
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        = ${newUser.hourlyRate}/hr × {newUser.hoursPerWeek}{" "}
+                        hrs/week × 4 weeks
+                      </p>
+                    </div>
+                  )}
 
-      <div>
-        <label className="text-sm font-medium">Hire Date</label>
-        <SimpleCalendar
-          selected={newUser.hireDate}
-          onSelect={(date) =>
-            setNewUser((prev) => ({
-              ...prev,
-              hireDate: date,
-            }))
-          }
-          placeholder="Select hire date"
-        />
-      </div>
+                  <div>
+                    <label className="text-sm font-medium">Hire Date</label>
+                    <SimpleCalendar
+                      selected={newUser.hireDate}
+                      onSelect={(date) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          hireDate: date,
+                        }))
+                      }
+                      placeholder="Select hire date"
+                    />
+                  </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="worksOnSaturday"
-          checked={newUser.worksOnSaturday}
-          onChange={(e) =>
-            setNewUser((prev) => ({
-              ...prev,
-              worksOnSaturday: e.target.checked,
-            }))
-          }
-        />
-        <label htmlFor="worksOnSaturday" className="text-sm font-medium">
-          Works on Saturday
-        </label>
-      </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="worksOnSaturday"
+                      checked={newUser.worksOnSaturday}
+                      onChange={(e) =>
+                        setNewUser((prev) => ({
+                          ...prev,
+                          worksOnSaturday: e.target.checked,
+                        }))
+                      }
+                    />
+                    <label
+                      htmlFor="worksOnSaturday"
+                      className="text-sm font-medium"
+                    >
+                      Works on Saturday
+                    </label>
+                  </div>
 
-      <div className="flex justify-end gap-3">
-        <Button
-          variant="outline"
-          onClick={() => setIsAddUserDialogOpen(false)}
-        >
-          Cancel
-        </Button>
-        <Button onClick={handleAddUser} disabled={isAddingEmployee}>
-          {isAddingEmployee ? "Adding..." : "Add Employee"}
-        </Button>
-      </div>
-    </div>
-  </DialogContent>
-</Dialog>
+                  <div className="flex justify-end gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsAddUserDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddUser} disabled={isAddingEmployee}>
+                      {isAddingEmployee ? "Adding..." : "Add Employee"}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardHeader>
         <CardContent>
@@ -1663,7 +1677,7 @@ export default function LeavesComponent() {
         onOpenChange={setEditEmployeeModalOpen}
       >
         <DialogContent
-          className="max-w-2xl"
+          className="max-w-3xl max-h-[90vh] overflow-y-auto"
           onEscapeKeyDown={(e) => {
             e.preventDefault();
             setEditEmployeeModalOpen(false);
@@ -1682,75 +1696,68 @@ export default function LeavesComponent() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* <div>
-                    <label className="text-sm font-medium">First Name</label>
-                    <Input
-                      value={editEmployeeForm.firstName}
-                      onChange={(e) =>
-                        setEditEmployeeForm((prev) => ({
-                          ...prev,
-                          firstName: e.target.value,
-                        }))
-                      }
-                      placeholder="Enter first name"
-                    />
-                  </div> */}
-
-            <div>
-              <label className="text-sm font-medium">First Name</label>
-              <Input
-                value={editEmployeeForm.firstName}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    firstName: e.target.value,
-                  }))
-                }
-                placeholder="Enter first name"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Last Name</label>
-              <Input
-                value={editEmployeeForm.lastName}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    lastName: e.target.value,
-                  }))
-                }
-                placeholder="Enter last name"
-              />
-            </div>
-            <div>
-                    <label className="text-sm font-medium">Phone</label>
-                    <Input
-                      value={editEmployeeForm.phone}
-                      onChange={(e) =>
-                        setEditEmployeeForm((prev) => ({
-                          ...prev,
-                          phone: e.target.value,
-                        }))
-                      }
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-            <div>
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={editEmployeeForm.email}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    email: e.target.value,
-                  }))
-                }
-                placeholder="employee@company.com"
-              />
+            {/* First Name and Last Name in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">First Name</label>
+                <Input
+                  value={editEmployeeForm.firstName}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      firstName: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter first name"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Last Name</label>
+                <Input
+                  value={editEmployeeForm.lastName}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      lastName: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter last name"
+                />
+              </div>
             </div>
 
-            {/* UPDATED: Role Dropdown */}
+            {/* Email and Phone in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <Input
+                  type="email"
+                  value={editEmployeeForm.email}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      email: e.target.value,
+                    }))
+                  }
+                  placeholder="employee@company.com"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Phone</label>
+                <Input
+                  value={editEmployeeForm.phone}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      phone: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter phone number"
+                />
+              </div>
+            </div>
+
+            {/* Role */}
             <div>
               <label className="text-sm font-medium">Role</label>
               <Select
@@ -1770,50 +1777,48 @@ export default function LeavesComponent() {
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="editor">Editor</SelectItem>
                   <SelectItem value="videographer">Videographer</SelectItem>
-                  {/* <SelectItem value="qc_specialist">
-                          QC Specialist
-                        </SelectItem> */}
                   <SelectItem value="scheduler">Scheduler</SelectItem>
                   <SelectItem value="qc">QC</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <label className="text-sm font-medium">Hourly Rate ($)</label>
-              <Input
-                type="number"
-                value={editEmployeeForm.hourlyRate}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    hourlyRate: e.target.value,
-                  }))
-                }
-                placeholder="0.00"
-              />
+            {/* Hourly Rate and Hours Per Week in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Hourly Rate ($)</label>
+                <Input
+                  type="number"
+                  value={editEmployeeForm.hourlyRate}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      hourlyRate: e.target.value,
+                    }))
+                  }
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Hours Per Week</label>
+                <Input
+                  type="number"
+                  value={editEmployeeForm.hoursPerWeek}
+                  onChange={(e) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      hoursPerWeek: e.target.value,
+                    }))
+                  }
+                  placeholder="40"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Typical full-time: 40 hours/week
+                </p>
+              </div>
             </div>
 
-            {/* Add this new field */}
-            <div>
-              <label className="text-sm font-medium">Hours Per Week</label>
-              <Input
-                type="number"
-                value={editEmployeeForm.hoursPerWeek}
-                onChange={(e) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    hoursPerWeek: e.target.value,
-                  }))
-                }
-                placeholder="40"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Typical full-time: 40 hours/week
-              </p>
-            </div>
-
-            {/* Add preview calculation */}
+            {/* Monthly Salary Preview */}
             {editEmployeeForm.hourlyRate && editEmployeeForm.hoursPerWeek && (
               <div className="text-sm bg-muted p-3 rounded-md">
                 <p className="font-medium">Monthly Salary Preview:</p>
@@ -1830,59 +1835,63 @@ export default function LeavesComponent() {
                 </p>
               </div>
             )}
-            <div>
-              <label className="text-sm font-medium">Hire Date</label>
-              <SimpleCalendar
-                selected={editEmployeeForm.hireDate}
-                onSelect={(date) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    hireDate: date,
-                  }))
-                }
-                placeholder="Select hire date"
-              />
+
+            {/* Hire Date and Employment Status in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Hire Date</label>
+                <SimpleCalendar
+                  selected={editEmployeeForm.hireDate}
+                  onSelect={(date) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      hireDate: date,
+                    }))
+                  }
+                  placeholder="Select hire date"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Employment Status</label>
+                <Select
+                  value={editEmployeeForm.status}
+                  onValueChange={(
+                    value: "active" | "inactive" | "terminated"
+                  ) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      status: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                        <span>Active - Currently working, on payroll</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="inactive">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
+                        <span>Inactive - Not currently working</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="terminated">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-red-500"></span>
+                        <span>Terminated - Permanently removed</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {/* UPDATED: Status with 3 options and descriptions */}
-            <div>
-              <label className="text-sm font-medium">Employment Status</label>
-              <Select
-                value={editEmployeeForm.status}
-                onValueChange={(value: "active" | "inactive" | "terminated") =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    status: value,
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                      <span>Active - Currently working, on payroll</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="inactive">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
-                      <span>Inactive - Not currently working</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="terminated">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-red-500"></span>
-                      <span>Terminated - Permanently removed</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="outline"
                 onClick={() => setEditEmployeeModalOpen(false)}
