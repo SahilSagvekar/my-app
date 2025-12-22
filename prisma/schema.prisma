@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  
 }
 
 model User {
@@ -17,7 +16,6 @@ model User {
   role              Role?
   hourlyRate        Decimal?           @db.Decimal(10, 2)
   monthlyBaseHours  Int?
-  monthlyRate       Int?
   employeeStatus    EmployeeStatus?    @default(ACTIVE)
   joinedAt          DateTime?
   worksOnSaturday   Boolean            @default(false)
@@ -27,6 +25,7 @@ model User {
   resetOTPExpiry    DateTime?
   hoursPerWeek      Decimal?           @default(0) @db.Decimal(5, 2)
   phone             String?            @unique
+  monthlyRate       Int?
   accounts          Account[]
   auditLogs         AuditLog[]
   bonuses           Bonus[]
@@ -200,7 +199,7 @@ model File {
   name       String
   url        String
   mimeType   String?
-  size       Int?
+  size       BigInt?
   uploadedAt DateTime @default(now())
   uploadedBy Int?
   createdAt  DateTime @default(now())

@@ -48,6 +48,7 @@
     "date-fns": "^4.1.0",
     "dd-js": "^0.1.1",
     "googleapis": "^156.0.0",
+    "idb": "^8.0.3",
     "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.539.0",

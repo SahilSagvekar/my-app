@@ -1630,62 +1630,60 @@ export function FinanceTab() {
                         </p>
                       </div>
                     )}
+                  <div>
+                    <label className="text-sm font-medium">Hire Date</label>
+                    <SimpleCalendar
+                      selected={editEmployeeForm.hireDate}
+                      onSelect={(date) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          hireDate: date,
+                        }))
+                      }
+                      placeholder="Select hire date"
+                    />
+                  </div>
 
-                  {/* Hire Date and Employment Status in grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">Hire Date</label>
-                      <SimpleCalendar
-                        selected={editEmployeeForm.hireDate}
-                        onSelect={(date) =>
-                          setEditEmployeeForm((prev) => ({
-                            ...prev,
-                            hireDate: date,
-                          }))
-                        }
-                        placeholder="Select hire date"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">
-                        Employment Status
-                      </label>
-                      <Select
-                        value={editEmployeeForm.status}
-                        onValueChange={(
-                          value: "active" | "inactive" | "terminated"
-                        ) =>
-                          setEditEmployeeForm((prev) => ({
-                            ...prev,
-                            status: value,
-                          }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">
-                            <div className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                              <span>Active - Currently working, on payroll</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="inactive">
-                            <div className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
-                              <span>Inactive - Not currently working</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="terminated">
-                            <div className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-full bg-red-500"></span>
-                              <span>Terminated - Permanently removed</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  {/* UPDATED: Status with 3 options and descriptions */}
+                  <div>
+                    <label className="text-sm font-medium">
+                      Employment Status
+                    </label>
+                    <Select
+                      value={editEmployeeForm.status}
+                      onValueChange={(
+                        value: "active" | "inactive" | "terminated"
+                      ) =>
+                        setEditEmployeeForm((prev) => ({
+                          ...prev,
+                          status: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                            <span>Active - Currently working, on payroll</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="inactive">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
+                            <span>Inactive - Not currently working</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="terminated">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-red-500"></span>
+                            <span>Terminated - Permanently removed</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2">
