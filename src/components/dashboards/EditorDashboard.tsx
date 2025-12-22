@@ -356,16 +356,25 @@ export function EditorDashboard() {
 
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
 
-  useEffect(() => {
-    async function loadTasks() {
-      try {
-        const res = await fetch("/api/tasks");
-        const data = await res.json();
+ useEffect(() => {
+  async function loadTasks() {
+    try {
+      const res = await fetch("/api/tasks");
+      const data = await res.json();
 
-        const formatted: WorkflowTask[] = (data.tasks || [])
-          .filter((t: any) => t.assignedTo === Number(currentUser.id))
-          .map((t: any) => ({
-            id: t.id,
+      console.log("📋 Raw task data from API:", data.tasks?.[0]); // Debug first task
+
+      const formatted: WorkflowTask[] = (data.tasks || [])
+        .filter((t: any) => t.assignedTo === Number(currentUser.id))
+        .map((t: any) => {
+          console.log("🔍 Mapping task:", {
+            taskId: t.id,
+            clientId: t.clientId,
+            title: t.title,
+          });
+          
+          return {
+            id: t.id,  // ← This should be the TASK ID, not client ID
             title: t.title,
             description: t.description,
             type: mapTaskTypeToWorkflow(t.taskType),
@@ -377,22 +386,24 @@ export function EditorDashboard() {
             dueDate: t.dueDate,
             folderType: t.folderType || "unknown",
             workflowStep: "editing",
-            clientId: t.clientId,
+            clientId: t.clientId,  // ← This is the client ID
             projectId: t.clientId,
-            files: t.files || [], // ✅ Now includes full file objects
-            qcNotes: t.qcNotes || null, // ✅ QC feedback
+            files: t.files || [],
+            qcNotes: t.qcNotes || null,
             rejectionReason: t.rejectionReason || null,
             feedback: t.feedback || null,
-          }));
+          };
+        });
 
-        setTasks(formatted);
-      } catch (err) {
-        console.error("Failed to load tasks:", err);
-      }
+      console.log("✅ Formatted tasks:", formatted);
+      setTasks(formatted);
+    } catch (err) {
+      console.error("Failed to load tasks:", err);
     }
+  }
 
-    loadTasks();
-  }, [currentUser.id]);
+  loadTasks();
+}, [currentUser.id]);
 
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
