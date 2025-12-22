@@ -1,4 +1,4 @@
-// components/workflow/FileUploadDialog.tsx
+// components/workflow/FileUploadDialog.tsx - ULTRA FAST VERSION
 "use client";
 
 import { useState } from "react";
@@ -18,11 +18,13 @@ import {
   X, 
   CheckCircle, 
   AlertCircle, 
-  File as FileIcon 
+  File as FileIcon,
+  Zap
 } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
 
-const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
+const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks
+const PARALLEL_UPLOADS = 5; // Upload 5 chunks simultaneously
 
 interface FileUploadDialogProps {
   task: any;
@@ -62,6 +64,54 @@ export function FileUploadDialog({
     }
   };
 
+  const uploadChunk = async (
+    chunk: Blob,
+    partNumber: number,
+    key: string,
+    uploadId: string,
+    fileType: string
+  ) => {
+    // Get presigned URL for this part
+    const partUrlResponse = await fetch("/api/upload/part-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        key,
+        uploadId,
+        partNumber,
+      }),
+    });
+
+    if (!partUrlResponse.ok) {
+      throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+    }
+
+    const { presignedUrl } = await partUrlResponse.json();
+
+    // Upload chunk directly to S3
+    const uploadResponse = await fetch(presignedUrl, {
+      method: "PUT",
+      body: chunk,
+      headers: {
+        "Content-Type": fileType,
+      },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload part ${partNumber}`);
+    }
+
+    const etag = uploadResponse.headers.get("ETag");
+    if (!etag) {
+      throw new Error("Failed to get ETag from upload response");
+    }
+
+    return {
+      ETag: etag.replace(/"/g, ""),
+      PartNumber: partNumber,
+    };
+  };
+
   const uploadFileMultipart = async (file: File) => {
     setUploading(true);
     setError(null);
@@ -99,16 +149,27 @@ export function FileUploadDialog({
       const { uploadId, key } = await initResponse.json();
       console.log("✅ Upload initiated:", { uploadId, key });
 
-      // Step 2: Upload file in chunks
+      // Step 2: Prepare chunks
       const numChunks = Math.ceil(file.size / CHUNK_SIZE);
-      const uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
+      const chunks: Array<{ chunk: Blob; partNumber: number }> = [];
 
+      for (let i = 0; i < numChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        chunks.push({ chunk, partNumber: i + 1 });
+      }
+
+      console.log(`📦 Prepared ${numChunks} chunks for parallel upload`);
+
+      // Step 3: Upload chunks in parallel batches
+      const uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
       let uploadedBytes = 0;
       const startTime = Date.now();
 
-      for (let i = 0; i < numChunks; i++) {
+      // Process chunks in parallel batches
+      for (let i = 0; i < chunks.length; i += PARALLEL_UPLOADS) {
         if (controller.signal.aborted) {
-          // Abort the upload on S3
           await fetch("/api/upload/abort", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -117,55 +178,20 @@ export function FileUploadDialog({
           throw new Error("Upload cancelled");
         }
 
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        const partNumber = i + 1;
+        const batch = chunks.slice(i, i + PARALLEL_UPLOADS);
+        console.log(`⚡ Uploading batch ${Math.floor(i / PARALLEL_UPLOADS) + 1} with ${batch.length} chunks in parallel`);
 
-        console.log(`📤 Uploading part ${partNumber}/${numChunks}...`);
+        // Upload batch in parallel
+        const batchResults = await Promise.all(
+          batch.map(({ chunk, partNumber }) =>
+            uploadChunk(chunk, partNumber, key, uploadId, file.type)
+          )
+        );
 
-        // Get presigned URL for this part
-        const partUrlResponse = await fetch("/api/upload/part-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            key,
-            uploadId,
-            partNumber,
-          }),
-        });
-
-        if (!partUrlResponse.ok) {
-          throw new Error(`Failed to get presigned URL for part ${partNumber}`);
-        }
-
-        const { presignedUrl } = await partUrlResponse.json();
-
-        // Upload chunk directly to S3
-        const uploadResponse = await fetch(presignedUrl, {
-          method: "PUT",
-          body: chunk,
-          headers: {
-            "Content-Type": file.type,
-          },
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error(`Failed to upload part ${partNumber}`);
-        }
-
-        const etag = uploadResponse.headers.get("ETag");
-        if (!etag) {
-          throw new Error("Failed to get ETag from upload response");
-        }
-
-        uploadedParts.push({
-          ETag: etag.replace(/"/g, ""), // Remove quotes from ETag
-          PartNumber: partNumber,
-        });
+        uploadedParts.push(...batchResults);
 
         // Update progress
-        uploadedBytes += chunk.size;
+        uploadedBytes += batch.reduce((sum, { chunk }) => sum + chunk.size, 0);
         const progressPercent = Math.round((uploadedBytes / file.size) * 100);
         setProgress(progressPercent);
 
@@ -174,10 +200,13 @@ export function FileUploadDialog({
         const speedMBps = uploadedBytes / (1024 * 1024) / elapsedSeconds;
         setUploadSpeed(speedMBps);
 
-        console.log(`✅ Part ${partNumber} uploaded (${progressPercent}%)`);
+        console.log(`✅ Batch complete (${progressPercent}% total, ${formatSpeed(speedMBps)})`);
       }
 
-      // Step 3: Complete multipart upload
+      // Sort parts by part number (required by S3)
+      uploadedParts.sort((a, b) => a.PartNumber - b.PartNumber);
+
+      // Step 4: Complete multipart upload
       console.log("🔄 Completing multipart upload...");
       const completeResponse = await fetch("/api/upload/complete", {
         method: "POST",
@@ -204,7 +233,6 @@ export function FileUploadDialog({
 
       setProgress(100);
 
-      // Notify parent component with the uploaded file info
       const uploadedFile = {
         id: result.fileId,
         name: result.fileName,
@@ -215,7 +243,6 @@ export function FileUploadDialog({
         uploadedBy: user?.name || "Unknown",
       };
 
-      // Call onUploadComplete with the new file added to existing files
       onUploadComplete([...(task.files || []), uploadedFile]);
 
       setTimeout(() => {
@@ -276,7 +303,11 @@ export function FileUploadDialog({
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Upload File</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Upload File
+            <Zap className="h-4 w-4 text-yellow-500" />
+            <span className="text-xs text-muted-foreground font-normal">Ultra Fast Mode</span>
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -359,7 +390,12 @@ export function FileUploadDialog({
                     {selectedFile?.name}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {uploadSpeed > 0 && `${formatSpeed(uploadSpeed)} • `}
+                    {uploadSpeed > 0 && (
+                      <>
+                        <Zap className="inline h-3 w-3 text-yellow-500" />
+                        {` ${formatSpeed(uploadSpeed)} • `}
+                      </>
+                    )}
                     {progress}% complete
                   </p>
                 </div>
@@ -370,7 +406,7 @@ export function FileUploadDialog({
 
               <div className="relative w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="absolute top-0 left-0 bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  className="absolute top-0 left-0 bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -397,11 +433,11 @@ export function FileUploadDialog({
           {selectedFile && !uploading && (
             <Button
               onClick={handleUpload}
-              className="w-full"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               disabled={uploading}
             >
-              <Upload className="h-4 w-4 mr-2" />
-              Start Upload
+              <Zap className="h-4 w-4 mr-2" />
+              Ultra Fast Upload
             </Button>
           )}
         </div>

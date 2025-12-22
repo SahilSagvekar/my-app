@@ -200,7 +200,7 @@ model File {
   name       String
   url        String
   mimeType   String?
-  size       Int?
+  size       BigInt?
   uploadedAt DateTime @default(now())
   uploadedBy Int?
   createdAt  DateTime @default(now())
