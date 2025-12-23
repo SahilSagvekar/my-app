@@ -33,14 +33,14 @@ export const NAVIGATION_ITEMS = {
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'leaves', label: 'Employee Management', icon: Users },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
     { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'resources', label: 'Resources', icon: BookOpen },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
@@ -51,7 +51,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive }, 
     { id: 'resources', label: 'Resources', icon: FolderOpen },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   scheduler: [
@@ -62,7 +62,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   manager: [
@@ -72,7 +72,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
@@ -80,7 +80,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'approvals', label: 'Approvals', icon: CheckSquare },
     { id: 'projects', label: 'My Projects', icon: FolderOpen },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'archive', label: 'Archive', icon: Archive }
   ],
@@ -90,7 +90,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'uploads', label: 'File Uploads', icon: Upload },
     { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ]
