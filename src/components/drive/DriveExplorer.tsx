@@ -560,7 +560,7 @@ const updateDriveStructureAfterDelete = (deletedPath: string) => {
             </Button>
           </div>
 
-          <div className="mt-6 px-4">
+          {/* <div className="mt-6 px-4">
             <div className="text-xs font-medium text-muted-foreground mb-2">
               Storage
             </div>
@@ -572,7 +572,7 @@ const updateDriveStructureAfterDelete = (deletedPath: string) => {
                 4.5 GB of 10 GB used
               </p>
             </div>
-          </div>
+          </div> */}
         </ScrollArea>
       </div>
 
