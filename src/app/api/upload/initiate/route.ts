@@ -1,8 +1,8 @@
-// app/api/upload/initiate/route.ts
+// src/app/api/upload/initiate/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, CreateMultipartUploadCommand } from '@aws-sdk/client-s3';
+import { S3Client, CreateMultipartUploadCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
-import { createMonthFolder, createTaskOutputFolder } from '@/lib/s3';
 
 const s3Client = new S3Client({
   region: process.env.AWS_S3_REGION!,
@@ -12,84 +12,31 @@ const s3Client = new S3Client({
   },
 });
 
-// export async function POST(request: NextRequest) {
-//   try {
-//     const { fileName, fileType, taskId, clientId, folderType } = await request.json();
-    
-//     // Validate required fields
-//     if (!fileName || !fileType || !taskId || !clientId || !folderType) {
-//       return NextResponse.json(
-//         { error: 'Missing required fields' },
-//         { status: 400 }
-//       );
-//     }
-
-//     // Get client folder prefix
-//     const client = await prisma.client.findUnique({
-//       where: { id: clientId },
-//       select: {
-//         rawFootageFolderId: true,
-//         essentialsFolderId: true,
-//       },
-//     });
-
-//     if (!client) {
-//       return NextResponse.json(
-//         { error: 'Client not found' },
-//         { status: 404 }
-//       );
-//     }
-
-//     const folderPrefix =
-//       folderType === 'rawFootage'
-//         ? client.rawFootageFolderId
-//         : client.essentialsFolderId;
-
-//     if (!folderPrefix) {
-//       return NextResponse.json(
-//         { error: `Missing S3 prefix for ${folderType}` },
-//         { status: 400 }
-//       );
-//     }
-
-//     // Generate unique key
-//     const key = `${folderPrefix}${Date.now()}-${fileName}`;
-    
-//     const command = new CreateMultipartUploadCommand({
-//       Bucket: process.env.AWS_S3_BUCKET!,
-//       Key: key,
-//       ContentType: fileType,
-//     });
-
-//     const response = await s3Client.send(command);
-
-//     return NextResponse.json({
-//       uploadId: response.UploadId,
-//       key,
-//       taskId,
-//       clientId,
-//       folderType,
-//     });
-//   } catch (error: any) {
-//     console.error('Error initiating upload:', error);
-//     return NextResponse.json(
-//       { error: 'Failed to initiate upload', message: error.message },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-
-// src/app/api/upload/initiate/route.ts - UPDATED
+// Helper to get current month folder name
+function getCurrentMonthFolder(): string {
+  const date = new Date();
+  const month = date.toLocaleDateString('en-US', { month: 'long' });
+  const year = date.getFullYear();
+  return `${month}-${year}`; // "December-2024"
+}
 
 export async function POST(request: NextRequest) {
   try {
     const { fileName, fileType, taskId, clientId, folderType } = await request.json();
     
+    // Validate required fields
+    if (!fileName || !fileType || !taskId || !clientId || !folderType) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
     const client = await prisma.client.findUnique({
       where: { id: clientId },
       select: {
         companyName: true,
+        name: true,
         rawFootageFolderId: true,
         essentialsFolderId: true,
         outputsFolderId: true,
@@ -101,58 +48,55 @@ export async function POST(request: NextRequest) {
     }
 
     const companyName = client.companyName || client.name;
+    
+    if (!companyName) {
+      return NextResponse.json({ error: 'Company name missing' }, { status: 400 });
+    }
+
     let key: string;
 
     if (folderType === 'rawFootage') {
-      // NEW: Upload to current month folder
-      const monthYear = format(new Date(), 'MMMM-yyyy'); // "January-2025"
-      const monthFolder = `${client.rawFootageFolderId}${monthYear}/`;
+      // 🔥 Get current month (e.g., "December-2024")
+      const currentMonth = getCurrentMonthFolder();
       
-      // Create month folder if doesn't exist
-      await createMonthFolder(companyName, monthYear);
+      // 🔥 Build the path: companyName/raw-footage/December-2024/
+      const rawFootageBase = `${companyName}/raw-footage/`;
+      const monthFolderPath = `${rawFootageBase}${currentMonth}/`;
       
-      key = `${monthFolder}${Date.now()}-${fileName}`;
+      // 🔥 Create the month folder (if it doesn't exist)
+      try {
+        await s3Client.send(
+          new PutObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET!,
+            Key: monthFolderPath, // This creates the folder
+            ContentType: "application/x-directory",
+          })
+        );
+        console.log('✅ Month folder ensured:', monthFolderPath);
+      } catch (error) {
+        console.log('⚠️ Folder might already exist (ok):', error);
+      }
       
-      // Save month folder to task
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { monthFolder }
-      });
+      // 🔥 Upload file inside the month folder
+      key = `${monthFolderPath}${Date.now()}-${fileName}`;
+      
+      console.log('📁 Uploading to:', key);
       
     } else if (folderType === 'elements') {
-      // Elements stays the same
-      key = `${client.essentialsFolderId}${Date.now()}-${fileName}`;
+      // Elements folder - no monthly subfolders
+      const elementsBase = client.essentialsFolderId || `${companyName}/elements/`;
+      key = `${elementsBase}${Date.now()}-${fileName}`;
       
     } else if (folderType === 'output') {
-      // NEW: Upload to task-specific output folder
-      const task = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: { title: true, outputFolderId: true }
-      });
+      // Output folder logic (we'll handle this later)
+      const outputsBase = client.outputsFolderId || `${companyName}/outputs/`;
+      key = `${outputsBase}${Date.now()}-${fileName}`;
       
-      if (!task) {
-        return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-      }
-
-      // Create task output folder if doesn't exist
-      let taskFolder = task.outputFolderId;
-      if (!taskFolder) {
-        taskFolder = await createTaskOutputFolder(companyName, taskId, task.title || 'untitled');
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { outputFolderId: taskFolder }
-        });
-      }
-      
-      // File naming: match task title
-      const sanitizedTitle = (task.title || 'untitled')
-        .replace(/[^a-zA-Z0-9-]/g, '-')
-        .toLowerCase();
-      const timestamp = Date.now();
-      const extension = fileName.split('.').pop();
-      key = `${taskFolder}${sanitizedTitle}-${timestamp}.${extension}`;
+    } else {
+      return NextResponse.json({ error: 'Invalid folder type' }, { status: 400 });
     }
 
+    // Initiate multipart upload
     const command = new CreateMultipartUploadCommand({
       Bucket: process.env.AWS_S3_BUCKET!,
       Key: key,
@@ -168,8 +112,9 @@ export async function POST(request: NextRequest) {
       clientId,
       folderType,
     });
+    
   } catch (error: any) {
-    console.error('Error initiating upload:', error);
+    console.error('❌ Error initiating upload:', error);
     return NextResponse.json(
       { error: 'Failed to initiate upload', message: error.message },
       { status: 500 }

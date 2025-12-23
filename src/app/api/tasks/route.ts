@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { uploadBufferToS3 } from "@/lib/s3";
 import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
 
@@ -15,6 +16,22 @@ import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-log
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
+
+const s3Client = new S3Client({
+  region: process.env.AWS_S3_REGION!,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+// Helper to get current month folder name
+function getCurrentMonthFolder(): string {
+  const date = new Date();
+  const month = date.toLocaleDateString('en-US', { month: 'long' });
+  const year = date.getFullYear();
+  return `${month}-${year}`; // "December-2024"
+}
 
 export const config = {
   api: { bodyParser: false },
@@ -304,11 +321,11 @@ export async function POST(req: Request) {
       where: { id: clientId },
       select: {
         name: true,
+        companyName: true,
         rawFootageFolderId: true,
         essentialsFolderId: true,
         requiresClientReview: true,
         requiresVideographer: true,
-        // monthlyDeliverables: true
       },
     });
 
@@ -318,10 +335,40 @@ export async function POST(req: Request) {
         { status: 404 }
       );
 
-    const folderPrefix =
-      folderType === "rawFootage"
-        ? client.rawFootageFolderId
-        : client.essentialsFolderId;
+    // 🔥 Determine folder prefix based on folder type
+    let folderPrefix = '';
+    
+    if (folderType === "rawFootage") {
+      // Get company name
+      const companyName = client.companyName || client.name;
+      
+      // Get current month folder
+      const currentMonth = getCurrentMonthFolder(); // "December-2024"
+      
+      // Build path with month folder: companyName/raw-footage/December-2024/
+      const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
+      folderPrefix = `${rawFootageBase}${currentMonth}/`;
+      
+      // 🔥 Create the month folder (if it doesn't exist)
+      try {
+        await s3Client.send(
+          new PutObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET!,
+            Key: folderPrefix, // This creates the folder
+            ContentType: "application/x-directory",
+          })
+        );
+        console.log('✅ Month folder ensured:', folderPrefix);
+      } catch (error) {
+        console.log('⚠️ Folder might already exist (ok):', error);
+      }
+      
+      console.log('📁 Using monthly folder for raw footage:', folderPrefix);
+      
+    } else {
+      // Elements folder - use normal path
+      folderPrefix = client.essentialsFolderId || '';
+    }
 
     if (!folderPrefix) {
       return NextResponse.json(
@@ -346,7 +393,7 @@ export async function POST(req: Request) {
         videographer,
         createdBy: decoded.userId,
         clientId,
-        monthlyDeliverableId:monthlyDeliverableId ,
+        monthlyDeliverableId: monthlyDeliverableId,
         driveLinks: uploadedLinks,
         folderType,
         requiresClientReview: client.requiresClientReview,
@@ -367,17 +414,15 @@ export async function POST(req: Request) {
         assignedTo: assignedTo,
         status: task.status
       },
-      // ipAddress,
-      // userAgent
     });
 
-    // 📤 UPLOAD FILES TO S3
+    // 📤 UPLOAD FILES TO S3 (into the month folder for raw footage)
     for (const file of files) {
       const buffer = Buffer.from(await file.arrayBuffer());
 
       const uploaded = await uploadBufferToS3({
         buffer,
-        folderPrefix,
+        folderPrefix, // This already includes the month folder for raw footage
         filename: file.name,
         mimeType: file.type,
       });
@@ -390,7 +435,7 @@ export async function POST(req: Request) {
           name: file.name,
           url: uploaded.url,
           mimeType: file.type,
-          size: buffer.length,
+          size: BigInt(buffer.length),
           uploadedBy: decoded.userId,
         },
       });
@@ -401,6 +446,8 @@ export async function POST(req: Request) {
       where: { id: task.id },
       data: { driveLinks: uploadedLinks },
     });
+
+    console.log('✅ Task created with files uploaded to:', folderPrefix);
 
     // 🔁 AUTO GENERATE TASKS
     console.log("generateMonthlyTasksFromTemplate");

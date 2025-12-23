@@ -239,64 +239,100 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 //   }
 // }
 
-
 export async function DELETE(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = params;
 
-    // STEP 0 — Fetch the client to get its linked userId
-    const client = await prisma.client.findUnique({
-      where: { id },
-      select: { userId: true },
+    console.log('Deleting client:', id);
+
+    // STEP 1 — Delete Files first (they depend on Tasks)
+    const tasksWithFiles = await prisma.task.findMany({
+      where: { clientId: id },
+      select: { id: true },
     });
 
-    if (!client) {
-      return NextResponse.json(
-        { success: false, message: "Client not found" },
-        { status: 404 }
-      );
+    const taskIds = tasksWithFiles.map(t => t.id);
+
+    if (taskIds.length > 0) {
+      await prisma.file.deleteMany({
+        where: { taskId: { in: taskIds } },
+      });
+      console.log('✅ Deleted files');
     }
 
-    // STEP 1 — Delete Recurring Tasks tied to deliverables
+    // STEP 2 — Delete RecurringTasks
     await prisma.recurringTask.deleteMany({
       where: { clientId: id },
     });
+    console.log('✅ Deleted recurring tasks');
 
-    // STEP 2 — Delete Monthly Deliverables
-    await prisma.monthlyDeliverable.deleteMany({
+    // STEP 3 — Delete MonthlyRuns
+    await prisma.monthlyRun.deleteMany({
       where: { clientId: id },
     });
+    console.log('✅ Deleted monthly runs');
 
-    // STEP 3 — Delete Brand Assets
+    // STEP 4 — Delete MonthlyDeliverables and related RecurringTasks
+    const deliverables = await prisma.monthlyDeliverable.findMany({
+      where: { clientId: id },
+      select: { id: true },
+    });
+
+    const deliverableIds = deliverables.map(d => d.id);
+
+    if (deliverableIds.length > 0) {
+      // Delete recurring tasks linked to these deliverables
+      await prisma.recurringTask.deleteMany({
+        where: { deliverableId: { in: deliverableIds } },
+      });
+
+      // Delete tasks linked to these deliverables
+      await prisma.task.deleteMany({
+        where: { monthlyDeliverableId: { in: deliverableIds } },
+      });
+
+      // Now delete the deliverables
+      await prisma.monthlyDeliverable.deleteMany({
+        where: { id: { in: deliverableIds } },
+      });
+      console.log('✅ Deleted deliverables');
+    }
+
+    // STEP 5 — Delete BrandAssets
     await prisma.brandAsset.deleteMany({
       where: { clientId: id },
     });
+    console.log('✅ Deleted brand assets');
 
-    // STEP 4 — Delete Tasks linked to client
+    // STEP 6 — Delete Tasks linked to client (if any remaining)
     await prisma.task.deleteMany({
       where: { clientId: id },
     });
+    console.log('✅ Deleted tasks');
 
-    // STEP 5 — Delete the client record (emails and phones will be deleted automatically)
-    await prisma.client.delete({
+    // STEP 7 — Delete Client record
+    const deletedClient = await prisma.client.delete({
       where: { id },
     });
+    console.log('✅ Deleted client');
 
-    // STEP 6 — Delete associated USER account
-    if (client.userId) {
-      await prisma.user.delete({
-        where: { id: client.userId },
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      message: 'Client deleted successfully',
+      deletedClient,
+    });
 
-    return NextResponse.json({ success: true, message: "Client deleted successfully" });
-  } catch (err) {
-    console.error("DELETE client failed:", err);
+  } catch (error: any) {
+    console.error('DELETE client failed:', error);
     return NextResponse.json(
-      { success: false, message: "Server error" },
+      { 
+        error: 'Failed to delete client', 
+        details: error.message,
+        code: error.code 
+      },
       { status: 500 }
     );
   }
