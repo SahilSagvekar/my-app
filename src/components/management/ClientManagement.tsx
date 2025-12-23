@@ -590,19 +590,6 @@ const removePhone = (index: number) => {
     return matchesSearch && matchesStatus && matchesManager;
   });
 
-  //   useEffect(() => {
-  //   async function loadClients() {
-  //     try {
-  //       const res = await fetch("/api/clients");
-  //       const data = await res.json();
-  //       setClients(Array.isArray(data.clients) ? data.clients : []);
-  //     } catch (err) {
-  //       console.error("Failed to load clients", err);
-  //     }
-  //   }
-
-  //   loadClients();
-  // }, []);
 
   useEffect(() => {
     async function loadClients() {
@@ -1089,13 +1076,6 @@ const handleDeleteClient = async (clientId: string) => {
     toast.error("Server error");
   }
 };
-
-
-  // const calculateTotalDeliverables = (
-  //   deliverables: MonthlyDeliverable[],
-  // ) => {
-  //   return deliverables.reduce((sum, d) => sum + d.quantity, 0);
-  // };
 
   const calculateTotalDeliverables = (
     deliverables: MonthlyDeliverable[] | null | undefined

@@ -76,6 +76,8 @@ model VerificationToken {
 model Task {
   id                   String              @id @default(cuid())
   title                String?
+  outputFolderId       String?
+  monthFolder          String? 
   description          String
   taskType             String?
   status               TaskStatus?         @default(PENDING)
@@ -141,6 +143,7 @@ model Client {
   lastActivity         DateTime?
   requiresClientReview Boolean              @default(false)
   requiresVideographer Boolean              @default(false)
+  outputsFolderId      String? 
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   uploadedFiles        Json?

@@ -66,7 +66,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     const { id } = await context.params;
     const data = await req.json();
 
-    console.log("PUT /clients/:id data:", JSON.stringify(data));
+    console.log("PUT:", JSON.stringify(data));
 
     let clientReview = false;
     let videographer = false;
@@ -125,6 +125,8 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       },
     });
 
+    console.log("Updated client:", updatedClient);
+
     // STEP 2 — Fetch existing deliverables for this client
     const existing = await prisma.monthlyDeliverable.findMany({
       where: { clientId: id },
@@ -136,6 +138,14 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     // STEP 3 — DELETE deliverables removed in UI
     const toDelete = existingIds.filter((id) => !incomingIds.includes(id));
     if (toDelete.length > 0) {
+      // 🔥 DELETE RELATED RECURRING TASKS FIRST
+      await prisma.recurringTask.deleteMany({
+        where: {
+          deliverableId: { in: toDelete },
+        },
+      });
+
+      // Now safe to delete the deliverables
       await prisma.monthlyDeliverable.deleteMany({
         where: { id: { in: toDelete } },
       });

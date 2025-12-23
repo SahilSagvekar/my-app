@@ -29,15 +29,15 @@ export function getS3() {
 
 const BUCKET = process.env.AWS_S3_BUCKET!;
 
-// -------------------------
-// Create Folder Structure
-// -------------------------
-export async function createClientFolders(clientName: string) {
+// src/lib/s3.ts - NEW VERSION
+
+export async function createClientFolders(companyName: string) {
   const s3 = getS3();
 
-  const mainPrefix = `${clientName}/`;
-  const rawPrefix = `${clientName}/raw-footage/`;
-  const essentialsPrefix = `${clientName}/elements/`;
+  const mainPrefix = `${companyName}/`;
+  const rawPrefix = `${companyName}/raw-footage/`;
+  const elementsPrefix = `${companyName}/elements/`;
+  const outputsPrefix = `${companyName}/outputs/`;  // NEW
 
   const folderCommands = [
     new PutObjectCommand({
@@ -52,7 +52,12 @@ export async function createClientFolders(clientName: string) {
     }),
     new PutObjectCommand({
       Bucket: BUCKET,
-      Key: essentialsPrefix,
+      Key: elementsPrefix,
+      ContentType: "application/x-directory",
+    }),
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: outputsPrefix,  // NEW
       ContentType: "application/x-directory",
     }),
   ];
@@ -62,8 +67,42 @@ export async function createClientFolders(clientName: string) {
   return {
     mainFolderId: mainPrefix,
     rawFolderId: rawPrefix,
-    essentialsFolderId: essentialsPrefix,
+    elementsFolderId: elementsPrefix,
+    outputsFolderId: outputsPrefix,  // NEW
   };
+}
+
+// NEW: Create month folder inside raw-footage
+export async function createMonthFolder(companyName: string, monthYear: string) {
+  const s3 = getS3();
+  const monthPrefix = `${companyName}/raw-footage/${monthYear}/`;
+  
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: monthPrefix,
+      ContentType: "application/x-directory",
+    })
+  );
+  
+  return monthPrefix;
+}
+
+// NEW: Create task output folder
+export async function createTaskOutputFolder(companyName: string, taskId: string, taskTitle: string) {
+  const s3 = getS3();
+  const sanitizedTitle = taskTitle.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+  const taskPrefix = `${companyName}/outputs/${taskId}-${sanitizedTitle}/`;
+  
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: taskPrefix,
+      ContentType: "application/x-directory",
+    })
+  );
+  
+  return taskPrefix;
 }
 
 // -------------------------

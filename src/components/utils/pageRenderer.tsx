@@ -22,6 +22,7 @@ import { EditorResources } from '../EditorResources';
 import { FeedbackSystem } from '../FeedbackSystem';
 import LeavesComponent from '../admin/LeavesComponent';
 import { ResetPasswordWithOTP } from '../auth/ResetPasswordWithOTP';
+import { DriveExplorer } from '../drive/DriveExplorer';
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="p-8 text-center text-muted-foreground">{title} - Coming Soon</div>
@@ -34,6 +35,11 @@ export function renderPage(role: string, page: string): JSX.Element {
   if (page === 'forgot-password') {
     return <ResetPasswordWithOTP onBackToLogin={() => window.location.href = '/login'} />;
   }
+
+  if (page === 'drive') {
+    return <DriveExplorer role={role} />;
+  }
+
 
   if (role === 'admin') {
     switch (page) {
@@ -48,6 +54,8 @@ export function renderPage(role: string, page: string): JSX.Element {
       case 'feedback': 
         return <FeedbackSystem currentRole={role} />;
       case 'leaves':
+        return <LeavesComponent />;
+        case 'leaves':
         return <LeavesComponent />;
       case 'training': return <QCTrainingPage />;
       default: 

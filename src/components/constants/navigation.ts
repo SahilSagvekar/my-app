@@ -18,7 +18,8 @@ import {
   Camera,
   Upload,
   Settings as SettingsIcon,
-  Sparkles
+  Sparkles,
+  HardDrive  // 🔥 NEW ICON FOR DRIVE
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -31,6 +32,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'leaves', label: 'Employee Management', icon: Users },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
@@ -39,6 +41,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'training', label: 'Training', icon: Layout },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   qc: [
@@ -46,6 +49,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'completed', label: 'Completed', icon: Archive },
     { id: 'guidelines', label: 'Guidelines', icon: BookOpen },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive }, 
     { id: 'resources', label: 'Resources', icon: FolderOpen },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
@@ -57,6 +61,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
@@ -66,6 +71,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'team', label: 'Team', icon: Users },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
@@ -75,6 +81,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'projects', label: 'My Projects', icon: FolderOpen },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'training', label: 'Training', icon: Layout },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'archive', label: 'Archive', icon: Archive }
   ],
   videographer: [
@@ -84,6 +91,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'training', label: 'Training', icon: Layout },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ]
 } as const;
