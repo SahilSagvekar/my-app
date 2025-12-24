@@ -5,7 +5,6 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
@@ -75,7 +74,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         return (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 font-bold">
                 <Shield className="h-5 w-5" />
                 Admin Preferences
               </CardTitle>
@@ -108,7 +107,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         return (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 font-bold">
                 <User className="h-5 w-5" />
                 Editor Preferences
               </CardTitle>
@@ -149,7 +148,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         return (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 font-bold">
                 <Eye className="h-5 w-5" />
                 QC Preferences
               </CardTitle>
@@ -203,34 +202,11 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
       <div className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="p-6">
-            <Tabs defaultValue="profile" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="profile" className="flex items-center gap-2 text-xs">
-                  <User className="h-4 w-4" />
-                  <span className="hidden sm:inline">Profile</span>
-                </TabsTrigger>
-                <TabsTrigger value="notifications" className="flex items-center gap-2 text-xs">
-                  <Bell className="h-4 w-4" />
-                  <span className="hidden sm:inline">Notifications</span>
-                </TabsTrigger>
-                <TabsTrigger value="appearance" className="flex items-center gap-2 text-xs">
-                  <Palette className="h-4 w-4" />
-                  <span className="hidden sm:inline">Appearance</span>
-                </TabsTrigger>
-                <TabsTrigger value="privacy" className="flex items-center gap-2 text-xs">
-                  <Shield className="h-4 w-4" />
-                  <span className="hidden sm:inline">Privacy</span>
-                </TabsTrigger>
-                <TabsTrigger value="security" className="flex items-center gap-2 text-xs">
-                  <Shield className="h-4 w-4" />
-                  <span className="hidden sm:inline">Security</span>
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="profile" className="space-y-6">
+            <div className="space-y-6">
+              <section id="profile" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Profile Information</CardTitle>
+                    <CardTitle className="font-bold">Profile Information</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {/* Avatar Section */}
@@ -324,12 +300,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                 </Card>
 
                 {getRoleSpecificSettings()}
-              </TabsContent>
+              </section>
 
-              <TabsContent value="notifications" className="space-y-6">
+              <section id="notifications" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Notification Preferences</CardTitle>
+                    <CardTitle className="font-bold">Notification Preferences</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="flex items-center justify-between">
@@ -390,12 +366,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </section>
 
-              <TabsContent value="appearance" className="space-y-6">
+              <section id="appearance" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Appearance Settings</CardTitle>
+                    <CardTitle className="font-bold">Appearance Settings</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="space-y-2">
@@ -488,12 +464,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </section>
 
-              <TabsContent value="privacy" className="space-y-6">
+              <section id="privacy" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Privacy Settings</CardTitle>
+                    <CardTitle className="font-bold">Privacy Settings</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="space-y-2">
@@ -533,12 +509,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </section>
 
-              <TabsContent value="security" className="space-y-6">
+              <section id="security" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Password & Security</CardTitle>
+                    <CardTitle className="font-bold">Password & Security</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="space-y-4">
@@ -610,8 +586,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
-            </Tabs>
+              </section>
+            </div>
           </div>
         </ScrollArea>
       </div>

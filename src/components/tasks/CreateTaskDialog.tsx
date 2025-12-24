@@ -410,26 +410,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
           </div>
 
           <RoleAssign
-            title="Assign Editor"
-            role="editor"
-            field="assignedTo"
-            formData={formData}
-            update={handleInputChange}
-            availableMembers={availableMembers}
-            error={errors.assignedTo}
-          />
-
-          <RoleAssign
-            title="Assign Scheduler"
-            role="scheduler"
-            field="scheduler"
-            formData={formData}
-            update={handleInputChange}
-            availableMembers={availableMembers}
-            error={errors.assignedTo}
-          />
-
-          <RoleAssign
             title="Assign Videographer"
             role="videographer"
             field="videographer"
@@ -440,9 +420,29 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
           />
 
           <RoleAssign
+            title="Assign Editor"
+            role="editor"
+            field="assignedTo"
+            formData={formData}
+            update={handleInputChange}
+            availableMembers={availableMembers}
+            error={errors.assignedTo}
+          />
+
+          <RoleAssign
             title="Assign QC"
-            role="qc"
+            role="qc_specialist"
             field="qc_specialist"
+            formData={formData}
+            update={handleInputChange}
+            availableMembers={availableMembers}
+            error={errors.assignedTo}
+          />
+
+          <RoleAssign
+            title="Assign Scheduler"
+            role="scheduler"
+            field="scheduler"
             formData={formData}
             update={handleInputChange}
             availableMembers={availableMembers}
@@ -470,30 +470,35 @@ function RoleAssign({ title, role, field, formData, update, availableMembers, er
     <div className="space-y-2">
       <Label>{title}</Label>
 
-      <div className="space-y-3 max-h-48 overflow-y-auto">
-        {members.length > 0 ? (
-          members.map((member: any) => (
-            <Card
-              key={member.id}
-              className={`cursor-pointer transition ${String(formData[field]) === String(member.id) ? "border-primary bg-primary/10" : "hover:bg-accent"}`}
-              onClick={() => update(field, String(member.id))}
-            >
-              <CardContent className="p-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={member.avatarUrl || ""} />
-                    <AvatarFallback>{member.name?.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <h4 className="text-sm">{member.name}</h4>
+      <Select value={formData[field] || ""} onValueChange={(v) => update(field, v)}>
+        <SelectTrigger className={members.length === 0 ? "text-muted-foreground" : ""}>
+          <SelectValue placeholder="Select a member" />
+        </SelectTrigger>
+        <SelectContent className="max-h-48 overflow-y-auto">
+          {members.length > 0 ? (
+            members.map((member: any) => (
+              <SelectItem key={member.id} value={String(member.id)}>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={member.avatarUrl || ""} />
+                      <AvatarFallback>{member.name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm">{member.name}</span>
+                  </div>
+                  {member.availability ? (
+                    <Badge>{member.availability}</Badge>
+                  ) : null}
                 </div>
-                <Badge>{member.availability}</Badge>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <p className="text-sm text-muted-foreground">No members available.</p>
-        )}
-      </div>
+              </SelectItem>
+            ))
+          ) : (
+            <SelectItem value="__no_members__" disabled>
+              No members available
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
