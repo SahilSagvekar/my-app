@@ -1,11 +1,28 @@
 import { prisma } from "@/lib/prisma";
+import { createTaskOutputFolder } from "@/lib/s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+const s3Client = new S3Client({
+  region: process.env.AWS_S3_REGION!,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
 
 function getDeliverableShortCode(type: string) {
   const normalized = type.toLowerCase().trim();
 
-  if (normalized === "short form videos") return "SFVideos";
-  if (normalized === "long form videos") return "LFVideos";
+  console.log("Normalized deliverable type:", normalized);
 
+  if (normalized === "short form videos") return "SF";
+  if (normalized === "long form videos") return "LF";
+  if (normalized === "square form videos") return "SQF";
+  if (normalized === "thumbnails") return "THUMB";
+  if (normalized === "tiles") return "T";
+  if (normalized === "hard posts / graphic images") return "HP";
+  if (normalized === "snapchat episodes") return "SEP";
+  if (normalized === "beta short form") return "BSF";
   // fallback: original slug behavior
   return type.replace(/\s+/g, "");
 }
@@ -17,9 +34,58 @@ function formatDateYYYYMMDD(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+// 🔥 NEW: Create task folder structure in S3
+async function createTaskFolderStructure(
+  companyName: string,
+  taskTitle: string
+): Promise<string> {
+  try {
+    // Main task folder: CompanyName/outputs/TaskTitle/
+    const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+    
+    // Create main task folder
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET!,
+        Key: taskFolderPath,
+        ContentType: "application/x-directory",
+      })
+    );
 
-export async function generateMonthlyTasksFromTemplate(taskId: string) {
+    // 🔥 Create "task" subfolder: CompanyName/outputs/TaskTitle/task/
+    const taskSubfolderPath = `${taskFolderPath}thumbnails/`;
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET!,
+        Key: taskSubfolderPath,
+        ContentType: "application/x-directory",
+      })
+    );
 
+    // 🔥 Create "tiles" subfolder: CompanyName/outputs/TaskTitle/tiles/
+    const tilesSubfolderPath = `${taskFolderPath}tiles/`;
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET!,
+        Key: tilesSubfolderPath,
+        ContentType: "application/x-directory",
+      })
+    );
+
+    // console.log('✅ Task folder structure created:', {
+    //   main: taskFolderPath,
+    //   thumbnails: taskSubfolderPath,
+    //   tiles: tilesSubfolderPath,
+    // });
+
+    return taskFolderPath;
+  } catch (error) {
+    console.error('❌ Failed to create task folder structure:', error);
+    throw error;
+  }
+}
+
+export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDeliverableId?: string) {
   // STEP 1 — Fetch template task
   const templateTask = await prisma.task.findUnique({
     where: { id: taskId },
@@ -37,11 +103,28 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
     include: { monthlyDeliverables: true },
   });
 
+  const deliverable = await prisma.monthlyDeliverable.findFirst({
+    where: {
+      id: monthlyDeliverableId,
+      clientId: clientId,
+    },
+  });
+
+   if (!deliverable) {
+    console.error("❌ Deliverable not found for ID:", monthlyDeliverableId);
+    return { created: 0, error: "Deliverable not found" };
+  }
+
+  // console.log("deliverableIdToUse:", deliverableIdToUse);
+
   if (!client || !client.monthlyDeliverables.length) {
     return { created: 0, error: "No deliverable found" };
   }
 
-  const deliverable = client.monthlyDeliverables[0];
+  // const deliverable = client.monthlyDeliverables[0];
+
+  // console.log("Using deliverable:", deliverable);
+  // console.log("deliverable.type:", deliverable.type);
 
   const quantity = deliverable.quantity ?? 1;
   const videosPerDay = deliverable.videosPerDay ?? 1;
@@ -79,26 +162,29 @@ export async function generateMonthlyTasksFromTemplate(taskId: string) {
 
   // STEP 5 — Naming parts
   const clientSlug = client.name.replace(/\s+/g, "");
-  // const deliverableSlug = deliverable.type.replace(/\s+/g, "");
-  // const createdAtStr = templateTask.createdAt.toISOString().slice(0, 10);
-
+  const companyName = client.companyName || client.name;
   const deliverableSlug = getDeliverableShortCode(deliverable.type);
-const createdAtStr = formatDateYYYYMMDD(templateTask.createdAt);
+  const createdAtStr = formatDateYYYYMMDD(templateTask.createdAt);
 
+  // STEP 6 — Update template task with title and folder
+  let count = 1;
+  const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
 
-  // STEP 6 — Create remaining tasks
+  // 🔥 Create folder structure for template task
+  const taskFolderPath1 = await createTaskFolderStructure(companyName, title1);
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { 
+      title: title1,
+      outputFolderId: taskFolderPath1, // 🔥 Save folder path
+    },
+  });
+
+  // STEP 7 — Create remaining tasks
   const creates = [];
-  let count = 1; // template task = #1
-
-   const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}_1`;
-
-   const updatedTask = await prisma.task.update({
-     where: { id: taskId },
-     data: { title: title1 },
-   });
 
   for (const date of dates) {
-
     for (let i = 0; i < videosPerDay; i++) {
       if (count >= quantity) break;
 
@@ -111,6 +197,9 @@ const createdAtStr = formatDateYYYYMMDD(templateTask.createdAt);
       count++;
       const title = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
 
+      // 🔥 Create folder structure for this task
+      const taskFolderPath = await createTaskFolderStructure(companyName, title);
+
       creates.push(
         prisma.task.create({
           data: {
@@ -120,6 +209,7 @@ const createdAtStr = formatDateYYYYMMDD(templateTask.createdAt);
             status: "PENDING",
             dueDate: date,
             clientId,
+            outputFolderId: taskFolderPath, // 🔥 Save folder path
 
             // Copy assignments
             assignedTo: templateTask.assignedTo,
@@ -135,6 +225,8 @@ const createdAtStr = formatDateYYYYMMDD(templateTask.createdAt);
   }
 
   await Promise.all(creates);
+
+  console.log(`✅ Created ${creates.length} tasks with folder structures`);
 
   return { created: creates.length };
 }

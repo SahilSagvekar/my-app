@@ -136,7 +136,6 @@ const WEEKDAY_MAP: Record<string, number> = {
 };
 
 async function autoGenerateRemainingTasksForMonth(task: any) {
-  console.log("task:", task.id);
   if (!task.clientId || !task.dueDate) return;
 
   const client = await prisma.client.findUnique({
@@ -144,13 +143,9 @@ async function autoGenerateRemainingTasksForMonth(task: any) {
     include: { monthlyDeliverables: true },
   });
 
-  console.log("client:", client);
-
   if (!client || !client.monthlyDeliverables.length) return;
 
   const deliverable = client.monthlyDeliverables[0];
-
-  console.log("deliverable:", deliverable);
 
   const createdAt = new Date(task.createdAt || Date.now());
   const createdDateStr = createdAt.toISOString().slice(0, 10);
@@ -362,9 +357,7 @@ export async function POST(req: Request) {
       } catch (error) {
         console.log('⚠️ Folder might already exist (ok):', error);
       }
-      
-      console.log('📁 Using monthly folder for raw footage:', folderPrefix);
-      
+            
     } else {
       // Elements folder - use normal path
       folderPrefix = client.essentialsFolderId || '';
@@ -447,11 +440,9 @@ export async function POST(req: Request) {
       data: { driveLinks: uploadedLinks },
     });
 
-    console.log('✅ Task created with files uploaded to:', folderPrefix);
-
     // 🔁 AUTO GENERATE TASKS
     console.log("generateMonthlyTasksFromTemplate");
-    await generateMonthlyTasksFromTemplate(task.id);
+    await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
 
     return NextResponse.json(task, { status: 201 });
   } catch (err: any) {
