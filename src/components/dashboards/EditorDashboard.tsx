@@ -317,7 +317,7 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
                 onUploadComplete={onUploadComplete}
                 trigger={
                   <Button size="sm" className="flex-1">
-                    Upload & Complete
+                    Upload
                   </Button>
                 }
               />
