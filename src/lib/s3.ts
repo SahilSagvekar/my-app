@@ -1,8 +1,8 @@
-// lib/s3.ts
-import { S3Client, PutObjectCommand, GetObjectCommand  } from "@aws-sdk/client-s3";
+// src/lib/s3.ts
+
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
 
 let _s3: S3Client | null = null;
 
@@ -29,15 +29,14 @@ export function getS3() {
 
 const BUCKET = process.env.AWS_S3_BUCKET!;
 
-// -------------------------
-// Create Folder Structure
-// -------------------------
-export async function createClientFolders(clientName: string) {
+// Create client folder structure
+export async function createClientFolders(companyName: string) {
   const s3 = getS3();
 
-  const mainPrefix = `${clientName}/`;
-  const rawPrefix = `${clientName}/raw-footage/`;
-  const essentialsPrefix = `${clientName}/elements/`;
+  const mainPrefix = `${companyName}/`;
+  const rawPrefix = `${companyName}/raw-footage/`;
+  const elementsPrefix = `${companyName}/elements/`;
+  const outputsPrefix = `${companyName}/outputs/`;
 
   const folderCommands = [
     new PutObjectCommand({
@@ -52,7 +51,12 @@ export async function createClientFolders(clientName: string) {
     }),
     new PutObjectCommand({
       Bucket: BUCKET,
-      Key: essentialsPrefix,
+      Key: elementsPrefix,
+      ContentType: "application/x-directory",
+    }),
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: outputsPrefix,
       ContentType: "application/x-directory",
     }),
   ];
@@ -62,13 +66,61 @@ export async function createClientFolders(clientName: string) {
   return {
     mainFolderId: mainPrefix,
     rawFolderId: rawPrefix,
-    essentialsFolderId: essentialsPrefix,
+    elementsFolderId: elementsPrefix,
+    outputsFolderId: outputsPrefix,
   };
 }
 
-// -------------------------
-// Upload Local File
-// -------------------------
+// 🔥 Create month folder inside raw-footage
+export async function createMonthFolder(companyName: string, monthYear: string) {
+  const s3 = getS3();
+  const monthPrefix = `${companyName}/raw-footage/${monthYear}/`;
+  
+  try {
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: monthPrefix,
+        ContentType: "application/x-directory",
+      })
+    );
+    console.log('✅ Month folder created:', monthPrefix);
+  } catch (error) {
+    console.error('❌ Failed to create month folder:', error);
+    // Don't throw - folder might already exist
+  }
+  
+  return monthPrefix;
+}
+
+// 🔥 Create task output folder
+export async function createTaskOutputFolder(
+  companyName: string, 
+  taskId: string, 
+  taskTitle: string
+) {
+  const s3 = getS3();
+  const sanitizedTitle = taskTitle.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+  const taskPrefix = `${companyName}/outputs/${taskId}-${sanitizedTitle}/`;
+  
+  try {
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: taskPrefix,
+        ContentType: "application/x-directory",
+      })
+    );
+    console.log('✅ Task output folder created:', taskPrefix);
+  } catch (error) {
+    console.error('❌ Failed to create task folder:', error);
+    // Don't throw - folder might already exist
+  }
+  
+  return taskPrefix;
+}
+
+// Upload local file to S3
 export async function uploadFileToS3(
   filePath: string,
   folderPrefix: string,
@@ -106,9 +158,7 @@ export async function uploadFileToS3(
   };
 }
 
-// -------------------------
-// Upload Buffer
-// -------------------------
+// Upload buffer to S3
 export async function uploadBufferToS3({
   buffer,
   folderPrefix,
@@ -143,20 +193,16 @@ export async function uploadBufferToS3({
   };
 }
 
-/**
- * Extract S3 key from full S3 URL
- */
+// Extract S3 key from URL
 export function extractS3KeyFromUrl(s3Url: string): string | null {
   if (!s3Url) return null;
 
   try {
-    // Handle s3:// format
     if (s3Url.startsWith("s3://")) {
       const parts = s3Url.replace("s3://", "").split("/");
       return parts.slice(1).join("/");
     }
 
-    // Handle https:// format
     const url = new URL(s3Url);
     const pathname = url.pathname;
     return pathname.startsWith("/") ? pathname.substring(1) : pathname;
@@ -166,9 +212,7 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
   }
 }
 
-/**
- * Generate a pre-signed URL for viewing/streaming
- */
+// Generate pre-signed URL
 export async function generateSignedUrl(
   key: string,
   expiresIn: number = 7200 // 2 hours default
@@ -182,9 +226,7 @@ export async function generateSignedUrl(
   return signedUrl;
 }
 
-/**
- * Add signed URLs to file objects
- */
+// Add signed URLs to file objects
 export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
   if (!files || files.length === 0) return [];
 
@@ -197,15 +239,13 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
         const signedUrl = await generateSignedUrl(s3Key);
         return {
           ...file,
-          url: signedUrl, // Replace with signed URL
-          originalUrl: file.url, // Keep original for reference
+          url: signedUrl,
+          originalUrl: file.url,
         };
       } catch (error) {
         console.error(`Failed to generate signed URL for file ${file.id}:`, error);
-        return file; // Return original if signing fails
+        return file;
       }
     })
   );
 }
-
-

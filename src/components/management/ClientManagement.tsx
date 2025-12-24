@@ -73,8 +73,11 @@ type DeliverableType =
   | "Short Form Videos"
   | "Long Form Videos"
   | "Square Form Videos"
-  | "Snapchat Show Episode"
-  | "Social/Hard Post";
+  | "Thumbnails"
+  | "Tiles"
+  | "Hard Posts / Graphic Images" 
+  | "Snapchat Episodes"
+  | "Beta Short Form";
 
 type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom";
 
@@ -218,245 +221,6 @@ const mockBrandAssets: BrandAsset[] = [
   },
 ];
 
-// const mockClients: Client[] = [
-//   {
-//     id: "client-001",
-//     name: "Sarah Johnson",
-//     companyName: "TechStartup Inc.",
-//     email: "sarah@techstartup.com",
-//     phone: "+1 (555) 123-4567",
-//     accountManager: "Alex Chen",
-//     accountManagerId: "mgr-001",
-//     startDate: "2024-01-15",
-//     renewalDate: "2025-01-15",
-//     status: "active",
-//     monthlyDeliverables: [
-//       {
-//         id: "del-001",
-//         type: "Long Form Videos",
-//         quantity: 4,
-//         videosPerDay: 1,
-//         platforms: ["youtube", "linkedin"],
-//         postingSchedule: "weekly",
-//         postingDays: ["Monday"],
-//         postingTimes: ["10:00"],
-//         description: "Weekly thought leadership content",
-//       },
-//       {
-//         id: "del-002",
-//         type: "Short Form Videos",
-//         quantity: 8,
-//         videosPerDay: 2,
-//         platforms: ["instagram", "tiktok"],
-//         postingSchedule: "bi-weekly",
-//         postingDays: ["Tuesday", "Thursday"],
-//         postingTimes: ["14:00", "16:00"],
-//         description: "Bi-weekly tips and quick insights",
-//       },
-//     ],
-//     currentProgress: {
-//       completed: 22,
-//       total: 28,
-//     },
-//     lastActivity: "2024-08-29",
-//     brandAssets: mockBrandAssets,
-//     brandGuidelines: {
-//       primaryColors: ["#2563EB", "#1E40AF", "#3B82F6"],
-//       secondaryColors: ["#64748B", "#475569", "#94A3B8"],
-//       fonts: ["Inter", "Roboto", "Open Sans"],
-//       logoUsage:
-//         "Logo should maintain minimum clear space of 2x the height of the mark",
-//       toneOfVoice: "Professional, innovative, approachable",
-//       brandValues: "Innovation, reliability, customer-centric",
-//       targetAudience: "Tech professionals, startup founders, developers",
-//       contentStyle: "Clean, modern, data-driven with human touch",
-//     },
-//     projectSettings: {
-//       defaultVideoLength: "60-90 seconds",
-//       preferredPlatforms: ["LinkedIn", "Twitter", "YouTube"],
-//       contentApprovalRequired: true,
-//       quickTurnaroundAvailable: false,
-//     },
-//     postingSchedule: {
-//       instagram: {
-//         weekdays: "10am-12pm, 6-8pm",
-//         weekends: "11am-1pm",
-//         bestTimes: "Tue-Thu 6-8pm",
-//       },
-//       tiktok: {
-//         weekdays: "7-9am, 8-10pm",
-//         weekends: "10am-12pm",
-//         bestTimes: "Wed-Fri 8-9pm",
-//       },
-//       youtube: {
-//         weekdays: "3-5pm",
-//         weekends: "10am-12pm",
-//         bestTimes: "Thu-Fri 3-4pm",
-//       },
-//       linkedin: {
-//         weekdays: "8-10am, 12-2pm",
-//         weekends: "N/A - B2B audience",
-//         bestTimes: "Tue-Wed 8-9am",
-//       },
-//       twitter: {
-//         weekdays: "9am-12pm, 5-7pm",
-//         weekends: "11am-1pm",
-//         bestTimes: "Weekdays 9-10am",
-//       },
-//       facebook: {
-//         weekdays: "1-3pm, 7-9pm",
-//         weekends: "12-2pm",
-//         bestTimes: "Wed-Thu 1-2pm",
-//       },
-//     },
-//   },
-//   {
-//     id: "client-002",
-//     name: "Michael Rodriguez",
-//     companyName: "EcoFriendly Solutions",
-//     email: "michael@ecofriendly.com",
-//     phone: "+1 (555) 987-6543",
-//     accountManager: "Sarah Wilson",
-//     accountManagerId: "mgr-002",
-//     startDate: "2024-03-01",
-//     renewalDate: "2025-03-01",
-//     status: "active",
-//     monthlyDeliverables: [
-//       {
-//         id: "del-003",
-//         type: "Long Form Videos",
-//         quantity: 2,
-//         videosPerDay: 1,
-//         platforms: ["youtube", "facebook"],
-//         postingSchedule: "bi-weekly",
-//         postingDays: ["1st", "15th"],
-//         postingTimes: ["12:00"],
-//         description: "Bi-monthly educational content",
-//       },
-//       {
-//         id: "del-004",
-//         type: "Social/Hard Post",
-//         quantity: 12,
-//         videosPerDay: 1,
-//         platforms: ["instagram", "facebook"],
-//         postingSchedule: "custom",
-//         postingDays: ["Monday", "Wednesday", "Friday"],
-//         postingTimes: ["09:00"],
-//         description: "Regular social media posts",
-//       },
-//     ],
-//     currentProgress: {
-//       completed: 18,
-//       total: 20,
-//     },
-//     lastActivity: "2024-08-30",
-//     brandAssets: [],
-//     brandGuidelines: {
-//       primaryColors: ["#059669", "#047857", "#10B981"],
-//       secondaryColors: ["#6B7280", "#9CA3AF", "#D1D5DB"],
-//       fonts: ["Poppins", "Lato"],
-//       logoUsage: "Always use on light backgrounds, minimum size 24px",
-//       toneOfVoice: "Caring, sustainable, educational",
-//       brandValues: "Environmental responsibility, transparency, community",
-//       targetAudience: "Environmentally conscious consumers, families",
-//       contentStyle: "Natural, authentic, educational with emotional connection",
-//     },
-//     projectSettings: {
-//       defaultVideoLength: "30-60 seconds",
-//       preferredPlatforms: ["Instagram", "Facebook", "TikTok"],
-//       contentApprovalRequired: false,
-//       quickTurnaroundAvailable: true,
-//     },
-//     postingSchedule: {
-//       instagram: {
-//         weekdays: "11am-1pm, 5-7pm",
-//         weekends: "10am-2pm",
-//         bestTimes: "Daily 11am-12pm",
-//       },
-//       facebook: {
-//         weekdays: "12-2pm, 6-8pm",
-//         weekends: "11am-3pm",
-//         bestTimes: "Weekdays 12-1pm",
-//       },
-//       tiktok: {
-//         weekdays: "6-9am, 7-10pm",
-//         weekends: "9am-12pm",
-//         bestTimes: "Daily 7-9pm",
-//       },
-//     },
-//   },
-//   {
-//     id: "client-003",
-//     name: "Emily Davis",
-//     companyName: "Fashion Forward",
-//     email: "emily@fashionforward.com",
-//     phone: "+1 (555) 456-7890",
-//     accountManager: "David Park",
-//     accountManagerId: "mgr-003",
-//     startDate: "2024-02-10",
-//     renewalDate: "2024-11-10",
-//     status: "pending",
-//     monthlyDeliverables: [
-//       {
-//         id: "del-005",
-//         type: "Short Form Videos",
-//         quantity: 12,
-//         videosPerDay: 3,
-//         platforms: ["instagram", "tiktok"],
-//         postingSchedule: "custom",
-//         postingDays: ["Monday", "Wednesday", "Friday", "Sunday"],
-//         postingTimes: ["10:00", "14:00", "18:00"],
-//         description: "Fashion tips and trends",
-//       },
-//       {
-//         id: "del-006",
-//         type: "Long Form Videos",
-//         quantity: 6,
-//         videosPerDay: 1,
-//         platforms: ["youtube", "instagram"],
-//         postingSchedule: "weekly",
-//         postingDays: ["Friday"],
-//         postingTimes: ["15:00"],
-//         description: "Weekly lookbook and styling guides",
-//       },
-//     ],
-//     currentProgress: {
-//       completed: 35,
-//       total: 42,
-//     },
-//     lastActivity: "2024-08-28",
-//     brandAssets: [],
-//     brandGuidelines: {
-//       primaryColors: ["#EC4899", "#DB2777", "##F472B6"],
-//       secondaryColors: ["#1F2937", "#374151", "#6B7280"],
-//       fonts: ["Montserrat", "Playfair Display"],
-//       logoUsage: "Versatile logo system for various applications",
-//       toneOfVoice: "Trendy, confident, inspiring",
-//       brandValues: "Style, individuality, empowerment",
-//       targetAudience: "Fashion-forward individuals, 18-35 years old",
-//       contentStyle: "Bold, vibrant, trend-focused with aspirational messaging",
-//     },
-//     projectSettings: {
-//       defaultVideoLength: "15-30 seconds",
-//       preferredPlatforms: ["Instagram", "TikTok", "Pinterest"],
-//       contentApprovalRequired: true,
-//       quickTurnaroundAvailable: true,
-//     },
-//     postingSchedule: {
-//       instagram: {
-//         weekdays: "9am-11am, 6-9pm",
-//         weekends: "11am-4pm",
-//         bestTimes: "Daily 6-7pm",
-//       },
-//       tiktok: {
-//         weekdays: "7-10am, 8-11pm",
-//         weekends: "10am-2pm",
-//         bestTimes: "Daily 8-10pm",
-//       },
-//     },
-//   },
-// ];
-
 const mockAccountManagers = [
   { id: "mgr-001", name: "Alex Chen" },
   { id: "mgr-002", name: "Sarah Wilson" },
@@ -561,21 +325,30 @@ const removePhone = (index: number) => {
   });
 };
 
-  const [newDeliverable, setNewDeliverable] = useState<
-    Partial<MonthlyDeliverable>
-  >({
-    type: "Short Form Videos",
-    quantity: 0,
-    videosPerDay: 1,
-    platforms: [],
-    postingSchedule: "weekly",
-    postingDays: [],
-    postingTimes: ["10:00"],
-    description: "",
-  });
+  // Update the initial state declaration (around line 155)
+const [newDeliverable, setNewDeliverable] = useState<{
+  type: DeliverableType;
+  quantity: number;
+  videosPerDay?: number;
+  platforms: SocialPlatform[];
+  postingSchedule: PostingSchedule;
+  postingDays?: string[];
+  postingTimes: string[];
+  description?: string;
+}>({
+  type: "Short Form Videos",
+  quantity: 1,
+  videosPerDay: 1,
+  platforms: [],
+  postingSchedule: "weekly",
+  postingDays: [],
+  postingTimes: ["10:00"],
+  description: "",
+});
 
   const [showAddDeliverableDialog, setShowAddDeliverableDialog] =
     useState(false);
+  const [deliverableDialogKey, setDeliverableDialogKey] = useState(0);
 
   const filteredClients = clients.filter((client) => {
     const matchesSearch =
@@ -590,19 +363,6 @@ const removePhone = (index: number) => {
     return matchesSearch && matchesStatus && matchesManager;
   });
 
-  //   useEffect(() => {
-  //   async function loadClients() {
-  //     try {
-  //       const res = await fetch("/api/clients");
-  //       const data = await res.json();
-  //       setClients(Array.isArray(data.clients) ? data.clients : []);
-  //     } catch (err) {
-  //       console.error("Failed to load clients", err);
-  //     }
-  //   }
-
-  //   loadClients();
-  // }, []);
 
   useEffect(() => {
     async function loadClients() {
@@ -778,33 +538,42 @@ const removePhone = (index: number) => {
   };
 
   const handleAddDeliverable = () => {
-    if (
-      !newDeliverable.quantity ||
-      !newDeliverable.platforms ||
-      newDeliverable.platforms.length === 0
-    ) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
+  console.log("🔍 BEFORE VALIDATION - newDeliverable:", JSON.stringify(newDeliverable, null, 2));
+  
+  if (!newDeliverable.quantity || newDeliverable.quantity === 0) {
+    toast.error("Please enter a quantity");
+    return;
+  }
+  
+  if (!newDeliverable.platforms || newDeliverable.platforms.length === 0) {
+    toast.error("Please select at least one platform");
+    return;
+  }
 
-    const deliverable: MonthlyDeliverable = {
-      id: `deliverable-${Date.now()}`,
-      type: newDeliverable.type as DeliverableType,
-      quantity: newDeliverable.quantity,
-      videosPerDay: newDeliverable.videosPerDay || 1,
-      platforms: newDeliverable.platforms,
-      postingSchedule: newDeliverable.postingSchedule as PostingSchedule,
-      postingDays: newDeliverable.postingDays,
-      postingTimes: newDeliverable.postingTimes || ["10:00"],
-      description: newDeliverable.description || "",
-    };
+  const deliverable: MonthlyDeliverable = {
+    id: `deliverable-${Date.now()}`,
+    type: newDeliverable.type, // Should be correct now
+    quantity: newDeliverable.quantity,
+    videosPerDay: newDeliverable.videosPerDay || 1,
+    platforms: newDeliverable.platforms,
+    postingSchedule: newDeliverable.postingSchedule,
+    postingDays: newDeliverable.postingDays || [],
+    postingTimes: newDeliverable.postingTimes || ["10:00"],
+    description: newDeliverable.description || "",
+  };
 
-    setNewClient((prev) => ({
-      ...prev,
-      monthlyDeliverables: [...(prev.monthlyDeliverables || []), deliverable],
-    }));
+  console.log("✅ ADDING DELIVERABLE:", JSON.stringify(deliverable, null, 2));
 
-    // Reset form
+  setNewClient((prev) => ({
+    ...prev,
+    monthlyDeliverables: [...(prev.monthlyDeliverables || []), deliverable],
+  }));
+
+  toast.success(`Added: ${deliverable.type}`);
+  setShowAddDeliverableDialog(false);
+  
+  // Reset AFTER closing dialog
+  setTimeout(() => {
     setNewDeliverable({
       type: "Short Form Videos",
       quantity: 1,
@@ -815,9 +584,8 @@ const removePhone = (index: number) => {
       postingTimes: ["10:00"],
       description: "",
     });
-    setShowAddDeliverableDialog(false);
-    toast.success("Monthly deliverable added");
-  };
+  }, 100);
+};
 
   const handleRemoveDeliverable = (id: string) => {
     setNewClient((prev) => ({
@@ -1089,13 +857,6 @@ const handleDeleteClient = async (clientId: string) => {
     toast.error("Server error");
   }
 };
-
-
-  // const calculateTotalDeliverables = (
-  //   deliverables: MonthlyDeliverable[],
-  // ) => {
-  //   return deliverables.reduce((sum, d) => sum + d.quantity, 0);
-  // };
 
   const calculateTotalDeliverables = (
     deliverables: MonthlyDeliverable[] | null | undefined
@@ -1742,276 +1503,278 @@ const handleDeleteClient = async (clientId: string) => {
           <div className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
-  <h3 className="text-gray-900">Basic Information</h3>
-  <div className="grid grid-cols-2 gap-4">
-    <div className="space-y-2">
-      <Label htmlFor="name" className="text-gray-700">
-        Contact Name
-      </Label>
-      <Input
-        id="name"
-        value={newClient.name ?? ""}
-        onChange={(e) =>
-          setNewClient({ ...newClient, name: e.target.value })
-        }
-        className="bg-white border-gray-200 text-gray-900"
-      />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="company" className="text-gray-700">
-        Company
-      </Label>
-      <Input
-        id="company"
-        value={newClient.companyName ?? ""}
-        onChange={(e) =>
-          setNewClient({
-            ...newClient,
-            companyName: e.target.value,
-          })
-        }
-        className="bg-white border-gray-200 text-gray-900"
-      />
-    </div>
+              <h3 className="text-gray-900">Basic Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-gray-700">
+                    Contact Name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={newClient.name ?? ""}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, name: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company" className="text-gray-700">
+                    Company
+                  </Label>
+                  <Input
+                    id="company"
+                    value={newClient.companyName ?? ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        companyName: e.target.value,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
 
-    {/* Primary Email */}
-    <div className="space-y-2">
-      <Label htmlFor="email" className="text-gray-700">
-        Primary Email *
-      </Label>
-      <Input
-        id="email"
-        type="email"
-        value={newClient.email ?? ""}
-        onChange={(e) =>
-          setNewClient({ ...newClient, email: e.target.value })
-        }
-        className="bg-white border-gray-200 text-gray-900"
-      />
-    </div>
+                {/* Primary Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-gray-700">
+                    Primary Email *
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newClient.email ?? ""}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, email: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
 
-    {/* Primary Phone */}
-    <div className="space-y-2">
-      <Label htmlFor="phone" className="text-gray-700">
-        Primary Phone *
-      </Label>
-      <Input
-        id="phone"
-        value={newClient.phone ?? ""}
-        onChange={(e) =>
-          setNewClient({ ...newClient, phone: e.target.value })
-        }
-        className="bg-white border-gray-200 text-gray-900"
-      />
-    </div>
+                {/* Primary Phone */}
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-gray-700">
+                    Primary Phone *
+                  </Label>
+                  <Input
+                    id="phone"
+                    value={newClient.phone ?? ""}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, phone: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
 
-    {/* Additional Emails Section */}
-    <div className="space-y-2 col-span-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-gray-700">Additional Emails</Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addEmail}
-          className="gap-1"
-        >
-          <Plus className="h-3 w-3" />
-          Add Email
-        </Button>
-      </div>
-      {(newClient.emails || []).map((email, index) => (
-        <div key={index} className="flex gap-2">
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => updateEmail(index, e.target.value)}
-            placeholder="additional@email.com"
-            className="bg-white border-gray-200 text-gray-900"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => removeEmail(index)}
-            className="text-red-600 hover:text-red-700"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      ))}
-    </div>
+                {/* Additional Emails Section */}
+                <div className="space-y-2 col-span-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-700">Additional Emails</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addEmail}
+                      className="gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Email
+                    </Button>
+                  </div>
+                  {(newClient.emails || []).map((email, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        type="email"
+                        value={email}
+                        onChange={(e) => updateEmail(index, e.target.value)}
+                        placeholder="additional@email.com"
+                        className="bg-white border-gray-200 text-gray-900"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeEmail(index)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
 
-    {/* Additional Phones Section */}
-    <div className="space-y-2 col-span-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-gray-700">Additional Phone Numbers</Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addPhone}
-          className="gap-1"
-        >
-          <Plus className="h-3 w-3" />
-          Add Phone
-        </Button>
-      </div>
-      {(newClient.phones || []).map((phone, index) => (
-        <div key={index} className="flex gap-2">
-          <Input
-            type="tel"
-            value={phone}
-            onChange={(e) => updatePhone(index, e.target.value)}
-            placeholder="+1 (555) 000-0000"
-            className="bg-white border-gray-200 text-gray-900"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => removePhone(index)}
-            className="text-red-600 hover:text-red-700"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      ))}
-    </div>
+                {/* Additional Phones Section */}
+                <div className="space-y-2 col-span-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-700">
+                      Additional Phone Numbers
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addPhone}
+                      className="gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Phone
+                    </Button>
+                  </div>
+                  {(newClient.phones || []).map((phone, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => updatePhone(index, e.target.value)}
+                        placeholder="+1 (555) 000-0000"
+                        className="bg-white border-gray-200 text-gray-900"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removePhone(index)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
 
-    {/* Account Manager */}
-    <div className="space-y-2">
-      <Label htmlFor="accountManager" className="text-gray-700">
-        Account Manager
-      </Label>
-      <Select
-        value={newClient.accountManagerId || undefined}
-        onValueChange={(value) =>
-          setNewClient({ ...newClient, accountManagerId: value })
-        }
-      >
-        <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-          <SelectValue placeholder="Select manager" />
-        </SelectTrigger>
-        {/* <SelectContent>
+                {/* Account Manager */}
+                <div className="space-y-2">
+                  <Label htmlFor="accountManager" className="text-gray-700">
+                    Account Manager
+                  </Label>
+                  <Select
+                    value={newClient.accountManagerId || undefined}
+                    onValueChange={(value) =>
+                      setNewClient({ ...newClient, accountManagerId: value })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select manager" />
+                    </SelectTrigger>
+                    {/* <SelectContent>
           {mockAccountManagers.map((manager) => (
             <SelectItem key={manager.id} value={manager.id}>
               {manager.name}
             </SelectItem>
           ))}
         </SelectContent> */}
-      </Select>
-    </div>
+                  </Select>
+                </div>
 
-    <div className="space-y-2">
-      <Label htmlFor="status" className="text-gray-700">
-        Status
-      </Label>
-      <Select
-        value={newClient.status}
-        onValueChange={(value) =>
-          setNewClient({
-            ...newClient,
-            status: value as "active" | "pending" | "expired",
-          })
-        }
-      >
-        <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="active">Active</SelectItem>
-          <SelectItem value="pending">Pending</SelectItem>
-          <SelectItem value="expired">Expired</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status" className="text-gray-700">
+                    Status
+                  </Label>
+                  <Select
+                    value={newClient.status}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        status: value as "active" | "pending" | "expired",
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="expired">Expired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-    <div className="space-y-2">
-      <Label
-        htmlFor="clientReviewRequired"
-        className="text-gray-700"
-      >
-        Client Review Required
-      </Label>
-      <Select
-        value={newClient.clientReviewRequired ?? "no"}
-        onValueChange={(value) =>
-          setNewClient({
-            ...newClient,
-            clientReviewRequired: value,
-          })
-        }
-      >
-        <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-          <SelectValue placeholder="Select option" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="yes">Yes</SelectItem>
-          <SelectItem value="no">No</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="clientReviewRequired"
+                    className="text-gray-700"
+                  >
+                    Client Review Required
+                  </Label>
+                  <Select
+                    value={newClient.clientReviewRequired ?? "no"}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        clientReviewRequired: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-    <div className="space-y-2">
-      <Label
-        htmlFor="videographerRequired"
-        className="text-gray-700"
-      >
-        Videographer Required
-      </Label>
-      <Select
-        value={newClient.videographerRequired ?? "no"}
-        onValueChange={(value) =>
-          setNewClient({
-            ...newClient,
-            videographerRequired: value,
-          })
-        }
-      >
-        <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-          <SelectValue placeholder="Select option" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="yes">Yes</SelectItem>
-          <SelectItem value="no">No</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="videographerRequired"
+                    className="text-gray-700"
+                  >
+                    Videographer Required
+                  </Label>
+                  <Select
+                    value={newClient.videographerRequired ?? "no"}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        videographerRequired: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-    <div className="space-y-2">
-      <Label htmlFor="startDate" className="text-gray-700">
-        Start Date
-      </Label>
-      <Input
-        id="startDate"
-        type="date"
-        value={newClient.startDate ?? ""}
-        onChange={(e) =>
-          setNewClient({ ...newClient, startDate: e.target.value })
-        }
-        className="bg-white border-gray-200 text-gray-900"
-      />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="renewalDate" className="text-gray-700">
-        Renewal Date
-      </Label>
-      <Input
-        id="renewalDate"
-        type="date"
-        value={newClient.renewalDate ?? ""}
-        onChange={(e) =>
-          setNewClient({
-            ...newClient,
-            renewalDate: e.target.value,
-          })
-        }
-        className="bg-white border-gray-200 text-gray-900"
-      />
-    </div>
-  </div>
-</div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate" className="text-gray-700">
+                    Start Date
+                  </Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={newClient.startDate ?? ""}
+                    onChange={(e) =>
+                      setNewClient({ ...newClient, startDate: e.target.value })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="renewalDate" className="text-gray-700">
+                    Renewal Date
+                  </Label>
+                  <Input
+                    id="renewalDate"
+                    type="date"
+                    value={newClient.renewalDate ?? ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        renewalDate: e.target.value,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+              </div>
+            </div>
 
             <Separator className="bg-gray-200" />
 
@@ -2027,10 +1790,33 @@ const handleDeleteClient = async (clientId: string) => {
                     Set up recurring deliverables that auto-generate tasks
                   </p>
                 </div>
-                <Button
+                {/* <Button
                   type="button"
                   size="sm"
                   onClick={() => setShowAddDeliverableDialog(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Deliverable
+                </Button> */}
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    // Reset the deliverable form
+                    setNewDeliverable({
+                      type: "Short Form Videos",
+                      quantity: 0,
+                      videosPerDay: 1,
+                      platforms: [],
+                      postingSchedule: "weekly",
+                      postingDays: [],
+                      postingTimes: ["10:00"],
+                      description: "",
+                    });
+                    setDeliverableDialogKey((prev) => prev + 1); // Force remount
+                    setShowAddDeliverableDialog(true);
+                  }}
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Add Deliverable
@@ -2349,8 +2135,24 @@ const handleDeleteClient = async (clientId: string) => {
 
       {/* Add Deliverable Dialog */}
       <Dialog
+        key={deliverableDialogKey} // 🔥 Add key to force remount
         open={showAddDeliverableDialog}
-        onOpenChange={setShowAddDeliverableDialog}
+        onOpenChange={(open) => {
+          setShowAddDeliverableDialog(open);
+          if (!open) {
+            // Reset form when closing
+            setNewDeliverable({
+              type: "Short Form Videos",
+              quantity: 1,
+              videosPerDay: 1,
+              platforms: [],
+              postingSchedule: "weekly",
+              postingDays: [],
+              postingTimes: ["10:00"],
+              description: "",
+            });
+          }
+        }}
       >
         <DialogContent className="!max-w-[1200px] w-[90vw] !max-h-[90vh] overflow-y-auto bg-white border-gray-200">
           <DialogHeader>
@@ -2369,31 +2171,41 @@ const handleDeleteClient = async (clientId: string) => {
               </Label>
               <Select
                 value={newDeliverable.type}
-                onValueChange={(value) =>
+                onValueChange={(value: string) => {
+                  const newType = value as DeliverableType;
+                  console.log("🎯 Setting type to:", newType);
                   setNewDeliverable({
                     ...newDeliverable,
-                    type: value as DeliverableType,
-                  })
-                }
+                    type: newType,
+                  });
+                  console.log("🎯 State after update should be:", newType);
+                }}
               >
                 <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                  <SelectValue />
+                  <SelectValue placeholder="Select deliverable type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Short Form Videos">
-                    Short Form Videos
+                    Short Form (SF) - Vertical 9:16
                   </SelectItem>
                   <SelectItem value="Long Form Videos">
-                    Long Form Videos
+                    Long Form (LF) - 16:9
                   </SelectItem>
                   <SelectItem value="Square Form Videos">
                     Square Form Videos
                   </SelectItem>
-                  <SelectItem value="Snapchat Show Episode">
-                    Snapchat Show Episode
+                  <SelectItem value="Thumbnails">Thumbnails (THUMB)</SelectItem>
+                  <SelectItem value="Tiles">
+                    Tiles (T) - Snapchat Discover
                   </SelectItem>
-                  <SelectItem value="Social/Hard Post">
-                    Social/Hard Post
+                  <SelectItem value="Hard Posts / Graphic Images">
+                    Hard Posts / Graphic Images (HP)
+                  </SelectItem>
+                  <SelectItem value="Snapchat Episodes">
+                    Snapchat Episodes (SEP)
+                  </SelectItem>
+                  <SelectItem value="Beta Short Form">
+                    Beta Short Form (BSF) - +1min
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -2439,41 +2251,41 @@ const handleDeleteClient = async (clientId: string) => {
             </div> */}
 
             <div className="space-y-2">
-  <Label htmlFor="quantity" className="text-gray-700">
-    Quantity per Month
-  </Label>
-  <Input
-    id="quantity"
-    type="number"
-    min="1"
-    value={newDeliverable.quantity}
-    onChange={(e) =>
-      setNewDeliverable({
-        ...newDeliverable,
-        quantity: parseInt(e.target.value) || 1,
-      })
-    }
-    className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-  />
-</div>
+              <Label htmlFor="quantity" className="text-gray-700">
+                Quantity per Month
+              </Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="1"
+                value={newDeliverable.quantity}
+                onChange={(e) =>
+                  setNewDeliverable({
+                    ...newDeliverable,
+                    quantity: parseInt(e.target.value) || 1,
+                  })
+                }
+                className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
 
-<div className="space-y-2">
-  <Label htmlFor="videosPerDay" className="text-gray-700">
-    Videos per Posting Day
-  </Label>
-  <Input
-    id="videosPerDay"
-    type="number"
-    min="1"
-    value={newDeliverable.videosPerDay}
-    onChange={(e) =>
-      syncPostingTimesWithVideosPerDay(
-        parseInt(e.target.value) || 1
-      )
-    }
-    className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-  />
-</div>
+            <div className="space-y-2">
+              <Label htmlFor="videosPerDay" className="text-gray-700">
+                Videos per Posting Day
+              </Label>
+              <Input
+                id="videosPerDay"
+                type="number"
+                min="1"
+                value={newDeliverable.videosPerDay}
+                onChange={(e) =>
+                  syncPostingTimesWithVideosPerDay(
+                    parseInt(e.target.value) || 1
+                  )
+                }
+                className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="postingSchedule" className="text-gray-700">

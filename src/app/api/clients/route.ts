@@ -96,13 +96,16 @@ export async function POST(req: Request) {
     let videographer = false;
 
     const body = await req.json();
+
+    console.log("POST /clients body:", body);
+
     const {
       name,
       email,
       emails, // NEW: Additional emails
       phone,
       phones, // NEW: Additional phones
-      company,
+      companyName,
       accountManagerId,
 
       // Big UI chunks
@@ -111,8 +114,8 @@ export async function POST(req: Request) {
       projectSettings,
       billing,
       postingSchedule,
-      requiresClientReview,
-      requiresVideographer,
+      clientReviewRequired,
+      videographerRequired,
     } = body;
 
     if (!name || !email)
@@ -121,11 +124,11 @@ export async function POST(req: Request) {
         { status: 400 }
       );
 
-    if (requiresClientReview == "yes") {
+    if (clientReviewRequired == "yes") {
       clientReview = true;
     }
 
-    if (requiresVideographer == "yes") {
+    if (videographerRequired == "yes") {
       videographer = true;
     }
 
@@ -152,7 +155,7 @@ export async function POST(req: Request) {
         name,
         email,
         emails: additionalEmails, // NEW: Store additional emails
-        companyName: company || null,
+        companyName: companyName || null,
         phone,
         phones: additionalPhones, // NEW: Store additional phones
         createdBy: decoded.userId.toString(),
@@ -170,7 +173,7 @@ export async function POST(req: Request) {
         driveFolderId: folders.mainFolderId,
         rawFootageFolderId: folders.rawFolderId,
         essentialsFolderId: folders.essentialsFolderId,
-
+        outputsFolderId: folders.outputsFolderId,
         brandGuidelines,
         projectSettings,
         billing,

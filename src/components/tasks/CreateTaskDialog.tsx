@@ -207,43 +207,57 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-    setLoading(true);
+  e.preventDefault();
+  if (!validateForm()) return;
+  setLoading(true);
 
-    if (formData.monthlyDeliverableId === "__no_deliverables__") {
-      setErrors((prev) => ({ ...prev, monthlyDeliverableId: "Choose a valid deliverable" }));
-      setLoading(false);
-      return;
+  if (formData.monthlyDeliverableId === "__no_deliverables__") {
+    setErrors((prev) => ({ ...prev, monthlyDeliverableId: "Choose a valid deliverable" }));
+    setLoading(false);
+    return;
+  }
+
+  try {
+    const formPayload = new FormData();
+
+    formPayload.append("description", formData.description || "");
+    formPayload.append("dueDate", formData.dueDate);
+    formPayload.append("assignedTo", String(formData.assignedTo));
+    formPayload.append("qc_specialist", String(formData.qc_specialist || ""));
+    formPayload.append("scheduler", String(formData.scheduler || ""));
+    formPayload.append("videographer", String(formData.videographer || ""));
+    formPayload.append("clientId", formData.clientId);
+    formPayload.append("folderType", formData.folderType);
+    formPayload.append("monthlyDeliverableId", formData.monthlyDeliverableId);
+
+    // 🔥 DEBUG: Log what we're sending
+    console.log("📤 SENDING TO API:");
+    console.log("- clientId:", formData.clientId);
+    console.log("- monthlyDeliverableId:", formData.monthlyDeliverableId);
+    
+    // Find the actual deliverable to see its type
+    const deliverable = deliverables.find(d => String(d.id) === String(formData.monthlyDeliverableId));
+    console.log("- Deliverable type:", deliverable?.type);
+    console.log("- Full deliverable:", deliverable);
+
+    if (files) {
+      Array.from(files).forEach((file) => formPayload.append("files", file));
     }
 
-    try {
-      const formPayload = new FormData();
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      credentials: "include",
+      body: formPayload,
+    });
 
-      formPayload.append("description", formData.description || "");
-      formPayload.append("dueDate", formData.dueDate);
-      formPayload.append("assignedTo", String(formData.assignedTo));
-      formPayload.append("qc_specialist", String(formData.qc_specialist || ""));
-      formPayload.append("scheduler", String(formData.scheduler || ""));
-      formPayload.append("videographer", String(formData.videographer || ""));
-      formPayload.append("clientId", formData.clientId);
-      formPayload.append("folderType", formData.folderType);
-      formPayload.append("monthlyDeliverableId", formData.monthlyDeliverableId);
+    const data = await res.json();
+    
+    // 🔥 DEBUG: Log what we got back
+    console.log("📥 RECEIVED FROM API:", data);
+    
+    if (!res.ok) throw new Error(data.message || "Failed to create task");
 
-      if (files) {
-        Array.from(files).forEach((file) => formPayload.append("files", file));
-      }
-
-      const res = await fetch("/api/tasks", {
-        method: "POST",
-        credentials: "include",
-        body: formPayload,
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to create task");
-
-      onTaskCreated?.(data);
+    onTaskCreated?.(data);
 
       setFormData({
         description: "",
