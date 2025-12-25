@@ -6,6 +6,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
+import { TaskUploadSections } from "../workflow/TaskUploadSections";
 import {
   Calendar,
   FileText,
@@ -17,7 +18,6 @@ import {
   AlertCircle,
   ExternalLink,
 } from "lucide-react";
-import { FileUploadDialog } from "../workflow/FileUploadDialog";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -75,6 +75,7 @@ interface WorkflowTask {
   workflowStep: string;
   clientId: string;
   projectId: string;
+  deliverableType?: string; // 🔥 ADD THIS
   files?: TaskFile[];
   qcNotes?: string | null;
   rejectionReason?: string | null;
@@ -223,10 +224,8 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
             {task.description}
           </p>
 
-          {/* QC NOTES - Show for rejected tasks */}
-          {
-          // task.status === "rejected" && 
-          task.qcNotes && (
+          {/* QC NOTES */}
+          {task.qcNotes && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
@@ -299,12 +298,13 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
             </div>
           )}
 
-          <div className="flex gap-2">
+          {/* 🔥 UPDATED: Upload Section */}
+          <div className="space-y-2">
             {(task.status === "pending" || task.status === "rejected") && (
               <Button
                 size="sm"
                 variant="outline"
-                className="flex-1"
+                className="w-full"
                 onClick={onStartTask}
               >
                 {task.status === "rejected" ? "Start Revision" : "Start"}
@@ -312,14 +312,9 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
             )}
 
             {task.status === "in_progress" && (
-              <FileUploadDialog
+              <TaskUploadSections
                 task={task}
                 onUploadComplete={onUploadComplete}
-                trigger={
-                  <Button size="sm" className="flex-1">
-                    Upload
-                  </Button>
-                }
               />
             )}
           </div>
@@ -356,57 +351,57 @@ export function EditorDashboard() {
 
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
 
- useEffect(() => {
-  async function loadTasks() {
-    try {
-      const res = await fetch("/api/tasks");
-      const data = await res.json();
+  useEffect(() => {
+    async function loadTasks() {
+      try {
+        const res = await fetch("/api/tasks");
+        const data = await res.json();
 
-      console.log("📋 Raw task data from API:", data.tasks?.[0]); // Debug first task
+        console.log("📋 Raw task data from API:", data.tasks?.[0]);
 
-      const formatted: WorkflowTask[] = (data.tasks || [])
-        .filter((t: any) => t.assignedTo === Number(currentUser.id))
-        .map((t: any) => {
-          console.log("🔍 Mapping task:", {
-            taskId: t.id,
-            clientId: t.clientId,
-            title: t.title,
-            outputFolderId: t.outputFolderId,
+        const formatted: WorkflowTask[] = (data.tasks || [])
+          .filter((t: any) => t.assignedTo === Number(currentUser.id))
+          .map((t: any) => {
+            console.log("🔍 Mapping task:", {
+              taskId: t.id,
+              clientId: t.clientId,
+              title: t.title,
+              deliverableType: t.deliverableType,
+            });
+            
+            return {
+              id: t.id,
+              title: t.title,
+              description: t.description,
+              type: mapTaskTypeToWorkflow(t.taskType),
+              status: mapStatus(t.status),
+              assignedTo: String(t.assignedTo),
+              assignedToName: currentUser.name,
+              assignedToRole: currentUser.role,
+              createdAt: t.createdAt,
+              dueDate: t.dueDate,
+              folderType: "outputs",
+              outputFolderId: t.outputFolderId,
+              workflowStep: "editing",
+              clientId: t.clientId,
+              projectId: t.clientId,
+              deliverableType: t.deliverableType || "Short Form Videos", // 🔥 ADD THIS
+              files: t.files || [],
+              qcNotes: t.qcNotes || null,
+              rejectionReason: t.rejectionReason || null,
+              feedback: t.feedback || null,
+            };
           });
-          
-          return {
-            id: t.id,  // ← This should be the TASK ID, not client ID
-            title: t.title,
-            description: t.description,
-            type: mapTaskTypeToWorkflow(t.taskType),
-            status: mapStatus(t.status),
-            assignedTo: String(t.assignedTo),
-            assignedToName: currentUser.name,
-            assignedToRole: currentUser.role,
-            createdAt: t.createdAt,
-            dueDate: t.dueDate,
-            folderType: "outputs",
-            outputFolderId: t.outputFolderId,
-            // folderType: t.folderType || "unknown",
-            workflowStep: "editing",
-            clientId: t.clientId,
-            projectId: t.clientId,
-            files: t.files || [],
-            qcNotes: t.qcNotes || null,
-            rejectionReason: t.rejectionReason || null,
-            feedback: t.feedback || null,
-          };
-        });
 
-      console.log("✅ Formatted tasks:", formatted);
-      setTasks(formatted);
-    } catch (err) {
-      console.error("Failed to load tasks:", err);
+        console.log("✅ Formatted tasks:", formatted);
+        setTasks(formatted);
+      } catch (err) {
+        console.error("Failed to load tasks:", err);
+      }
     }
-  }
 
-  loadTasks();
-}, [currentUser.id]);
+    loadTasks();
+  }, [currentUser.id]);
 
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
@@ -423,15 +418,17 @@ export function EditorDashboard() {
   }
 
   async function handleUploadComplete(taskId: string, files: any[]) {
-    await fetch(`/api/tasks/${taskId}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "READY_FOR_QC" }),
-    });
-
+    // Refresh task data to get updated files
+    const res = await fetch("/api/tasks");
+    const data = await res.json();
+    
+    const updatedTask = data.tasks.find((t: any) => t.id === taskId);
+    
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === taskId ? { ...t, status: "completed", files } : t
+        t.id === taskId 
+          ? { ...t, files: updatedTask?.files || files } 
+          : t
       )
     );
   }
