@@ -371,6 +371,7 @@ export function EditorDashboard() {
             taskId: t.id,
             clientId: t.clientId,
             title: t.title,
+            outputFolderId: t.outputFolderId,
           });
           
           return {
@@ -384,9 +385,11 @@ export function EditorDashboard() {
             assignedToRole: currentUser.role,
             createdAt: t.createdAt,
             dueDate: t.dueDate,
-            folderType: t.folderType || "unknown",
+            folderType: "outputs",
+            outputFolderId: t.outputFolderId,
+            // folderType: t.folderType || "unknown",
             workflowStep: "editing",
-            clientId: t.clientId,  // ← This is the client ID
+            clientId: t.clientId,
             projectId: t.clientId,
             files: t.files || [],
             qcNotes: t.qcNotes || null,

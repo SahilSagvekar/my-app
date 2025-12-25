@@ -21,8 +21,15 @@ export async function POST(request: NextRequest) {
       fileSize, 
       fileType, 
       taskId,
-      userId 
+      userId,
+      subfolder // 🔥 ADD THIS - receive from request body
     } = await request.json();
+
+    console.log("📥 Complete upload request:", {
+      fileName,
+      taskId,
+      subfolder: subfolder || "main",
+    });
 
     if (!key || !uploadId || !parts || !taskId) {
       return NextResponse.json(
@@ -43,16 +50,26 @@ export async function POST(request: NextRequest) {
 
     const fileUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${key}`;
 
+    console.log("✅ S3 upload completed:", fileUrl);
+
+    // 🔥 Determine folderType based on subfolder
+    const folderType = !subfolder || subfolder === "main" ? "main" : subfolder;
+
     // Save file record to database
     const fileRecord = await prisma.file.create({
       data: {
-        taskId,
         name: fileName,
         url: fileUrl,
+        s3Key: key,
         mimeType: fileType,
         size: fileSize,
+        taskId: taskId,
+        uploadedBy: userId,
+        folderType: folderType, // 🔥 Now properly defined
       },
     });
+
+    console.log("💾 File record saved to database:", fileRecord.id);
 
     // Add file URL to task.driveLinks
     await prisma.task.update({
@@ -62,6 +79,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log("🔗 File URL added to task driveLinks");
+
     return NextResponse.json({
       success: true,
       fileUrl,
@@ -69,7 +88,7 @@ export async function POST(request: NextRequest) {
       fileName: fileRecord.name,
     });
   } catch (error: any) {
-    console.error('Error completing upload:', error);
+    console.error('❌ Error completing upload:', error);
     return NextResponse.json(
       { error: 'Failed to complete upload', message: error.message },
       { status: 500 }

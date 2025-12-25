@@ -12,6 +12,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Upload, 
@@ -22,7 +29,8 @@ import {
   Zap,
   Play,
   Pause,
-  RefreshCw
+  RefreshCw,
+  FolderOpen
 } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { uploadStateManager, UploadState } from "@/lib/upload-state-manager";
@@ -43,7 +51,8 @@ export function FileUploadDialog({
 }: FileUploadDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [folderType, setFolderType] = useState<"rawFootage" | "essentials">("rawFootage");
+  const [folderType, setFolderType] = useState<"outputs">("outputs"); // 🔥 FORCE OUTPUTS
+  const [subfolder, setSubfolder] = useState<string>("main"); // 🔥 NEW: Subfolder selection
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState(0);
@@ -85,13 +94,56 @@ export function FileUploadDialog({
     return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   };
 
+  // const uploadChunk = async (
+  //   chunk: Blob,
+  //   partNumber: number,
+  //   key: string,
+  //   uploadId: string,
+  //   fileType: string
+  // ) => {
+  //   const partUrlResponse = await fetch("/api/upload/part-url", {
+  //     method: "POST",
+  //     headers: { "Content-Type": "application/json" },
+  //     body: JSON.stringify({ key, uploadId, partNumber }),
+  //   });
+
+  //   if (!partUrlResponse.ok) {
+  //     throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+  //   }
+
+  //   const { presignedUrl } = await partUrlResponse.json();
+
+  //   const uploadResponse = await fetch(presignedUrl, {
+  //     method: "PUT",
+  //     body: chunk,
+  //     headers: { "Content-Type": fileType },
+  //   });
+
+  //   if (!uploadResponse.ok) {
+  //     throw new Error(`Failed to upload part ${partNumber}`);
+  //   }
+
+  //   const etag = uploadResponse.headers.get("ETag");
+  //   if (!etag) {
+  //     throw new Error("Failed to get ETag");
+  //   }
+
+  //   return {
+  //     ETag: etag.replace(/"/g, ""),
+  //     PartNumber: partNumber,
+  //   };
+  // };
+
   const uploadChunk = async (
-    chunk: Blob,
-    partNumber: number,
-    key: string,
-    uploadId: string,
-    fileType: string
-  ) => {
+  chunk: Blob,
+  partNumber: number,
+  key: string,
+  uploadId: string,
+  fileType: string
+) => {
+  try {
+    console.log(`📤 Requesting presigned URL for part ${partNumber}`);
+    
     const partUrlResponse = await fetch("/api/upload/part-url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -99,31 +151,52 @@ export function FileUploadDialog({
     });
 
     if (!partUrlResponse.ok) {
-      throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+      const errorText = await partUrlResponse.text();
+      console.error(`❌ Failed to get presigned URL for part ${partNumber}:`, errorText);
+      throw new Error(`Failed to get presigned URL for part ${partNumber}: ${errorText}`);
     }
 
     const { presignedUrl } = await partUrlResponse.json();
+    console.log(`✅ Got presigned URL for part ${partNumber}`);
 
+    console.log(`📤 Uploading chunk ${partNumber} to S3...`);
+    
     const uploadResponse = await fetch(presignedUrl, {
       method: "PUT",
       body: chunk,
-      headers: { "Content-Type": fileType },
+      headers: { 
+        "Content-Type": fileType,
+        "Content-Length": chunk.size.toString(), // Add this
+      },
     });
 
     if (!uploadResponse.ok) {
-      throw new Error(`Failed to upload part ${partNumber}`);
+      const errorText = await uploadResponse.text();
+      console.error(`❌ Failed to upload part ${partNumber} to S3:`, {
+        status: uploadResponse.status,
+        statusText: uploadResponse.statusText,
+        error: errorText,
+      });
+      throw new Error(`Failed to upload part ${partNumber}: ${uploadResponse.status} ${uploadResponse.statusText}`);
     }
 
     const etag = uploadResponse.headers.get("ETag");
     if (!etag) {
-      throw new Error("Failed to get ETag");
+      console.error(`❌ No ETag received for part ${partNumber}`);
+      throw new Error(`No ETag received for part ${partNumber}`);
     }
+
+    console.log(`✅ Part ${partNumber} uploaded successfully, ETag: ${etag}`);
 
     return {
       ETag: etag.replace(/"/g, ""),
       PartNumber: partNumber,
     };
-  };
+  } catch (error: any) {
+    console.error(`❌ Error uploading chunk ${partNumber}:`, error);
+    throw error;
+  }
+};
 
   const startUpload = async (file: File, resumeState?: UploadState) => {
     setUploading(true);
@@ -163,7 +236,9 @@ export function FileUploadDialog({
             fileType: file.type,
             taskId: task.id,
             clientId: task.clientId,
-            folderType,
+            folderType: "outputs", // 🔥 FORCE OUTPUTS
+            taskTitle: task.title, // 🔥 Pass task title
+            subfolder: subfolder, // 🔥 Pass subfolder
           }),
         });
 
@@ -184,7 +259,7 @@ export function FileUploadDialog({
           fileType: file.type,
           taskId: task.id,
           clientId: task.clientId,
-          folderType,
+          folderType: "outputs",
           uploadId: s3UploadId,
           key,
           uploadedParts: [],
@@ -273,6 +348,7 @@ export function FileUploadDialog({
           fileType: file.type,
           taskId: task.id,
           userId: user?.id,
+          subfolder: subfolder, // 🔥 Make sure this is included
         }),
       });
 
@@ -294,6 +370,7 @@ export function FileUploadDialog({
         size: file.size,
         uploadedAt: new Date().toISOString(),
         uploadedBy: user?.name || "Unknown",
+        folderType: subfolder, // 🔥 Tag with subfolder
       };
 
       onUploadComplete([...(task.files || []), uploadedFile]);
@@ -303,20 +380,31 @@ export function FileUploadDialog({
         setUploading(false);
         setSelectedFile(null);
         setProgress(0);
+        setSubfolder("task"); // Reset to default
         setCurrentUploadId(null);
         checkResumableUploads();
       }, 1500);
-    } catch (error: any) {
-      console.error("❌ Upload failed:", error);
-      
-      if (uploadId) {
-        await uploadStateManager.markAsFailed(uploadId, error.message);
-      }
-      
-      setError(error.message || "Upload failed");
-      setUploading(false);
+    }  catch (error: any) {
+    console.error("❌ Upload failed:", error);
+    
+    // Provide more specific error messages
+    let errorMessage = error.message || "Upload failed";
+    if (error.message?.includes("Failed to fetch")) {
+      errorMessage = "Network error: Unable to connect to server. Please check your internet connection.";
+    } else if (error.message?.includes("presigned URL")) {
+      errorMessage = "Failed to get upload permission from server. Please try again.";
+    } else if (error.message?.includes("ETag")) {
+      errorMessage = "Upload completed but verification failed. Please try again.";
     }
-  };
+    
+    if (uploadId) {
+      await uploadStateManager.markAsFailed(uploadId, errorMessage);
+    }
+    
+    setError(errorMessage);
+    setUploading(false);
+  }
+};
 
   const pauseUpload = async () => {
     if (currentUploadId) {
@@ -369,9 +457,11 @@ export function FileUploadDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Upload File
+            Upload to Task Output
             <RefreshCw className="h-4 w-4 text-blue-500" />
-            <span className="text-xs text-muted-foreground font-normal">Resumable</span>
+            <span className="text-xs text-muted-foreground font-normal">
+              Resumable
+            </span>
           </DialogTitle>
         </DialogHeader>
 
@@ -383,11 +473,17 @@ export function FileUploadDialog({
               <AlertDescription>
                 <p className="font-medium mb-2">Incomplete uploads found:</p>
                 {resumableUploads.map((upload) => (
-                  <div key={upload.id} className="flex items-center justify-between py-2">
+                  <div
+                    key={upload.id}
+                    className="flex items-center justify-between py-2"
+                  >
                     <div>
                       <p className="text-sm">{upload.fileName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {Math.round((upload.uploadedBytes / upload.fileSize) * 100)}% complete
+                        {Math.round(
+                          (upload.uploadedBytes / upload.fileSize) * 100
+                        )}
+                        % complete
                       </p>
                     </div>
                     <Button size="sm" onClick={() => resumeUpload(upload)}>
@@ -400,30 +496,35 @@ export function FileUploadDialog({
             </Alert>
           )}
 
-          {/* Folder Selection */}
-          <div>
-            <Label>Upload to</Label>
-            <RadioGroup
-              value={folderType}
-              onValueChange={(val) =>
-                setFolderType(val as "rawFootage" | "essentials")
-              }
+          {/* 🔥 UPDATED: Subfolder Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="subfolder" className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              Upload To
+            </Label>
+
+            <Select
+              value={subfolder}
+              onValueChange={setSubfolder}
               disabled={uploading}
-              className="flex gap-4 mt-2"
             >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="rawFootage" id="raw" />
-                <Label htmlFor="raw" className="cursor-pointer">
-                  Raw Footage
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="essentials" id="essentials" />
-                <Label htmlFor="essentials" className="cursor-pointer">
-                  Elements
-                </Label>
-              </div>
-            </RadioGroup>
+              <SelectTrigger id="subfolder">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="main">📁 Main Task Folder</SelectItem>
+                <SelectItem value="thumbnails">🖼️ Thumbnails</SelectItem>
+                <SelectItem value="tiles">🎨 Tiles (Snapchat)</SelectItem>
+                <SelectItem value="music-license">🎵 Music License</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <p className="text-xs text-muted-foreground">
+              Files will be uploaded to:{" "}
+              <code className="bg-muted px-1 py-0.5 rounded text-xs">
+                {task.title}/{subfolder === "main" ? "" : `${subfolder}/`}
+              </code>
+            </p>
           </div>
 
           {/* File Selection */}
@@ -461,7 +562,11 @@ export function FileUploadDialog({
                   {formatSize(selectedFile.size)}
                 </p>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedFile(null)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedFile(null)}
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>

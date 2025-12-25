@@ -42,7 +42,7 @@ async function createTaskFolderStructure(
   try {
     // Main task folder: CompanyName/outputs/TaskTitle/
     const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
-    
+
     // Create main task folder
     await s3Client.send(
       new PutObjectCommand({
@@ -52,35 +52,41 @@ async function createTaskFolderStructure(
       })
     );
 
-    // 🔥 Create "task" subfolder: CompanyName/outputs/TaskTitle/task/
-    const taskSubfolderPath = `${taskFolderPath}thumbnails/`;
+    // 🔥 Create ONLY special subfolders (NO "task" folder!)
     await s3Client.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_S3_BUCKET!,
-        Key: taskSubfolderPath,
+        Key: `${taskFolderPath}thumbnails/`,
         ContentType: "application/x-directory",
       })
     );
 
-    // 🔥 Create "tiles" subfolder: CompanyName/outputs/TaskTitle/tiles/
-    const tilesSubfolderPath = `${taskFolderPath}tiles/`;
     await s3Client.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_S3_BUCKET!,
-        Key: tilesSubfolderPath,
+        Key: `${taskFolderPath}tiles/`,
         ContentType: "application/x-directory",
       })
     );
 
-    // console.log('✅ Task folder structure created:', {
-    //   main: taskFolderPath,
-    //   thumbnails: taskSubfolderPath,
-    //   tiles: tilesSubfolderPath,
-    // });
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET!,
+        Key: `${taskFolderPath}music-license/`,
+        ContentType: "application/x-directory",
+      })
+    );
+
+    console.log("✅ Task folder structure created:", {
+      main: taskFolderPath,
+      thumbnails: `${taskFolderPath}thumbnails/`,
+      tiles: `${taskFolderPath}tiles/`,
+      musicLicense: `${taskFolderPath}music-license/`,
+    });
 
     return taskFolderPath;
   } catch (error) {
-    console.error('❌ Failed to create task folder structure:', error);
+    console.error("❌ Failed to create task folder structure:", error);
     throw error;
   }
 }

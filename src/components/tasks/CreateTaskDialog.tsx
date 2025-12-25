@@ -329,7 +329,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
               <SelectContent>
                 {clients.map((client) => (
                   <SelectItem key={client.id} value={String(client.id)}>
-                    {client.name}
+                    {client.companyName}
                   </SelectItem>
                 ))}
               </SelectContent>

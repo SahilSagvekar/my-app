@@ -202,9 +202,11 @@ model File {
   name       String
   url        String
   mimeType   String?
+  s3Key      String?
   size       BigInt?
   uploadedAt DateTime @default(now())
   uploadedBy Int?
+  folderType  String?
   createdAt  DateTime @default(now())
   task       Task     @relation(fields: [taskId], references: [id])
 }
