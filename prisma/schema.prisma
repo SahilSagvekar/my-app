@@ -14,17 +14,17 @@ model User {
   password          String?
   image             String?
   role              Role?
-  hourlyRate        Decimal?           @db.Decimal(10, 2)
-  monthlyBaseHours  Int?
-  employeeStatus    EmployeeStatus?    @default(ACTIVE)
-  joinedAt          DateTime?
-  worksOnSaturday   Boolean            @default(false)
+  phone             String?            @unique
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  employeeStatus    EmployeeStatus?    @default(ACTIVE)
+  hourlyRate        Decimal?           @db.Decimal(10, 2)
+  hoursPerWeek      Decimal?           @default(0) @db.Decimal(5, 2)
+  joinedAt          DateTime?
+  monthlyBaseHours  Int?
+  worksOnSaturday   Boolean            @default(false)
   resetOTP          String?
   resetOTPExpiry    DateTime?
-  hoursPerWeek      Decimal?           @default(0) @db.Decimal(5, 2)
-  phone             String?            @unique
   monthlyRate       Int?
   accounts          Account[]
   auditLogs         AuditLog[]
@@ -76,18 +76,11 @@ model VerificationToken {
 model Task {
   id                   String              @id @default(cuid())
   title                String?
-  outputFolderId       String?
-  monthFolder          String? 
   description          String
   taskType             String?
   status               TaskStatus?         @default(PENDING)
   dueDate              DateTime?
-  clientUserId         Int?
-  folderType           String?
   assignedTo           Int
-  qc_specialist        Int?
-  scheduler            Int?
-  videographer         Int?
   createdBy            Int?
   clientId             String?
   monthlyDeliverableId String?
@@ -96,16 +89,29 @@ model Task {
   driveLinks           String[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
-  priority             String?
-  taskCategory         String?
+  qc_specialist        Int?
+  scheduler            Int?
+  videographer         Int?
   nextDestination      String?
-  clientReview         Boolean?            @default(false)
+  priority             String?
   requiresClientReview Boolean?            @default(false)
+  taskCategory         String?
   workflowStep         String?
   feedback             String?
   qcNotes              String?
   qcResult             String?
   route                String?
+  clientReview         Boolean?            @default(false)
+  clientUserId         Int?
+  folderType           String?
+  monthFolder          String?
+  outputFolderId       String?
+  deliverableType      String?
+  hasCovers            Boolean             @default(false)
+  hasMainFile          Boolean             @default(false)
+  hasMusicLicense      Boolean             @default(false)
+  hasThumbnails        Boolean             @default(false)
+  hasTiles             Boolean             @default(false)
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   user                 User                @relation("AssignedTasks", fields: [assignedTo], references: [id])
@@ -130,20 +136,18 @@ model RecurringTask {
 
 model Client {
   id                   String               @id @default(cuid())
-  userId               Int?                 @unique
   name                 String
   email                String
+  emails               String[]             @default([])
   companyName          String?
   phone                String
+  phones               String[]             @default([])
   createdBy            String?
   status               String               @default("active")
   accountManagerId     String?
   startDate            DateTime?
   renewalDate          DateTime?
   lastActivity         DateTime?
-  requiresClientReview Boolean              @default(false)
-  requiresVideographer Boolean              @default(false)
-  outputsFolderId      String? 
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   uploadedFiles        Json?
@@ -155,8 +159,10 @@ model Client {
   driveFolderId        String?
   rawFootageFolderId   String?
   essentialsFolderId   String?
-  emails               String[]             @default([])
-  phones               String[]             @default([])
+  userId               Int?                 @unique
+  requiresClientReview Boolean              @default(false)
+  requiresVideographer Boolean              @default(false)
+  outputsFolderId      String?
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
   monthlyDeliverables  MonthlyDeliverable[]
@@ -197,42 +203,50 @@ model BrandAsset {
 }
 
 model File {
-  id         String   @id @default(cuid())
-  taskId     String
-  name       String
-  url        String
-  mimeType   String?
-  s3Key      String?
-  size       BigInt?
-  uploadedAt DateTime @default(now())
-  uploadedBy Int?
-  folderType  String?
-  createdAt  DateTime @default(now())
-  task       Task     @relation(fields: [taskId], references: [id])
+  id           String    @id @default(cuid())
+  taskId       String
+  name         String
+  url          String
+  mimeType     String?
+  size         BigInt
+  uploadedAt   DateTime  @default(now())
+  uploadedBy   Int?
+  createdAt    DateTime  @default(now())
+  folderType   String?
+  s3Key        String?
+  isActive     Boolean   @default(true)
+  replacedAt   DateTime?
+  replacedBy   String?
+  revisionNote String?
+  version      Int       @default(1)
+  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, folderType])
+  @@index([taskId, isActive])
 }
 
 model Notification {
   id        String   @id @default(cuid())
-  userId    Int?
   type      String
   title     String
   body      String?
-  payload   Json?
-  channel   String[] @default([])
   delivered Boolean  @default(false)
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+  payload   Json?
   updatedAt DateTime @updatedAt
+  channel   String[] @default([])
+  userId    Int?
 
   @@index([userId])
 }
 
 model NotificationPreference {
   id        String   @id @default(cuid())
-  userId    Int
   channel   String
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
+  userId    Int
 
   @@unique([userId, channel])
 }
@@ -380,9 +394,9 @@ enum TaskStatus {
   READY_FOR_QC
   QC_IN_PROGRESS
   COMPLETED
-  SCHEDULED
   ON_HOLD
   REJECTED
+  SCHEDULED
   CLIENT_REVIEW
   VIDEOGRAPHER_ASSIGNED
 }
