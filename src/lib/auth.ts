@@ -174,7 +174,7 @@ export async function requireAdmin(req: NextRequest) {
   // if (!userId) throw { status: 401, message: 'Unauthorized' };
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user || user.role !== "admin")
+  if (!user || user.role !== "admin" && user.role !== "manager")
     throw { status: 403, message: "Admin required" };
   return user;
 }

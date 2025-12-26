@@ -114,6 +114,8 @@ export function renderPage(role: string, page: string): JSX.Element {
       case 'performance': return <ComingSoonPage title="Performance" />;
       case 'reports': return <ComingSoonPage title="Reports" />;
       case 'training': return <QCTrainingPage />;
+      case 'leaves':
+        return <LeavesComponent />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;
       default: return <ManagerDashboard currentPage="team" />;
     }
