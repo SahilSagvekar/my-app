@@ -25,15 +25,15 @@ import {
 export const NAVIGATION_ITEMS = {
   admin: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'clients', label: 'Clients', icon: FolderOpen },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
-    { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
-    { id: 'finance', label: 'Financials', icon: DollarSign },
-    { id: 'leaves', label: 'Employee Management', icon: Users },
+    { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'leaves', label: 'Employee Management', icon: Users },
+    { id: 'clients', label: 'Clients', icon: FolderOpen },
+    { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
+    { id: 'users', label: 'Users', icon: Users },
+    { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   editor: [
@@ -77,13 +77,14 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
-    { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
-    { id: 'approvals', label: 'Approvals', icon: CheckSquare },
-    { id: 'projects', label: 'My Projects', icon: FolderOpen },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'approvals', label: 'Approvals', icon: CheckSquare }, 
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'archive', label: 'Archive', icon: Archive }
+    { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
+    // { id: 'projects', label: 'My Projects', icon: FolderOpen },
+    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'invoices', label: 'Invoices & Billing', icon: Layout },
+    { id: 'archive', label: 'Archive', icon: Archive },
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   videographer: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
