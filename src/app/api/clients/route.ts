@@ -137,7 +137,7 @@ export async function POST(req: Request) {
     const additionalPhones = (phones || []).filter((p: string) => p.trim() !== "");
 
     // STEP 1 — Create Drive Folders
-    const folders = await createClientFolders(name);
+    const folders = await createClientFolders(companyName);
 
     // STEP 2 — Create User
     const user = await prisma.user.create({
