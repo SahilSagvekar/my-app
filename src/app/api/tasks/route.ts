@@ -94,10 +94,10 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
     case "client":
       return {
         AND: [
-          { clientUserId: userId },
+          { clientUserId: Number(userId) },
           {
             status: {
-              in: [TaskStatus.CLIENT_REVIEW],
+              in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED ],
             },
           },
         ],
@@ -232,12 +232,27 @@ export async function GET(req: Request) {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     const { role, userId } = decoded;
 
+    console.log(`🔑 GET /api/tasks as ${role} (userId: ${userId})`);
+
     // const where =
     //   ["admin", "manager"].includes(role)
     //     ? {}
     //     : { assignedTo: Number(userId) };
 
     const where = buildRoleWhereQuery(role, Number(userId));
+
+    console.log("where:" + JSON.stringify(where));
+
+    const allClientTasks = await prisma.task.findMany({
+      where: { clientUserId: Number(userId) },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+      },
+    });
+    console.log("DEBUG - All tasks for this clientUserId:", allClientTasks);
+
 
     const tasks = await prisma.task.findMany({
       where,
@@ -252,6 +267,7 @@ export async function GET(req: Request) {
         assignedTo: true,
         createdBy: true,
         clientId: true,
+        clientUserId: true,
         driveLinks: true,
         createdAt: true,
         priority: true,
@@ -265,6 +281,8 @@ export async function GET(req: Request) {
       },
 
     });
+
+    console.log(`(tasks: ${tasks})`);
 
     return NextResponse.json({ tasks }, { status: 200 });
   } catch (err: any) {
@@ -321,6 +339,7 @@ export async function POST(req: Request) {
         essentialsFolderId: true,
         requiresClientReview: true,
         requiresVideographer: true,
+        userId: true,
       },
     });
 
@@ -385,7 +404,8 @@ export async function POST(req: Request) {
         scheduler,
         videographer,
         createdBy: decoded.userId,
-        clientId,
+        clientId: clientId,
+        clientUserId: client?.userId,
         monthlyDeliverableId: monthlyDeliverableId,
         driveLinks: uploadedLinks,
         folderType,

@@ -107,7 +107,7 @@ export const getDefaultPage = (role: string): string => {
     case 'qc': return 'review-queue';
     case 'scheduler': return 'calendar';
     case 'manager': return 'dashboard';
-    case 'client': return 'monthly-overview';
+    case 'client': return 'approvals';
     case 'videographer': return 'dashboard';
     default: return 'dashboard';
   }

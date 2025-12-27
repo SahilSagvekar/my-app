@@ -214,9 +214,10 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
             taskType: templateTask.taskType,
             status: "PENDING",
             dueDate: date,
-            clientId,
+            // clientId,
             outputFolderId: taskFolderPath, // 🔥 Save folder path
-
+            clientId: clientId,
+            clientUserId: client?.userId,
             // Copy assignments
             assignedTo: templateTask.assignedTo,
             createdBy: templateTask.createdBy,

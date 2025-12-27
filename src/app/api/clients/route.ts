@@ -144,7 +144,7 @@ export async function POST(req: Request) {
       data: {
         name,
         email,
-        password: email,
+        password: null, // No password for client users
         role: "client",
       }
     });
