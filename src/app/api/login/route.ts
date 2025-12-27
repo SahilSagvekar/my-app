@@ -19,10 +19,10 @@ export async function POST(req: Request) {
     }
 
     // **THIS IS WHAT WAS MISSING** - Compare password with hashed password
-    // const isPasswordValid = await bcrypt.compare(password, user.password);
-    // if (!isPasswordValid) {
-    //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    // }
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+    }
 
     console.log("email:", user.email);
 
