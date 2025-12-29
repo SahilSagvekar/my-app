@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -7,6 +9,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { useAuth } from './auth/AuthContext';
 
 import { 
   Send, 
@@ -20,7 +23,8 @@ import {
   Filter,
   Plus,
   Reply,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
@@ -57,83 +61,6 @@ interface FeedbackResponse {
   };
   createdAt: string;
 }
-
-const mockFeedback: FeedbackMessage[] = [
-  {
-    id: 'fb-001',
-    subject: 'Video Review Process Improvement',
-    message: 'I think we could streamline the video review process by adding timestamped comments directly in the video player. This would make feedback more precise and actionable.',
-    category: 'workflow',
-    priority: 'medium',
-    status: 'in-progress',
-    sender: {
-      id: 'ed1',
-      name: 'Sarah Wilson',
-      role: 'editor',
-      avatar: 'SW'
-    },
-    recipients: ['admin', 'manager'],
-    createdAt: '2024-08-09T10:30:00Z',
-    responses: [
-      {
-        id: 'resp-001',
-        message: 'Great suggestion! We\'re actually working on implementing this feature. Should be ready in the next sprint.',
-        sender: {
-          id: 'admin1',
-          name: 'John Admin',
-          role: 'admin',
-          avatar: 'JA'
-        },
-        createdAt: '2024-08-09T14:20:00Z'
-      }
-    ]
-  },
-  {
-    id: 'fb-002',
-    subject: 'Template Library Missing Categories',
-    message: 'Could we add more categories to the template library? Specifically looking for email signature templates and social media story templates.',
-    category: 'suggestion',
-    priority: 'low',
-    status: 'acknowledged',
-    sender: {
-      id: 'ed2',
-      name: 'Mike Johnson',
-      role: 'editor',
-      avatar: 'MJ'
-    },
-    recipients: ['admin', 'manager'],
-    createdAt: '2024-08-08T09:15:00Z',
-    responses: [
-      {
-        id: 'resp-002',
-        message: 'Thanks for the feedback! We\'ll add these to our roadmap for Q4.',
-        sender: {
-          id: 'mgr1',
-          name: 'Maria Manager',
-          role: 'manager',
-          avatar: 'MM'
-        },
-        createdAt: '2024-08-08T16:45:00Z'
-      }
-    ]
-  },
-  {
-    id: 'fb-003',
-    subject: 'QC Dashboard Bug Report',
-    message: 'The task counter on the QC dashboard shows incorrect numbers. It\'s showing 12 pending reviews but I only see 8 in the actual list.',
-    category: 'bug-report',
-    priority: 'high',
-    status: 'pending',
-    sender: {
-      id: 'qc1',
-      name: 'Lisa Davis',
-      role: 'qc',
-      avatar: 'LD'
-    },
-    recipients: ['admin'],
-    createdAt: '2024-08-07T14:30:00Z'
-  }
-];
 
 const categories = [
   { value: 'general', label: 'General Feedback' },
@@ -198,12 +125,15 @@ const getStatusColor = (status: string) => {
 };
 
 export function FeedbackSystem({ currentRole }: { currentRole: string }) {
-  const [feedback, setFeedback] = useState<FeedbackMessage[]>(mockFeedback);
+  const { user } = useAuth();
+  const [feedback, setFeedback] = useState<FeedbackMessage[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showNewFeedbackDialog, setShowNewFeedbackDialog] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackMessage | null>(null);
   const [showFeedbackDetail, setShowFeedbackDetail] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   
   // New feedback form state
   const [newFeedback, setNewFeedback] = useState({
@@ -216,131 +146,258 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
   // Response form state
   const [responseMessage, setResponseMessage] = useState('');
 
+  // Helper function to get initials from name
+  function getInitials(name: string): string {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  }
+
+  // Load feedback on mount
+  useEffect(() => {
+    if (user?.id) {
+      loadFeedback();
+    }
+  }, [user?.id, currentRole]);
+
+  async function loadFeedback() {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/feedback?userId=${user?.id}&userRole=${currentRole}`);
+      
+      if (!res.ok) {
+        throw new Error('Failed to fetch feedback');
+      }
+
+      const data = await res.json();
+
+      const formatted: FeedbackMessage[] = data.feedback.map((f: any) => ({
+        id: f.id,
+        subject: f.subject,
+        message: f.message,
+        category: f.category,
+        priority: f.priority,
+        status: f.status,
+        sender: {
+          id: String(f.sender.id),
+          name: f.sender.name,
+          role: f.sender.role,
+          avatar: getInitials(f.sender.name),
+        },
+        recipients: ['admin', 'manager'],
+        createdAt: f.createdAt,
+        responses: f.responses?.map((r: any) => ({
+          id: r.id,
+          message: r.message,
+          sender: {
+            id: String(r.sender.id),
+            name: r.sender.name,
+            role: r.sender.role,
+            avatar: getInitials(r.sender.name),
+          },
+          createdAt: r.createdAt,
+        })) || [],
+      }));
+
+      setFeedback(formatted);
+    } catch (error) {
+      console.error("Failed to load feedback:", error);
+      toast.error('Failed to load feedback', {
+        description: 'Please try refreshing the page.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const filteredFeedback = feedback.filter(item => {
     const matchesSearch = item.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.message.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
     
-    // Show all feedback for admin/manager, only own feedback for others
-    const hasAccess = ['admin', 'manager'].includes(currentRole) || item.sender.role === currentRole;
-    
-    return matchesSearch && matchesStatus && hasAccess;
+    return matchesSearch && matchesStatus;
   });
 
-  const handleSubmitFeedback = () => {
+  const handleSubmitFeedback = async () => {
     if (!newFeedback.subject.trim() || !newFeedback.message.trim()) {
-      toast('❌ Error', {
+      toast.error('Error', {
         description: 'Please fill in both subject and message.',
       });
       return;
     }
 
-    const feedbackMessage: FeedbackMessage = {
-      id: `fb-${Date.now()}`,
-      subject: newFeedback.subject,
-      message: newFeedback.message,
-      category: newFeedback.category,
-      priority: newFeedback.priority,
-      status: 'pending',
-      sender: {
-        id: 'current-user',
-        name: getCurrentUserName(currentRole),
-        role: currentRole,
-        avatar: getCurrentUserAvatar(currentRole)
-      },
-      recipients: ['admin', 'manager'],
-      createdAt: new Date().toISOString(),
-      responses: []
-    };
+    try {
+      setSubmitting(true);
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newFeedback,
+          senderId: user?.id,
+        }),
+      });
 
-    setFeedback(prev => [feedbackMessage, ...prev]);
-    
-    // Reset form
-    setNewFeedback({
-      subject: '',
-      message: '',
-      category: 'general',
-      priority: 'medium'
-    });
-    
-    setShowNewFeedbackDialog(false);
-    
-    toast('✅ Feedback Sent', {
-      description: 'Your feedback has been sent to the admin and managers.',
-    });
+      if (!res.ok) {
+        throw new Error('Failed to submit feedback');
+      }
+
+      const data = await res.json();
+
+      const feedbackMessage: FeedbackMessage = {
+        id: data.feedback.id,
+        subject: data.feedback.subject,
+        message: data.feedback.message,
+        category: data.feedback.category,
+        priority: data.feedback.priority,
+        status: data.feedback.status,
+        sender: {
+          id: String(data.feedback.sender.id),
+          name: data.feedback.sender.name,
+          role: data.feedback.sender.role,
+          avatar: getInitials(data.feedback.sender.name),
+        },
+        recipients: ['admin', 'manager'],
+        createdAt: data.feedback.createdAt,
+        responses: [],
+      };
+
+      setFeedback(prev => [feedbackMessage, ...prev]);
+      
+      // Reset form
+      setNewFeedback({
+        subject: '',
+        message: '',
+        category: 'general',
+        priority: 'medium'
+      });
+      
+      setShowNewFeedbackDialog(false);
+      
+      toast.success('Feedback Sent', {
+        description: 'Your feedback has been sent to the admin and managers.',
+      });
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+      toast.error('Error', {
+        description: 'Failed to send feedback. Please try again.',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleSubmitResponse = () => {
+  const handleSubmitResponse = async () => {
     if (!responseMessage.trim() || !selectedFeedback) return;
 
-    const response: FeedbackResponse = {
-      id: `resp-${Date.now()}`,
-      message: responseMessage,
-      sender: {
-        id: 'current-user',
-        name: getCurrentUserName(currentRole),
-        role: currentRole,
-        avatar: getCurrentUserAvatar(currentRole)
-      },
-      createdAt: new Date().toISOString()
-    };
+    try {
+      setSubmitting(true);
+      const res = await fetch(`/api/feedback/${selectedFeedback.id}/response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: responseMessage,
+          senderId: user?.id,
+        }),
+      });
 
-    setFeedback(prev => prev.map(item => {
-      if (item.id === selectedFeedback.id) {
-        return {
-          ...item,
-          responses: [...(item.responses || []), response],
-          status: item.status === 'pending' ? 'acknowledged' : item.status
-        };
+      if (!res.ok) {
+        throw new Error('Failed to submit response');
       }
-      return item;
-    }));
 
-    setResponseMessage('');
-    
-    toast('✅ Response Sent', {
-      description: 'Your response has been added to the feedback thread.',
-    });
+      const data = await res.json();
+
+      const response: FeedbackResponse = {
+        id: data.response.id,
+        message: data.response.message,
+        sender: {
+          id: String(data.response.sender.id),
+          name: data.response.sender.name,
+          role: data.response.sender.role,
+          avatar: getInitials(data.response.sender.name),
+        },
+        createdAt: data.response.createdAt,
+      };
+
+      setFeedback(prev => prev.map(item => {
+        if (item.id === selectedFeedback.id) {
+          return {
+            ...item,
+            responses: [...(item.responses || []), response],
+            status: 'acknowledged',
+          };
+        }
+        return item;
+      }));
+
+      // Update selected feedback to show new response immediately
+      setSelectedFeedback(prev => prev ? {
+        ...prev,
+        responses: [...(prev.responses || []), response],
+        status: 'acknowledged',
+      } : null);
+
+      setResponseMessage('');
+      
+      toast.success('Response Sent', {
+        description: 'Your response has been added to the feedback thread.',
+      });
+    } catch (error) {
+      console.error('Failed to submit response:', error);
+      toast.error('Error', {
+        description: 'Failed to send response. Please try again.',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleUpdateStatus = (feedbackId: string, newStatus: string) => {
-    setFeedback(prev => prev.map(item => 
-      item.id === feedbackId ? { ...item, status: newStatus as any } : item
-    ));
-    
-    toast('✅ Status Updated', {
-      description: `Feedback status updated to ${newStatus}.`,
-    });
+  const handleUpdateStatus = async (feedbackId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/feedback/${feedbackId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update status');
+      }
+
+      setFeedback(prev => prev.map(item => 
+        item.id === feedbackId ? { ...item, status: newStatus as any } : item
+      ));
+
+      // Update selected feedback if it's the one being updated
+      if (selectedFeedback?.id === feedbackId) {
+        setSelectedFeedback(prev => prev ? { ...prev, status: newStatus as any } : null);
+      }
+      
+      toast.success('Status Updated', {
+        description: `Feedback status updated to ${newStatus.replace('-', ' ')}.`,
+      });
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      toast.error('Error', {
+        description: 'Failed to update status. Please try again.',
+      });
+    }
   };
-
-  function getCurrentUserName(role: string): string {
-    switch (role) {
-      case 'admin': return 'John Admin';
-      case 'editor': return 'Current Editor';
-      case 'qc_specialist': return 'Current QC';
-      case 'scheduler': return 'Current Scheduler';
-      case 'manager': return 'Current Manager';
-      case 'client': return 'Current Client';
-      default: return 'User';
-    }
-  }
-
-  function getCurrentUserAvatar(role: string): string {
-    switch (role) {
-      case 'admin': return 'JA';
-      case 'editor': return 'CE';
-      case 'qc': return 'CQ';
-      case 'scheduler': return 'CS';
-      case 'manager': return 'CM';
-      case 'client': return 'CC';
-      default: return 'U';
-    }
-  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -350,7 +407,9 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
           <div>
             <h1>Feedback</h1>
             <p className="text-muted-foreground mt-2">
-              Send feedback to admin and managers, or view responses
+              {currentRole === 'admin' || currentRole === 'manager' 
+                ? 'View and respond to feedback from team members'
+                : 'Send feedback to admin and managers, or view responses'}
             </p>
           </div>
           <Dialog open={showNewFeedbackDialog} onOpenChange={setShowNewFeedbackDialog}>
@@ -362,9 +421,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <VisuallyHidden>
-                  <DialogTitle>Submit Feedback</DialogTitle>
-                </VisuallyHidden>
+                <DialogTitle>Submit Feedback</DialogTitle>
                 <DialogDescription>
                   Send feedback, suggestions, or report issues to the admin and management team.
                 </DialogDescription>
@@ -376,13 +433,18 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                     placeholder="Brief description of your feedback..."
                     value={newFeedback.subject}
                     onChange={(e) => setNewFeedback(prev => ({ ...prev, subject: e.target.value }))}
+                    disabled={submitting}
                   />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium mb-2 block">Category</label>
-                    <Select value={newFeedback.category} onValueChange={(value: any) => setNewFeedback(prev => ({ ...prev, category: value }))}>
+                    <Select 
+                      value={newFeedback.category} 
+                      onValueChange={(value: any) => setNewFeedback(prev => ({ ...prev, category: value }))}
+                      disabled={submitting}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -398,7 +460,11 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                   
                   <div>
                     <label className="text-sm font-medium mb-2 block">Priority</label>
-                    <Select value={newFeedback.priority} onValueChange={(value: any) => setNewFeedback(prev => ({ ...prev, priority: value }))}>
+                    <Select 
+                      value={newFeedback.priority} 
+                      onValueChange={(value: any) => setNewFeedback(prev => ({ ...prev, priority: value }))}
+                      disabled={submitting}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -420,16 +486,30 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                     value={newFeedback.message}
                     onChange={(e) => setNewFeedback(prev => ({ ...prev, message: e.target.value }))}
                     className="min-h-[120px]"
+                    disabled={submitting}
                   />
                 </div>
                 
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setShowNewFeedbackDialog(false)}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowNewFeedbackDialog(false)}
+                    disabled={submitting}
+                  >
                     Cancel
                   </Button>
-                  <Button onClick={handleSubmitFeedback}>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Feedback
+                  <Button onClick={handleSubmitFeedback} disabled={submitting}>
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Feedback
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -448,7 +528,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
               className="pl-10"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {statuses.map(status => (
               <Button
                 key={status.value}
@@ -505,7 +585,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-medium">{item.subject}</h3>
                       <div className={`w-3 h-3 rounded-full ${getStatusColor(item.status)}`} />
                       <Badge className={getCategoryColor(item.category)}>
@@ -518,7 +598,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                     <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                       {item.message}
                     </p>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                       <div className="flex items-center gap-1">
                         <Avatar className="h-4 w-4">
                           <AvatarFallback className="text-[8px]">{item.sender.avatar}</AvatarFallback>
@@ -560,29 +640,32 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
 
         {/* Feedback Detail Dialog */}
         <Dialog open={showFeedbackDetail} onOpenChange={setShowFeedbackDetail}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selectedFeedback?.subject}</DialogTitle>
               <DialogDescription>
-                View feedback details, responses, and update status or add responses.
+                View feedback details, responses, and {currentRole === 'admin' || currentRole === 'manager' ? 'update status or add responses' : 'view admin responses'}.
               </DialogDescription>
             </DialogHeader>
             
-            <div className="flex items-center justify-between mb-4">
-              {['admin', 'manager'].includes(currentRole) && selectedFeedback && (
-                <Select value={selectedFeedback.status} onValueChange={(value) => handleUpdateStatus(selectedFeedback.id, value)}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="acknowledged">Acknowledged</SelectItem>
-                    <SelectItem value="in-progress">In Progress</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+            {['admin', 'manager'].includes(currentRole) && selectedFeedback && (
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium">Status:</label>
+                  <Select value={selectedFeedback.status} onValueChange={(value) => handleUpdateStatus(selectedFeedback.id, value)}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
             
             {selectedFeedback && (
               <div className="space-y-6">
@@ -598,7 +681,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                         {selectedFeedback.sender.role} • {formatDate(selectedFeedback.createdAt)}
                       </div>
                     </div>
-                    <div className="flex gap-2 ml-auto">
+                    <div className="flex gap-2 ml-auto flex-wrap">
                       <Badge className={getCategoryColor(selectedFeedback.category)}>
                         {categories.find(c => c.value === selectedFeedback.category)?.label}
                       </Badge>
@@ -608,16 +691,16 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                     </div>
                   </div>
                   <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm">{selectedFeedback.message}</p>
+                    <p className="text-sm whitespace-pre-wrap">{selectedFeedback.message}</p>
                   </div>
                 </div>
 
                 {/* Responses */}
                 {selectedFeedback.responses && selectedFeedback.responses.length > 0 && (
                   <div className="space-y-4">
-                    <h4 className="font-medium">Responses</h4>
+                    <h4 className="font-medium">Responses ({selectedFeedback.responses.length})</h4>
                     <ScrollArea className="max-h-60">
-                      <div className="space-y-4">
+                      <div className="space-y-4 pr-4">
                         {selectedFeedback.responses.map((response) => (
                           <div key={response.id} className="space-y-2">
                             <div className="flex items-center gap-3">
@@ -632,7 +715,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                               </div>
                             </div>
                             <div className="bg-blue-50 p-3 rounded-lg ml-9">
-                              <p className="text-sm">{response.message}</p>
+                              <p className="text-sm whitespace-pre-wrap">{response.message}</p>
                             </div>
                           </div>
                         ))}
@@ -650,11 +733,24 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                       value={responseMessage}
                       onChange={(e) => setResponseMessage(e.target.value)}
                       className="min-h-[80px]"
+                      disabled={submitting}
                     />
                     <div className="flex justify-end">
-                      <Button onClick={handleSubmitResponse} disabled={!responseMessage.trim()}>
-                        <Send className="h-4 w-4 mr-2" />
-                        Send Response
+                      <Button 
+                        onClick={handleSubmitResponse} 
+                        disabled={!responseMessage.trim() || submitting}
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4 mr-2" />
+                            Send Response
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>

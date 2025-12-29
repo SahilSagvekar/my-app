@@ -331,38 +331,34 @@ model AuditLog {
 }
 
 model Feedback {
-  id        String             @id @default(cuid())
-  subject   String
-  message   String
-  category  FeedbackCategory
-  priority  FeedbackPriority
-  status    FeedbackStatus     @default(PENDING)
-  senderId  Int
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  sender    User               @relation("FeedbackSender", fields: [senderId], references: [id])
-  responses FeedbackResponse[]
+  id          String              @id @default(cuid())
+  subject     String
+  message     String              @db.Text
+  category    String              // 'general' | 'technical' | 'workflow' | 'suggestion' | 'bug-report'
+  priority    String              // 'low' | 'medium' | 'high'
+  status      String              @default("pending") // 'pending' | 'acknowledged' | 'in-progress' | 'resolved'
+  senderId    Int
+  sender      User                @relation("FeedbackSender", fields: [senderId], references: [id])
+  responses   FeedbackResponse[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@index([senderId])
   @@index([status])
-  @@index([createdAt])
-  @@map("feedback")
 }
 
 model FeedbackResponse {
   id         String   @id @default(cuid())
-  message    String
+  message    String   @db.Text
   feedbackId String
-  senderId   Int
-  createdAt  DateTime @default(now())
   feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  senderId   Int
   sender     User     @relation("FeedbackResponseSender", fields: [senderId], references: [id])
+  createdAt  DateTime @default(now())
 
   @@index([feedbackId])
   @@index([senderId])
-  @@map("feedback_responses")
 }
-
 enum Role {
   admin
   manager
