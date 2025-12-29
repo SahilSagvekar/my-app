@@ -11,6 +11,8 @@ const s3Client = new S3Client({
   },
 });
 
+const PRESIGNED_URL_EXPIRY = 86400;
+
 export async function POST(request: NextRequest) {
   try {
     const { key, uploadId, partNumber } = await request.json();
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
     });
 
     const presignedUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: 3600, // 1 hour
+      expiresIn: PRESIGNED_URL_EXPIRY, // 1 hour
     });
 
     console.log(`✅ Presigned URL generated for part ${partNumber}`);
