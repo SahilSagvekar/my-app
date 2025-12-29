@@ -13,7 +13,7 @@ import { useNotifications } from "../../components/NotificationContext";
 import { toast } from "sonner";
 import { Toaster } from "../../components/ui/sonner";
 
-export function ClientDashboard() {
+export default function ClientDashboard() {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [showFullscreenReview, setShowFullscreenReview] = useState(false);
   const [approvals, setApprovals] = useState([]);
