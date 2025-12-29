@@ -97,7 +97,7 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
           { clientUserId: Number(userId) },
           {
             status: {
-              in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED ],
+              in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED, TaskStatus.COMPLETED ],
             },
           },
         ],

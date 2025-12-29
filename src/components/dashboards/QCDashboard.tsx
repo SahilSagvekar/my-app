@@ -436,7 +436,7 @@ export function QCDashboard() {
       </div>
 
       {/* Enhanced Workflow Info */}
-      <Card>
+      {/* <Card>
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-green-100 rounded-lg">
@@ -472,7 +472,7 @@ export function QCDashboard() {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Review Queue */}
       <div className="flex flex-col flex-1 min-h-0">

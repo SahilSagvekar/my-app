@@ -92,6 +92,7 @@ model Task {
   updatedAt            DateTime            @updatedAt
   qc_specialist        Int?
   scheduler            Int?
+  socialMediaLinks     Json      @default("[]")
   videographer         Int?
   nextDestination      String?
   priority             String?

@@ -55,8 +55,8 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   scheduler: [
-    { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'approved-queue', label: 'Approved Queue', icon: CheckSquare },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'scheduling', label: 'Scheduling', icon: Clock },
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
     { id: 'resources', label: 'Resources', icon: BookOpen },
@@ -105,7 +105,7 @@ export const getDefaultPage = (role: string): string => {
     case 'admin': return 'dashboard';
     case 'editor': return 'my-tasks';
     case 'qc': return 'review-queue';
-    case 'scheduler': return 'calendar';
+    case 'scheduler': return 'approved-queue';
     case 'manager': return 'dashboard';
     case 'client': return 'approvals';
     case 'videographer': return 'dashboard';
