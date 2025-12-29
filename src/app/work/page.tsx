@@ -1,328 +1,250 @@
-"use client";
+import { Navigation } from '@/components/landing/Navigation';
+import { WhoWeWorkWith } from '@/components/landing/WhoWeWorkWith';
+import { Footer } from '@/components/landing/Footer';
+import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
+import { Play, TrendingUp, Users, Eye } from 'lucide-react';
 
-import { useState, useEffect } from "react";
-import { Card, CardContent } from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
-import { Badge } from "../../components/ui/badge";
-import { Avatar, AvatarFallback } from "../../components/ui/avatar";
-import { Calendar, MessageSquare, Play, CheckCircle } from "lucide-react";
-import { ImageWithFallback } from "../../components/figma/ImageWithFallback";
-import { FullScreenReviewModal } from "../../components/client/FullScreenReviewModal";
-import { useTaskWorkflow, WorkflowTask } from "../../components/workflow/TaskWorkflowEngine";
-import { useNotifications } from "../../components/NotificationContext";
-import { toast } from "sonner";
-import { Toaster } from "../../components/ui/sonner";
+const caseStudies = [
+  {
+    title: 'Urban Bistro',
+    category: 'Restaurant',
+    description: 'Complete brand video series showcasing their farm-to-table story and seasonal menu',
+    image: 'https://images.unsplash.com/photo-1685040235380-a42a129ade4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjByZXN0YXVyYW50JTIwaW50ZXJpb3J8ZW58MXx8fHwxNzY1ODIxOTQ2fDA&ixlib=rb-4.1.0&q=80&w=1080',
+    results: [
+      { label: 'Social Engagement', value: '+245%' },
+      { label: 'New Customers', value: '+180%' },
+      { label: 'Video Views', value: '2.4M' },
+    ],
+  },
+  {
+    title: 'FitCore Training',
+    category: 'Fitness',
+    description: 'Monthly content strategy with workout tutorials and member success stories',
+    image: 'https://images.unsplash.com/photo-1584827386916-b5351d3ba34b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaXRuZXNzJTIwZ3ltJTIwd29ya291dHxlbnwxfHx8fDE3NjU4OTAxNDl8MA&ixlib=rb-4.1.0&q=80&w=1080',
+    results: [
+      { label: 'Membership Growth', value: '+320%' },
+      { label: 'Content Reach', value: '1.8M' },
+      { label: 'Engagement Rate', value: '+190%' },
+    ],
+  },
+  {
+    title: 'Brew & Co.',
+    category: 'Coffee Shop',
+    description: 'Social media management and daily content creation for Instagram and TikTok',
+    image: 'https://images.unsplash.com/photo-1550071659-f7c7dc95e180?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2ZmZWUlMjBzaG9wJTIwYnVzaW5lc3N8ZW58MXx8fHwxNzY1ODQ3MzE5fDA&ixlib=rb-4.1.0&q=80&w=1080',
+    results: [
+      { label: 'Followers', value: '+450%' },
+      { label: 'Store Visits', value: '+125%' },
+      { label: 'Brand Awareness', value: '+280%' },
+    ],
+  },
+  {
+    title: 'Style Collective',
+    category: 'Retail',
+    description: 'Product videos and seasonal campaign content for online and in-store promotion',
+    image: 'https://images.unsplash.com/photo-1562280963-8a5475740a10?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXRhaWwlMjBzdG9yZSUyMHNob3BwaW5nfGVufDF8fHx8MTc2NTgwODQ2OXww&ixlib=rb-4.1.0&q=80&w=1080',
+    results: [
+      { label: 'Online Sales', value: '+385%' },
+      { label: 'Video Views', value: '3.2M' },
+      { label: 'Conversion Rate', value: '+215%' },
+    ],
+  },
+];
 
-export default function ClientDashboard() {
-  const [selectedAsset, setSelectedAsset] = useState<any>(null);
-  const [showFullscreenReview, setShowFullscreenReview] = useState(false);
-  const [approvals, setApprovals] = useState([]);
-  const [loading, setLoading] = useState(true);
+const videoShowcase = [
+  {
+    title: 'Brand Story Series',
+    description: 'A 5-part documentary series showcasing local business founders',
+    thumbnail: 'https://images.unsplash.com/photo-1683770997177-0603bd44d070?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBvZmZpY2UlMjB0ZWFtfGVufDF8fHx8MTc2NTg0ODMyOHww&ixlib=rb-4.1.0&q=80&w=1080',
+    duration: '3:45',
+  },
+  {
+    title: 'Product Launch Campaign',
+    description: 'Multi-platform video campaign for a tech startup product launch',
+    thumbnail: 'https://images.unsplash.com/photo-1654288891700-95f67982cbcc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx2aWRlbyUyMHByb2R1Y3Rpb24lMjBjYW1lcmF8ZW58MXx8fHwxNzY1ODMwMTczfDA&ixlib=rb-4.1.0&q=80&w=1080',
+    duration: '2:30',
+  },
+];
 
-  useEffect(() => {
-    loadApprovals();
-  }, []);
-
-  async function loadApprovals() {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/tasks", { cache: "no-store" });
-      const data = await res.json();
-
-      console.log("Fetched Tasks:", data.tasks);
-
-      // Filter for in_progress and scheduled tasks
-      const filteredTasks = (data.tasks || []).filter((task) => {
-        const status = (task.status || "").toUpperCase();
-        return status === "IN_PROGRESS" || status === "SCHEDULED";
-      });
-
-      console.log("Filtered Tasks:", filteredTasks);
-
-      setApprovals(
-        filteredTasks.map((task) => {
-          const mainFile = task.files?.[0] || null;
-          const videoUrl =
-            mainFile?.mimeType?.includes("video") ? mainFile.url : null;
-
-          return {
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            status: (task.status || "pending").toLowerCase(),
-            submittedDate: task.createdAt,
-            deadline: task.dueDate,
-            submittedBy: {
-              id: task.assignedTo,
-              name: "Unknown User",
-              avatar: "U",
-            },
-            requiresClientApproval: task.requiresClientReview || false,
-            comments: 0,
-            type: videoUrl ? "Video" : "Document",
-            thumbnail: "/placeholder.png",
-
-            // REQUIRED by FullScreenReviewModal
-            videoUrl,
-            files: task.files || [],
-
-            versions: [
-              {
-                id: "v1",
-                number: "1",
-                thumbnail: "/placeholder.png",
-                duration: "0:00",
-                uploadDate: task.createdAt,
-                status: "client_review",
-              },
-            ],
-
-            currentVersion: "v1",
-
-            runtime: "0:00",
-            platform: "Unknown",
-            resolution: "Unknown",
-            fileSize: mainFile ? `${Math.round(mainFile.size / 1024)} KB` : "Unknown",
-            uploader: "Unknown",
-            uploadDate: task.createdAt,
-            approvalLocked: false,
-            timestampComments: [],
-          };
-        })
-      );
-    } catch (err) {
-      console.error("Failed to load approvals", err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const { approveQCTask, rejectQCTask } = useTaskWorkflow();
-  const { addNotification } = useNotifications();
-
-  const handleOpenReview = (approval: any) => {
-    // Asset is already modal-safe.
-    setSelectedAsset(approval);
-    setShowFullscreenReview(true);
-  };
-
-  const handleCloseReview = (open: boolean) => {
-    setShowFullscreenReview(open);
-    if (!open) setSelectedAsset(null);
-  };
-
-  const handleApproveContent = async (approval: any, feedback?: string) => {
-    try {
-      const workflowTask: WorkflowTask = {
-        id: approval.id,
-        title: approval.title,
-        description: approval.description,
-        type: "scheduling",
-        status: "approved",
-        assignedTo: approval.submittedBy.id,
-        assignedToName: approval.submittedBy.name,
-        assignedToRole: "editor",
-        createdAt: approval.submittedDate,
-        dueDate: approval.deadline,
-        projectId: approval.projectId,
-        files: approval.files,
-        workflowStep: "qc_review",
-        queuePosition: 0,
-      };
-
-      await approveQCTask(workflowTask, feedback);
-
-      setApprovals((prev) =>
-        prev.map((a) => (a.id === approval.id ? { ...a, status: "approved" } : a))
-      );
-
-      toast("Approved", {
-        description: `${approval.title} approved successfully.`,
-      });
-    } catch {
-      toast("Error", { description: "Failed to approve content." });
-    }
-  };
-
-  const handleRejectContent = async (approval: any, reason: string) => {
-    try {
-      const workflowTask: WorkflowTask = {
-        id: approval.id,
-        title: approval.title,
-        description: approval.description,
-        type: "qc_review",
-        status: "pending",
-        assignedTo: approval.submittedBy.id,
-        assignedToName: approval.submittedBy.name,
-        assignedToRole: "editor",
-        createdAt: approval.submittedDate,
-        dueDate: approval.deadline,
-        projectId: approval.projectId,
-        files: approval.files,
-        workflowStep: "qc_review",
-        queuePosition: 0,
-      };
-
-      await rejectQCTask(workflowTask, reason);
-
-      setApprovals((prev) =>
-        prev.map((a) =>
-          a.id === approval.id ? { ...a, status: "changes-requested" } : a
-        )
-      );
-
-      addNotification({
-        type: "client_feedback",
-        title: "Changes Requested",
-        message: `${approval.title} was sent back with revisions`,
-        priority: "high",
-        actionRequired: true,
-        user: { name: "Client", avatar: "C" },
-      });
-
-      toast("Revisions Requested", { description: reason });
-    } catch {
-      toast("Error", { description: "Failed to request changes." });
-    }
-  };
-
+export default function WorkPage() {
   return (
-    <>
-      <div className="space-y-6">
-        
-        {/* Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
-            <CardContent className="p-6 text-center">
-              <h3 className="text-2xl font-medium">{approvals.length}</h3>
-              <p className="text-sm text-muted-foreground">Total</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6 text-center">
-              <h3 className="text-2xl font-medium text-yellow-600">
-                {approvals.filter((a) => a.status === "IN_PROGRESS").length}
-              </h3>
-              <p className="text-sm text-muted-foreground">In Progress</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6 text-center">
-              <h3 className="text-2xl font-medium text-green-600">
-                {approvals.filter((a) => a.status === "SCHEDULED").length}
-              </h3>
-              <p className="text-sm text-muted-foreground">Scheduled</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6 text-center">
-              <h3 className="text-2xl font-medium text-orange-600">
-                {approvals.filter((a) => a.requiresClientApproval).length}
-              </h3>
-              <p className="text-sm text-muted-foreground">Needs Review</p>
-            </CardContent>
-          </Card>
+    <div className="min-h-screen bg-white">
+      <Navigation />
+      
+      {/* Hero Section */}
+      <div className="pt-24 pb-16 px-6 lg:px-8 bg-white">
+        <div className="max-w-7xl mx-auto text-center">
+          <h1 className="text-black mb-4">
+            Results That Speak for Themselves
+          </h1>
+          <p className="text-black/60 max-w-2xl mx-auto">
+            Real businesses. Real growth. See how our content strategies and production services 
+            have helped small businesses achieve remarkable results.
+          </p>
         </div>
-
-        {/* Approval Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {approvals.map((approval) => (
-           
-            <Card
-              key={approval.id}
-              className="overflow-hidden hover:shadow-md transition-shadow"
-            >
-              <div className="relative">
-                <ImageWithFallback
-                  src={approval.thumbnail}
-                  alt={approval.title}
-                  className="w-full h-48 object-cover"
-                />
-                {approval.type === "Video" && (
-                  <div
-                    className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
-                    onClick={() => handleOpenReview(approval)}
-                  >
-                    <Play className="h-12 w-12 text-white" />
-                  </div>
-                )}
-              </div>
-
-              <CardContent className="p-4 space-y-3">
-                <h3 className="font-medium text-sm">{approval.title}</h3>
-
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Avatar className="h-4 w-4">
-                    <AvatarFallback className="text-[8px]">
-                      {approval.submittedBy.avatar}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span>{approval.submittedBy.name}</span>
-                  <span>•</span>
-                  <Calendar className="h-3 w-3" />
-                  <span>Due {approval.deadline}</span>
-                </div>
-
-                {approval.comments > 0 && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MessageSquare className="h-3 w-3" />
-                    <span>{approval.comments} comments</span>
-                  </div>
-                )}
-
-                {approval.requiresClientApproval ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => handleOpenReview(approval)}
-                  >
-                    Review
-                  </Button>
-                ) : (
-                  <div className="w-full py-2 px-3 bg-muted text-center rounded-md text-xs text-muted-foreground">
-                    No approval required
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Full-Screen Review Modal */}
-        <FullScreenReviewModal
-          open={showFullscreenReview}
-          onOpenChange={handleCloseReview}
-          asset={selectedAsset}
-          onApprove={(asset, final) =>
-            handleApproveContent(asset, final ? "Final Approval" : "Approved")
-          }
-          onRequestRevisions={(asset, data) =>
-            handleRejectContent(
-              asset,
-              `Revisions Requested:\n${data.notes || "Please adjust content"}`
-            )
-          }
-          onNextAsset={() => {
-            const currentIndex = approvals.findIndex(
-              (a) => a.id === selectedAsset?.id
-            );
-            const next = approvals
-              .slice(currentIndex + 1)
-              .find(
-                (a) => a.requiresClientApproval && a.status === "pending"
-              );
-
-            if (next) handleOpenReview(next);
-            else toast("No more pending assets.");
-          }}
-        />
       </div>
 
-      <Toaster />
-    </>
+      {/* Case Studies Grid */}
+      <div className="pb-24 px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {caseStudies.map((study, index) => (
+              <div
+                key={index}
+                className="group bg-white border border-black/5 rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300"
+              >
+                {/* Image */}
+                <div className="relative aspect-video overflow-hidden">
+                  <ImageWithFallback
+                    src={study.image}
+                    alt={study.title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute top-4 left-4">
+                    <span className="px-3 py-1 bg-white/90 backdrop-blur-sm text-black text-sm rounded-full">
+                      {study.category}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-8">
+                  <h3 className="text-black mb-2">
+                    {study.title}
+                  </h3>
+                  <p className="text-black/60 mb-6">
+                    {study.description}
+                  </p>
+
+                  {/* Results */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {study.results.map((result, idx) => (
+                      <div key={idx} className="text-center">
+                        <div className="text-black font-semibold mb-1">
+                          {result.value}
+                        </div>
+                        <div className="text-black/50 text-sm">
+                          {result.label}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Video Showcase */}
+      <div className="py-24 px-6 lg:px-8 bg-black/[0.02]">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-black mb-4">
+              Featured Projects
+            </h2>
+            <p className="text-black/60 max-w-2xl mx-auto">
+              A selection of our video production work across different industries
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {videoShowcase.map((video, index) => (
+              <div
+                key={index}
+                className="group bg-white border border-black/5 rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer"
+              >
+                <div className="relative aspect-video overflow-hidden bg-black/5">
+                  <ImageWithFallback
+                    src={video.thumbnail}
+                    alt={video.title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center transition-transform group-hover:scale-110">
+                      <Play className="w-6 h-6 text-black ml-1" fill="black" />
+                    </div>
+                  </div>
+                  <div className="absolute bottom-4 right-4">
+                    <span className="px-3 py-1 bg-black/80 backdrop-blur-sm text-white text-sm rounded-full">
+                      {video.duration}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <h3 className="text-black mb-2">
+                    {video.title}
+                  </h3>
+                  <p className="text-black/60 text-sm">
+                    {video.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Section */}
+      <div className="py-16 px-6 lg:px-8 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-black mb-4">
+              Impact by the Numbers
+            </h2>
+            <p className="text-black/60">
+              Aggregate results across our client portfolio
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            <div className="text-center p-6 bg-black/[0.02] rounded-3xl">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-black rounded-2xl mb-4">
+                <TrendingUp className="w-6 h-6 text-white" />
+              </div>
+              <div className="text-black mb-2">
+                285%
+              </div>
+              <div className="text-black/60">
+                Average Growth
+              </div>
+            </div>
+
+            <div className="text-center p-6 bg-black/[0.02] rounded-3xl">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-black rounded-2xl mb-4">
+                <Eye className="w-6 h-6 text-white" />
+              </div>
+              <div className="text-black mb-2">
+                12.5M+
+              </div>
+              <div className="text-black/60">
+                Total Video Views
+              </div>
+            </div>
+
+            <div className="text-center p-6 bg-black/[0.02] rounded-3xl">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-black rounded-2xl mb-4">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div className="text-black mb-2">
+                50+
+              </div>
+              <div className="text-black/60">
+                Happy Clients
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Who We Work With */}
+      <div className="pb-20 px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <WhoWeWorkWith />
+        </div>
+      </div>
+
+      <Footer />
+    </div>
   );
 }

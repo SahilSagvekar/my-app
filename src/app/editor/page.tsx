@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser2 } from "@/lib/auth";
 import { EditorDashboard } from "@/components/dashboards/EditorDashboard";
 
+export const dynamic = 'force-dynamic';
+
 export default async function EditorPage() {
   const user = await getCurrentUser2();
   if (!user) return <div className="p-6">Unauthorized</div>;
