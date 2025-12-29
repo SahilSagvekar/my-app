@@ -57,7 +57,7 @@ export function TaskUploadSections({
         return [
           {
             folderType: "music-license",
-            label: "Music License",
+            label: "Music Licenses",
             required: true,
             icon: "🎵",
             uploaded: false,
@@ -83,7 +83,7 @@ export function TaskUploadSections({
           },
           {
             folderType: "music-license",
-            label: "Music License",
+            label: "Music Licenses",
             required: true,
             icon: "🎵",
             uploaded: false,
@@ -101,7 +101,7 @@ export function TaskUploadSections({
           },
           {
             folderType: "music-license",
-            label: "Music License",
+            label: "Music Licenses",
             required: true,
             icon: "🎵",
             uploaded: false,

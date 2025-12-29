@@ -38,7 +38,7 @@ export const NAVIGATION_ITEMS = {
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
-    { id: 'projects', label: 'Projects', icon: FolderOpen },
+    // { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
