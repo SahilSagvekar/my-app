@@ -96,7 +96,7 @@ export function SchedulerApprovedQueuePage() {
         }
 
         // Extract S3 key (everything after the bucket URL)
-        const bucketUrl = "https://e8-app-s3-bucket-staging.s3.us-east-1.amazonaws.com/";
+        const bucketUrl = "https://" + process.env.AWS_S3_BUCKET + ".s3.us-east-1.amazonaws.com/";
         const key = url.replace(bucketUrl, "");
 
         return {
@@ -116,7 +116,7 @@ export function SchedulerApprovedQueuePage() {
           id: file.id,
           name: file.name,
           url: file.url,
-          key: file.url.replace("https://e8-app-s3-bucket-staging.s3.us-east-1.amazonaws.com/", ""),
+          key: file.url.replace("https://" + process.env.AWS_S3_BUCKET + ".s3.us-east-1.amazonaws.com/", ""),
           size: file.size || 0,
           folderType: file.subfolder || 'other',
         }))
