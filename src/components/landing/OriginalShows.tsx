@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Play, ArrowRight } from 'lucide-react';
 import blindDateImage from '../../../public/assets/dfbfcb4ef7475b451e2c0943ae8cc34504b65021.png';
 import missbehaveImage from '../../../public/assets/c8100524ea3926b19a0c5342d6bf18a813da6dea.png';
@@ -81,10 +82,10 @@ export function OriginalShows() {
           <p className="text-black/60 mb-6">
             Want to produce your own original content with us?
           </p>
-          <button className="inline-flex items-center gap-2 px-8 py-4 bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105">
+          <Link href="/contact" className="inline-flex items-center gap-2 px-8 py-4 bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105">
             Pitch Your Show
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
       </div>
     </section>
