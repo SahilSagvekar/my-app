@@ -366,7 +366,7 @@ export function EditorDashboard() {
               taskId: t.id,
               clientId: t.clientId,
               title: t.title,
-              deliverableType: t.deliverableType,
+              deliverableType: t.monthlyDeliverable?.type,
             });
             
             return {
@@ -385,7 +385,7 @@ export function EditorDashboard() {
               workflowStep: "editing",
               clientId: t.clientId,
               projectId: t.clientId,
-              deliverableType: t.deliverableType || "Short Form Videos", // 🔥 ADD THIS
+              deliverableType: t.monthlyDeliverable?.type,
               files: t.files || [],
               qcNotes: t.qcNotes || null,
               rejectionReason: t.rejectionReason || null,

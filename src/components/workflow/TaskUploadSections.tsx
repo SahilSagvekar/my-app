@@ -63,8 +63,8 @@ export function TaskUploadSections({
             uploaded: false,
           },
           {
-            folderType: "covers",
-            label: "Covers",
+            folderType: "thumbnails",
+            label: "Thumbnails",
             required: false,
             icon: "🖼️",
             uploaded: false,

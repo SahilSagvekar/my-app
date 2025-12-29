@@ -278,6 +278,7 @@ export async function GET(req: Request) {
         files: true,
         folderType: true,
         qcNotes: true,
+        monthlyDeliverable: true,
       },
 
     });
