@@ -436,10 +436,10 @@ export function EditorDashboard() {
   /* ----------------------------- GROUPING ---------------------------------- */
 
   const tasksByStatus = {
-    pending: tasks.filter((t) => t.status === "pending"),
-    inProgress: tasks.filter((t) => t.status === "in_progress"),
-    readyForQC: tasks.filter((t) => t.status === "ready_for_qc"),
-    revisions: tasks.filter((t) => t.status === "rejected"),
+    pending: tasks.filter((t) => t.status === "Pending"),
+    inProgress: tasks.filter((t) => t.status === "In_Progress"),
+    readyForQC: tasks.filter((t) => t.status === "Ready_For_Qc"),
+    revisions: tasks.filter((t) => t.status === "Rejected"),
   };
 
   const columns = [
