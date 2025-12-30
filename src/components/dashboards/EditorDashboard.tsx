@@ -216,7 +216,7 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
               variant={task.status === "completed" ? "default" : "secondary"}
               className="text-xs ml-2 flex-shrink-0"
             >
-              {task.status.replace("_", " ")}
+              {task.status.replace("_", " ").toUpperCase()}
             </Badge>
           </div>
 
@@ -393,7 +393,7 @@ export function EditorDashboard() {
             };
           });
 
-        console.log("✅ Formatted tasks:", formatted);
+        
         setTasks(formatted);
       } catch (err) {
         console.error("Failed to load tasks:", err);
@@ -436,10 +436,10 @@ export function EditorDashboard() {
   /* ----------------------------- GROUPING ---------------------------------- */
 
   const tasksByStatus = {
-    pending: tasks.filter((t) => t.status === "Pending"),
-    inProgress: tasks.filter((t) => t.status === "In_Progress"),
-    readyForQC: tasks.filter((t) => t.status === "Ready_For_Qc"),
-    revisions: tasks.filter((t) => t.status === "Rejected"),
+    pending: tasks.filter((t) => t.status === "pending"),
+    inProgress: tasks.filter((t) => t.status === "in_progress"),
+    readyForQC: tasks.filter((t) => t.status === "ready_for_qc"),
+    revisions: tasks.filter((t) => t.status === "rejected"),
   };
 
   const columns = [
