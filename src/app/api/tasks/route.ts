@@ -243,50 +243,99 @@ export async function GET(req: Request) {
 
     console.log("where:" + JSON.stringify(where));
 
-    const allClientTasks = await prisma.task.findMany({
-      where: { clientUserId: Number(userId) },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-      },
-    });
-    console.log("DEBUG - All tasks for this clientUserId:", allClientTasks);
+    // const allClientTasks = await prisma.task.findMany({
+    //   where: { clientUserId: Number(userId) },
+    //   select: {
+    //     id: true,
+    //     title: true,
+    //     status: true,
+    //   },
+    // });
+    // console.log("DEBUG - All tasks for this clientUserId:", allClientTasks);
 
 
-    const tasks = await prisma.task.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        taskType: true,
-        status: true,
-        dueDate: true,
-        assignedTo: true,
-        createdBy: true,
-        clientId: true,
-        clientUserId: true,
-        driveLinks: true,
-        createdAt: true,
-        priority: true,
-        taskCategory: true,
-        nextDestination: true,
-        requiresClientReview: true,
-        workflowStep: true,
-        files: true,
-        folderType: true,
-        qcNotes: true,
-        monthlyDeliverable: true,
-        socialMediaLinks: true,
-      },
+    // const tasks = await prisma.task.findMany({
+    //   where,
+    //   orderBy: { createdAt: "desc" },
+    //   select: {
+    //     id: true,
+    //     title: true,
+    //     description: true,
+    //     taskType: true,
+    //     status: true,
+    //     dueDate: true,
+    //     assignedTo: true,
+    //     createdBy: true,
+    //     clientId: true,
+    //     clientUserId: true,
+    //     driveLinks: true,
+    //     createdAt: true,
+    //     priority: true,
+    //     taskCategory: true,
+    //     nextDestination: true,
+    //     requiresClientReview: true,
+    //     workflowStep: true,
+    //     files: true,
+    //     folderType: true,
+    //     qcNotes: true,
+    //     monthlyDeliverable: true,
+    //     socialMediaLinks: true,
+    //   },
 
-    });
+    // });
 
-    console.log(`(tasks: ${tasks})`);
+    // console.log(`(tasks: ${tasks})`);
 
-    return NextResponse.json({ tasks }, { status: 200 });
+    // return NextResponse.json({ tasks }, { status: 200 });
+
+    // Add pagination parameters
+const { searchParams } = new URL(req.url);
+const page = parseInt(searchParams.get('page') || '1');
+const limit = parseInt(searchParams.get('limit') || '20');
+
+const tasks = await prisma.task.findMany({
+  where,
+  take: limit,
+  skip: (page - 1) * limit,
+  orderBy: { createdAt: "desc" },
+  select: {
+    id: true,
+    title: true,
+    description: true,
+    taskType: true,
+    status: true,
+    dueDate: true,
+    assignedTo: true,
+    createdBy: true,
+    clientId: true,
+    clientUserId: true,
+    driveLinks: true,
+    createdAt: true,
+    priority: true,
+    taskCategory: true,
+    nextDestination: true,
+    requiresClientReview: true,
+    workflowStep: true,
+    folderType: true,
+    qcNotes: true,
+    // rejectionReason: true,
+    feedback: true,
+    files: true,
+    // monthlyDeliverable: {
+    //   select: {
+    //     id: true,
+    //     type: true
+    //   }
+    // },
+    monthlyDeliverableId: true,
+    socialMediaLinks: true,
+  },
+});
+
+console.log(`📊 Page ${page}: Found ${tasks.length} tasks`);
+
+// ✅ NO COUNT QUERY - just return tasks
+return NextResponse.json({ tasks }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
     return NextResponse.json(

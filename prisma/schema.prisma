@@ -38,6 +38,10 @@ model User {
   clientTasks       Task[]             @relation("ClientUserTasks")
   feedbackSent      Feedback[]         @relation("FeedbackSender")
   feedbackResponses FeedbackResponse[] @relation("FeedbackResponseSender")
+
+  @@index([email])
+  @@index([role])
+  @@index([employeeStatus])
 }
 
 model Account {
@@ -120,6 +124,16 @@ model Task {
   client               Client?             @relation(fields: [clientId], references: [id])
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
+
+  @@index([assignedTo])
+  @@index([clientId])
+  @@index([status])
+  @@index([qc_specialist])
+  @@index([scheduler])
+  @@index([videographer])
+  @@index([clientUserId])
+  @@index([createdAt])
+  @@index([assignedTo, status])
 }
 
 model RecurringTask {
@@ -172,6 +186,8 @@ model Client {
   monthlyRuns          MonthlyRun[]
   recurringTasks       RecurringTask[]
   tasks                Task[]
+
+  @@index([status])
 }
 
 model MonthlyDeliverable {
@@ -241,7 +257,8 @@ model Notification {
   channel   String[] @default([])
   userId    Int?
 
-  @@index([userId])
+  @@index([userId, read])
+  @@index([createdAt])
 }
 
 model NotificationPreference {
