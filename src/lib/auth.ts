@@ -1,12 +1,10 @@
 // lib/auth.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NextResponse } from "next/server";
-import { PrismaClient } from '@prisma/client';
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export const verifyToken = (token: string) => {
   try {

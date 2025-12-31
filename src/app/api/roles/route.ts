@@ -1,8 +1,6 @@
 // src/app/api/roles/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 const taskTypeRoleMap: Record<string, string[]> = {
   design: ["admin"],

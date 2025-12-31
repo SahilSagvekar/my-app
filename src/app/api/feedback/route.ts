@@ -1,8 +1,6 @@
 // app/api/feedback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 // GET - Fetch all feedback
 export async function GET(request: NextRequest) {
