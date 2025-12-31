@@ -2186,17 +2186,17 @@ const handleDeleteClient = async (clientId: string) => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Short Form Videos">
-                    Short Form (SF) - Vertical 9:16
+                    Short Form (SF)
                   </SelectItem>
                   <SelectItem value="Long Form Videos">
-                    Long Form (LF) - 16:9
+                    Long Form (LF)
                   </SelectItem>
                   <SelectItem value="Square Form Videos">
-                    Square Form Videos
+                    Square Form Videos (SQF)
                   </SelectItem>
                   <SelectItem value="Thumbnails">Thumbnails (THUMB)</SelectItem>
                   <SelectItem value="Tiles">
-                    Tiles (T) - Snapchat Discover
+                    Tiles (T)
                   </SelectItem>
                   <SelectItem value="Hard Posts / Graphic Images">
                     Hard Posts / Graphic Images (HP)
@@ -2205,7 +2205,7 @@ const handleDeleteClient = async (clientId: string) => {
                     Snapchat Episodes (SEP)
                   </SelectItem>
                   <SelectItem value="Beta Short Form">
-                    Beta Short Form (BSF) - +1min
+                    Beta Short Form (BSF)
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -2271,7 +2271,7 @@ const handleDeleteClient = async (clientId: string) => {
 
             <div className="space-y-2">
               <Label htmlFor="videosPerDay" className="text-gray-700">
-                Videos per Posting Day
+                Posts Per Day
               </Label>
               <Input
                 id="videosPerDay"
