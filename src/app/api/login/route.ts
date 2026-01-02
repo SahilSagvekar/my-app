@@ -24,9 +24,19 @@ export async function POST(req: Request) {
 
 
     // Generate JWT
+    // const token = jwt.sign(
+    //   { userId: user.id, email: user.email, role: user.role },
+    //   process.env.JWT_SECRET || "",
+    //   { expiresIn: "7d" }
+    // );
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET not configured");
+    }
+
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || "",
+      process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
