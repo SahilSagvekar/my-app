@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma';
 
 export const verifyToken = (token: string) => {
   try {
-    const verified = jwt.verify(token, process.env.JWT_SECRET || "secret");
+    const verified = jwt.verify(token, process.env.JWT_SECRET || "");
     // console.log("Verified Token:", verified);
     return verified as { userId: number; email: string; iat: number; exp: number };
   } catch { 
@@ -117,7 +117,7 @@ export async function getCurrentUser2(req?: NextRequest) {
    
     if (!token) return null;
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret") as Decoded;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as Decoded;
     // console.log("getCurrentUser2 decoded:", decoded);
     if (!decoded?.userId) return null;
 
