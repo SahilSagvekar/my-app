@@ -11,7 +11,7 @@ import { ClientRequest } from "http";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
-
+import { redis, cached } from '@/lib/redis';
 
 // ─────────────────────────────────────────
 // Helpers
@@ -232,110 +232,57 @@ export async function GET(req: Request) {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     const { role, userId } = decoded;
 
-    console.log(`🔑 GET /api/tasks as ${role} (userId: ${userId})`);
-
-    // const where =
-    //   ["admin", "manager"].includes(role)
-    //     ? {}
-    //     : { assignedTo: Number(userId) };
-
     const where = buildRoleWhereQuery(role, Number(userId));
 
-    console.log("where:" + JSON.stringify(where));
-
-    // const allClientTasks = await prisma.task.findMany({
-    //   where: { clientUserId: Number(userId) },
-    //   select: {
-    //     id: true,
-    //     title: true,
-    //     status: true,
-    //   },
-    // });
-    // console.log("DEBUG - All tasks for this clientUserId:", allClientTasks);
-
-
-    // const tasks = await prisma.task.findMany({
-    //   where,
-    //   orderBy: { createdAt: "desc" },
-    //   select: {
-    //     id: true,
-    //     title: true,
-    //     description: true,
-    //     taskType: true,
-    //     status: true,
-    //     dueDate: true,
-    //     assignedTo: true,
-    //     createdBy: true,
-    //     clientId: true,
-    //     clientUserId: true,
-    //     driveLinks: true,
-    //     createdAt: true,
-    //     priority: true,
-    //     taskCategory: true,
-    //     nextDestination: true,
-    //     requiresClientReview: true,
-    //     workflowStep: true,
-    //     files: true,
-    //     folderType: true,
-    //     qcNotes: true,
-    //     monthlyDeliverable: true,
-    //     socialMediaLinks: true,
-    //   },
-
-    // });
-
-    // console.log(`(tasks: ${tasks})`);
-
-    // return NextResponse.json({ tasks }, { status: 200 });
-
     // Add pagination parameters
-const { searchParams } = new URL(req.url);
-const page = parseInt(searchParams.get('page') || '1');
-const limit = parseInt(searchParams.get('limit') || '20');
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
 
-const tasks = await prisma.task.findMany({
-  where,
-  take: limit,
-  skip: (page - 1) * limit,
-  orderBy: { createdAt: "desc" },
-  select: {
-    id: true,
-    title: true,
-    description: true,
-    taskType: true,
-    status: true,
-    dueDate: true,
-    assignedTo: true,
-    createdBy: true,
-    clientId: true,
-    clientUserId: true,
-    driveLinks: true,
-    createdAt: true,
-    priority: true,
-    taskCategory: true,
-    nextDestination: true,
-    requiresClientReview: true,
-    workflowStep: true,
-    folderType: true,
-    qcNotes: true,
-    // rejectionReason: true,
-    feedback: true,
-    files: true,
-    // monthlyDeliverable: {
-    //   select: {
-    //     id: true,
-    //     type: true
-    //   }
-    // },
-    monthlyDeliverableId: true,
-    socialMediaLinks: true,
-  },
-});
+    const cacheKey = `tasks:${userId}:${role}:${page}:${limit}`;
 
-console.log(`📊 Page ${page}: Found ${tasks.length} tasks`);
+    const tasks = await cached(
+      cacheKey,
+      async () => {
+        const where = buildRoleWhereQuery(role, Number(userId));
+        
+        return prisma.task.findMany({
+          where,
+          take: limit,
+          skip: (page - 1) * limit,
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            taskType: true,
+            status: true,
+            dueDate: true,
+            assignedTo: true,
+            createdBy: true,
+            clientId: true,
+            clientUserId: true,
+            driveLinks: true,
+            createdAt: true,
+            priority: true,
+            taskCategory: true,
+            nextDestination: true,
+            requiresClientReview: true,
+            workflowStep: true,
+            folderType: true,
+            qcNotes: true,
+            feedback: true,
+            files: true,
+            monthlyDeliverableId: true,
+            socialMediaLinks: true,
+          },
+        });
+      },
+      900
+    );
 
-// ✅ NO COUNT QUERY - just return tasks
-return NextResponse.json({ tasks }, { status: 200 });
+    // ✅ NO COUNT QUERY - just return tasks
+    return NextResponse.json({ tasks }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
     return NextResponse.json(
@@ -514,6 +461,22 @@ export async function POST(req: Request) {
     // 🔁 AUTO GENERATE TASKS
     console.log("generateMonthlyTasksFromTemplate");
     await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
+
+    const usersToInvalidate = [
+      userId,
+      assignedTo,
+      qc_specialist,
+      scheduler,
+      videographer,
+      client.userId
+    ].filter(Boolean);
+
+    for (const uid of usersToInvalidate) {
+      const keys = await redis.keys(`tasks:${uid}:*`);
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    }
 
     return NextResponse.json(task, { status: 201 });
   } catch (err: any) {

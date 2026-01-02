@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
 
 export async function POST(req: Request) {
   try {
@@ -23,12 +24,9 @@ export async function POST(req: Request) {
     const existingUser = await prisma.user.findFirst({ where: { email } });
 
     if (existingUser) {
-      // If user exists and is a client, allow them to update their info
       if (existingUser.role === "client") {
-        // Hash new password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Update existing client user
         const updatedUser = await prisma.user.update({
           where: { id: existingUser.id },
           data: {
@@ -38,14 +36,21 @@ export async function POST(req: Request) {
           },
         });
 
-        // Generate JWT
+        // 🔥 Invalidate user caches
+        await redis.del("users:all");
+        const keys = await redis.keys("users:role:*");
+        if (keys.length > 0) await redis.del(...keys);
+
+        if (!process.env.JWT_SECRET) {
+          throw new Error("JWT_SECRET not configured");
+        }
+
         const token = jwt.sign(
           { userId: updatedUser.id, email: updatedUser.email, role: updatedUser.role },
-          process.env.JWT_SECRET || "your_jwt_secret",
+          process.env.JWT_SECRET,
           { expiresIn: "7d" }
         );
 
-        // Set httpOnly cookie
         const response = NextResponse.json({
           user: { 
             id: updatedUser.id, 
@@ -55,9 +60,10 @@ export async function POST(req: Request) {
           },
           message: "Registration completed successfully",
         });
+
         response.cookies.set("authToken", token, {
           httpOnly: true,
-          secure: false,
+          secure: process.env.NODE_ENV === "production",
           sameSite: "strict",
           maxAge: 7 * 24 * 60 * 60,
           path: "/",
@@ -65,12 +71,10 @@ export async function POST(req: Request) {
 
         return response;
       } else {
-        // If user exists but is not a client (admin, manager, etc.)
         return NextResponse.json({ message: "Email already in use" }, { status: 409 });
       }
     }
 
-    // If user doesn't exist at all, create new user (non-client registration)
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.user.create({
@@ -82,20 +86,28 @@ export async function POST(req: Request) {
       },
     });
 
-    // Generate JWT
+    // 🔥 Invalidate user caches
+    await redis.del("users:all");
+    const keys = await redis.keys("users:role:*");
+    if (keys.length > 0) await redis.del(...keys);
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET not configured");
+    }
+
     const token = jwt.sign(
       { userId: newUser.id, email: newUser.email, role: newUser.role },
-      process.env.JWT_SECRET || "your_jwt_secret",
+      process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // Set httpOnly cookie
     const response = NextResponse.json({
       user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role },
     });
+
     response.cookies.set("authToken", token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",

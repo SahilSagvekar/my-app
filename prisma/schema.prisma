@@ -134,6 +134,8 @@ model Task {
   @@index([clientUserId])
   @@index([createdAt])
   @@index([assignedTo, status])
+  @@index([clientId, status])
+  @@index([dueDate, status])
 }
 
 model RecurringTask {
@@ -259,6 +261,7 @@ model Notification {
 
   @@index([userId, read])
   @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 model NotificationPreference {

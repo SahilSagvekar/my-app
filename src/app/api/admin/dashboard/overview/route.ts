@@ -1,11 +1,12 @@
-// app/api/admin/dashboard/overview/route.ts - FIXED VERSION
+// app/api/admin/dashboard/overview/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TaskStatus } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import { redis, cached } from '@/lib/redis';
 
-export const maxDuration = 60; // ✅ Set timeout limit
-export const dynamic = 'force-dynamic'; // ✅ Disable caching
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 export interface JWTUser {
   userId: number;
@@ -18,11 +19,7 @@ export interface JWTUser {
 export function getUserFromToken(req: NextRequest): JWTUser | null {
   try {
     const token = req.cookies.get('authToken')?.value;
-    
-    if (!token) {
-      return null;
-    }
-
+    if (!token) return null;
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     return decoded.user || decoded.currentUser || decoded;
   } catch (error) {
@@ -32,24 +29,15 @@ export function getUserFromToken(req: NextRequest): JWTUser | null {
 }
 
 export function requireAdmin(user: JWTUser | null) {
-  if (!user) {
-    return { error: 'Unauthorized', status: 401 };
-  }
-  
+  if (!user) return { error: 'Unauthorized', status: 401 };
   if (user.role !== 'ADMIN' && user.role !== 'admin') {
     return { error: 'Access denied. Admin only.', status: 403 };
   }
-  
   return null;
 }
 
 export async function GET(req: NextRequest) {
   const startTime = Date.now();
-  const startMem = process.memoryUsage().heapUsed;
-  
-  console.log('═══════════════════════════════════════');
-  console.log('[ADMIN DASHBOARD] Request started');
-  console.log('[ADMIN DASHBOARD] Memory at start:', Math.round(startMem / 1024 / 1024), 'MB');
   
   try {
     const currentUser = getUserFromToken(req);
@@ -62,49 +50,43 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const [
-      kpiData,
-      pipelineData,
-      projectHealthData,
-      recentActivity,
-      systemStatus
-    ] = await Promise.all([
-      getKPIData(),
-      getPipelineData(),
-      getProjectHealthData(), // ✅ FIXED - No longer loads everything into memory
-      getRecentActivity(),
-      getSystemStatus()
-    ]);
+    // 🔥 Cache entire dashboard response for 2 minutes
+    const dashboardData = await cached(
+      'admin:dashboard:overview',
+      async () => {
+        const [
+          kpiData,
+          pipelineData,
+          projectHealthData,
+          recentActivity,
+          systemStatus
+        ] = await Promise.all([
+          getKPIData(),
+          getPipelineData(),
+          getProjectHealthData(),
+          getRecentActivity(),
+          getSystemStatus()
+        ]);
 
-    const endTime = Date.now();
-    const endMem = process.memoryUsage().heapUsed;
-    const duration = endTime - startTime;
-    const memDelta = Math.round((endMem - startMem) / 1024 / 1024);
-    
-    console.log('[ADMIN DASHBOARD] Completed in', duration, 'ms');
-    console.log('[ADMIN DASHBOARD] Memory delta:', memDelta, 'MB');
-    console.log('[ADMIN DASHBOARD] Total memory now:', Math.round(endMem / 1024 / 1024), 'MB');
-    
-    if (memDelta > 20) {
-      console.error('⚠️⚠️⚠️ HIGH MEMORY USAGE:', memDelta, 'MB - This needs investigation! ⚠️⚠️⚠️');
-    }
-    
-    if (duration > 3000) {
-      console.error('⚠️⚠️⚠️ SLOW REQUEST:', duration, 'ms - Dashboard taking too long! ⚠️⚠️⚠️');
-    }
-    
-    console.log('═══════════════════════════════════════');
+        return {
+          kpi: kpiData,
+          pipeline: pipelineData,
+          projectHealth: projectHealthData,
+          recentActivity: recentActivity,
+          systemStatus: systemStatus,
+        };
+      },
+      120 // 2 minutes
+    );
+
+    const duration = Date.now() - startTime;
 
     return NextResponse.json({
       ok: true,
-      kpi: kpiData,
-      pipeline: pipelineData,
-      projectHealth: projectHealthData,
-      recentActivity: recentActivity,
-      systemStatus: systemStatus,
+      ...dashboardData,
       _debug: {
         responseTime: duration,
-        memoryDelta: memDelta
+        cached: duration < 100 // If super fast, it was cached
       }
     });
 
@@ -118,12 +100,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ✅ OPTIMIZED - Batch queries instead of separate ones
 async function getKPIData() {
   const now = new Date();
   const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // ✅ Single query to get all KPI data at once
   const stats = await prisma.$queryRaw<Array<{
     active_projects: bigint;
     active_team: bigint;
@@ -173,22 +153,16 @@ async function getKPIData() {
   };
 }
 
-// ✅ OPTIMIZED - Use groupBy instead of multiple counts
 async function getPipelineData() {
-  // Single query to get counts by status
   const statusCounts = await prisma.task.groupBy({
     by: ['status'],
-    _count: {
-      id: true
-    }
+    _count: { id: true }
   });
 
-  // Create a map for easy lookup
   const countMap = new Map(
     statusCounts.map(item => [item.status, item._count.id])
   );
 
-  // Format the response
   const stages = ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED'] as const;
   
   return stages.map(stage => ({
@@ -198,13 +172,7 @@ async function getPipelineData() {
   }));
 }
 
-// ✅ FIXED - This was the MAIN memory leak!
-// OLD: Loaded ALL clients with ALL their tasks into memory
-// NEW: Let database do the calculation
 async function getProjectHealthData() {
-  const now = new Date();
-  
-  // ✅ Use SQL aggregation instead of loading everything into memory
   const stats = await prisma.$queryRaw<Array<{
     client_id: string;
     total_tasks: bigint;
@@ -230,7 +198,6 @@ async function getProjectHealthData() {
   let atRisk = 0;
   let critical = 0;
   
-  // Calculate health status (lightweight - just counting)
   stats.forEach(stat => {
     const totalTasks = Number(stat.total_tasks);
     const overdueTasks = Number(stat.overdue_tasks);
@@ -256,99 +223,63 @@ async function getProjectHealthData() {
   const total = onTrack + atRisk + critical || 1;
   
   return [
-    {
-      name: 'On Track',
-      value: Math.round((onTrack / total) * 100),
-      count: onTrack,
-      color: '#22c55e'
-    },
-    {
-      name: 'At Risk',
-      value: Math.round((atRisk / total) * 100),
-      count: atRisk,
-      color: '#f59e0b'
-    },
-    {
-      name: 'Critical',
-      value: Math.round((critical / total) * 100),
-      count: critical,
-      color: '#ef4444'
-    }
+    { name: 'On Track', value: Math.round((onTrack / total) * 100), count: onTrack, color: '#22c55e' },
+    { name: 'At Risk', value: Math.round((atRisk / total) * 100), count: atRisk, color: '#f59e0b' },
+    { name: 'Critical', value: Math.round((critical / total) * 100), count: critical, color: '#ef4444' }
   ];
 }
 
-// ✅ Already optimized (just takes 10 logs)
 async function getRecentActivity() {
   const recentLogs = await prisma.auditLog.findMany({
     take: 10,
-    orderBy: {
-      timestamp: 'desc'
-    },
+    orderBy: { timestamp: 'desc' },
     select: {
       id: true,
       action: true,
       details: true,
-      User: {
-        select: {
-          name: true
-        }
-      }
+      User: { select: { name: true } }
     }
   });
 
-  const activities = recentLogs.map(log => {
+  return recentLogs.map(log => {
     let type = 'info';
     let status = 'info';
 
     if (log.action.includes('COMPLETED') || log.action.includes('APPROVED')) {
-      type = 'success';
-      status = 'success';
+      type = 'success'; status = 'success';
     } else if (log.action.includes('REJECTED') || log.action.includes('FAILED')) {
-      type = 'error';
-      status = 'error';
+      type = 'error'; status = 'error';
     } else if (log.action.includes('DEADLINE') || log.action.includes('OVERDUE')) {
-      type = 'warning';
-      status = 'warning';
+      type = 'warning'; status = 'warning';
     } else if (log.action.includes('CREATED') || log.action.includes('ASSIGNED')) {
-      type = 'new';
-      status = 'info';
+      type = 'new'; status = 'info';
     }
 
     return {
       id: log.id,
-      type: type,
+      type,
       message: `${log.action}${log.details ? ' - ' + log.details : ''}`,
       time: '',
-      status: status,
+      status,
       user: log.User?.name || 'System'
     };
   });
-
-  return activities;
 }
 
 async function getSystemStatus() {
   const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
   
-  // ✅ This is fine - already aggregated
   const activeUserIds = await prisma.auditLog.groupBy({
     by: ['userId'],
     where: {
-      timestamp: {
-        gte: fifteenMinutesAgo
-      },
-      userId: {
-        not: null
-      }
+      timestamp: { gte: fifteenMinutesAgo },
+      userId: { not: null }
     },
-    _count: {
-      userId: true
-    }
+    _count: { userId: true }
   });
 
   const activeUsers = activeUserIds.length;
 
-  // Database health check with timing
   let dbHealthy = true;
   let dbResponseTime = 0;
   try {
@@ -359,30 +290,19 @@ async function getSystemStatus() {
     dbHealthy = false;
   }
 
-  // ✅ Reduce this from 100 to 20 logs
   const recentLogs = await prisma.auditLog.findMany({
-    take: 20, // ✅ Reduced from 100
-    orderBy: {
-      timestamp: 'desc'
-    },
+    take: 20,
+    orderBy: { timestamp: 'desc' },
     where: {
-      metadata: {
-        path: ['responseTime'],
-        not: null
-      }
+      metadata: { path: ['responseTime'], not: null }
     },
-    select: {
-      metadata: true
-    }
+    select: { metadata: true }
   });
 
   let avgResponseTime = 125;
   if (recentLogs.length > 0) {
     const responseTimes = recentLogs
-      .map(log => {
-        const metadata = log.metadata as any;
-        return metadata?.responseTime || 0;
-      })
+      .map(log => (log.metadata as any)?.responseTime || 0)
       .filter(time => time > 0);
     
     if (responseTimes.length > 0) {
@@ -392,20 +312,16 @@ async function getSystemStatus() {
     }
   }
 
-  // Get total database size
   let dbSize = 'N/A';
   try {
     const result = await prisma.$queryRaw<Array<{ size: string }>>`
       SELECT pg_size_pretty(pg_database_size(current_database())) as size
     `;
-    if (result && result[0]) {
-      dbSize = result[0].size;
-    }
+    if (result?.[0]) dbSize = result[0].size;
   } catch (error) {
     console.error('Failed to get database size:', error);
   }
 
-  // ✅ Batch counts in parallel (this is fine)
   const [taskCount, userCount, clientCount, auditLogCount] = await Promise.all([
     prisma.task.count(),
     prisma.user.count(),
@@ -413,7 +329,6 @@ async function getSystemStatus() {
     prisma.auditLog.count()
   ]);
 
-  // Memory usage
   const memoryUsage = process.memoryUsage();
   const memoryUsageMB = {
     rss: Math.round(memoryUsage.rss / 1024 / 1024),
@@ -422,7 +337,6 @@ async function getSystemStatus() {
     external: Math.round(memoryUsage.external / 1024 / 1024)
   };
 
-  // Server uptime
   const uptimeSeconds = process.uptime();
   const uptimeFormatted = formatUptime(uptimeSeconds);
 
@@ -431,7 +345,7 @@ async function getSystemStatus() {
     databaseStatus: dbHealthy ? 'Healthy' : 'Issues Detected',
     databaseResponseTime: `${dbResponseTime}ms`,
     databaseSize: dbSize,
-    activeUsers: activeUsers,
+    activeUsers,
     apiResponseTime: `${avgResponseTime}ms`,
     serverUptime: uptimeFormatted,
     memoryUsage: memoryUsageMB,
@@ -449,11 +363,7 @@ function formatUptime(seconds: number): string {
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   
-  if (days > 0) {
-    return `${days}d ${hours}h ${minutes}m`;
-  } else if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  } else {
-    return `${minutes}m`;
-  }
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
