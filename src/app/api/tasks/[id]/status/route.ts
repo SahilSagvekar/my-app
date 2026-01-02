@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
+import { redis } from '@/lib/redis';
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -37,18 +38,16 @@ export async function PATCH(
     if (qcNotes !== undefined) updateData.qcNotes = qcNotes;
     if (route !== undefined) updateData.route = route;
 
-    // Get current task
     const task = await prisma.task.findUnique({
       where: { id },
       include: {
-        client: true, // assuming relation name is "client"
+        client: true,
       },
     });
 
     if (!task)
       return NextResponse.json({ message: "Task not found" }, { status: 404 });
 
-    // ✅ Define allowed transitions based on role
     const allowedTransitions: Record<string, string[]> = {
       editor: ["IN_PROGRESS", "READY_FOR_QC", "ON_HOLD"],
       qc: ["QC_IN_PROGRESS", "COMPLETED", "REJECTED"],
@@ -83,8 +82,6 @@ export async function PATCH(
       );
     }
 
-    console.log(role.toLowerCase(), status)
-
     if (
       role.toLowerCase() === "qc" &&
       status === "COMPLETED" &&
@@ -93,17 +90,14 @@ export async function PATCH(
       finalStatus = "CLIENT_REVIEW";
     }
 
-    // Client approving or rejecting
     if (role.toLowerCase() === "client") {
       if (status === "COMPLETED") {
-        finalStatus = "COMPLETED"; // approve
+        finalStatus = "COMPLETED";
       } else if (status === "REJECTED") {
-        finalStatus = "REJECTED"; // reject
+        finalStatus = "REJECTED";
       }
     }
 
-
-    // ✅ Update task status
     const updatedTask = await prisma.task.update({
       where: { id },
       data: {
@@ -112,6 +106,20 @@ export async function PATCH(
         updatedAt: new Date(),
       },
     });
+
+    const usersToInvalidate = [
+      userId,
+      task.assignedTo,
+      task.qc_specialist,
+      task.scheduler,
+      task.clientUserId,
+      task.createdBy
+    ].filter(Boolean);
+
+    for (const uid of usersToInvalidate) {
+      const keys = await redis.keys(`tasks:${uid}:*`);
+      if (keys.length > 0) await redis.del(...keys);
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -128,8 +136,6 @@ export async function PATCH(
         role: role,
         email: user?.email,
       },
-      // ipAddress,
-      // userAgent,
     });
 
     return NextResponse.json(updatedTask, { status: 200 });
