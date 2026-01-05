@@ -7,10 +7,8 @@ import { Switch } from './ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { Badge } from './ui/badge';
-import { Textarea } from './ui/textarea';
 import { ScrollArea } from './ui/scroll-area';
-import { User, Bell, Shield, Palette, Clock, Mail, Phone, Globe, Moon, Sun, Monitor, Save, Eye, EyeOff } from 'lucide-react';
+import { User, Bell, Shield, Palette, Mail, Phone, Globe, Moon, Sun, Monitor, Save, Eye, EyeOff } from 'lucide-react';
 
 interface SettingsProps {
   currentRole: string;
@@ -25,8 +23,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     email: 'john.doe@company.com',
     phone: '+1 (555) 123-4567',
     jobTitle: 'Senior Administrator',
-    department: 'Management',
-    bio: 'Experienced administrator with 5+ years in project management and team leadership.',
+
     
     // Notification preferences
     emailNotifications: true,
@@ -41,16 +38,13 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     theme: 'system', // light, dark, system
     language: 'en',
     timezone: 'America/New_York',
-    dateFormat: 'MM/DD/YYYY',
-    timeFormat: '12h',
     
     // Privacy settings
-    profileVisibility: 'team', // public, team, private
-    showOnlineStatus: true,
-    allowDirectMessages: true,
+    // profileVisibility: 'team', // public, team, private
+    // showOnlineStatus: true,
+    // allowDirectMessages: true,
     
     // Security settings
-    twoFactorEnabled: false,
     sessionTimeout: '30', // minutes
   });
 
@@ -275,27 +269,10 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                           onChange={(e) => handleInputChange('jobTitle', e.target.value)}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="department">Department</Label>
-                        <Input
-                          id="department"
-                          value={formData.department}
-                          onChange={(e) => handleInputChange('department', e.target.value)}
-                        />
-                      </div>
+
                     </div>
 
-                    {/* Bio */}
-                    <div className="space-y-2">
-                      <Label htmlFor="bio">Bio</Label>
-                      <Textarea
-                        id="bio"
-                        value={formData.bio}
-                        onChange={(e) => handleInputChange('bio', e.target.value)}
-                        rows={3}
-                        className="resize-none"
-                      />
-                    </div>
+
                   </CardContent>
                 </Card>
 
@@ -434,39 +411,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                       </Select>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Date Format</Label>
-                        <Select value={formData.dateFormat} onValueChange={(value) => handleInputChange('dateFormat', value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                            <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                            <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
 
-                      <div className="space-y-2">
-                        <Label>Time Format</Label>
-                        <Select value={formData.timeFormat} onValueChange={(value) => handleInputChange('timeFormat', value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="12h">12 Hour</SelectItem>
-                            <SelectItem value="24h">24 Hour</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
                   </CardContent>
                 </Card>
               </section>
 
-              <section id="privacy" className="space-y-6">
+              {/* <section id="privacy" className="space-y-6">
                 <Card>
                   <CardHeader>
                     <CardTitle className="font-bold">Privacy Settings</CardTitle>
@@ -509,7 +459,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                     </div>
                   </CardContent>
                 </Card>
-              </section>
+              </section> */}
 
               <section id="security" className="space-y-6">
                 <Card>
@@ -554,20 +504,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                       <Button className="w-full">Update Password</Button>
                     </div>
 
-                    <Separator />
 
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-2">
-                        <Label>Two-Factor Authentication</Label>
-                        <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
-                        <Badge variant={formData.twoFactorEnabled ? "default" : "secondary"}>
-                          {formData.twoFactorEnabled ? "Enabled" : "Disabled"}
-                        </Badge>
-                      </div>
-                      <Button variant="outline">
-                        {formData.twoFactorEnabled ? "Disable" : "Enable"} 2FA
-                      </Button>
-                    </div>
 
                     <div className="space-y-2">
                       <Label>Session Timeout</Label>
