@@ -49,8 +49,6 @@ export const NAVIGATION_ITEMS = {
     { id: 'completed', label: 'Completed', icon: Archive },
     { id: 'guidelines', label: 'Guidelines', icon: BookOpen },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
-    { id: 'drive', label: 'Files & Drive', icon: HardDrive }, 
-    { id: 'resources', label: 'Resources', icon: FolderOpen },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
