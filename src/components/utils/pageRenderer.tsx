@@ -44,6 +44,10 @@ export function renderPage(role: string, page: string): JSX.Element {
     return <ComingSoonPage title="Invoices & Billing" />;
   }
 
+   if (page === 'scheduling') {
+    return <ComingSoonPage title="Scheduling" />;
+  }
+
 
   if (role === 'admin') {
     switch (page) {

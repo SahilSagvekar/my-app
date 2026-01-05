@@ -55,15 +55,12 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   scheduler: [
-    { id: 'approved-queue', label: 'Approved Queue', icon: CheckSquare },
-    { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'scheduling', label: 'Scheduling', icon: Clock },
+    { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
-    { id: 'resources', label: 'Resources', icon: BookOpen },
-    { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
-    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'reports', label: 'Analytics', icon: FileSpreadsheet },
     { id: 'training', label: 'Training', icon: Layout },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
+    { id: 'scheduling', label: 'Employment Information', icon: Clock },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
