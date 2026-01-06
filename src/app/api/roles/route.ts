@@ -1,8 +1,7 @@
 // src/app/api/roles/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { cached } from '@/lib/redis';
 
 const taskTypeRoleMap: Record<string, string[]> = {
   design: ["admin"],
@@ -20,16 +19,20 @@ export async function GET(req: NextRequest) {
   const all = searchParams.get("all");
 
   try {
-    // NEW: return all users without filtering
     if (all === "true") {
-      const users = await prisma.user.findMany({
-        select: { id: true, name: true, email: true, role: true },
-      });
+      const users = await cached(
+        "users:all",
+        async () => {
+          return prisma.user.findMany({
+            select: { id: true, name: true, email: true, role: true },
+          });
+        },
+        600 // 10 minutes
+      );
 
       return NextResponse.json({ users }, { status: 200 });
     }
 
-    // OLD behavior for taskType
     if (!taskType) {
       return NextResponse.json(
         { error: "taskType is required" },
@@ -39,10 +42,16 @@ export async function GET(req: NextRequest) {
 
     const allowedRoles = taskTypeRoleMap[taskType] || [];
 
-    const roleUsers = await prisma.user.findMany({
-      where: { role: { in: allowedRoles } },
-      select: { id: true, name: true, email: true, role: true },
-    });
+    const roleUsers = await cached(
+      `users:role:${taskType}`,
+      async () => {
+        return prisma.user.findMany({
+          where: { role: { in: allowedRoles } },
+          select: { id: true, name: true, email: true, role: true },
+        });
+      },
+      600 // 10 minutes
+    );
 
     return NextResponse.json({ allowedRoles, roleUsers }, { status: 200 });
   } catch (error) {

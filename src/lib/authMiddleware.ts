@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
-
-export const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export async function authMiddleware(
   req: NextApiRequest,

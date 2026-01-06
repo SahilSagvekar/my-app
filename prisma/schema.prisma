@@ -31,12 +31,17 @@ model User {
   bonuses           Bonus[]
   client            Client?
   deductions        Deduction[]
+  feedbackSent      Feedback[]         @relation("FeedbackSender")
+  feedbackResponses FeedbackResponse[] @relation("FeedbackResponseSender")
   leaves            Leave[]
   payrolls          Payroll[]
   sessions          Session[]
   assignedTasks     Task[]             @relation("AssignedTasks")
-  feedbackSent      Feedback[]         @relation("FeedbackSender")
-  feedbackResponses FeedbackResponse[] @relation("FeedbackResponseSender")
+  clientTasks       Task[]             @relation("ClientUserTasks")
+
+  @@index([email])
+  @@index([role])
+  @@index([employeeStatus])
 }
 
 model Account {
@@ -76,8 +81,6 @@ model VerificationToken {
 model Task {
   id                   String              @id @default(cuid())
   title                String?
-  outputFolderId       String?
-  monthFolder          String? 
   description          String
   taskType             String?
   status               TaskStatus?         @default(PENDING)
@@ -106,11 +109,33 @@ model Task {
   qcNotes              String?
   qcResult             String?
   route                String?
+  monthFolder          String?
+  outputFolderId       String?
+  deliverableType      String?
+  hasCovers            Boolean             @default(false)
+  hasMainFile          Boolean             @default(false)
+  hasMusicLicense      Boolean             @default(false)
+  hasThumbnails        Boolean             @default(false)
+  hasTiles             Boolean             @default(false)
+  socialMediaLinks     Json                @default("[]")
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   user                 User                @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client               Client?             @relation(fields: [clientId], references: [id])
+  clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
+
+  @@index([assignedTo])
+  @@index([clientId])
+  @@index([status])
+  @@index([qc_specialist])
+  @@index([scheduler])
+  @@index([videographer])
+  @@index([clientUserId])
+  @@index([createdAt])
+  @@index([assignedTo, status])
+  @@index([clientId, status])
+  @@index([dueDate, status])
 }
 
 model RecurringTask {
@@ -143,7 +168,6 @@ model Client {
   lastActivity         DateTime?
   requiresClientReview Boolean              @default(false)
   requiresVideographer Boolean              @default(false)
-  outputsFolderId      String? 
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   uploadedFiles        Json?
@@ -157,12 +181,15 @@ model Client {
   essentialsFolderId   String?
   emails               String[]             @default([])
   phones               String[]             @default([])
+  outputsFolderId      String?
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
   monthlyDeliverables  MonthlyDeliverable[]
   monthlyRuns          MonthlyRun[]
   recurringTasks       RecurringTask[]
   tasks                Task[]
+
+  @@index([status])
 }
 
 model MonthlyDeliverable {
@@ -197,16 +224,26 @@ model BrandAsset {
 }
 
 model File {
-  id         String   @id @default(cuid())
-  taskId     String
-  name       String
-  url        String
-  mimeType   String?
-  size       BigInt?
-  uploadedAt DateTime @default(now())
-  uploadedBy Int?
-  createdAt  DateTime @default(now())
-  task       Task     @relation(fields: [taskId], references: [id])
+  id           String    @id @default(cuid())
+  taskId       String
+  name         String
+  url          String
+  mimeType     String?
+  size         BigInt
+  uploadedAt   DateTime  @default(now())
+  uploadedBy   Int?
+  createdAt    DateTime  @default(now())
+  folderType   String?
+  isActive     Boolean   @default(true)
+  replacedAt   DateTime?
+  replacedBy   String?
+  revisionNote String?
+  s3Key        String?
+  version      Int       @default(1)
+  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, folderType])
+  @@index([taskId, isActive])
 }
 
 model Notification {
@@ -222,7 +259,9 @@ model Notification {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
+  @@index([userId, read])
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 model NotificationPreference {
@@ -316,9 +355,9 @@ model Feedback {
   id        String             @id @default(cuid())
   subject   String
   message   String
-  category  FeedbackCategory
-  priority  FeedbackPriority
-  status    FeedbackStatus     @default(PENDING)
+  category  String
+  priority  String
+  status    String             @default("pending")
   senderId  Int
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
@@ -327,8 +366,6 @@ model Feedback {
 
   @@index([senderId])
   @@index([status])
-  @@index([createdAt])
-  @@map("feedback")
 }
 
 model FeedbackResponse {
@@ -342,7 +379,6 @@ model FeedbackResponse {
 
   @@index([feedbackId])
   @@index([senderId])
-  @@map("feedback_responses")
 }
 
 enum Role {

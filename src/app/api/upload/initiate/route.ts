@@ -1,8 +1,8 @@
-// src/app/api/upload/initiate/route.ts
-
-import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, CreateMultipartUploadCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import { S3Client, CreateMultipartUploadCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getServerSession } from "next-auth";
+// import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 const s3Client = new S3Client({
   region: process.env.AWS_S3_REGION!,
@@ -12,111 +12,178 @@ const s3Client = new S3Client({
   },
 });
 
-// Helper to get current month folder name
-function getCurrentMonthFolder(): string {
-  const date = new Date();
-  const month = date.toLocaleDateString('en-US', { month: 'long' });
-  const year = date.getFullYear();
-  return `${month}-${year}`; // "December-2024"
+// 🔥 Helper: Ensure folder exists in S3
+async function ensureS3FolderExists(folderPath: string) {
+  try {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET!,
+        Key: folderPath.endsWith("/") ? folderPath : `${folderPath}/`,
+        ContentType: "application/x-directory",
+      })
+    );
+    console.log(`✅ Folder created/verified: ${folderPath}`);
+  } catch (error) {
+    console.error(`❌ Failed to create folder: ${folderPath}`, error);
+    throw error;
+  }
 }
 
-export async function POST(request: NextRequest) {
+// 🔥 Helper: Create task folder structure (NO "task" subfolder)
+async function createTaskFolderStructure(
+  companyName: string,
+  taskTitle: string
+): Promise<string> {
+  // Main task folder: CompanyName/outputs/TaskTitle/
+  const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+
+  console.log("📁 Creating task folder structure:", taskFolderPath);
+
+  // Create main task folder
+  await ensureS3FolderExists(taskFolderPath);
+
+  // 🔥 Create only the special subfolders (NO "task" folder!)
+  await ensureS3FolderExists(`${taskFolderPath}thumbnails/`);
+  await ensureS3FolderExists(`${taskFolderPath}tiles/`);
+  await ensureS3FolderExists(`${taskFolderPath}music-license/`);
+
+  console.log("✅ Task folder structure created");
+
+  return taskFolderPath;
+}
+
+// 🔥 Helper: Get current month folder name
+function getCurrentMonthFolder(): string {
+  const date = new Date();
+  const month = date.toLocaleDateString("en-US", { month: "long" });
+  const year = date.getFullYear();
+  return `${month}-${year}`;
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const { fileName, fileType, taskId, clientId, folderType } = await request.json();
-    
-    // Validate required fields
-    if (!fileName || !fileType || !taskId || !clientId || !folderType) {
+    // const session = await getServerSession(authOptions);
+    // if (!session?.user?.id) {
+    //   return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    // }
+
+    const body = await req.json();
+    const {
+      fileName,
+      fileType,
+      taskId,
+      clientId,
+      folderType,
+      taskTitle,
+      subfolder, // 🔥 Can be empty string for main folder
+    } = body;
+
+    console.log("📤 Upload initiate request:", {
+      fileName,
+      taskId,
+      clientId,
+      folderType,
+      taskTitle,
+      subfolder: subfolder || "[main folder]",
+    });
+
+    if (!fileName || !fileType || !taskId || !clientId) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { message: "Missing required fields" },
         { status: 400 }
       );
     }
 
+    // Get client to find company name
     const client = await prisma.client.findUnique({
       where: { id: clientId },
-      select: {
-        companyName: true,
-        name: true,
-        rawFootageFolderId: true,
-        essentialsFolderId: true,
-        outputsFolderId: true,
-      },
+      select: { companyName: true, name: true },
     });
 
     if (!client) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      return NextResponse.json(
+        { message: "Client not found" },
+        { status: 404 }
+      );
     }
 
     const companyName = client.companyName || client.name;
-    
-    if (!companyName) {
-      return NextResponse.json({ error: 'Company name missing' }, { status: 400 });
-    }
 
-    let key: string;
+    let s3Key: string;
 
-    if (folderType === 'rawFootage') {
-      // 🔥 Get current month (e.g., "December-2024")
-      const currentMonth = getCurrentMonthFolder();
-      
-      // 🔥 Build the path: companyName/raw-footage/December-2024/
-      const rawFootageBase = `${companyName}/raw-footage/`;
-      const monthFolderPath = `${rawFootageBase}${currentMonth}/`;
-      
-      // 🔥 Create the month folder (if it doesn't exist)
-      try {
-        await s3Client.send(
-          new PutObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET!,
-            Key: monthFolderPath, // This creates the folder
-            ContentType: "application/x-directory",
-          })
+    // 🔥 HANDLE DIFFERENT FOLDER TYPES
+    if (folderType === "outputs") {
+      // Outputs folder - create task folder structure
+      if (!taskTitle) {
+        return NextResponse.json(
+          { message: "Task title required for outputs upload" },
+          { status: 400 }
         );
-        console.log('✅ Month folder ensured:', monthFolderPath);
-      } catch (error) {
-        console.log('⚠️ Folder might already exist (ok):', error);
       }
+
+      // Create task folder structure
+      const taskFolderPath = await createTaskFolderStructure(companyName, taskTitle);
+
+      // 🔥 Build S3 key based on subfolder
+      // if (subfolder && subfolder.trim() !== "") {
+      //   // Upload to subfolder: CompanyName/outputs/TaskTitle/subfolder/file.mp4
+      //   s3Key = `${taskFolderPath}${subfolder}/${Date.now()}-${fileName}`;
+      // } else {
+      //   // Upload to main task folder: CompanyName/outputs/TaskTitle/file.mp4
+      //   s3Key = `${taskFolderPath}${Date.now()}-${fileName}`;
+      // }
+
+      if (subfolder && subfolder.trim() !== "" && subfolder !== "main") {
+        // Upload to subfolder: CompanyName/outputs/TaskTitle/subfolder/file.mp4
+        s3Key = `${taskFolderPath}${subfolder}/${Date.now()}-${fileName}`;
+      } else {
+        // Upload to main task folder: CompanyName/outputs/TaskTitle/file.mp4
+        s3Key = `${taskFolderPath}${Date.now()}-${fileName}`;
+      }
+    } else if (folderType === "rawFootage") {
+      // Raw footage - with monthly folders
+      const currentMonth = getCurrentMonthFolder();
+      const monthFolderPath = `${companyName}/raw-footage/${currentMonth}/`;
       
-      // 🔥 Upload file inside the month folder
-      key = `${monthFolderPath}${Date.now()}-${fileName}`;
-      
-      console.log('📁 Uploading to:', key);
-      
-    } else if (folderType === 'elements') {
-      // Elements folder - no monthly subfolders
-      const elementsBase = client.essentialsFolderId || `${companyName}/elements/`;
-      key = `${elementsBase}${Date.now()}-${fileName}`;
-      
-    } else if (folderType === 'output') {
-      // Output folder logic (we'll handle this later)
-      const outputsBase = client.outputsFolderId || `${companyName}/outputs/`;
-      key = `${outputsBase}${Date.now()}-${fileName}`;
-      
+      await ensureS3FolderExists(monthFolderPath);
+      s3Key = `${monthFolderPath}${Date.now()}-${fileName}`;
+    } else if (folderType === "essentials") {
+      // Elements folder
+      const elementsFolderPath = `${companyName}/elements/`;
+      await ensureS3FolderExists(elementsFolderPath);
+      s3Key = `${elementsFolderPath}${Date.now()}-${fileName}`;
     } else {
-      return NextResponse.json({ error: 'Invalid folder type' }, { status: 400 });
+      return NextResponse.json(
+        { message: "Invalid folder type" },
+        { status: 400 }
+      );
     }
+
+    console.log("🎯 Final S3 key:", s3Key);
 
     // Initiate multipart upload
-    const command = new CreateMultipartUploadCommand({
+    const createCommand = new CreateMultipartUploadCommand({
       Bucket: process.env.AWS_S3_BUCKET!,
-      Key: key,
+      Key: s3Key,
       ContentType: fileType,
     });
 
-    const response = await s3Client.send(command);
+    const { UploadId } = await s3Client.send(createCommand);
+
+    if (!UploadId) {
+      throw new Error("Failed to get upload ID");
+    }
+
+    console.log("✅ Multipart upload initiated:", UploadId);
 
     return NextResponse.json({
-      uploadId: response.UploadId,
-      key,
-      taskId,
-      clientId,
-      folderType,
+      uploadId: UploadId,
+      key: s3Key,
     });
-    
   } catch (error: any) {
-    console.error('❌ Error initiating upload:', error);
+    console.error("❌ Initiate upload error:", error);
     return NextResponse.json(
-      { error: 'Failed to initiate upload', message: error.message },
+      { message: error.message || "Failed to initiate upload" },
       { status: 500 }
     );
   }

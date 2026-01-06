@@ -1,13 +1,12 @@
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
 
 export async function POST(req: Request) {
   try {
-    const { name, email, phone,  password, acceptTerms } = await req.json();
+    const { name, email, phone, password, acceptTerms } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ message: "Email and password are required" }, { status: 400 });
@@ -23,38 +22,92 @@ export async function POST(req: Request) {
 
     // Check if user exists
     const existingUser = await prisma.user.findFirst({ where: { email } });
+
     if (existingUser) {
-      return NextResponse.json({ message: "Email already in use" }, { status: 409 });
+      if (existingUser.role === "client") {
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const updatedUser = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            name: name || existingUser.name,
+            password: hashedPassword,
+            phone: String(phone),
+          },
+        });
+
+        // 🔥 Invalidate user caches
+        await redis.del("users:all");
+        const keys = await redis.keys("users:role:*");
+        if (keys.length > 0) await redis.del(...keys);
+
+        if (!process.env.JWT_SECRET) {
+          throw new Error("JWT_SECRET not configured");
+        }
+
+        const token = jwt.sign(
+          { userId: updatedUser.id, email: updatedUser.email, role: updatedUser.role },
+          process.env.JWT_SECRET,
+          { expiresIn: "7d" }
+        );
+
+        const response = NextResponse.json({
+          user: { 
+            id: updatedUser.id, 
+            name: updatedUser.name, 
+            email: updatedUser.email, 
+            role: updatedUser.role 
+          },
+          message: "Registration completed successfully",
+        });
+
+        response.cookies.set("authToken", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          maxAge: 7 * 24 * 60 * 60,
+          path: "/",
+        });
+
+        return response;
+      } else {
+        return NextResponse.json({ message: "Email already in use" }, { status: 409 });
+      }
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const newUser = await prisma.user.create({
       data: {
         name: name || null,
         email,
         password: hashedPassword,
-        // role: null,
         phone: String(phone),
       },
     });
 
-    // Generate JWT
+    // 🔥 Invalidate user caches
+    await redis.del("users:all");
+    const keys = await redis.keys("users:role:*");
+    if (keys.length > 0) await redis.del(...keys);
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET not configured");
+    }
+
     const token = jwt.sign(
       { userId: newUser.id, email: newUser.email, role: newUser.role },
-      process.env.JWT_SECRET || "your_jwt_secret",
+      process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // Set httpOnly cookie
     const response = NextResponse.json({
       user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role },
     });
+
     response.cookies.set("authToken", token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",

@@ -50,9 +50,9 @@ export function WhatWeDo() {
       <div className="max-w-6xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-12">
-          <h2 className="text-black mb-4">
+          <h1 className="text-black mb-4">
             What We Do
-          </h2>
+          </h1>
           <p className="text-black/60 max-w-2xl mx-auto">
             Everything your business needs to create content that drives results.
           </p>

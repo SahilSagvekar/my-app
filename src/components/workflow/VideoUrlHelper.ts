@@ -14,7 +14,19 @@ export interface VideoUrlInfo {
 /**
  * Analyzes a video URL and returns information about how to display it
  */
-export function analyzeVideoUrl(url: string): VideoUrlInfo {
+export function analyzeVideoUrl(url: string | null | undefined): VideoUrlInfo {
+  // Handle null/undefined/empty URLs
+  if (!url || url.trim() === '') {
+    return {
+      isGoogleDrive: false,
+      isYouTube: false,
+      isDirect: false,
+      embedUrl: null,
+      originalUrl: url || '',
+      requiresIframe: false
+    };
+  }
+
   const info: VideoUrlInfo = {
     isGoogleDrive: false,
     isYouTube: false,

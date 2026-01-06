@@ -40,6 +40,14 @@ export function renderPage(role: string, page: string): JSX.Element {
     return <DriveExplorer role={role} />;
   }
 
+  if (page === 'invoices') {
+    return <ComingSoonPage title="Invoices & Billing" />;
+  }
+
+   if (page === 'scheduling') {
+    return <ComingSoonPage title="Scheduling" />;
+  }
+
 
   if (role === 'admin') {
     switch (page) {
@@ -114,6 +122,8 @@ export function renderPage(role: string, page: string): JSX.Element {
       case 'performance': return <ComingSoonPage title="Performance" />;
       case 'reports': return <ComingSoonPage title="Reports" />;
       case 'training': return <QCTrainingPage />;
+      case 'leaves':
+        return <LeavesComponent />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;
       default: return <ManagerDashboard currentPage="team" />;
     }
@@ -121,7 +131,8 @@ export function renderPage(role: string, page: string): JSX.Element {
 
   if (role === 'client') {
     switch (page) {
-      case 'monthly-overview': return <ClientMonthlyOverview />;
+      // case 'monthly-overview': return <ClientMonthlyOverview />;
+      case 'monthly-overview': return <ComingSoonPage title="Monthly Overview"/>;
       case 'approvals': return <ClientDashboard />;
       case 'projects': return <ComingSoonPage title="My Projects" />;
       case 'feedback': return <FeedbackSystem currentRole={role} />;

@@ -1,16 +1,18 @@
 // lib/auth.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { NextResponse } from "next/server";
-import { PrismaClient } from '@prisma/client';
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
 
 export const verifyToken = (token: string) => {
   try {
-    const verified = jwt.verify(token, process.env.JWT_SECRET || "secret");
+    // const verified = jwt.verify(token, process.env.JWT_SECRET || "");
+    if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET not configured");
+}
+const verified = jwt.verify(token, process.env.JWT_SECRET);
     // console.log("Verified Token:", verified);
     return verified as { userId: number; email: string; iat: number; exp: number };
   } catch { 
@@ -119,7 +121,11 @@ export async function getCurrentUser2(req?: NextRequest) {
    
     if (!token) return null;
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret") as Decoded;
+    // const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as Decoded;
+    if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET not configured");
+}
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as Decoded;
     // console.log("getCurrentUser2 decoded:", decoded);
     if (!decoded?.userId) return null;
 
@@ -146,7 +152,12 @@ export function getUserFromRequest(req: Request) {
   const token = match[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret");
+    // const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret");
+
+    if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET not configured");
+}
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     return decoded; // must contain userId inside it
   } catch (e) {
     return null;
@@ -174,7 +185,7 @@ export async function requireAdmin(req: NextRequest) {
   // if (!userId) throw { status: 401, message: 'Unauthorized' };
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user || user.role !== "admin")
+  if (!user || user.role !== "admin" && user.role !== "manager")
     throw { status: 403, message: "Admin required" };
   return user;
 }

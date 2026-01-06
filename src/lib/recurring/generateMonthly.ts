@@ -27,12 +27,20 @@ function getDeliverableShortCode(type: string) {
   return type.replace(/\s+/g, "");
 }
 
-function formatDateYYYYMMDD(date: Date) {
-  const year = date.getFullYear();
+// function formatDateYYYYMMDD(date: Date) {
+//   const year = date.getFullYear();
+//   const month = String(date.getMonth() + 1).padStart(2, "0");
+//   const day = String(date.getDate()).padStart(2, "0");
+//   return `${year}-${month}-${day}`;
+// }
+
+function formatDateMMDDYYYY(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const year = date.getFullYear();
+  return `${month}-${day}-${year}`;
 }
+
 
 // 🔥 NEW: Create task folder structure in S3
 async function createTaskFolderStructure(
@@ -42,7 +50,7 @@ async function createTaskFolderStructure(
   try {
     // Main task folder: CompanyName/outputs/TaskTitle/
     const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
-    
+
     // Create main task folder
     await s3Client.send(
       new PutObjectCommand({
@@ -52,35 +60,41 @@ async function createTaskFolderStructure(
       })
     );
 
-    // 🔥 Create "task" subfolder: CompanyName/outputs/TaskTitle/task/
-    const taskSubfolderPath = `${taskFolderPath}thumbnails/`;
+    // 🔥 Create ONLY special subfolders (NO "task" folder!)
     await s3Client.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_S3_BUCKET!,
-        Key: taskSubfolderPath,
+        Key: `${taskFolderPath}thumbnails/`,
         ContentType: "application/x-directory",
       })
     );
 
-    // 🔥 Create "tiles" subfolder: CompanyName/outputs/TaskTitle/tiles/
-    const tilesSubfolderPath = `${taskFolderPath}tiles/`;
     await s3Client.send(
       new PutObjectCommand({
         Bucket: process.env.AWS_S3_BUCKET!,
-        Key: tilesSubfolderPath,
+        Key: `${taskFolderPath}tiles/`,
         ContentType: "application/x-directory",
       })
     );
 
-    // console.log('✅ Task folder structure created:', {
-    //   main: taskFolderPath,
-    //   thumbnails: taskSubfolderPath,
-    //   tiles: tilesSubfolderPath,
-    // });
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET!,
+        Key: `${taskFolderPath}music-license/`,
+        ContentType: "application/x-directory",
+      })
+    );
+
+    console.log("✅ Task folder structure created:", {
+      main: taskFolderPath,
+      thumbnails: `${taskFolderPath}thumbnails/`,
+      tiles: `${taskFolderPath}tiles/`,
+      musicLicense: `${taskFolderPath}music-license/`,
+    });
 
     return taskFolderPath;
   } catch (error) {
-    console.error('❌ Failed to create task folder structure:', error);
+    console.error("❌ Failed to create task folder structure:", error);
     throw error;
   }
 }
@@ -164,11 +178,12 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   const clientSlug = client.name.replace(/\s+/g, "");
   const companyName = client.companyName || client.name;
   const deliverableSlug = getDeliverableShortCode(deliverable.type);
-  const createdAtStr = formatDateYYYYMMDD(templateTask.createdAt);
+  const createdAtStr = formatDateMMDDYYYY(templateTask.createdAt);
 
   // STEP 6 — Update template task with title and folder
   let count = 1;
-  const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
+  // const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
+  const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
   // 🔥 Create folder structure for template task
   const taskFolderPath1 = await createTaskFolderStructure(companyName, title1);
@@ -195,7 +210,8 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
       }
 
       count++;
-      const title = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
+      // const title = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
+      const title = `${clientSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
       // 🔥 Create folder structure for this task
       const taskFolderPath = await createTaskFolderStructure(companyName, title);
@@ -208,9 +224,10 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
             taskType: templateTask.taskType,
             status: "PENDING",
             dueDate: date,
-            clientId,
+            // clientId,
             outputFolderId: taskFolderPath, // 🔥 Save folder path
-
+            clientId: clientId,
+            clientUserId: client?.userId,
             // Copy assignments
             assignedTo: templateTask.assignedTo,
             createdBy: templateTask.createdBy,

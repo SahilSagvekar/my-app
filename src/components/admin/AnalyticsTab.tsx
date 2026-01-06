@@ -24,7 +24,8 @@ const socialPlatforms = [
   { id: 'twitter', name: 'Twitter' },
   { id: 'linkedin', name: 'LinkedIn' },
   { id: 'tiktok', name: 'TikTok' },
-  { id: 'youtube', name: 'YouTube' }
+  { id: 'youtube', name: 'YouTube' },
+  { id: 'snapchat', name: 'Snapchat' }
 ];
 
 const kpiMetrics = [

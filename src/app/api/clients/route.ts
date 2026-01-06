@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { createClientFolders } from "@/lib/s3";
 import { createRecurringTasksForClient } from "@/app/api/clients/recurring";
+import { redis, cached } from "@/lib/redis";
 
-// Helper to extract JWT from cookies
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
@@ -15,60 +15,57 @@ function getTokenFromCookies(req: Request) {
 // ---------- GET /api/clients ----------
 export async function GET() {
   try {
-    const clients = await prisma.client.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        monthlyDeliverables: true,
-        brandAssets: true,
-        recurringTasks: true,
+    const clients = await cached(
+      "clients:all",
+      async () => {
+        const clients = await prisma.client.findMany({
+          orderBy: { name: "asc" },
+          include: {
+            monthlyDeliverables: true,
+            brandAssets: true,
+            recurringTasks: true,
+          },
+        });
+
+        return clients.map((c) => ({
+          ...c,
+          emails: c.emails ?? [],
+          phones: c.phones ?? [],
+          monthlyDeliverables: c.monthlyDeliverables ?? [],
+          brandAssets: c.brandAssets ?? [],
+          recurringTasks: c.recurringTasks ?? [],
+          brandGuidelines: c.brandGuidelines ?? {
+            primaryColors: [],
+            secondaryColors: [],
+            fonts: [],
+            logoUsage: "",
+            toneOfVoice: "",
+            brandValues: "",
+            targetAudience: "",
+            contentStyle: "",
+          },
+          projectSettings: c.projectSettings ?? {
+            defaultVideoLength: "60 seconds",
+            preferredPlatforms: [],
+            contentApprovalRequired: false,
+            quickTurnaroundAvailable: false,
+          },
+          billing: c.billing ?? {
+            monthlyFee: "",
+            billingFrequency: "monthly",
+            billingDay: 1,
+            paymentMethod: "credit-card",
+            nextBillingDate: "",
+            notes: "",
+          },
+          postingSchedule: c.postingSchedule ?? {},
+          currentProgress: c.currentProgress ?? { completed: 0, total: 0 },
+        }));
       },
-    });
+      600 // 10 minutes
+    );
 
-    const normalized = clients.map((c) => ({
-      ...c,
-
-      // Include emails and phones arrays
-      emails: c.emails ?? [],
-      phones: c.phones ?? [],
-
-      monthlyDeliverables: c.monthlyDeliverables ?? [],
-      brandAssets: c.brandAssets ?? [],
-      recurringTasks: c.recurringTasks ?? [],
-
-      brandGuidelines: c.brandGuidelines ?? {
-        primaryColors: [],
-        secondaryColors: [],
-        fonts: [],
-        logoUsage: "",
-        toneOfVoice: "",
-        brandValues: "",
-        targetAudience: "",
-        contentStyle: "",
-      },
-
-      projectSettings: c.projectSettings ?? {
-        defaultVideoLength: "60 seconds",
-        preferredPlatforms: [],
-        contentApprovalRequired: false,
-        quickTurnaroundAvailable: false,
-      },
-
-      billing: c.billing ?? {
-        monthlyFee: "",
-        billingFrequency: "monthly",
-        billingDay: 1,
-        paymentMethod: "credit-card",
-        nextBillingDate: "",
-        notes: "",
-      },
-
-      postingSchedule: c.postingSchedule ?? {},
-
-      currentProgress: c.currentProgress ?? { completed: 0, total: 0 },
-    }));
-
-    return NextResponse.json({ clients: normalized });
-
+    return NextResponse.json({ clients });
   } catch (err) {
     console.error("GET /clients error:", err);
     return NextResponse.json(
@@ -97,18 +94,14 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    console.log("POST /clients body:", body);
-
     const {
       name,
       email,
-      emails, // NEW: Additional emails
+      emails,
       phone,
-      phones, // NEW: Additional phones
+      phones,
       companyName,
       accountManagerId,
-
-      // Big UI chunks
       monthlyDeliverables,
       brandGuidelines,
       projectSettings,
@@ -132,44 +125,37 @@ export async function POST(req: Request) {
       videographer = true;
     }
 
-    // Filter out empty emails and phones
     const additionalEmails = (emails || []).filter((e: string) => e.trim() !== "");
     const additionalPhones = (phones || []).filter((p: string) => p.trim() !== "");
 
-    // STEP 1 — Create Drive Folders
-    const folders = await createClientFolders(name);
+    const folders = await createClientFolders(companyName);
 
-    // STEP 2 — Create User
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        password: email,
+        password: null,
         role: "client",
       }
     });
 
-    // STEP 3 — Create Client
     const client = await prisma.client.create({
       data: {
         name,
         email,
-        emails: additionalEmails, // NEW: Store additional emails
+        emails: additionalEmails,
         companyName: companyName || null,
         phone,
-        phones: additionalPhones, // NEW: Store additional phones
+        phones: additionalPhones,
         createdBy: decoded.userId.toString(),
-
         user: {
           connect: { id: user.id },
         },
-
         accountManagerId,
         status: "active",
         startDate: new Date(),
         renewalDate: null,
         lastActivity: new Date(),
-
         driveFolderId: folders.mainFolderId,
         rawFootageFolderId: folders.rawFolderId,
         essentialsFolderId: folders.essentialsFolderId,
@@ -178,15 +164,12 @@ export async function POST(req: Request) {
         projectSettings,
         billing,
         postingSchedule,
-
         requiresClientReview: clientReview,
         requiresVideographer: videographer,
-
         currentProgress: { completed: 0, total: 0 },
       },
     });
 
-    // STEP 4 — Insert deliverables into SQL
     const createdDeliverables = await Promise.all(
       (monthlyDeliverables || []).map((d: any) =>
         prisma.monthlyDeliverable.create({
@@ -205,8 +188,10 @@ export async function POST(req: Request) {
       )
     );
 
-    // STEP 5 — Create RecurringTask entries
     await createRecurringTasksForClient(client.id);
+
+    // 🔥 Invalidate clients cache
+    await redis.del("clients:all");
 
     return NextResponse.json(
       {

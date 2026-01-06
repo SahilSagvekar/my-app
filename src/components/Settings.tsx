@@ -416,7 +416,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                 </Card>
               </section>
 
-              {/* <section id="privacy" className="space-y-6">
+              <section id="privacy" className="space-y-6">
                 <Card>
                   <CardHeader>
                     <CardTitle className="font-bold">Privacy Settings</CardTitle>
@@ -459,7 +459,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                     </div>
                   </CardContent>
                 </Card>
-              </section> */}
+              </section>
 
               <section id="security" className="space-y-6">
                 <Card>
