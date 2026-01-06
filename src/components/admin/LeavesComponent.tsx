@@ -59,6 +59,14 @@ import {
   Filter,
 } from "lucide-react";
 import { SimpleCalendar } from "../ui/simple-calendar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -583,6 +591,12 @@ export default function LeavesComponent() {
   try {
     const hoursPerWeek = Number(newUser.hoursPerWeek);
     const fullName = `${newUser.firstName} ${newUser.lastName}`.trim();
+
+    if (!newUser.hireDate) {
+      toast.error("Please select a hire date.");
+      setIsAddingEmployee(false);
+      return;
+    }
 
     await apiFetch("/api/employee", {
       method: "POST",
@@ -1343,7 +1357,7 @@ export default function LeavesComponent() {
                           </Badge>
                         </TableCell>
                         <TableCell
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           className="space-x-2"
                         >
                           {l.status === "PENDING" && (

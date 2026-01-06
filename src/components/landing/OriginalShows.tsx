@@ -91,10 +91,10 @@ export function OriginalShows() {
           <p className="text-black/60 mb-6">
             Want to produce your own original content with us?
           </p>
-          <button className="inline-flex items-center gap-2 px-8 py-4 bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105">
+          <Link href="/contact" className="inline-flex items-center gap-2 px-8 py-4 bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105">
             Pitch Your Show
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
       </div>
     </section>
