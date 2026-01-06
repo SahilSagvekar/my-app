@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TaskStatus } from '@prisma/client';
 import jwt from 'jsonwebtoken';
-import { redis, cached } from '@/lib/redis';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -50,43 +49,31 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 🔥 Cache entire dashboard response for 2 minutes
-    const dashboardData = await cached(
-      'admin:dashboard:overview',
-      async () => {
-        const [
-          kpiData,
-          pipelineData,
-          projectHealthData,
-          recentActivity,
-          systemStatus
-        ] = await Promise.all([
-          getKPIData(),
-          getPipelineData(),
-          getProjectHealthData(),
-          getRecentActivity(),
-          getSystemStatus()
-        ]);
-
-        return {
-          kpi: kpiData,
-          pipeline: pipelineData,
-          projectHealth: projectHealthData,
-          recentActivity: recentActivity,
-          systemStatus: systemStatus,
-        };
-      },
-      120 // 2 minutes
-    );
+    const [
+      kpiData,
+      pipelineData,
+      projectHealthData,
+      recentActivity,
+      systemStatus
+    ] = await Promise.all([
+      getKPIData(),
+      getPipelineData(),
+      getProjectHealthData(),
+      getRecentActivity(),
+      getSystemStatus()
+    ]);
 
     const duration = Date.now() - startTime;
 
     return NextResponse.json({
       ok: true,
-      ...dashboardData,
+      kpi: kpiData,
+      pipeline: pipelineData,
+      projectHealth: projectHealthData,
+      recentActivity: recentActivity,
+      systemStatus: systemStatus,
       _debug: {
-        responseTime: duration,
-        cached: duration < 100 // If super fast, it was cached
+        responseTime: duration
       }
     });
 

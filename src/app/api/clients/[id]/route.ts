@@ -1,69 +1,60 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
-import { redis, cached } from "@/lib/redis";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
 
-    const client = await cached(
-      `client:${id}`,
-      async () => {
-        const client = await prisma.client.findUnique({
-          where: { id: id },
-          include: {
-            monthlyDeliverables: true,
-            brandAssets: true,
-            recurringTasks: true,
-          }
-        });
-
-        if (!client) return null;
-
-        return {
-          ...client,
-          emails: client.emails ?? [],
-          phones: client.phones ?? [],
-          monthlyDeliverables: client.monthlyDeliverables ?? [],
-          brandAssets: client.brandAssets ?? [],
-          recurringTasks: client.recurringTasks ?? [],
-          brandGuidelines: client.brandGuidelines ?? {
-            primaryColors: [],
-            secondaryColors: [],
-            fonts: [],
-            logoUsage: "",
-            toneOfVoice: "",
-            brandValues: "",
-            targetAudience: "",
-            contentStyle: "",
-          },
-          projectSettings: client.projectSettings ?? {
-            defaultVideoLength: "60 seconds",
-            preferredPlatforms: [],
-            contentApprovalRequired: false,
-            quickTurnaroundAvailable: false,
-          },
-          billing: client.billing ?? {
-            monthlyFee: "",
-            billingFrequency: "monthly",
-            billingDay: 1,
-            paymentMethod: "credit-card",
-            nextBillingDate: "",
-            notes: "",
-          },
-          postingSchedule: client.postingSchedule ?? {},
-          currentProgress: client.currentProgress ?? { completed: 0, total: 0 },
-        };
-      },
-      600 // 10 minutes
-    );
+    const client = await prisma.client.findUnique({
+      where: { id: id },
+      include: {
+        monthlyDeliverables: true,
+        brandAssets: true,
+        recurringTasks: true,
+      }
+    });
 
     if (!client) {
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ client });
+    const normalizedClient = {
+      ...client,
+      emails: client.emails ?? [],
+      phones: client.phones ?? [],
+      monthlyDeliverables: client.monthlyDeliverables ?? [],
+      brandAssets: client.brandAssets ?? [],
+      recurringTasks: client.recurringTasks ?? [],
+      brandGuidelines: client.brandGuidelines ?? {
+        primaryColors: [],
+        secondaryColors: [],
+        fonts: [],
+        logoUsage: "",
+        toneOfVoice: "",
+        brandValues: "",
+        targetAudience: "",
+        contentStyle: "",
+      },
+      projectSettings: client.projectSettings ?? {
+        defaultVideoLength: "60 seconds",
+        preferredPlatforms: [],
+        contentApprovalRequired: false,
+        quickTurnaroundAvailable: false,
+      },
+      billing: client.billing ?? {
+        monthlyFee: "",
+        billingFrequency: "monthly",
+        billingDay: 1,
+        paymentMethod: "credit-card",
+        nextBillingDate: "",
+        notes: "",
+      },
+      postingSchedule: client.postingSchedule ?? {},
+      currentProgress: client.currentProgress ?? { completed: 0, total: 0 },
+    };
+
+    return NextResponse.json({ client: normalizedClient });
   } catch (err) {
     console.error("GET /clients/:id error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
@@ -74,6 +65,8 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
   try {
     const { id } = await context.params;
     const data = await req.json();
+
+    console.log("📝 PUT /clients/:id - Received data:", JSON.stringify(data, null, 2));
 
     let clientReview = false;
     let videographer = false;
@@ -91,24 +84,23 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       projectSettings,
       billing,
       postingSchedule,
-
-
       clientReviewRequired,       
       videographerRequired,       
       monthlyDeliverables = [],
     } = data;
 
-    if (clientReviewRequired == "yes") {
+    if (clientReviewRequired === "yes") {
       clientReview = true;
     }
 
-    if (videographerRequired == "yes") {
+    if (videographerRequired === "yes") {
       videographer = true;
     }
 
     const additionalEmails = (emails || []).filter((e: string) => e.trim() !== "");
     const additionalPhones = (phones || []).filter((p: string) => p.trim() !== "");
 
+    // Update client basic info
     const updatedClient = await prisma.client.update({
       where: { id },
       data: {
@@ -129,14 +121,29 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       },
     });
 
+    // 🔥 Handle monthly deliverables
+    console.log("📦 Processing monthlyDeliverables:", monthlyDeliverables.length, "items");
+
     const existing = await prisma.monthlyDeliverable.findMany({
       where: { clientId: id },
     });
 
-    const existingIds = existing.map((d) => d.id);
-    const incomingIds = monthlyDeliverables.map((d: any) => d.id).filter(Boolean);
+    console.log("📦 Existing deliverables in DB:", existing.length, "items");
 
-    const toDelete = existingIds.filter((id) => !incomingIds.includes(id));
+    const existingIds = existing.map((d) => d.id);
+    
+    // Filter out frontend-generated IDs (they start with "deliverable-")
+    const incomingDbIds = monthlyDeliverables
+      .map((d: any) => d.id)
+      .filter((deliverableId: string) => deliverableId && !deliverableId.startsWith("deliverable-"));
+
+    console.log("📦 Existing IDs:", existingIds);
+    console.log("📦 Incoming DB IDs:", incomingDbIds);
+
+    // Delete removed deliverables (ones that exist in DB but not in incoming)
+    const toDelete = existingIds.filter((existingId) => !incomingDbIds.includes(existingId));
+    console.log("🗑️ Deliverables to delete:", toDelete);
+
     if (toDelete.length > 0) {
       await prisma.recurringTask.deleteMany({
         where: { deliverableId: { in: toDelete } },
@@ -147,49 +154,65 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       });
     }
 
+    // Update or create deliverables
     for (const d of monthlyDeliverables) {
-      if (d.id && existingIds.includes(d.id)) {
+      const isExistingDbRecord = d.id && existingIds.includes(d.id);
+      
+      if (isExistingDbRecord) {
+        // UPDATE existing deliverable
+        console.log("✏️ Updating deliverable:", d.id);
         await prisma.monthlyDeliverable.update({
           where: { id: d.id },
           data: {
             type: d.type,
             quantity: d.quantity,
-            videosPerDay: d.videosPerDay,
+            videosPerDay: d.videosPerDay || 1,
             postingSchedule: d.postingSchedule,
-            postingDays: d.postingDays,
-            postingTimes: d.postingTimes,
-            platforms: d.platforms,
-            description: d.description,
+            postingDays: d.postingDays || [],
+            postingTimes: d.postingTimes || [],
+            platforms: d.platforms || [],
+            description: d.description || "",
           },
         });
       } else {
+        // CREATE new deliverable (ignore frontend-generated ID, let DB generate one)
+        console.log("➕ Creating new deliverable:", d.type);
         await prisma.monthlyDeliverable.create({
           data: {
             clientId: id,
             type: d.type,
             quantity: d.quantity,
-            videosPerDay: d.videosPerDay,
+            videosPerDay: d.videosPerDay || 1,
             postingSchedule: d.postingSchedule,
-            postingDays: d.postingDays,
-            postingTimes: d.postingTimes,
-            platforms: d.platforms,
-            description: d.description,
+            postingDays: d.postingDays || [],
+            postingTimes: d.postingTimes || [],
+            platforms: d.platforms || [],
+            description: d.description || "",
           },
         });
       }
     }
 
-    // 🔥 Invalidate caches
-    await redis.del(`client:${id}`);
-    await redis.del("clients:all");
+    // 🔥 Fetch the updated client with all relations to return
+    const finalClient = await prisma.client.findUnique({
+      where: { id },
+      include: {
+        monthlyDeliverables: true,
+        brandAssets: true,
+        recurringTasks: true,
+      },
+    });
 
-    const normalized = {
-      ...updatedClient,
-      emails: additionalEmails,
-      phones: additionalPhones,
-    };
+    console.log("✅ Client updated successfully with", finalClient?.monthlyDeliverables.length, "deliverables");
 
-    return NextResponse.json({ success: true, updated: normalized });
+    return NextResponse.json({ 
+      success: true, 
+      updated: {
+        ...finalClient,
+        emails: additionalEmails,
+        phones: additionalPhones,
+      }
+    });
   } catch (err) {
     console.error("PUT client failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
@@ -256,10 +279,6 @@ export async function DELETE(
     const deletedClient = await prisma.client.delete({
       where: { id },
     });
-
-    // 🔥 Invalidate caches
-    await redis.del(`client:${id}`);
-    await redis.del("clients:all");
 
     return NextResponse.json({
       success: true,

@@ -2,10 +2,14 @@ import fetch from "node-fetch";
 
 async function runCron() {
   try {
-    console.log("[CRON] Running monthly cron job...");
+    console.log("[CRON] Running recurring tasks generation...");
 
-    // const res = await fetch("http://localhost:3000/api/cron/monthly");
-    const res = await fetch("https://e8productions.com/api/cron/monthly");
+    // const res = await fetch("http://localhost:3000/api/tasks/recurring/run", {
+    const res = await fetch("https://e8productions.com/api/tasks/recurring/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
     const data = await res.json();
 
     console.log("[CRON RESULT]:", data);

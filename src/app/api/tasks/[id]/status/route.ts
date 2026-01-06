@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
-import { redis } from '@/lib/redis';
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -106,20 +105,6 @@ export async function PATCH(
         updatedAt: new Date(),
       },
     });
-
-    const usersToInvalidate = [
-      userId,
-      task.assignedTo,
-      task.qc_specialist,
-      task.scheduler,
-      task.clientUserId,
-      task.createdBy
-    ].filter(Boolean);
-
-    for (const uid of usersToInvalidate) {
-      const keys = await redis.keys(`tasks:${uid}:*`);
-      if (keys.length > 0) await redis.del(...keys);
-    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },

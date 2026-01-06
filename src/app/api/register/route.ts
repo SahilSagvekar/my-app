@@ -2,7 +2,6 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
-import { redis } from '@/lib/redis';
 
 export async function POST(req: Request) {
   try {
@@ -35,11 +34,6 @@ export async function POST(req: Request) {
             phone: String(phone),
           },
         });
-
-        // 🔥 Invalidate user caches
-        await redis.del("users:all");
-        const keys = await redis.keys("users:role:*");
-        if (keys.length > 0) await redis.del(...keys);
 
         if (!process.env.JWT_SECRET) {
           throw new Error("JWT_SECRET not configured");
@@ -85,11 +79,6 @@ export async function POST(req: Request) {
         phone: String(phone),
       },
     });
-
-    // 🔥 Invalidate user caches
-    await redis.del("users:all");
-    const keys = await redis.keys("users:role:*");
-    if (keys.length > 0) await redis.del(...keys);
 
     if (!process.env.JWT_SECRET) {
       throw new Error("JWT_SECRET not configured");

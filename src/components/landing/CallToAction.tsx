@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 
 export function CallToAction() {
@@ -14,15 +15,15 @@ export function CallToAction() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button className="group inline-flex items-center gap-2 px-8 py-4 bg-white text-black rounded-full transition-all hover:bg-white/90 hover:scale-105 hover:shadow-xl">
-            Start Your Project
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </button>
-          
-          <button className="inline-flex items-center gap-2 px-8 py-4 bg-transparent text-white border border-white/20 rounded-full transition-all hover:border-white/40 hover:bg-white/5">
-            Sign In to Dashboard
-          </button>
-        </div>
+            <Link href="/contact" className="group inline-flex items-center gap-2 px-8 py-4 bg-white text-black rounded-full transition-all hover:bg-white/90 hover:scale-105 hover:shadow-xl">
+              Start Your Project
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+            
+            <button className="inline-flex items-center gap-2 px-8 py-4 bg-transparent text-white border border-white/20 rounded-full transition-all hover:border-white/40 hover:bg-white/5">
+              Sign In to Dashboard
+            </button>
+          </div>
       </div>
     </section>
   );

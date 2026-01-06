@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import "@/lib/bigint-fix";  
+import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { uploadBufferToS3 } from "@/lib/s3";
 import { TaskStatus } from "@prisma/client";
@@ -11,7 +11,6 @@ import { ClientRequest } from "http";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
-import { redis, cached } from '@/lib/redis';
 
 // ─────────────────────────────────────────
 // Helpers
@@ -48,7 +47,7 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
   if (!role) {
     return {}; // Return empty query or default behavior
   }
-  
+
   switch (role.toLowerCase()) {
     case "editor":
       return {
@@ -103,7 +102,7 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
         ],
       };
 
-      case "videographer":
+    case "videographer":
       return {
         AND: [
           { videographer: userId },
@@ -135,93 +134,6 @@ const WEEKDAY_MAP: Record<string, number> = {
   Saturday: 6,
 };
 
-async function autoGenerateRemainingTasksForMonth(task: any) {
-  if (!task.clientId || !task.dueDate) return;
-
-  const client = await prisma.client.findUnique({
-    where: { id: task.clientId },
-    include: { monthlyDeliverables: true },
-  });
-
-  if (!client || !client.monthlyDeliverables.length) return;
-
-  const deliverable = client.monthlyDeliverables[0];
-
-  const createdAt = new Date(task.createdAt || Date.now());
-  const createdDateStr = createdAt.toISOString().slice(0, 10);
-
-  const clientSlug = client.name.replace(/\s+/g, "");
-  const deliverableSlug = deliverable.type.replace(/\s+/g, "");
-
-  const firstTitle = `${clientSlug}_${createdDateStr}_${deliverableSlug}_1`;
-
-  await prisma.task.update({
-    where: { id: task.id },
-    data: { title: firstTitle },
-  });
-
-  const totalQty = deliverable.quantity ?? 1;
-  const videosPerDay = deliverable.videosPerDay ?? 1;
-  const postingDays = deliverable.postingDays ?? [];
-
-  const due = new Date(task.dueDate);
-  const monthStart = new Date(due.getFullYear(), due.getMonth(), 1);
-  const monthEnd = new Date(due.getFullYear(), due.getMonth() + 1, 0);
-
-  const WEEKDAY_MAP = {
-    Sunday: 0,
-    Monday: 1,
-    Tuesday: 2,
-    Wednesday: 3,
-    Thursday: 4,
-    Friday: 5,
-    Saturday: 6,
-  };
-
-  const validDays = postingDays
-    .map((d) => WEEKDAY_MAP[d as keyof typeof WEEKDAY_MAP])
-    .filter((v) => v !== undefined);
-
-  const dueDates: Date[] = [];
-  const cursor = new Date(monthStart);
-
-  while (cursor <= monthEnd) {
-    if (validDays.includes(cursor.getDay())) {
-      dueDates.push(new Date(cursor));
-    }
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  let count = 1;
-  const creates = [];
-
-  outer: for (const date of dueDates) {
-    for (let v = 0; v < videosPerDay; v++) {
-      count++;
-      if (count > totalQty) break outer;
-
-      const autoTitle = `${clientSlug}_${createdDateStr}_${deliverableSlug}_${count}`;
-
-      creates.push(
-        prisma.task.create({
-          data: {
-            title: autoTitle,
-            description: task.description,
-            taskType: task.taskType,
-            status: "PENDING",
-            dueDate: date,
-            assignedTo: task.assignedTo,
-            createdBy: task.createdBy,
-            clientId: task.clientId,
-          },
-        })
-      );
-    }
-  }
-
-  await Promise.all(creates);
-}
-
 export async function GET(req: Request) {
   try {
     const token = getTokenFromCookies(req);
@@ -239,47 +151,37 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
 
-    const cacheKey = `tasks:${userId}:${role}:${page}:${limit}`;
-
-    const tasks = await cached(
-      cacheKey,
-      async () => {
-        const where = buildRoleWhereQuery(role, Number(userId));
-        
-        return prisma.task.findMany({
-          where,
-          take: limit,
-          skip: (page - 1) * limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            taskType: true,
-            status: true,
-            dueDate: true,
-            assignedTo: true,
-            createdBy: true,
-            clientId: true,
-            clientUserId: true,
-            driveLinks: true,
-            createdAt: true,
-            priority: true,
-            taskCategory: true,
-            nextDestination: true,
-            requiresClientReview: true,
-            workflowStep: true,
-            folderType: true,
-            qcNotes: true,
-            feedback: true,
-            files: true,
-            monthlyDeliverableId: true,
-            socialMediaLinks: true,
-          },
-        });
+    const tasks = await prisma.task.findMany({
+      where,
+      take: limit,
+      skip: (page - 1) * limit,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        taskType: true,
+        status: true,
+        dueDate: true,
+        assignedTo: true,
+        createdBy: true,
+        clientId: true,
+        clientUserId: true,
+        driveLinks: true,
+        createdAt: true,
+        priority: true,
+        taskCategory: true,
+        nextDestination: true,
+        requiresClientReview: true,
+        workflowStep: true,
+        folderType: true,
+        qcNotes: true,
+        feedback: true,
+        files: true,
+        monthlyDeliverable: true,
+        socialMediaLinks: true,
       },
-      900
-    );
+    });
 
     // ✅ NO COUNT QUERY - just return tasks
     return NextResponse.json({ tasks }, { status: 200 });
@@ -349,18 +251,18 @@ export async function POST(req: Request) {
 
     // 🔥 Determine folder prefix based on folder type
     let folderPrefix = '';
-    
+
     if (folderType === "rawFootage") {
       // Get company name
       const companyName = client.companyName || client.name;
-      
+
       // Get current month folder
       const currentMonth = getCurrentMonthFolder(); // "December-2024"
-      
+
       // Build path with month folder: companyName/raw-footage/December-2024/
       const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
       folderPrefix = `${rawFootageBase}${currentMonth}/`;
-      
+
       // 🔥 Create the month folder (if it doesn't exist)
       try {
         await s3Client.send(
@@ -374,7 +276,7 @@ export async function POST(req: Request) {
       } catch (error) {
         console.log('⚠️ Folder might already exist (ok):', error);
       }
-            
+
     } else {
       // Elements folder - use normal path
       folderPrefix = client.essentialsFolderId || '';
@@ -461,22 +363,6 @@ export async function POST(req: Request) {
     // 🔁 AUTO GENERATE TASKS
     console.log("generateMonthlyTasksFromTemplate");
     await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
-
-    const usersToInvalidate = [
-      userId,
-      assignedTo,
-      qc_specialist,
-      scheduler,
-      videographer,
-      client.userId
-    ].filter(Boolean);
-
-    for (const uid of usersToInvalidate) {
-      const keys = await redis.keys(`tasks:${uid}:*`);
-      if (keys.length > 0) {
-        await redis.del(...keys);
-      }
-    }
 
     return NextResponse.json(task, { status: 201 });
   } catch (err: any) {

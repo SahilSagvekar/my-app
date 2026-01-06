@@ -126,6 +126,8 @@ interface Client {
   lastActivity: string;
   clientReviewRequired: string;
   videographerRequired: string;
+  requiresClientReview: string;
+  requiresVideographer: string
   brandAssets: BrandAsset[];
   brandGuidelines: {
     primaryColors: string[];
@@ -349,6 +351,9 @@ const [newDeliverable, setNewDeliverable] = useState<{
   const [showAddDeliverableDialog, setShowAddDeliverableDialog] =
     useState(false);
   const [deliverableDialogKey, setDeliverableDialogKey] = useState(0);
+  
+  // 🔥 NEW: State for editing deliverables
+  const [editingDeliverableId, setEditingDeliverableId] = useState<string | null>(null);
 
   const filteredClients = clients.filter((client) => {
     const matchesSearch =
@@ -537,7 +542,11 @@ const [newDeliverable, setNewDeliverable] = useState<{
     });
   };
 
-  const handleAddDeliverable = () => {
+  // 🔥 Replace these functions in your ClientManagement.tsx
+// These call the API instantly when adding, editing, or deleting deliverables
+
+// 🔥 UPDATED: Handle both add and edit - NOW WITH INSTANT API CALLS
+const handleAddDeliverable = async () => {
   console.log("🔍 BEFORE VALIDATION - newDeliverable:", JSON.stringify(newDeliverable, null, 2));
   
   if (!newDeliverable.quantity || newDeliverable.quantity === 0) {
@@ -550,29 +559,167 @@ const [newDeliverable, setNewDeliverable] = useState<{
     return;
   }
 
-  const deliverable: MonthlyDeliverable = {
-    id: `deliverable-${Date.now()}`,
-    type: newDeliverable.type, // Should be correct now
-    quantity: newDeliverable.quantity,
-    videosPerDay: newDeliverable.videosPerDay || 1,
-    platforms: newDeliverable.platforms,
-    postingSchedule: newDeliverable.postingSchedule,
-    postingDays: newDeliverable.postingDays || [],
-    postingTimes: newDeliverable.postingTimes || ["10:00"],
-    description: newDeliverable.description || "",
-  };
+  // 🔥 Need a client ID to save to
+  const clientId = editingClient?.id;
+  if (!clientId) {
+    // If we're creating a new client, just update local state
+    // The deliverables will be saved when the client is created
+    if (editingDeliverableId) {
+      setNewClient((prev) => ({
+        ...prev,
+        monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
+          d.id === editingDeliverableId
+            ? {
+                ...d,
+                type: newDeliverable.type,
+                quantity: newDeliverable.quantity,
+                videosPerDay: newDeliverable.videosPerDay || 1,
+                platforms: newDeliverable.platforms,
+                postingSchedule: newDeliverable.postingSchedule,
+                postingDays: newDeliverable.postingDays || [],
+                postingTimes: newDeliverable.postingTimes || ["10:00"],
+                description: newDeliverable.description || "",
+              }
+            : d
+        ),
+      }));
+      toast.success(`Updated: ${newDeliverable.type}`);
+    } else {
+      const deliverable = {
+        id: `deliverable-${Date.now()}`,
+        type: newDeliverable.type,
+        quantity: newDeliverable.quantity,
+        videosPerDay: newDeliverable.videosPerDay || 1,
+        platforms: newDeliverable.platforms,
+        postingSchedule: newDeliverable.postingSchedule,
+        postingDays: newDeliverable.postingDays || [],
+        postingTimes: newDeliverable.postingTimes || ["10:00"],
+        description: newDeliverable.description || "",
+      };
+      setNewClient((prev) => ({
+        ...prev,
+        monthlyDeliverables: [...(prev.monthlyDeliverables || []), deliverable],
+      }));
+      toast.success(`Added: ${newDeliverable.type}`);
+    }
 
-  console.log("✅ ADDING DELIVERABLE:", JSON.stringify(deliverable, null, 2));
+    setShowAddDeliverableDialog(false);
+    setEditingDeliverableId(null);
+    resetDeliverableForm();
+    return;
+  }
 
-  setNewClient((prev) => ({
-    ...prev,
-    monthlyDeliverables: [...(prev.monthlyDeliverables || []), deliverable],
-  }));
+  // 🔥 We have a client ID - make API call
+  try {
+    if (editingDeliverableId && !editingDeliverableId.startsWith("deliverable-")) {
+      // 🔥 UPDATE existing deliverable via API
+      console.log("✏️ Updating deliverable via API:", editingDeliverableId);
+      
+      const res = await fetch(`/api/clients/${clientId}/deliverables/${editingDeliverableId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: newDeliverable.type,
+          quantity: newDeliverable.quantity,
+          videosPerDay: newDeliverable.videosPerDay || 1,
+          platforms: newDeliverable.platforms,
+          postingSchedule: newDeliverable.postingSchedule,
+          postingDays: newDeliverable.postingDays || [],
+          postingTimes: newDeliverable.postingTimes || ["10:00"],
+          description: newDeliverable.description || "",
+        }),
+      });
 
-  toast.success(`Added: ${deliverable.type}`);
-  setShowAddDeliverableDialog(false);
-  
-  // Reset AFTER closing dialog
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || "Failed to update deliverable");
+        return;
+      }
+
+      // Update local state with the response
+      setNewClient((prev) => ({
+        ...prev,
+        monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
+          d.id === editingDeliverableId ? data.deliverable : d
+        ),
+      }));
+
+      // Also update the main clients list
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === clientId
+            ? {
+                ...c,
+                monthlyDeliverables: (c.monthlyDeliverables || []).map((d) =>
+                  d.id === editingDeliverableId ? data.deliverable : d
+                ),
+              }
+            : c
+        )
+      );
+
+      toast.success(`Updated: ${newDeliverable.type}`);
+
+    } else {
+      // 🔥 CREATE new deliverable via API
+      console.log("➕ Creating deliverable via API for client:", clientId);
+      
+      const res = await fetch(`/api/clients/${clientId}/deliverables`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: newDeliverable.type,
+          quantity: newDeliverable.quantity,
+          videosPerDay: newDeliverable.videosPerDay || 1,
+          platforms: newDeliverable.platforms,
+          postingSchedule: newDeliverable.postingSchedule,
+          postingDays: newDeliverable.postingDays || [],
+          postingTimes: newDeliverable.postingTimes || ["10:00"],
+          description: newDeliverable.description || "",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || "Failed to add deliverable");
+        return;
+      }
+
+      // Update local state with the new deliverable (has real DB ID now)
+      setNewClient((prev) => ({
+        ...prev,
+        monthlyDeliverables: [...(prev.monthlyDeliverables || []), data.deliverable],
+      }));
+
+      // Also update the main clients list
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === clientId
+            ? {
+                ...c,
+                monthlyDeliverables: [...(c.monthlyDeliverables || []), data.deliverable],
+              }
+            : c
+        )
+      );
+
+      toast.success(`Added: ${newDeliverable.type}`);
+    }
+
+    setShowAddDeliverableDialog(false);
+    setEditingDeliverableId(null);
+    resetDeliverableForm();
+
+  } catch (err) {
+    console.error("Deliverable API error:", err);
+    toast.error("Server error");
+  }
+};
+
+// 🔥 NEW: Helper function to reset deliverable form
+const resetDeliverableForm = () => {
   setTimeout(() => {
     setNewDeliverable({
       type: "Short Form Videos",
@@ -587,15 +734,189 @@ const [newDeliverable, setNewDeliverable] = useState<{
   }, 100);
 };
 
-  const handleRemoveDeliverable = (id: string) => {
+// 🔥 UPDATED: Remove deliverable - NOW WITH INSTANT API CALL
+const handleRemoveDeliverable = async (deliverableId: string) => {
+  const clientId = editingClient?.id;
+
+  // If it's a frontend-generated ID or no client yet, just update local state
+  if (!clientId || deliverableId.startsWith("deliverable-")) {
     setNewClient((prev) => ({
       ...prev,
       monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
-        (d) => d.id !== id
+        (d) => d.id !== deliverableId
       ),
     }));
     toast.success("Deliverable removed");
-  };
+    return;
+  }
+
+  // 🔥 Make API call to delete
+  try {
+    console.log("🗑️ Deleting deliverable via API:", deliverableId);
+
+    const res = await fetch(`/api/clients/${clientId}/deliverables/${deliverableId}`, {
+      method: "DELETE",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      toast.error(data.message || "Failed to delete deliverable");
+      return;
+    }
+
+    // Update local state
+    setNewClient((prev) => ({
+      ...prev,
+      monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
+        (d) => d.id !== deliverableId
+      ),
+    }));
+
+    // Also update the main clients list
+    setClients((prev) =>
+      prev.map((c) =>
+        c.id === clientId
+          ? {
+              ...c,
+              monthlyDeliverables: (c.monthlyDeliverables || []).filter(
+                (d) => d.id !== deliverableId
+              ),
+            }
+          : c
+      )
+    );
+
+    toast.success("Deliverable deleted");
+
+  } catch (err) {
+    console.error("Delete deliverable error:", err);
+    toast.error("Server error");
+  }
+};
+
+// 🔥 handleEditDeliverable stays the same - it just opens the dialog
+// The actual API call happens in handleAddDeliverable when saving
+const handleEditDeliverable = (deliverable: MonthlyDeliverable) => {
+  setEditingDeliverableId(deliverable.id);
+  setNewDeliverable({
+    type: deliverable.type,
+    quantity: deliverable.quantity,
+    videosPerDay: deliverable.videosPerDay || 1,
+    platforms: deliverable.platforms,
+    postingSchedule: deliverable.postingSchedule,
+    postingDays: deliverable.postingDays || [],
+    postingTimes: deliverable.postingTimes || ["10:00"],
+    description: deliverable.description || "",
+  });
+  setDeliverableDialogKey((prev) => prev + 1);
+  setShowAddDeliverableDialog(true);
+};
+
+  // 🔥 NEW: Handle editing a deliverable
+  // const handleEditDeliverable = (deliverable: MonthlyDeliverable) => {
+  //   setEditingDeliverableId(deliverable.id);
+  //   setNewDeliverable({
+  //     type: deliverable.type,
+  //     quantity: deliverable.quantity,
+  //     videosPerDay: deliverable.videosPerDay || 1,
+  //     platforms: deliverable.platforms,
+  //     postingSchedule: deliverable.postingSchedule,
+  //     postingDays: deliverable.postingDays || [],
+  //     postingTimes: deliverable.postingTimes || ["10:00"],
+  //     description: deliverable.description || "",
+  //   });
+  //   setDeliverableDialogKey((prev) => prev + 1);
+  //   setShowAddDeliverableDialog(true);
+  // };
+
+  // 🔥 UPDATED: Handle both add and edit
+  // const handleAddDeliverable = () => {
+  //   console.log("🔍 BEFORE VALIDATION - newDeliverable:", JSON.stringify(newDeliverable, null, 2));
+    
+  //   if (!newDeliverable.quantity || newDeliverable.quantity === 0) {
+  //     toast.error("Please enter a quantity");
+  //     return;
+  //   }
+    
+  //   if (!newDeliverable.platforms || newDeliverable.platforms.length === 0) {
+  //     toast.error("Please select at least one platform");
+  //     return;
+  //   }
+
+  //   if (editingDeliverableId) {
+  //     // 🔥 UPDATE existing deliverable
+  //     setNewClient((prev) => ({
+  //       ...prev,
+  //       monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
+  //         d.id === editingDeliverableId
+  //           ? {
+  //               ...d,
+  //               type: newDeliverable.type,
+  //               quantity: newDeliverable.quantity,
+  //               videosPerDay: newDeliverable.videosPerDay || 1,
+  //               platforms: newDeliverable.platforms,
+  //               postingSchedule: newDeliverable.postingSchedule,
+  //               postingDays: newDeliverable.postingDays || [],
+  //               postingTimes: newDeliverable.postingTimes || ["10:00"],
+  //               description: newDeliverable.description || "",
+  //             }
+  //           : d
+  //       ),
+  //     }));
+
+  //     toast.success(`Updated: ${newDeliverable.type}`);
+  //   } else {
+  //     // 🔥 ADD new deliverable
+  //     const deliverable: MonthlyDeliverable = {
+  //       id: `deliverable-${Date.now()}`,
+  //       type: newDeliverable.type,
+  //       quantity: newDeliverable.quantity,
+  //       videosPerDay: newDeliverable.videosPerDay || 1,
+  //       platforms: newDeliverable.platforms,
+  //       postingSchedule: newDeliverable.postingSchedule,
+  //       postingDays: newDeliverable.postingDays || [],
+  //       postingTimes: newDeliverable.postingTimes || ["10:00"],
+  //       description: newDeliverable.description || "",
+  //     };
+
+  //     console.log("✅ ADDING DELIVERABLE:", JSON.stringify(deliverable, null, 2));
+
+  //     setNewClient((prev) => ({
+  //       ...prev,
+  //       monthlyDeliverables: [...(prev.monthlyDeliverables || []), deliverable],
+  //     }));
+
+  //     toast.success(`Added: ${deliverable.type}`);
+  //   }
+
+  //   setShowAddDeliverableDialog(false);
+  //   setEditingDeliverableId(null);
+    
+  //   // Reset AFTER closing dialog
+  //   setTimeout(() => {
+  //     setNewDeliverable({
+  //       type: "Short Form Videos",
+  //       quantity: 1,
+  //       videosPerDay: 1,
+  //       platforms: [],
+  //       postingSchedule: "weekly",
+  //       postingDays: [],
+  //       postingTimes: ["10:00"],
+  //       description: "",
+  //     });
+  //   }, 100);
+  // };
+
+  // const handleRemoveDeliverable = (id: string) => {
+  //   setNewClient((prev) => ({
+  //     ...prev,
+  //     monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
+  //       (d) => d.id !== id
+  //     ),
+  //   }));
+  //   toast.success("Deliverable removed");
+  // };
 
   const togglePlatform = (platform: SocialPlatform) => {
     setNewDeliverable((prev) => {
@@ -699,7 +1020,120 @@ const [newDeliverable, setNewDeliverable] = useState<{
     return tasksCreated;
   };
 
-  const handleSaveClient = async () => {
+//   const handleSaveClient = async () => {
+//   // Validate required fields
+//   if (!newClient.name?.trim()) {
+//     toast.error("Contact name is required");
+//     return;
+//   }
+//   if (!newClient.companyName?.trim()) {
+//     toast.error("Company name is required");
+//     return;
+//   }
+//   if (!newClient.email?.trim()) {
+//     toast.error("Email is required");
+//     return;
+//   }
+//   if (!newClient.phone?.trim()) {
+//     toast.error("Phone number is required");
+//     return;
+//   }
+
+//   try {
+//     const url = editingClient 
+//       ? `/api/clients/${editingClient.id}`
+//       : `/api/clients`;
+
+//     const method = editingClient ? "PUT" : "POST";
+
+//     const res = await fetch(url, {
+//       method,
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify(newClient),
+//     });
+
+//     const data = await res.json();
+
+//     if (!res.ok) {
+//       toast.error(data.message || "Failed to save client");
+//       return;
+//     }
+
+//     toast.success(editingClient ? "Client updated successfully!" : "Client created successfully!");
+
+//     // Update UI list immediately
+//     if (editingClient) {
+//       setClients(prev =>
+//         prev.map(c => (c.id === editingClient.id ? data.updated : c))
+//       );
+//     } else {
+//       setClients(prev => [...prev, data.client]);
+//     }
+
+//     setShowAddDialog(false);
+//     setEditingClient(null);
+    
+//     // Reset form
+//     setNewClient({
+//       name: "",
+//       companyName: "",
+//       email: "",
+//       phone: "",
+//       accountManagerId: "",
+//       startDate: "",
+//       renewalDate: "",
+//       status: "active",
+//       clientReviewRequired: "no",
+//       videographerRequired: "no",
+//       monthlyDeliverables: [],
+//       brandAssets: [],
+//       brandGuidelines: {
+//         primaryColors: [],
+//         secondaryColors: [],
+//         fonts: [],
+//         logoUsage: "",
+//         toneOfVoice: "",
+//         brandValues: "",
+//         targetAudience: "",
+//         contentStyle: "",
+//       },
+//       projectSettings: {
+//         defaultVideoLength: "60 seconds",
+//         preferredPlatforms: [],
+//         contentApprovalRequired: true,
+//         quickTurnaroundAvailable: false,
+//       },
+//     });
+//   } catch (err) {
+//     console.error("Save client failed:", err);
+//     toast.error("Server error");
+//   }
+// };
+
+//   const handleEditClient = (client: Client) => {
+//     setEditingClient(client);
+//     setNewClient({
+//       name: client.name,
+//       companyName: client.companyName,
+//       email: client.email,
+//       phone: client.phone,
+//     clientReviewRequired: client.requiresClientReview ? "yes" : "no",  // ✅ Map correctly
+//     videographerRequired: client.requiresVideographer ? "yes" : "no",  // ✅ Map correctly
+//       accountManagerId: client.accountManagerId,
+//       startDate: client.startDate,
+//       renewalDate: client.renewalDate,
+//       status: client.status,
+//       monthlyDeliverables: client.monthlyDeliverables ?? [],
+//       billing: client.billing,
+//       brandGuidelines: client.brandGuidelines ?? {},
+//       projectSettings: client.projectSettings ?? {},
+//     });
+//     setShowAddDialog(true);
+//   };
+
+// 🔥 UPDATED handleSaveClient - Replace your existing function with this
+
+const handleSaveClient = async () => {
   // Validate required fields
   if (!newClient.name?.trim()) {
     toast.error("Contact name is required");
@@ -725,13 +1159,23 @@ const [newDeliverable, setNewDeliverable] = useState<{
 
     const method = editingClient ? "PUT" : "POST";
 
+    // 🔥 Make sure monthlyDeliverables is included in the payload
+    const payload = {
+      ...newClient,
+      monthlyDeliverables: newClient.monthlyDeliverables || [],
+    };
+
+    console.log("📤 Sending client data:", JSON.stringify(payload, null, 2));
+
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newClient),
+      body: JSON.stringify(payload),
     });
 
     const data = await res.json();
+
+    console.log("📥 Received response:", JSON.stringify(data, null, 2));
 
     if (!res.ok) {
       toast.error(data.message || "Failed to save client");
@@ -740,7 +1184,7 @@ const [newDeliverable, setNewDeliverable] = useState<{
 
     toast.success(editingClient ? "Client updated successfully!" : "Client created successfully!");
 
-    // Update UI list immediately
+    // 🔥 Update UI with the response data (includes proper deliverable IDs from DB)
     if (editingClient) {
       setClients(prev =>
         prev.map(c => (c.id === editingClient.id ? data.updated : c))
@@ -757,7 +1201,9 @@ const [newDeliverable, setNewDeliverable] = useState<{
       name: "",
       companyName: "",
       email: "",
+      emails: [],
       phone: "",
+      phones: [],
       accountManagerId: "",
       startDate: "",
       renewalDate: "",
@@ -789,26 +1235,51 @@ const [newDeliverable, setNewDeliverable] = useState<{
   }
 };
 
-  const handleEditClient = (client: Client) => {
-    setEditingClient(client);
-    setNewClient({
-      name: client.name,
-      companyName: client.companyName,
-      email: client.email,
-      phone: client.phone,
-    clientReviewRequired: client.requiresClientReview ? "yes" : "no",  // ✅ Map correctly
-    videographerRequired: client.requiresVideographer ? "yes" : "no",  // ✅ Map correctly
-      accountManagerId: client.accountManagerId,
-      startDate: client.startDate,
-      renewalDate: client.renewalDate,
-      status: client.status,
-      monthlyDeliverables: client.monthlyDeliverables ?? [],
-      billing: client.billing,
-      brandGuidelines: client.brandGuidelines ?? {},
-      projectSettings: client.projectSettings ?? {},
-    });
-    setShowAddDialog(true);
-  };
+// 🔥 ALSO UPDATE handleEditClient to properly load deliverables with their IDs
+
+const handleEditClient = (client: Client) => {
+  console.log("📝 Editing client:", client.id);
+  console.log("📦 Client deliverables:", client.monthlyDeliverables);
+  
+  setEditingClient(client);
+  setNewClient({
+    name: client.name,
+    companyName: client.companyName,
+    email: client.email,
+    emails: client.emails || [],
+    phone: client.phone,
+    phones: client.phones || [],
+    clientReviewRequired: client.requiresClientReview ? "yes" : "no",
+    videographerRequired: client.requiresVideographer ? "yes" : "no",
+    accountManagerId: client.accountManagerId,
+    startDate: client.startDate,
+    renewalDate: client.renewalDate,
+    status: client.status,
+    // 🔥 Make sure we're copying the deliverables with their IDs
+    monthlyDeliverables: (client.monthlyDeliverables ?? []).map(d => ({
+      ...d,
+      id: d.id, // Preserve the database ID
+    })),
+    billing: client.billing,
+    brandGuidelines: client.brandGuidelines ?? {
+      primaryColors: [],
+      secondaryColors: [],
+      fonts: [],
+      logoUsage: "",
+      toneOfVoice: "",
+      brandValues: "",
+      targetAudience: "",
+      contentStyle: "",
+    },
+    projectSettings: client.projectSettings ?? {
+      defaultVideoLength: "60 seconds",
+      preferredPlatforms: [],
+      contentApprovalRequired: true,
+      quickTurnaroundAvailable: false,
+    },
+  });
+  setShowAddDialog(true);
+};
 
 const handleDeleteClient = async (clientId: string) => {
   const confirmed = confirm("Are you sure you want to delete this client?");
@@ -1792,14 +2263,6 @@ const handleDeleteClient = async (clientId: string) => {
                     Set up recurring deliverables that auto-generate tasks
                   </p>
                 </div>
-                {/* <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setShowAddDeliverableDialog(true)}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Deliverable
-                </Button> */}
 
                 <Button
                   type="button"
@@ -1816,6 +2279,7 @@ const handleDeleteClient = async (clientId: string) => {
                       postingTimes: ["10:00"],
                       description: "",
                     });
+                    setEditingDeliverableId(null); // 🔥 Clear editing state
                     setDeliverableDialogKey((prev) => prev + 1); // Force remount
                     setShowAddDeliverableDialog(true);
                   }}
@@ -1847,11 +2311,13 @@ const handleDeleteClient = async (clientId: string) => {
                           {deliverable.videosPerDay || 1} per day
                         </Badge>
                       </div>
-                      {/* <div className="text-sm text-gray-600">
-                        {deliverable.postingSchedule} • {(deliverable.postingDays && deliverable.postingDays.length > 0) 
-                          ? deliverable.postingDays.join(", ") 
-                          : "Various days"} • {deliverable.defaultPostingTime}
-                      </div> */}
+                      <div className="text-sm text-gray-600 mb-1">
+                        {deliverable.postingSchedule} •{" "}
+                        {deliverable.postingDays && deliverable.postingDays.length > 0
+                          ? deliverable.postingDays.join(", ")
+                          : "Various days"}{" "}
+                        • {(deliverable.postingTimes || ["10:00"]).join(", ")}
+                      </div>
                       <div className="flex flex-wrap gap-1 mt-2">
                         {deliverable.platforms.map((platform) => (
                           <Badge
@@ -1865,16 +2331,33 @@ const handleDeleteClient = async (clientId: string) => {
                           </Badge>
                         ))}
                       </div>
+                      {deliverable.description && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          {deliverable.description}
+                        </p>
+                      )}
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleRemoveDeliverable(deliverable.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    {/* 🔥 NEW: Edit and Delete buttons */}
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleEditDeliverable(deliverable)}
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRemoveDeliverable(deliverable.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
 
@@ -2135,14 +2618,15 @@ const handleDeleteClient = async (clientId: string) => {
         </DialogContent>
       </Dialog>
 
-      {/* Add Deliverable Dialog */}
+      {/* Add/Edit Deliverable Dialog */}
       <Dialog
-        key={deliverableDialogKey} // 🔥 Add key to force remount
+        key={deliverableDialogKey}
         open={showAddDeliverableDialog}
         onOpenChange={(open) => {
           setShowAddDeliverableDialog(open);
           if (!open) {
             // Reset form when closing
+            setEditingDeliverableId(null); // 🔥 Clear editing state
             setNewDeliverable({
               type: "Short Form Videos",
               quantity: 1,
@@ -2159,10 +2643,13 @@ const handleDeleteClient = async (clientId: string) => {
         <DialogContent className="!max-w-[1200px] w-[90vw] !max-h-[90vh] overflow-y-auto bg-white border-gray-200">
           <DialogHeader>
             <DialogTitle className="text-gray-900">
-              Add Monthly Deliverable
+              {/* 🔥 Dynamic title based on edit mode */}
+              {editingDeliverableId ? "Edit Monthly Deliverable" : "Add Monthly Deliverable"}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
-              Configure a recurring deliverable for this client
+              {editingDeliverableId
+                ? "Update the deliverable configuration"
+                : "Configure a recurring deliverable for this client"}
             </DialogDescription>
           </DialogHeader>
 
@@ -2212,45 +2699,6 @@ const handleDeleteClient = async (clientId: string) => {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="quantity" className="text-gray-700">
-                  Quantity per Month
-                </Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="1"
-                  value={newDeliverable.quantity}
-                  onChange={(e) =>
-                    setNewDeliverable({
-                      ...newDeliverable,
-                      quantity: parseInt(e.target.value) || 1,
-                    })
-                  }
-                  className="bg-white border-gray-200 text-gray-900"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="videosPerDay" className="text-gray-700">
-                  Videos per Posting Day
-                </Label>
-                <Input
-                  id="videosPerDay"
-                  type="number"
-                  min="1"
-                  value={newDeliverable.videosPerDay}
-                  onChange={(e) =>
-                    syncPostingTimesWithVideosPerDay(
-                      parseInt(e.target.value) || 1
-                    )
-                  }
-                  className="bg-white border-gray-200 text-gray-900"
-                />
-              </div>
-            </div> */}
 
             <div className="space-y-2">
               <Label htmlFor="quantity" className="text-gray-700">
@@ -2455,7 +2903,10 @@ const handleDeleteClient = async (clientId: string) => {
             >
               Cancel
             </Button>
-            <Button onClick={handleAddDeliverable}>Add Deliverable</Button>
+            {/* 🔥 Dynamic button text based on edit mode */}
+            <Button onClick={handleAddDeliverable}>
+              {editingDeliverableId ? "Update Deliverable" : "Add Deliverable"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
