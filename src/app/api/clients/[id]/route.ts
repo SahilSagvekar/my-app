@@ -1,69 +1,60 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
-import { redis, cached } from "@/lib/redis";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
 
-    const client = await cached(
-      `client:${id}`,
-      async () => {
-        const client = await prisma.client.findUnique({
-          where: { id: id },
-          include: {
-            monthlyDeliverables: true,
-            brandAssets: true,
-            recurringTasks: true,
-          }
-        });
-
-        if (!client) return null;
-
-        return {
-          ...client,
-          emails: client.emails ?? [],
-          phones: client.phones ?? [],
-          monthlyDeliverables: client.monthlyDeliverables ?? [],
-          brandAssets: client.brandAssets ?? [],
-          recurringTasks: client.recurringTasks ?? [],
-          brandGuidelines: client.brandGuidelines ?? {
-            primaryColors: [],
-            secondaryColors: [],
-            fonts: [],
-            logoUsage: "",
-            toneOfVoice: "",
-            brandValues: "",
-            targetAudience: "",
-            contentStyle: "",
-          },
-          projectSettings: client.projectSettings ?? {
-            defaultVideoLength: "60 seconds",
-            preferredPlatforms: [],
-            contentApprovalRequired: false,
-            quickTurnaroundAvailable: false,
-          },
-          billing: client.billing ?? {
-            monthlyFee: "",
-            billingFrequency: "monthly",
-            billingDay: 1,
-            paymentMethod: "credit-card",
-            nextBillingDate: "",
-            notes: "",
-          },
-          postingSchedule: client.postingSchedule ?? {},
-          currentProgress: client.currentProgress ?? { completed: 0, total: 0 },
-        };
-      },
-      600 // 10 minutes
-    );
+    const client = await prisma.client.findUnique({
+      where: { id: id },
+      include: {
+        monthlyDeliverables: true,
+        brandAssets: true,
+        recurringTasks: true,
+      }
+    });
 
     if (!client) {
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ client });
+    const normalizedClient = {
+      ...client,
+      emails: client.emails ?? [],
+      phones: client.phones ?? [],
+      monthlyDeliverables: client.monthlyDeliverables ?? [],
+      brandAssets: client.brandAssets ?? [],
+      recurringTasks: client.recurringTasks ?? [],
+      brandGuidelines: client.brandGuidelines ?? {
+        primaryColors: [],
+        secondaryColors: [],
+        fonts: [],
+        logoUsage: "",
+        toneOfVoice: "",
+        brandValues: "",
+        targetAudience: "",
+        contentStyle: "",
+      },
+      projectSettings: client.projectSettings ?? {
+        defaultVideoLength: "60 seconds",
+        preferredPlatforms: [],
+        contentApprovalRequired: false,
+        quickTurnaroundAvailable: false,
+      },
+      billing: client.billing ?? {
+        monthlyFee: "",
+        billingFrequency: "monthly",
+        billingDay: 1,
+        paymentMethod: "credit-card",
+        nextBillingDate: "",
+        notes: "",
+      },
+      postingSchedule: client.postingSchedule ?? {},
+      currentProgress: client.currentProgress ?? { completed: 0, total: 0 },
+    };
+
+    return NextResponse.json({ client: normalizedClient });
   } catch (err) {
     console.error("GET /clients/:id error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
@@ -179,10 +170,6 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       }
     }
 
-    // 🔥 Invalidate caches
-    await redis.del(`client:${id}`);
-    await redis.del("clients:all");
-
     const normalized = {
       ...updatedClient,
       emails: additionalEmails,
@@ -256,10 +243,6 @@ export async function DELETE(
     const deletedClient = await prisma.client.delete({
       where: { id },
     });
-
-    // 🔥 Invalidate caches
-    await redis.del(`client:${id}`);
-    await redis.del("clients:all");
 
     return NextResponse.json({
       success: true,

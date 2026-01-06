@@ -34,9 +34,9 @@ export async function createClientFolders(companyName: string) {
   const s3 = getS3();
 
   const mainPrefix = `${companyName}/`;
-  const rawPrefix = `${companyName}/Raw-Footage/`;
-  const elementsPrefix = `${companyName}/Elements/`;
-  const outputsPrefix = `${companyName}/Outputs/`;
+  const rawPrefix = `${companyName}/raw-footage/`;
+  const elementsPrefix = `${companyName}/elements/`;
+  const outputsPrefix = `${companyName}/outputs/`;
 
   const folderCommands = [
     new PutObjectCommand({
@@ -74,7 +74,7 @@ export async function createClientFolders(companyName: string) {
 // 🔥 Create month folder inside raw-footage
 export async function createMonthFolder(companyName: string, monthYear: string) {
   const s3 = getS3();
-  const monthPrefix = `${companyName}/Raw-Footage/${monthYear}/`;
+  const monthPrefix = `${companyName}/raw-footage/${monthYear}/`;
   
   try {
     await s3.send(
