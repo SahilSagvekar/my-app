@@ -431,7 +431,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
           <RoleAssign
             title="Assign QC"
-            role="qc_specialist"
+            role="qc"
             field="qc_specialist"
             formData={formData}
             update={handleInputChange}

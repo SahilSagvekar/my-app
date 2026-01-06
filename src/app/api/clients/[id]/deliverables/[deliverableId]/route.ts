@@ -11,7 +11,7 @@ export async function GET(
     const { clientId, deliverableId } = await params;
 
     const deliverable = await prisma.monthlyDeliverable.findFirst({
-      where: { 
+      where: {
         id: deliverableId,
         clientId: clientId,
       },
@@ -43,7 +43,7 @@ export async function PUT(
 
     // Verify deliverable exists and belongs to this client
     const existing = await prisma.monthlyDeliverable.findFirst({
-      where: { 
+      where: {
         id: deliverableId,
         clientId: clientId,
       },
@@ -69,9 +69,9 @@ export async function PUT(
 
     console.log("✅ Deliverable updated:", deliverable.id);
 
-    return NextResponse.json({ 
-      success: true, 
-      deliverable 
+    return NextResponse.json({
+      success: true,
+      deliverable
     });
 
   } catch (err) {
@@ -92,7 +92,7 @@ export async function DELETE(
 
     // Verify deliverable exists and belongs to this client
     const existing = await prisma.monthlyDeliverable.findFirst({
-      where: { 
+      where: {
         id: deliverableId,
         clientId: clientId,
       },
@@ -102,9 +102,10 @@ export async function DELETE(
       return NextResponse.json({ message: "Deliverable not found" }, { status: 404 });
     }
 
-    // Delete related recurring tasks first
-    await prisma.recurringTask.deleteMany({
+    // Deactivate related recurring tasks (don't delete for data safety)
+    await prisma.recurringTask.updateMany({
       where: { deliverableId },
+      data: { active: false },
     });
 
     // Delete the deliverable
@@ -114,9 +115,9 @@ export async function DELETE(
 
     console.log("✅ Deliverable deleted:", deliverableId);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: "Deliverable deleted successfully" 
+    return NextResponse.json({
+      success: true,
+      message: "Deliverable deleted successfully"
     });
 
   } catch (err) {

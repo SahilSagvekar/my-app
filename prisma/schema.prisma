@@ -148,6 +148,13 @@ model RecurringTask {
   scheduleType   String
   active         Boolean            @default(true)
   createdAt      DateTime           @default(now())
+  
+  // Default assignment fields (used when no templateTask)
+  defaultAssignedTo    Int?
+  defaultQcSpecialist  Int?
+  defaultScheduler     Int?
+  defaultVideographer  Int?
+  
   client         Client             @relation(fields: [clientId], references: [id])
   deliverable    MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
   templateTask   Task?              @relation("TemplateTask", fields: [templateTaskId], references: [id])

@@ -124,7 +124,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     },
   });
 
-   if (!deliverable) {
+  if (!deliverable) {
     console.error("❌ Deliverable not found for ID:", monthlyDeliverableId);
     return { created: 0, error: "Deliverable not found" };
   }
@@ -176,25 +176,42 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
 
   // STEP 5 — Naming parts
   const clientSlug = client.name.replace(/\s+/g, "");
-  const companyName = client.companyName || client.name;
+  const companyName = client?.companyName || client.name;
+    const companyNameSlug = (client?.companyName || client.name).replace(/\s/g, '');;
   const deliverableSlug = getDeliverableShortCode(deliverable.type);
   const createdAtStr = formatDateMMDDYYYY(templateTask.createdAt);
 
   // STEP 6 — Update template task with title and folder
   let count = 1;
   // const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
-  const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}${count}`;
+  const title1 = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
   // 🔥 Create folder structure for template task
   const taskFolderPath1 = await createTaskFolderStructure(companyName, title1);
 
   await prisma.task.update({
     where: { id: taskId },
-    data: { 
+    data: {
       title: title1,
       outputFolderId: taskFolderPath1, // 🔥 Save folder path
     },
   });
+
+  // ─────────────────────────────────────────
+  // Set this task as the master template for RecurringTask
+  // ─────────────────────────────────────────
+  await prisma.recurringTask.updateMany({
+    where: {
+      clientId: clientId,
+      deliverableId: deliverable.id,
+      templateTaskId: null, // Only set if not already set
+    },
+    data: {
+      templateTaskId: taskId,
+    },
+  });
+
+  console.log(`✅ Set task ${taskId} as master template for client ${clientId}`);
 
   // STEP 7 — Create remaining tasks
   const creates = [];
@@ -211,7 +228,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
 
       count++;
       // const title = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
-      const title = `${clientSlug}_${createdAtStr}_${deliverableSlug}${count}`;
+      const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
       // 🔥 Create folder structure for this task
       const taskFolderPath = await createTaskFolderStructure(companyName, title);
