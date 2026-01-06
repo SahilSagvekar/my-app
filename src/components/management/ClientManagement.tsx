@@ -126,6 +126,8 @@ interface Client {
   lastActivity: string;
   clientReviewRequired: string;
   videographerRequired: string;
+  requiresClientReview: string;
+  requiresVideographer: string
   brandAssets: BrandAsset[];
   brandGuidelines: {
     primaryColors: string[];
@@ -796,6 +798,8 @@ const [newDeliverable, setNewDeliverable] = useState<{
       companyName: client.companyName,
       email: client.email,
       phone: client.phone,
+    clientReviewRequired: client.requiresClientReview ? "yes" : "no",  // ✅ Map correctly
+    videographerRequired: client.requiresVideographer ? "yes" : "no",  // ✅ Map correctly
       accountManagerId: client.accountManagerId,
       startDate: client.startDate,
       renewalDate: client.renewalDate,

@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     let s3Key: string;
 
     // 🔥 HANDLE DIFFERENT FOLDER TYPES
-    if (folderType === "Outputs") {
+    if (folderType === "outputs") {
       // Outputs folder - create task folder structure
       if (!taskTitle) {
         return NextResponse.json(

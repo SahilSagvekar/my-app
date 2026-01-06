@@ -91,8 +91,10 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       projectSettings,
       billing,
       postingSchedule,
-      clientReviewRequired,
-      requiresVideographer,
+
+
+      clientReviewRequired,       
+      videographerRequired,       
       monthlyDeliverables = [],
     } = data;
 
@@ -100,7 +102,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       clientReview = true;
     }
 
-    if (requiresVideographer == "yes") {
+    if (videographerRequired == "yes") {
       videographer = true;
     }
 
@@ -122,8 +124,8 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         projectSettings,
         billing,
         postingSchedule,
-        requiresClientReview: clientReview,
-        requiresVideographer: videographer,
+        requiresClientReview: clientReview,     
+        requiresVideographer: videographer,  
       },
     });
 
