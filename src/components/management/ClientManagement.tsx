@@ -796,6 +796,8 @@ const [newDeliverable, setNewDeliverable] = useState<{
       companyName: client.companyName,
       email: client.email,
       phone: client.phone,
+    clientReviewRequired: client.requiresClientReview ? "yes" : "no",  // ✅ Map correctly
+    videographerRequired: client.requiresVideographer ? "yes" : "no",  // ✅ Map correctly
       accountManagerId: client.accountManagerId,
       startDate: client.startDate,
       renewalDate: client.renewalDate,
