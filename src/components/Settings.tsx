@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -17,39 +16,6 @@ interface SettingsProps {
 }
 
 export function Settings({ currentRole, onClose }: SettingsProps) {
-  // Try multiple sources for token
-  const getToken = () => {
-    if (typeof window === 'undefined') return null;
-    
-    // Try localStorage
-    const localToken = localStorage.getItem('authToken');
-    if (localToken) {
-      console.log('Token found in localStorage');
-      return localToken;
-    }
-    
-    // Try sessionStorage
-    const sessionToken = sessionStorage.getItem('authToken');
-    if (sessionToken) {
-      console.log('Token found in sessionStorage');
-      return sessionToken;
-    }
-    
-    // Try getting from cookie
-    const cookies = document.cookie.split(';');
-    for (let cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'authToken' || name === '__Secure-next-auth.session-token') {
-        console.log('Token found in cookie:', name);
-        return decodeURIComponent(value);
-      }
-    }
-    
-    console.warn('No token found in any storage!');
-    return null;
-  };
-
-  const token = getToken();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -90,21 +56,25 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      console.log('Fetching profile with token:', token);
+      setError('');
       
-      if (!token) {
-        setError('No authentication token found');
-        return;
-      }
-      
-      const response = await axios.get('/api/profile', {
+      const response = await fetch('/api/profile', {
+        method: 'GET',
+        credentials: 'include', // This sends cookies automatically
         headers: {
-          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
 
-      if (response.data.success) {
-        const userData = response.data.data;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch profile');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        const userData = data.data;
         setFormData(prev => ({
           ...prev,
           name: userData.name || '',
@@ -112,14 +82,25 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
           phone: userData.phone || '',
           role: userData.role || '',
           image: userData.image || '',
+          // If backend returns these preferences, use them
+          emailNotifications: userData.emailNotifications ?? prev.emailNotifications,
+          pushNotifications: userData.pushNotifications ?? prev.pushNotifications,
+          taskReminders: userData.taskReminders ?? prev.taskReminders,
+          deadlineAlerts: userData.deadlineAlerts ?? prev.deadlineAlerts,
+          teamUpdates: userData.teamUpdates ?? prev.teamUpdates,
+          systemMaintenance: userData.systemMaintenance ?? prev.systemMaintenance,
+          weeklyReports: userData.weeklyReports ?? prev.weeklyReports,
+          theme: userData.theme ?? prev.theme,
+          language: userData.language ?? prev.language,
+          timezone: userData.timezone ?? prev.timezone,
         }));
         if (userData.image) {
           setPreviewUrl(userData.image);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch profile:', err);
-      setError('Failed to load profile');
+      setError(err.message || 'Failed to load profile');
     } finally {
       setLoading(false);
     }
@@ -128,6 +109,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file size (1MB max)
+      if (file.size > 1024 * 1024) {
+        setError('Image size must be less than 1MB');
+        return;
+      }
+      
       setImageFile(file);
       // Create preview
       const reader = new FileReader();
@@ -145,32 +132,62 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
       setMessage('');
 
       const formDataToSend = new FormData();
-      formDataToSend.append('name', formData.name);
-      formDataToSend.append('phone', formData.phone);
-      formDataToSend.append('role', formData.role);
+      formDataToSend.append('name', formData.name || '');
+      formDataToSend.append('phone', formData.phone || '');
+      // Note: Don't send 'role' as it's the system role (admin/editor/qc), not job title
 
       if (imageFile) {
         formDataToSend.append('image', imageFile);
       }
 
-      const response = await axios.put('/api/profile', formDataToSend, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
+      console.log('Sending profile update:', {
+        name: formData.name,
+        phone: formData.phone,
+        hasImage: !!imageFile,
       });
 
-      if (response.data.success) {
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        credentials: 'include',
+        body: formDataToSend,
+      });
+
+      const data = await response.json();
+      console.log('Profile update response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || `Server error: ${response.status}`);
+      }
+
+      if (data.success) {
         setMessage('Profile updated successfully!');
         setImageFile(null);
         setIsEditing(false);
+        
+        // Update form data with response if provided
+        if (data.data) {
+          setFormData(prev => ({
+            ...prev,
+            name: data.data.name || prev.name,
+            email: data.data.email || prev.email,
+            phone: data.data.phone || prev.phone,
+            role: data.data.role || prev.role,
+            image: data.data.image || prev.image,
+          }));
+          if (data.data.image) {
+            setPreviewUrl(data.data.image);
+          }
+        }
+        
         setTimeout(() => {
           setMessage('');
         }, 3000);
+      } else {
+        throw new Error(data.error || 'Failed to update profile');
       }
     } catch (err: any) {
       console.error('Failed to update profile:', err);
-      setError(err.response?.data?.error || 'Failed to update profile');
+      setError(err.message || 'Failed to update profile');
     } finally {
       setLoading(false);
     }
@@ -179,7 +196,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
   const handleCancel = () => {
     setIsEditing(false);
     setImageFile(null);
-    fetchProfile();
+    setError('');
+    fetchProfile(); // Reload original data
   };
 
   const handleInputChange = (field: string, value: any) => {
@@ -255,6 +273,18 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     }
   };
 
+  // Show loading state on initial load
+  if (loading && !formData.email) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-full flex flex-col max-w-none">
       {/* Fixed Header */}
@@ -309,7 +339,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                       <Avatar className="w-20 h-20">
                         <AvatarImage src={previewUrl || formData.image} />
                         <AvatarFallback className="text-lg">
-                          {formData.name?.charAt(0) || 'U'}
+                          {formData.name?.charAt(0)?.toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <div className="space-y-2">
@@ -370,16 +400,16 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                       </div>
                     </div>
 
-                    {/* Job Information */}
+                    {/* Job Role - Display Only */}
                     <div className="space-y-2">
-                      <Label htmlFor="role">Job Title</Label>
+                      <Label htmlFor="role">Role</Label>
                       <Input
                         id="role"
-                        disabled={!isEditing}
                         value={formData.role}
-                        onChange={(e) => handleInputChange('role', e.target.value)}
-                        placeholder="Enter your job title"
+                        disabled
+                        className="bg-gray-50 capitalize"
                       />
+                      <p className="text-sm text-muted-foreground">Role is assigned by administrators</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -504,6 +534,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                           <SelectItem value="America/Chicago">Central Time</SelectItem>
                           <SelectItem value="America/Denver">Mountain Time</SelectItem>
                           <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                          <SelectItem value="Asia/Kolkata">India (IST)</SelectItem>
                           <SelectItem value="UTC">UTC</SelectItem>
                         </SelectContent>
                       </Select>

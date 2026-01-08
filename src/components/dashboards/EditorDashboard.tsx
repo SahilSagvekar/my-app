@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { TaskUploadSections } from "../workflow/TaskUploadSections";
 import {
   Calendar,
@@ -17,8 +18,11 @@ import {
   Eye,
   AlertCircle,
   ExternalLink,
+  Filter,
+  X,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { useRouter } from "next/navigation";
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -44,6 +48,16 @@ function mapTaskTypeToWorkflow(type: string) {
   if (["review", "audit"].includes(type)) return "qc_review";
   if (["schedule"].includes(type)) return "scheduling";
   return "edit";
+}
+
+/* -------------------------------------------------------------------------- */
+/* 🔥 HELPER: Extract task number from title                                   */
+/* -------------------------------------------------------------------------- */
+
+function extractTaskNumber(title: string): number | null {
+  // Matches patterns like "LF1", "SF2", "REEL3", "Task 5", etc.
+  const match = title?.match(/(\d+)/);
+  return match ? parseInt(match[1]) : null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -74,7 +88,8 @@ interface WorkflowTask {
   workflowStep: string;
   clientId: string;
   projectId: string;
-  deliverableType?: string; // 🔥 ADD THIS
+  deliverableType?: string;
+  taskNumber?: number | null; // Extracted from title
   files?: TaskFile[];
   qcNotes?: string | null;
   rejectionReason?: string | null;
@@ -85,13 +100,7 @@ interface WorkflowTask {
 /* 🔥 FILE PREVIEW COMPONENT                                                  */
 /* -------------------------------------------------------------------------- */
 
-function FilePreviewCard({
-  file,
-  onView,
-}: {
-  file: TaskFile;
-  onView: () => void;
-}) {
+function FilePreviewCard({ file, onView }: { file: TaskFile; onView: () => void }) {
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith("video/"))
       return <Video className="h-4 w-4 text-blue-600" />;
@@ -184,8 +193,7 @@ function FileViewerDialog({
                       <span>{formatFileSize(file.size)}</span>
                       <span>•</span>
                       <span>
-                        Uploaded{" "}
-                        {new Date(file.uploadedAt).toLocaleDateString()}
+                        Uploaded {new Date(file.uploadedAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
@@ -216,15 +224,22 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
     <>
       <Card className="hover:shadow-md transition-shadow">
         <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-3">
-            <h4 className="font-medium text-sm truncate">{task.title}</h4>
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <h4 className="font-medium text-sm break-words">{task.title}</h4>
             <Badge
               variant={task.status === "completed" ? "default" : "secondary"}
-              className="text-xs ml-2 flex-shrink-0"
+              className="text-xs flex-shrink-0"
             >
               {task.status.replace("_", " ").toUpperCase()}
             </Badge>
           </div>
+
+          {/* Deliverable Type Badge */}
+          {task.deliverableType && (
+            <Badge variant="outline" className="text-xs mb-2">
+              {task.deliverableType.replace(/_/g, " ")}
+            </Badge>
+          )}
 
           <p className="text-sm text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
             {task.description}
@@ -244,7 +259,9 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
           <div className="flex items-center justify-between mb-4">
             <span
               className={`text-xs ${
-                isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
+                isOverdue
+                  ? "text-red-500 font-medium"
+                  : "text-muted-foreground"
               }`}
             >
               Due {new Date(task.dueDate).toLocaleDateString()}
@@ -343,6 +360,8 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
 
 export function EditorDashboard() {
   const [tasks, setTasks] = useState<WorkflowTask[]>([]);
+  const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>("all");
+  const [taskCountFilter, setTaskCountFilter] = useState<string>("all");
   const { user } = useAuth();
 
   const currentUser = {
@@ -350,6 +369,8 @@ export function EditorDashboard() {
     name: user?.name || "Editor",
     role: "editor",
   };
+
+  const router = useRouter();
 
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
 
@@ -370,7 +391,7 @@ export function EditorDashboard() {
               title: t.title,
               deliverableType: t.monthlyDeliverable?.type,
             });
-
+            
             return {
               id: t.id,
               title: t.title,
@@ -388,6 +409,7 @@ export function EditorDashboard() {
               clientId: t.clientId,
               projectId: t.clientId,
               deliverableType: t.monthlyDeliverable?.type,
+              taskNumber: extractTaskNumber(t.title), // Extract number from title
               files: t.files || [],
               qcNotes: t.qcNotes || null,
               rejectionReason: t.rejectionReason || null,
@@ -395,6 +417,7 @@ export function EditorDashboard() {
             };
           });
 
+        
         setTasks(formatted);
       } catch (err) {
         console.error("Failed to load tasks:", err);
@@ -403,6 +426,60 @@ export function EditorDashboard() {
 
     loadTasks();
   }, [currentUser.id]);
+
+  /* ----------------------------- DERIVED DATA ------------------------------ */
+
+  // Extract unique deliverable types from tasks
+  const availableDeliverableTypes = useMemo(() => {
+    const types = new Set<string>();
+    tasks.forEach((task) => {
+      if (task.deliverableType) {
+        types.add(task.deliverableType);
+      }
+    });
+    return Array.from(types).sort();
+  }, [tasks]);
+
+  // Extract unique task numbers from tasks (filtered by deliverable type if selected)
+  const availableTaskNumbers = useMemo(() => {
+    const numbers = new Set<number>();
+    
+    // If deliverable type is selected, only show numbers for that type
+    const tasksToCheck = deliverableTypeFilter === "all" 
+      ? tasks 
+      : tasks.filter((task) => task.deliverableType === deliverableTypeFilter);
+    
+    tasksToCheck.forEach((task) => {
+      if (task.taskNumber !== null && task.taskNumber !== undefined) {
+        numbers.add(task.taskNumber);
+      }
+    });
+    
+    return Array.from(numbers).sort((a, b) => a - b);
+  }, [tasks, deliverableTypeFilter]);
+
+  // Filter tasks by deliverable type AND task number
+  const filteredTasks = useMemo(() => {
+    let result = tasks;
+    
+    // Filter by deliverable type
+    if (deliverableTypeFilter !== "all") {
+      result = result.filter((task) => task.deliverableType === deliverableTypeFilter);
+    }
+    
+    // Filter by task number
+    if (taskCountFilter !== "all") {
+      const targetNumber = parseInt(taskCountFilter);
+      result = result.filter((task) => task.taskNumber === targetNumber);
+    }
+    
+    return result;
+  }, [tasks, deliverableTypeFilter, taskCountFilter]);
+
+  // Reset task count filter when deliverable type changes
+  useEffect(() => {
+    setTaskCountFilter("all");
+  }, [deliverableTypeFilter]);
 
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
@@ -422,23 +499,34 @@ export function EditorDashboard() {
     // Refresh task data to get updated files
     const res = await fetch("/api/tasks");
     const data = await res.json();
-
+    
     const updatedTask = data.tasks.find((t: any) => t.id === taskId);
-
+    
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === taskId ? { ...t, files: updatedTask?.files || files } : t
+        t.id === taskId 
+          ? { ...t, files: updatedTask?.files || files } 
+          : t
       )
     );
   }
 
+  /* ----------------------------- CLEAR FILTERS ----------------------------- */
+
+  function clearAllFilters() {
+    setDeliverableTypeFilter("all");
+    setTaskCountFilter("all");
+  }
+
+  const hasActiveFilters = deliverableTypeFilter !== "all" || taskCountFilter !== "all";
+
   /* ----------------------------- GROUPING ---------------------------------- */
 
   const tasksByStatus = {
-    pending: tasks.filter((t) => t.status === "pending"),
-    inProgress: tasks.filter((t) => t.status === "in_progress"),
-    readyForQC: tasks.filter((t) => t.status === "ready_for_qc"),
-    revisions: tasks.filter((t) => t.status === "rejected"),
+    pending: filteredTasks.filter((t) => t.status === "pending"),
+    inProgress: filteredTasks.filter((t) => t.status === "in_progress"),
+    readyForQC: filteredTasks.filter((t) => t.status === "ready_for_qc"),
+    revisions: filteredTasks.filter((t) => t.status === "rejected"),
   };
 
   const columns = [
@@ -460,6 +548,10 @@ export function EditorDashboard() {
     },
   ];
 
+  // Calculate total filtered count
+  const totalFilteredTasks = filteredTasks.length;
+  const totalTasks = tasks.length;
+
   /* -------------------------------------------------------------------------- */
 
   return (
@@ -471,11 +563,106 @@ export function EditorDashboard() {
             Manage your assigned tasks and complete work for QC review
           </p>
         </div>
+        <div className="flex items-center gap-3">
+          <Button
+            className="w-full"
+            onClick={() => router.push("/leave-request")}
+          >
+            Request Leave
+          </Button>
+        </div>
       </div>
 
+      {/* Filter Section */}
       <Card>
         <CardContent className="p-4">
-          Logged in as: {currentUser.name}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="text-sm text-muted-foreground">
+              Logged in as: <span className="font-medium text-foreground">{currentUser.name}</span>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Filters:</span>
+              </div>
+              
+              {/* Deliverable Type Filter */}
+              <Select
+                value={deliverableTypeFilter}
+                onValueChange={setDeliverableTypeFilter}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {availableDeliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Task Count/Number Filter */}
+              <Select
+                value={taskCountFilter}
+                onValueChange={setTaskCountFilter}
+              >
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="All #" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All #</SelectItem>
+                  {availableTaskNumbers.map((num) => (
+                    <SelectItem key={num} value={num.toString()}>
+                      #{num}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Clear All Filters */}
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="text-xs gap-1"
+                >
+                  <X className="h-3 w-3" />
+                  Clear all
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Show filter info */}
+          {hasActiveFilters && (
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-sm text-muted-foreground">
+                Showing <span className="font-medium text-foreground">{totalFilteredTasks}</span> of{" "}
+                <span className="font-medium text-foreground">{totalTasks}</span> tasks
+                {deliverableTypeFilter !== "all" && (
+                  <>
+                    {" "}• Type:{" "}
+                    <Badge variant="secondary" className="ml-1">
+                      {deliverableTypeFilter.replace(/_/g, " ")}
+                    </Badge>
+                  </>
+                )}
+                {taskCountFilter !== "all" && (
+                  <>
+                    {" "}• Number:{" "}
+                    <Badge variant="secondary" className="ml-1">
+                      #{taskCountFilter}
+                    </Badge>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
