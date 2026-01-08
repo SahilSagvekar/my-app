@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { TaskUploadSections } from "../workflow/TaskUploadSections";
 import {
   Calendar,
@@ -17,6 +18,7 @@ import {
   Eye,
   AlertCircle,
   ExternalLink,
+  Filter,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -75,7 +77,7 @@ interface WorkflowTask {
   workflowStep: string;
   clientId: string;
   projectId: string;
-  deliverableType?: string; // 🔥 ADD THIS
+  deliverableType?: string;
   files?: TaskFile[];
   qcNotes?: string | null;
   rejectionReason?: string | null;
@@ -211,7 +213,7 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
       <Card className="hover:shadow-md transition-shadow">
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-3">
-            <h4 className="font-medium text-sm truncate">{task.title}</h4>
+            <h4 className="font-medium text-sm">{task.title}</h4>
             <Badge
               variant={task.status === "completed" ? "default" : "secondary"}
               className="text-xs ml-2 flex-shrink-0"
@@ -219,6 +221,13 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
               {task.status.replace("_", " ").toUpperCase()}
             </Badge>
           </div>
+
+          {/* Deliverable Type Badge */}
+          {task.deliverableType && (
+            <Badge variant="outline" className="text-xs mb-2">
+              {task.deliverableType.replace(/_/g, " ")}
+            </Badge>
+          )}
 
           <p className="text-sm text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
             {task.description}
@@ -339,6 +348,7 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
 
 export function EditorDashboard() {
   const [tasks, setTasks] = useState<WorkflowTask[]>([]);
+  const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>("all");
   const { user } = useAuth();
 
   const currentUser = {
@@ -403,6 +413,27 @@ export function EditorDashboard() {
     loadTasks();
   }, [currentUser.id]);
 
+  /* ----------------------------- DERIVED DATA ------------------------------ */
+
+  // Extract unique deliverable types from tasks
+  const availableDeliverableTypes = useMemo(() => {
+    const types = new Set<string>();
+    tasks.forEach((task) => {
+      if (task.deliverableType) {
+        types.add(task.deliverableType);
+      }
+    });
+    return Array.from(types).sort();
+  }, [tasks]);
+
+  // Filter tasks by deliverable type
+  const filteredTasks = useMemo(() => {
+    if (deliverableTypeFilter === "all") {
+      return tasks;
+    }
+    return tasks.filter((task) => task.deliverableType === deliverableTypeFilter);
+  }, [tasks, deliverableTypeFilter]);
+
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
   async function startTask(taskId: string) {
@@ -436,10 +467,10 @@ export function EditorDashboard() {
   /* ----------------------------- GROUPING ---------------------------------- */
 
   const tasksByStatus = {
-    pending: tasks.filter((t) => t.status === "pending"),
-    inProgress: tasks.filter((t) => t.status === "in_progress"),
-    readyForQC: tasks.filter((t) => t.status === "ready_for_qc"),
-    revisions: tasks.filter((t) => t.status === "rejected"),
+    pending: filteredTasks.filter((t) => t.status === "pending"),
+    inProgress: filteredTasks.filter((t) => t.status === "in_progress"),
+    readyForQC: filteredTasks.filter((t) => t.status === "ready_for_qc"),
+    revisions: filteredTasks.filter((t) => t.status === "rejected"),
   };
 
   const columns = [
@@ -460,6 +491,10 @@ export function EditorDashboard() {
       tasks: tasksByStatus.revisions,
     },
   ];
+
+  // Calculate total filtered count
+  const totalFilteredTasks = filteredTasks.length;
+  const totalTasks = tasks.length;
 
   /* -------------------------------------------------------------------------- */
 
@@ -482,9 +517,63 @@ export function EditorDashboard() {
         </div>
       </div>
 
+      {/* Filter Section */}
       <Card>
         <CardContent className="p-4">
-          Logged in as: {currentUser.name}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="text-sm text-muted-foreground">
+              Logged in as: <span className="font-medium text-foreground">{currentUser.name}</span>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Filter by:</span>
+              </div>
+              
+              <Select
+                value={deliverableTypeFilter}
+                onValueChange={setDeliverableTypeFilter}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {availableDeliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {deliverableTypeFilter !== "all" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDeliverableTypeFilter("all")}
+                  className="text-xs"
+                >
+                  Clear filter
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Show filter info */}
+          {deliverableTypeFilter !== "all" && (
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-sm text-muted-foreground">
+                Showing <span className="font-medium text-foreground">{totalFilteredTasks}</span> of{" "}
+                <span className="font-medium text-foreground">{totalTasks}</span> tasks
+                {" "}filtered by{" "}
+                <Badge variant="secondary" className="ml-1">
+                  {deliverableTypeFilter.replace(/_/g, " ")}
+                </Badge>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
