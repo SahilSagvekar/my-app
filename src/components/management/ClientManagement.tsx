@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef  } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -60,6 +60,15 @@ import { VisuallyHidden } from "../ui/visually-hidden";
 import { Checkbox } from "../ui/checkbox";
 import { toast } from "sonner";
 import { globalTaskManager } from "../workflow/GlobalTaskManager";
+import {
+  FaInstagram,
+  FaTiktok,
+  FaFacebook,
+  FaYoutube,
+  FaTwitter,
+  FaLinkedin,
+  FaSnapchat,
+} from "react-icons/fa";
 
 type SocialPlatform =
   | "Instagram"
@@ -67,7 +76,8 @@ type SocialPlatform =
   | "Facebook"
   | "Youtube"
   | "Twitter"
-  | "Linkedin";
+  | "Linkedin"
+  | "Snapchat";
 
 type DeliverableType =
   | "Short Form Videos"
@@ -75,7 +85,7 @@ type DeliverableType =
   | "Square Form Videos"
   | "Thumbnails"
   | "Tiles"
-  | "Hard Posts / Graphic Images" 
+  | "Hard Posts / Graphic Images"
   | "Snapchat Episodes"
   | "Beta Short Form";
 
@@ -127,7 +137,7 @@ interface Client {
   clientReviewRequired: string;
   videographerRequired: string;
   requiresClientReview: string;
-  requiresVideographer: string
+  requiresVideographer: string;
   brandAssets: BrandAsset[];
   brandGuidelines: {
     primaryColors: string[];
@@ -241,7 +251,7 @@ export function ClientManagement() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showClientDetailsDialog, setShowClientDetailsDialog] = useState(false);
   const [uploadFolder, setUploadFolder] = useState("elements");
-  const fileInputRef = useRef<HTMLInputElement | null>(null); 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [newClient, setNewClient] = useState<Partial<Client>>({
     name: "",
@@ -269,7 +279,6 @@ export function ClientManagement() {
       contentStyle: "",
     },
 
-    
     projectSettings: {
       defaultVideoLength: "60 seconds",
       preferredPlatforms: [],
@@ -278,82 +287,87 @@ export function ClientManagement() {
     },
   });
 
-
   const addEmail = () => {
-  setNewClient({
-    ...newClient,
-    emails: [...(newClient.emails || []), ""]
-  });
-};
+    setNewClient({
+      ...newClient,
+      emails: [...(newClient.emails || []), ""],
+    });
+  };
 
-const updateEmail = (index: number, value: string) => {
-  const updatedEmails = [...(newClient.emails || [])];
-  updatedEmails[index] = value;
-  setNewClient({
-    ...newClient,
-    emails: updatedEmails
-  });
-};
+  const updateEmail = (index: number, value: string) => {
+    const updatedEmails = [...(newClient.emails || [])];
+    updatedEmails[index] = value;
+    setNewClient({
+      ...newClient,
+      emails: updatedEmails,
+    });
+  };
 
-const removeEmail = (index: number) => {
-  const updatedEmails = (newClient.emails || []).filter((_, i) => i !== index);
-  setNewClient({
-    ...newClient,
-    emails: updatedEmails
-  });
-};
+  const removeEmail = (index: number) => {
+    const updatedEmails = (newClient.emails || []).filter(
+      (_, i) => i !== index
+    );
+    setNewClient({
+      ...newClient,
+      emails: updatedEmails,
+    });
+  };
 
-const addPhone = () => {
-  setNewClient({
-    ...newClient,
-    phones: [...(newClient.phones || []), ""]
-  });
-};
+  const addPhone = () => {
+    setNewClient({
+      ...newClient,
+      phones: [...(newClient.phones || []), ""],
+    });
+  };
 
-const updatePhone = (index: number, value: string) => {
-  const updatedPhones = [...(newClient.phones || [])];
-  updatedPhones[index] = value;
-  setNewClient({
-    ...newClient,
-    phones: updatedPhones
-  });
-};
+  const updatePhone = (index: number, value: string) => {
+    const updatedPhones = [...(newClient.phones || [])];
+    updatedPhones[index] = value;
+    setNewClient({
+      ...newClient,
+      phones: updatedPhones,
+    });
+  };
 
-const removePhone = (index: number) => {
-  const updatedPhones = (newClient.phones || []).filter((_, i) => i !== index);
-  setNewClient({
-    ...newClient,
-    phones: updatedPhones
-  });
-};
+  const removePhone = (index: number) => {
+    const updatedPhones = (newClient.phones || []).filter(
+      (_, i) => i !== index
+    );
+    setNewClient({
+      ...newClient,
+      phones: updatedPhones,
+    });
+  };
 
   // Update the initial state declaration (around line 155)
-const [newDeliverable, setNewDeliverable] = useState<{
-  type: DeliverableType;
-  quantity: number;
-  videosPerDay?: number;
-  platforms: SocialPlatform[];
-  postingSchedule: PostingSchedule;
-  postingDays?: string[];
-  postingTimes: string[];
-  description?: string;
-}>({
-  type: "Short Form Videos",
-  quantity: 1,
-  videosPerDay: 1,
-  platforms: [],
-  postingSchedule: "weekly",
-  postingDays: [],
-  postingTimes: ["10:00"],
-  description: "",
-});
+  const [newDeliverable, setNewDeliverable] = useState<{
+    type: DeliverableType;
+    quantity: number;
+    videosPerDay?: number;
+    platforms: SocialPlatform[];
+    postingSchedule: PostingSchedule;
+    postingDays?: string[];
+    postingTimes: string[];
+    description?: string;
+  }>({
+    type: "Short Form Videos",
+    quantity: 1,
+    videosPerDay: 1,
+    platforms: [],
+    postingSchedule: "weekly",
+    postingDays: [],
+    postingTimes: ["10:00"],
+    description: "",
+  });
 
   const [showAddDeliverableDialog, setShowAddDeliverableDialog] =
     useState(false);
   const [deliverableDialogKey, setDeliverableDialogKey] = useState(0);
-  
+
   // 🔥 NEW: State for editing deliverables
-  const [editingDeliverableId, setEditingDeliverableId] = useState<string | null>(null);
+  const [editingDeliverableId, setEditingDeliverableId] = useState<
+    string | null
+  >(null);
 
   const filteredClients = clients.filter((client) => {
     const matchesSearch =
@@ -367,7 +381,6 @@ const [newDeliverable, setNewDeliverable] = useState<{
 
     return matchesSearch && matchesStatus && matchesManager;
   });
-
 
   useEffect(() => {
     async function loadClients() {
@@ -440,8 +453,49 @@ const [newDeliverable, setNewDeliverable] = useState<{
       Youtube: "bg-red-100 text-red-700 border-red-300",
       Twitter: "bg-sky-100 text-sky-700 border-sky-300",
       Linkedin: "bg-indigo-100 text-indigo-700 border-indigo-300",
+      Snapchat: "bg-yellow-100 text-yellow-700 border-yellow-300",
     };
     return colors[platform] || "bg-gray-100 text-gray-700";
+  };
+
+  const getPlatformIcon = (platform: SocialPlatform) => {
+    const iconProps = { className: "h-5 w-5" };
+    const icons: Record<SocialPlatform, React.ReactElement> = {
+      Instagram: <FaInstagram {...iconProps} />,
+      Tiktok: <FaTiktok {...iconProps} />,
+      Facebook: <FaFacebook {...iconProps} />,
+      Youtube: <FaYoutube {...iconProps} />,
+      Twitter: <FaTwitter {...iconProps} />,
+      Linkedin: <FaLinkedin {...iconProps} />,
+      Snapchat: <FaSnapchat {...iconProps} />,
+    };
+    return icons[platform] || <FaInstagram {...iconProps} />;
+  };
+
+  const setAllPlatforms = () => {
+    const allPlatforms: SocialPlatform[] = [
+      "Instagram",
+      "Tiktok",
+      "Facebook",
+      "Youtube",
+      "Twitter",
+      "Linkedin",
+      "Snapchat",
+    ];
+    const currentPlatforms = newDeliverable.platforms || [];
+
+    // If all platforms are selected, deselect all. Otherwise, select all.
+    if (currentPlatforms.length === allPlatforms.length) {
+      setNewDeliverable({
+        ...newDeliverable,
+        platforms: [],
+      });
+    } else {
+      setNewDeliverable({
+        ...newDeliverable,
+        platforms: allPlatforms,
+      });
+    }
   };
 
   const getDeliverableTypeIcon = (type: string) => {
@@ -543,82 +597,53 @@ const [newDeliverable, setNewDeliverable] = useState<{
   };
 
   // 🔥 Replace these functions in your ClientManagement.tsx
-// These call the API instantly when adding, editing, or deleting deliverables
+  // These call the API instantly when adding, editing, or deleting deliverables
 
-// 🔥 UPDATED: Handle both add and edit - NOW WITH INSTANT API CALLS
-const handleAddDeliverable = async () => {
-  console.log("🔍 BEFORE VALIDATION - newDeliverable:", JSON.stringify(newDeliverable, null, 2));
-  
-  if (!newDeliverable.quantity || newDeliverable.quantity === 0) {
-    toast.error("Please enter a quantity");
-    return;
-  }
-  
-  if (!newDeliverable.platforms || newDeliverable.platforms.length === 0) {
-    toast.error("Please select at least one platform");
-    return;
-  }
+  // 🔥 UPDATED: Handle both add and edit - NOW WITH INSTANT API CALLS
+  const handleAddDeliverable = async () => {
+    console.log(
+      "🔍 BEFORE VALIDATION - newDeliverable:",
+      JSON.stringify(newDeliverable, null, 2)
+    );
 
-  // 🔥 Need a client ID to save to
-  const clientId = editingClient?.id;
-  if (!clientId) {
-    // If we're creating a new client, just update local state
-    // The deliverables will be saved when the client is created
-    if (editingDeliverableId) {
-      setNewClient((prev) => ({
-        ...prev,
-        monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
-          d.id === editingDeliverableId
-            ? {
-                ...d,
-                type: newDeliverable.type,
-                quantity: newDeliverable.quantity,
-                videosPerDay: newDeliverable.videosPerDay || 1,
-                platforms: newDeliverable.platforms,
-                postingSchedule: newDeliverable.postingSchedule,
-                postingDays: newDeliverable.postingDays || [],
-                postingTimes: newDeliverable.postingTimes || ["10:00"],
-                description: newDeliverable.description || "",
-              }
-            : d
-        ),
-      }));
-      toast.success(`Updated: ${newDeliverable.type}`);
-    } else {
-      const deliverable = {
-        id: `deliverable-${Date.now()}`,
-        type: newDeliverable.type,
-        quantity: newDeliverable.quantity,
-        videosPerDay: newDeliverable.videosPerDay || 1,
-        platforms: newDeliverable.platforms,
-        postingSchedule: newDeliverable.postingSchedule,
-        postingDays: newDeliverable.postingDays || [],
-        postingTimes: newDeliverable.postingTimes || ["10:00"],
-        description: newDeliverable.description || "",
-      };
-      setNewClient((prev) => ({
-        ...prev,
-        monthlyDeliverables: [...(prev.monthlyDeliverables || []), deliverable],
-      }));
-      toast.success(`Added: ${newDeliverable.type}`);
+    if (!newDeliverable.quantity || newDeliverable.quantity === 0) {
+      toast.error("Please enter a quantity");
+      return;
     }
 
-    setShowAddDeliverableDialog(false);
-    setEditingDeliverableId(null);
-    resetDeliverableForm();
-    return;
-  }
+    if (!newDeliverable.platforms || newDeliverable.platforms.length === 0) {
+      toast.error("Please select at least one platform");
+      return;
+    }
 
-  // 🔥 We have a client ID - make API call
-  try {
-    if (editingDeliverableId && !editingDeliverableId.startsWith("deliverable-")) {
-      // 🔥 UPDATE existing deliverable via API
-      console.log("✏️ Updating deliverable via API:", editingDeliverableId);
-      
-      const res = await fetch(`/api/clients/${clientId}/deliverables/${editingDeliverableId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    // 🔥 Need a client ID to save to
+    const clientId = editingClient?.id;
+    if (!clientId) {
+      // If we're creating a new client, just update local state
+      // The deliverables will be saved when the client is created
+      if (editingDeliverableId) {
+        setNewClient((prev) => ({
+          ...prev,
+          monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
+            d.id === editingDeliverableId
+              ? {
+                  ...d,
+                  type: newDeliverable.type,
+                  quantity: newDeliverable.quantity,
+                  videosPerDay: newDeliverable.videosPerDay || 1,
+                  platforms: newDeliverable.platforms,
+                  postingSchedule: newDeliverable.postingSchedule,
+                  postingDays: newDeliverable.postingDays || [],
+                  postingTimes: newDeliverable.postingTimes || ["10:00"],
+                  description: newDeliverable.description || "",
+                }
+              : d
+          ),
+        }));
+        toast.success(`Updated: ${newDeliverable.type}`);
+      } else {
+        const deliverable = {
+          id: `deliverable-${Date.now()}`,
           type: newDeliverable.type,
           quantity: newDeliverable.quantity,
           videosPerDay: newDeliverable.videosPerDay || 1,
@@ -627,21 +652,197 @@ const handleAddDeliverable = async () => {
           postingDays: newDeliverable.postingDays || [],
           postingTimes: newDeliverable.postingTimes || ["10:00"],
           description: newDeliverable.description || "",
-        }),
+        };
+        setNewClient((prev) => ({
+          ...prev,
+          monthlyDeliverables: [
+            ...(prev.monthlyDeliverables || []),
+            deliverable,
+          ],
+        }));
+        toast.success(`Added: ${newDeliverable.type}`);
+      }
+
+      setShowAddDeliverableDialog(false);
+      setEditingDeliverableId(null);
+      resetDeliverableForm();
+      return;
+    }
+
+    // 🔥 We have a client ID - make API call
+    try {
+      if (
+        editingDeliverableId &&
+        !editingDeliverableId.startsWith("deliverable-")
+      ) {
+        // 🔥 UPDATE existing deliverable via API
+        console.log("✏️ Updating deliverable via API:", editingDeliverableId);
+
+        const res = await fetch(
+          `/api/clients/${clientId}/deliverables/${editingDeliverableId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: newDeliverable.type,
+              quantity: newDeliverable.quantity,
+              videosPerDay: newDeliverable.videosPerDay || 1,
+              platforms: newDeliverable.platforms,
+              postingSchedule: newDeliverable.postingSchedule,
+              postingDays: newDeliverable.postingDays || [],
+              postingTimes: newDeliverable.postingTimes || ["10:00"],
+              description: newDeliverable.description || "",
+            }),
+          }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          toast.error(data.message || "Failed to update deliverable");
+          return;
+        }
+
+        // Update local state with the response
+        setNewClient((prev) => ({
+          ...prev,
+          monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
+            d.id === editingDeliverableId ? data.deliverable : d
+          ),
+        }));
+
+        // Also update the main clients list
+        setClients((prev) =>
+          prev.map((c) =>
+            c.id === clientId
+              ? {
+                  ...c,
+                  monthlyDeliverables: (c.monthlyDeliverables || []).map((d) =>
+                    d.id === editingDeliverableId ? data.deliverable : d
+                  ),
+                }
+              : c
+          )
+        );
+
+        toast.success(`Updated: ${newDeliverable.type}`);
+      } else {
+        // 🔥 CREATE new deliverable via API
+        console.log("➕ Creating deliverable via API for client:", clientId);
+
+        const res = await fetch(`/api/clients/${clientId}/deliverables`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: newDeliverable.type,
+            quantity: newDeliverable.quantity,
+            videosPerDay: newDeliverable.videosPerDay || 1,
+            platforms: newDeliverable.platforms,
+            postingSchedule: newDeliverable.postingSchedule,
+            postingDays: newDeliverable.postingDays || [],
+            postingTimes: newDeliverable.postingTimes || ["10:00"],
+            description: newDeliverable.description || "",
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          toast.error(data.message || "Failed to add deliverable");
+          return;
+        }
+
+        // Update local state with the new deliverable (has real DB ID now)
+        setNewClient((prev) => ({
+          ...prev,
+          monthlyDeliverables: [
+            ...(prev.monthlyDeliverables || []),
+            data.deliverable,
+          ],
+        }));
+
+        // Also update the main clients list
+        setClients((prev) =>
+          prev.map((c) =>
+            c.id === clientId
+              ? {
+                  ...c,
+                  monthlyDeliverables: [
+                    ...(c.monthlyDeliverables || []),
+                    data.deliverable,
+                  ],
+                }
+              : c
+          )
+        );
+
+        toast.success(`Added: ${newDeliverable.type}`);
+      }
+
+      setShowAddDeliverableDialog(false);
+      setEditingDeliverableId(null);
+      resetDeliverableForm();
+    } catch (err) {
+      console.error("Deliverable API error:", err);
+      toast.error("Server error");
+    }
+  };
+
+  // 🔥 NEW: Helper function to reset deliverable form
+  const resetDeliverableForm = () => {
+    setTimeout(() => {
+      setNewDeliverable({
+        type: "Short Form Videos",
+        quantity: 1,
+        videosPerDay: 1,
+        platforms: [],
+        postingSchedule: "weekly",
+        postingDays: [],
+        postingTimes: ["10:00"],
+        description: "",
       });
+    }, 100);
+  };
+
+  // 🔥 UPDATED: Remove deliverable - NOW WITH INSTANT API CALL
+  const handleRemoveDeliverable = async (deliverableId: string) => {
+    const clientId = editingClient?.id;
+
+    // If it's a frontend-generated ID or no client yet, just update local state
+    if (!clientId || deliverableId.startsWith("deliverable-")) {
+      setNewClient((prev) => ({
+        ...prev,
+        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
+          (d) => d.id !== deliverableId
+        ),
+      }));
+      toast.success("Deliverable removed");
+      return;
+    }
+
+    // 🔥 Make API call to delete
+    try {
+      console.log("🗑️ Deleting deliverable via API:", deliverableId);
+
+      const res = await fetch(
+        `/api/clients/${clientId}/deliverables/${deliverableId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.message || "Failed to update deliverable");
+        toast.error(data.message || "Failed to delete deliverable");
         return;
       }
 
-      // Update local state with the response
+      // Update local state
       setNewClient((prev) => ({
         ...prev,
-        monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
-          d.id === editingDeliverableId ? data.deliverable : d
+        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
+          (d) => d.id !== deliverableId
         ),
       }));
 
@@ -651,167 +852,38 @@ const handleAddDeliverable = async () => {
           c.id === clientId
             ? {
                 ...c,
-                monthlyDeliverables: (c.monthlyDeliverables || []).map((d) =>
-                  d.id === editingDeliverableId ? data.deliverable : d
+                monthlyDeliverables: (c.monthlyDeliverables || []).filter(
+                  (d) => d.id !== deliverableId
                 ),
               }
             : c
         )
       );
 
-      toast.success(`Updated: ${newDeliverable.type}`);
-
-    } else {
-      // 🔥 CREATE new deliverable via API
-      console.log("➕ Creating deliverable via API for client:", clientId);
-      
-      const res = await fetch(`/api/clients/${clientId}/deliverables`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: newDeliverable.type,
-          quantity: newDeliverable.quantity,
-          videosPerDay: newDeliverable.videosPerDay || 1,
-          platforms: newDeliverable.platforms,
-          postingSchedule: newDeliverable.postingSchedule,
-          postingDays: newDeliverable.postingDays || [],
-          postingTimes: newDeliverable.postingTimes || ["10:00"],
-          description: newDeliverable.description || "",
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.message || "Failed to add deliverable");
-        return;
-      }
-
-      // Update local state with the new deliverable (has real DB ID now)
-      setNewClient((prev) => ({
-        ...prev,
-        monthlyDeliverables: [...(prev.monthlyDeliverables || []), data.deliverable],
-      }));
-
-      // Also update the main clients list
-      setClients((prev) =>
-        prev.map((c) =>
-          c.id === clientId
-            ? {
-                ...c,
-                monthlyDeliverables: [...(c.monthlyDeliverables || []), data.deliverable],
-              }
-            : c
-        )
-      );
-
-      toast.success(`Added: ${newDeliverable.type}`);
+      toast.success("Deliverable deleted");
+    } catch (err) {
+      console.error("Delete deliverable error:", err);
+      toast.error("Server error");
     }
+  };
 
-    setShowAddDeliverableDialog(false);
-    setEditingDeliverableId(null);
-    resetDeliverableForm();
-
-  } catch (err) {
-    console.error("Deliverable API error:", err);
-    toast.error("Server error");
-  }
-};
-
-// 🔥 NEW: Helper function to reset deliverable form
-const resetDeliverableForm = () => {
-  setTimeout(() => {
+  // 🔥 handleEditDeliverable stays the same - it just opens the dialog
+  // The actual API call happens in handleAddDeliverable when saving
+  const handleEditDeliverable = (deliverable: MonthlyDeliverable) => {
+    setEditingDeliverableId(deliverable.id);
     setNewDeliverable({
-      type: "Short Form Videos",
-      quantity: 1,
-      videosPerDay: 1,
-      platforms: [],
-      postingSchedule: "weekly",
-      postingDays: [],
-      postingTimes: ["10:00"],
-      description: "",
+      type: deliverable.type,
+      quantity: deliverable.quantity,
+      videosPerDay: deliverable.videosPerDay || 1,
+      platforms: deliverable.platforms,
+      postingSchedule: deliverable.postingSchedule,
+      postingDays: deliverable.postingDays || [],
+      postingTimes: deliverable.postingTimes || ["10:00"],
+      description: deliverable.description || "",
     });
-  }, 100);
-};
-
-// 🔥 UPDATED: Remove deliverable - NOW WITH INSTANT API CALL
-const handleRemoveDeliverable = async (deliverableId: string) => {
-  const clientId = editingClient?.id;
-
-  // If it's a frontend-generated ID or no client yet, just update local state
-  if (!clientId || deliverableId.startsWith("deliverable-")) {
-    setNewClient((prev) => ({
-      ...prev,
-      monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
-        (d) => d.id !== deliverableId
-      ),
-    }));
-    toast.success("Deliverable removed");
-    return;
-  }
-
-  // 🔥 Make API call to delete
-  try {
-    console.log("🗑️ Deleting deliverable via API:", deliverableId);
-
-    const res = await fetch(`/api/clients/${clientId}/deliverables/${deliverableId}`, {
-      method: "DELETE",
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      toast.error(data.message || "Failed to delete deliverable");
-      return;
-    }
-
-    // Update local state
-    setNewClient((prev) => ({
-      ...prev,
-      monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
-        (d) => d.id !== deliverableId
-      ),
-    }));
-
-    // Also update the main clients list
-    setClients((prev) =>
-      prev.map((c) =>
-        c.id === clientId
-          ? {
-              ...c,
-              monthlyDeliverables: (c.monthlyDeliverables || []).filter(
-                (d) => d.id !== deliverableId
-              ),
-            }
-          : c
-      )
-    );
-
-    toast.success("Deliverable deleted");
-
-  } catch (err) {
-    console.error("Delete deliverable error:", err);
-    toast.error("Server error");
-  }
-};
-
-// 🔥 handleEditDeliverable stays the same - it just opens the dialog
-// The actual API call happens in handleAddDeliverable when saving
-const handleEditDeliverable = (deliverable: MonthlyDeliverable) => {
-  setEditingDeliverableId(deliverable.id);
-  setNewDeliverable({
-    type: deliverable.type,
-    quantity: deliverable.quantity,
-    videosPerDay: deliverable.videosPerDay || 1,
-    platforms: deliverable.platforms,
-    postingSchedule: deliverable.postingSchedule,
-    postingDays: deliverable.postingDays || [],
-    postingTimes: deliverable.postingTimes || ["10:00"],
-    description: deliverable.description || "",
-  });
-  setDeliverableDialogKey((prev) => prev + 1);
-  setShowAddDeliverableDialog(true);
-};
+    setDeliverableDialogKey((prev) => prev + 1);
+    setShowAddDeliverableDialog(true);
+  };
 
   // 🔥 NEW: Handle editing a deliverable
   // const handleEditDeliverable = (deliverable: MonthlyDeliverable) => {
@@ -833,12 +905,12 @@ const handleEditDeliverable = (deliverable: MonthlyDeliverable) => {
   // 🔥 UPDATED: Handle both add and edit
   // const handleAddDeliverable = () => {
   //   console.log("🔍 BEFORE VALIDATION - newDeliverable:", JSON.stringify(newDeliverable, null, 2));
-    
+
   //   if (!newDeliverable.quantity || newDeliverable.quantity === 0) {
   //     toast.error("Please enter a quantity");
   //     return;
   //   }
-    
+
   //   if (!newDeliverable.platforms || newDeliverable.platforms.length === 0) {
   //     toast.error("Please select at least one platform");
   //     return;
@@ -892,7 +964,7 @@ const handleEditDeliverable = (deliverable: MonthlyDeliverable) => {
 
   //   setShowAddDeliverableDialog(false);
   //   setEditingDeliverableId(null);
-    
+
   //   // Reset AFTER closing dialog
   //   setTimeout(() => {
   //     setNewDeliverable({
@@ -1020,199 +1092,252 @@ const handleEditDeliverable = (deliverable: MonthlyDeliverable) => {
     return tasksCreated;
   };
 
-//   const handleSaveClient = async () => {
-//   // Validate required fields
-//   if (!newClient.name?.trim()) {
-//     toast.error("Contact name is required");
-//     return;
-//   }
-//   if (!newClient.companyName?.trim()) {
-//     toast.error("Company name is required");
-//     return;
-//   }
-//   if (!newClient.email?.trim()) {
-//     toast.error("Email is required");
-//     return;
-//   }
-//   if (!newClient.phone?.trim()) {
-//     toast.error("Phone number is required");
-//     return;
-//   }
+  //   const handleSaveClient = async () => {
+  //   // Validate required fields
+  //   if (!newClient.name?.trim()) {
+  //     toast.error("Contact name is required");
+  //     return;
+  //   }
+  //   if (!newClient.companyName?.trim()) {
+  //     toast.error("Company name is required");
+  //     return;
+  //   }
+  //   if (!newClient.email?.trim()) {
+  //     toast.error("Email is required");
+  //     return;
+  //   }
+  //   if (!newClient.phone?.trim()) {
+  //     toast.error("Phone number is required");
+  //     return;
+  //   }
 
-//   try {
-//     const url = editingClient 
-//       ? `/api/clients/${editingClient.id}`
-//       : `/api/clients`;
+  //   try {
+  //     const url = editingClient
+  //       ? `/api/clients/${editingClient.id}`
+  //       : `/api/clients`;
 
-//     const method = editingClient ? "PUT" : "POST";
+  //     const method = editingClient ? "PUT" : "POST";
 
-//     const res = await fetch(url, {
-//       method,
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify(newClient),
-//     });
+  //     const res = await fetch(url, {
+  //       method,
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(newClient),
+  //     });
 
-//     const data = await res.json();
+  //     const data = await res.json();
 
-//     if (!res.ok) {
-//       toast.error(data.message || "Failed to save client");
-//       return;
-//     }
+  //     if (!res.ok) {
+  //       toast.error(data.message || "Failed to save client");
+  //       return;
+  //     }
 
-//     toast.success(editingClient ? "Client updated successfully!" : "Client created successfully!");
+  //     toast.success(editingClient ? "Client updated successfully!" : "Client created successfully!");
 
-//     // Update UI list immediately
-//     if (editingClient) {
-//       setClients(prev =>
-//         prev.map(c => (c.id === editingClient.id ? data.updated : c))
-//       );
-//     } else {
-//       setClients(prev => [...prev, data.client]);
-//     }
+  //     // Update UI list immediately
+  //     if (editingClient) {
+  //       setClients(prev =>
+  //         prev.map(c => (c.id === editingClient.id ? data.updated : c))
+  //       );
+  //     } else {
+  //       setClients(prev => [...prev, data.client]);
+  //     }
 
-//     setShowAddDialog(false);
-//     setEditingClient(null);
-    
-//     // Reset form
-//     setNewClient({
-//       name: "",
-//       companyName: "",
-//       email: "",
-//       phone: "",
-//       accountManagerId: "",
-//       startDate: "",
-//       renewalDate: "",
-//       status: "active",
-//       clientReviewRequired: "no",
-//       videographerRequired: "no",
-//       monthlyDeliverables: [],
-//       brandAssets: [],
-//       brandGuidelines: {
-//         primaryColors: [],
-//         secondaryColors: [],
-//         fonts: [],
-//         logoUsage: "",
-//         toneOfVoice: "",
-//         brandValues: "",
-//         targetAudience: "",
-//         contentStyle: "",
-//       },
-//       projectSettings: {
-//         defaultVideoLength: "60 seconds",
-//         preferredPlatforms: [],
-//         contentApprovalRequired: true,
-//         quickTurnaroundAvailable: false,
-//       },
-//     });
-//   } catch (err) {
-//     console.error("Save client failed:", err);
-//     toast.error("Server error");
-//   }
-// };
+  //     setShowAddDialog(false);
+  //     setEditingClient(null);
 
-//   const handleEditClient = (client: Client) => {
-//     setEditingClient(client);
-//     setNewClient({
-//       name: client.name,
-//       companyName: client.companyName,
-//       email: client.email,
-//       phone: client.phone,
-//     clientReviewRequired: client.requiresClientReview ? "yes" : "no",  // ✅ Map correctly
-//     videographerRequired: client.requiresVideographer ? "yes" : "no",  // ✅ Map correctly
-//       accountManagerId: client.accountManagerId,
-//       startDate: client.startDate,
-//       renewalDate: client.renewalDate,
-//       status: client.status,
-//       monthlyDeliverables: client.monthlyDeliverables ?? [],
-//       billing: client.billing,
-//       brandGuidelines: client.brandGuidelines ?? {},
-//       projectSettings: client.projectSettings ?? {},
-//     });
-//     setShowAddDialog(true);
-//   };
+  //     // Reset form
+  //     setNewClient({
+  //       name: "",
+  //       companyName: "",
+  //       email: "",
+  //       phone: "",
+  //       accountManagerId: "",
+  //       startDate: "",
+  //       renewalDate: "",
+  //       status: "active",
+  //       clientReviewRequired: "no",
+  //       videographerRequired: "no",
+  //       monthlyDeliverables: [],
+  //       brandAssets: [],
+  //       brandGuidelines: {
+  //         primaryColors: [],
+  //         secondaryColors: [],
+  //         fonts: [],
+  //         logoUsage: "",
+  //         toneOfVoice: "",
+  //         brandValues: "",
+  //         targetAudience: "",
+  //         contentStyle: "",
+  //       },
+  //       projectSettings: {
+  //         defaultVideoLength: "60 seconds",
+  //         preferredPlatforms: [],
+  //         contentApprovalRequired: true,
+  //         quickTurnaroundAvailable: false,
+  //       },
+  //     });
+  //   } catch (err) {
+  //     console.error("Save client failed:", err);
+  //     toast.error("Server error");
+  //   }
+  // };
 
-// 🔥 UPDATED handleSaveClient - Replace your existing function with this
+  //   const handleEditClient = (client: Client) => {
+  //     setEditingClient(client);
+  //     setNewClient({
+  //       name: client.name,
+  //       companyName: client.companyName,
+  //       email: client.email,
+  //       phone: client.phone,
+  //     clientReviewRequired: client.requiresClientReview ? "yes" : "no",  // ✅ Map correctly
+  //     videographerRequired: client.requiresVideographer ? "yes" : "no",  // ✅ Map correctly
+  //       accountManagerId: client.accountManagerId,
+  //       startDate: client.startDate,
+  //       renewalDate: client.renewalDate,
+  //       status: client.status,
+  //       monthlyDeliverables: client.monthlyDeliverables ?? [],
+  //       billing: client.billing,
+  //       brandGuidelines: client.brandGuidelines ?? {},
+  //       projectSettings: client.projectSettings ?? {},
+  //     });
+  //     setShowAddDialog(true);
+  //   };
 
-const handleSaveClient = async () => {
-  // Validate required fields
-  if (!newClient.name?.trim()) {
-    toast.error("Contact name is required");
-    return;
-  }
-  if (!newClient.companyName?.trim()) {
-    toast.error("Company name is required");
-    return;
-  }
-  if (!newClient.email?.trim()) {
-    toast.error("Email is required");
-    return;
-  }
-  if (!newClient.phone?.trim()) {
-    toast.error("Phone number is required");
-    return;
-  }
+  // 🔥 UPDATED handleSaveClient - Replace your existing function with this
 
-  try {
-    const url = editingClient 
-      ? `/api/clients/${editingClient.id}`
-      : `/api/clients`;
-
-    const method = editingClient ? "PUT" : "POST";
-
-    // 🔥 Make sure monthlyDeliverables is included in the payload
-    const payload = {
-      ...newClient,
-      monthlyDeliverables: newClient.monthlyDeliverables || [],
-    };
-
-    console.log("📤 Sending client data:", JSON.stringify(payload, null, 2));
-
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await res.json();
-
-    console.log("📥 Received response:", JSON.stringify(data, null, 2));
-
-    if (!res.ok) {
-      toast.error(data.message || "Failed to save client");
+  const handleSaveClient = async () => {
+    // Validate required fields
+    if (!newClient.name?.trim()) {
+      toast.error("Contact name is required");
+      return;
+    }
+    if (!newClient.companyName?.trim()) {
+      toast.error("Company name is required");
+      return;
+    }
+    if (!newClient.email?.trim()) {
+      toast.error("Email is required");
+      return;
+    }
+    if (!newClient.phone?.trim()) {
+      toast.error("Phone number is required");
       return;
     }
 
-    toast.success(editingClient ? "Client updated successfully!" : "Client created successfully!");
+    try {
+      const url = editingClient
+        ? `/api/clients/${editingClient.id}`
+        : `/api/clients`;
 
-    // 🔥 Update UI with the response data (includes proper deliverable IDs from DB)
-    if (editingClient) {
-      setClients(prev =>
-        prev.map(c => (c.id === editingClient.id ? data.updated : c))
+      const method = editingClient ? "PUT" : "POST";
+
+      // 🔥 Make sure monthlyDeliverables is included in the payload
+      const payload = {
+        ...newClient,
+        monthlyDeliverables: newClient.monthlyDeliverables || [],
+      };
+
+      console.log("📤 Sending client data:", JSON.stringify(payload, null, 2));
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      console.log("📥 Received response:", JSON.stringify(data, null, 2));
+
+      if (!res.ok) {
+        toast.error(data.message || "Failed to save client");
+        return;
+      }
+
+      toast.success(
+        editingClient
+          ? "Client updated successfully!"
+          : "Client created successfully!"
       );
-    } else {
-      setClients(prev => [...prev, data.client]);
-    }
 
-    setShowAddDialog(false);
-    setEditingClient(null);
-    
-    // Reset form
+      // 🔥 Update UI with the response data (includes proper deliverable IDs from DB)
+      if (editingClient) {
+        setClients((prev) =>
+          prev.map((c) => (c.id === editingClient.id ? data.updated : c))
+        );
+      } else {
+        setClients((prev) => [...prev, data.client]);
+      }
+
+      setShowAddDialog(false);
+      setEditingClient(null);
+
+      // Reset form
+      setNewClient({
+        name: "",
+        companyName: "",
+        email: "",
+        emails: [],
+        phone: "",
+        phones: [],
+        accountManagerId: "",
+        startDate: "",
+        renewalDate: "",
+        status: "active",
+        clientReviewRequired: "no",
+        videographerRequired: "no",
+        monthlyDeliverables: [],
+        brandAssets: [],
+        brandGuidelines: {
+          primaryColors: [],
+          secondaryColors: [],
+          fonts: [],
+          logoUsage: "",
+          toneOfVoice: "",
+          brandValues: "",
+          targetAudience: "",
+          contentStyle: "",
+        },
+        projectSettings: {
+          defaultVideoLength: "60 seconds",
+          preferredPlatforms: [],
+          contentApprovalRequired: true,
+          quickTurnaroundAvailable: false,
+        },
+      });
+    } catch (err) {
+      console.error("Save client failed:", err);
+      toast.error("Server error");
+    }
+  };
+
+  // 🔥 ALSO UPDATE handleEditClient to properly load deliverables with their IDs
+
+  const handleEditClient = (client: Client) => {
+    console.log("📝 Editing client:", client.id);
+    console.log("📦 Client deliverables:", client.monthlyDeliverables);
+
+    setEditingClient(client);
     setNewClient({
-      name: "",
-      companyName: "",
-      email: "",
-      emails: [],
-      phone: "",
-      phones: [],
-      accountManagerId: "",
-      startDate: "",
-      renewalDate: "",
-      status: "active",
-      clientReviewRequired: "no",
-      videographerRequired: "no",
-      monthlyDeliverables: [],
-      brandAssets: [],
-      brandGuidelines: {
+      name: client.name,
+      companyName: client.companyName,
+      email: client.email,
+      emails: client.emails || [],
+      phone: client.phone,
+      phones: client.phones || [],
+      clientReviewRequired: client.requiresClientReview ? "yes" : "no",
+      videographerRequired: client.requiresVideographer ? "yes" : "no",
+      accountManagerId: client.accountManagerId,
+      startDate: client.startDate,
+      renewalDate: client.renewalDate,
+      status: client.status,
+      // 🔥 Make sure we're copying the deliverables with their IDs
+      monthlyDeliverables: (client.monthlyDeliverables ?? []).map((d) => ({
+        ...d,
+        id: d.id, // Preserve the database ID
+      })),
+      billing: client.billing,
+      brandGuidelines: client.brandGuidelines ?? {
         primaryColors: [],
         secondaryColors: [],
         fonts: [],
@@ -1222,114 +1347,63 @@ const handleSaveClient = async () => {
         targetAudience: "",
         contentStyle: "",
       },
-      projectSettings: {
+      projectSettings: client.projectSettings ?? {
         defaultVideoLength: "60 seconds",
         preferredPlatforms: [],
         contentApprovalRequired: true,
         quickTurnaroundAvailable: false,
       },
     });
-  } catch (err) {
-    console.error("Save client failed:", err);
-    toast.error("Server error");
-  }
-};
+    setShowAddDialog(true);
+  };
 
-// 🔥 ALSO UPDATE handleEditClient to properly load deliverables with their IDs
+  const handleDeleteClient = async (clientId: string) => {
+    const confirmed = confirm("Are you sure you want to delete this client?");
+    if (!confirmed) return;
 
-const handleEditClient = (client: Client) => {
-  console.log("📝 Editing client:", client.id);
-  console.log("📦 Client deliverables:", client.monthlyDeliverables);
-  
-  setEditingClient(client);
-  setNewClient({
-    name: client.name,
-    companyName: client.companyName,
-    email: client.email,
-    emails: client.emails || [],
-    phone: client.phone,
-    phones: client.phones || [],
-    clientReviewRequired: client.requiresClientReview ? "yes" : "no",
-    videographerRequired: client.requiresVideographer ? "yes" : "no",
-    accountManagerId: client.accountManagerId,
-    startDate: client.startDate,
-    renewalDate: client.renewalDate,
-    status: client.status,
-    // 🔥 Make sure we're copying the deliverables with their IDs
-    monthlyDeliverables: (client.monthlyDeliverables ?? []).map(d => ({
-      ...d,
-      id: d.id, // Preserve the database ID
-    })),
-    billing: client.billing,
-    brandGuidelines: client.brandGuidelines ?? {
-      primaryColors: [],
-      secondaryColors: [],
-      fonts: [],
-      logoUsage: "",
-      toneOfVoice: "",
-      brandValues: "",
-      targetAudience: "",
-      contentStyle: "",
-    },
-    projectSettings: client.projectSettings ?? {
-      defaultVideoLength: "60 seconds",
-      preferredPlatforms: [],
-      contentApprovalRequired: true,
-      quickTurnaroundAvailable: false,
-    },
-  });
-  setShowAddDialog(true);
-};
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: "DELETE",
+      });
 
-const handleDeleteClient = async (clientId: string) => {
-  const confirmed = confirm("Are you sure you want to delete this client?");
-  if (!confirmed) return;
+      if (!res.ok) {
+        toast.error("Failed to delete client");
+        return;
+      }
 
-  try {
-    const res = await fetch(`/api/clients/${clientId}`, {
-      method: "DELETE",
-    });
+      // Remove from client list
+      setClients((prev) => prev.filter((c) => c.id !== clientId));
 
-    if (!res.ok) {
-      toast.error("Failed to delete client");
-      return;
+      // If the user is currently viewing this client, close the dialog
+      if (selectedClient?.id === clientId) {
+        setShowClientDetailsDialog(false);
+        setSelectedClient(null);
+      }
+
+      toast.success("Client deleted");
+    } catch (err) {
+      console.error("DELETE failed:", err);
+      toast.error("Server error");
     }
-
-    // Remove from client list
-    setClients(prev => prev.filter(c => c.id !== clientId));
-
-    // If the user is currently viewing this client, close the dialog
-    if (selectedClient?.id === clientId) {
-      setShowClientDetailsDialog(false);
-      setSelectedClient(null);
-    }
-
-    toast.success("Client deleted");
-  } catch (err) {
-    console.error("DELETE failed:", err);
-    toast.error("Server error");
-  }
-};
-
-
+  };
 
   const handleViewClientDetails = async (client: Client) => {
-  try {
-    const res = await fetch(`/api/clients/${client.id}`);
-    const data = await res.json();
+    try {
+      const res = await fetch(`/api/clients/${client.id}`);
+      const data = await res.json();
 
-    if (!res.ok) {
-      toast.error("Failed to load client details");
-      return;
+      if (!res.ok) {
+        toast.error("Failed to load client details");
+        return;
+      }
+
+      setSelectedClient(data.client);
+      setShowClientDetailsDialog(true);
+    } catch (err) {
+      console.error("Failed to fetch client:", err);
+      toast.error("Server error");
     }
-
-    setSelectedClient(data.client);
-    setShowClientDetailsDialog(true);
-  } catch (err) {
-    console.error("Failed to fetch client:", err);
-    toast.error("Server error");
-  }
-};
+  };
 
   const calculateTotalDeliverables = (
     deliverables: MonthlyDeliverable[] | null | undefined
@@ -1410,55 +1484,57 @@ const handleDeleteClient = async (clientId: string) => {
                     Contact Information
                   </CardTitle>
                 </CardHeader>
-               <CardContent className="grid grid-cols-2 gap-6">
-  {/* Changed from gap-4 to gap-6 for more spacing */}
-  
-  <div className="space-y-1">
-    <Label className="text-gray-500">Contact Name</Label>
-    <div className="flex items-center gap-2 text-gray-900">
-      <User className="h-4 w-4" />
-      {selectedClient.name}
-    </div>
-  </div>
-  <div className="space-y-1">
-    <Label className="text-gray-500">Company</Label>
-    <div className="flex items-center gap-2 text-gray-900">
-      <Building className="h-4 w-4" />
-      {selectedClient.companyName}
-    </div>
-  </div>
-  <div className="space-y-1">
-    <Label className="text-gray-500">Email</Label>
-    <div className="flex items-center gap-2 text-gray-900">
-      <Mail className="h-4 w-4" />
-      {selectedClient.email}
-    </div>
-  </div>
-  <div className="space-y-1">
-    <Label className="text-gray-500">Phone</Label>
-    <div className="flex items-center gap-2 text-gray-900">
-      <Phone className="h-4 w-4" />
-      {selectedClient.phone}
-    </div>
-  </div>
-  
-  <div className="space-y-1">
-    <Label className="text-gray-500">Account Manager</Label>
-    <div className="flex items-center gap-2 text-gray-900">
-      <User className="h-4 w-4" />
-      {mockAccountManagers.find(m => m.id === selectedClient.accountManagerId)?.name || "Not assigned"}
-    </div>
-  </div>
+                <CardContent className="grid grid-cols-2 gap-6">
+                  {/* Changed from gap-4 to gap-6 for more spacing */}
 
-  <div className="space-y-1">
-    <Label className="text-gray-500">Status</Label>
-    <div>
-      <Badge variant={getStatusVariant(selectedClient.status)}>
-        {selectedClient.status}
-      </Badge>
-    </div>
-  </div>
-</CardContent>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Contact Name</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <User className="h-4 w-4" />
+                      {selectedClient.name}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Company</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <Building className="h-4 w-4" />
+                      {selectedClient.companyName}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Email</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <Mail className="h-4 w-4" />
+                      {selectedClient.email}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Phone</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <Phone className="h-4 w-4" />
+                      {selectedClient.phone}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Account Manager</Label>
+                    <div className="flex items-center gap-2 text-gray-900">
+                      <User className="h-4 w-4" />
+                      {mockAccountManagers.find(
+                        (m) => m.id === selectedClient.accountManagerId
+                      )?.name || "Not assigned"}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-gray-500">Status</Label>
+                    <div>
+                      <Badge variant={getStatusVariant(selectedClient.status)}>
+                        {selectedClient.status}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
               </Card>
 
               <Card className="bg-white border-gray-200">
@@ -1789,6 +1865,12 @@ const handleDeleteClient = async (clientId: string) => {
           <p className="text-sm text-gray-600">
             Manage client accounts and monthly deliverables
           </p>
+          <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+            <span>Clients</span>
+            <span className="font-semibold text-gray-900">
+              {clients.length}
+            </span>
+          </div>
         </div>
         <Button
           onClick={() => {
@@ -2313,7 +2395,8 @@ const handleDeleteClient = async (clientId: string) => {
                       </div>
                       <div className="text-sm text-gray-600 mb-1">
                         {deliverable.postingSchedule} •{" "}
-                        {deliverable.postingDays && deliverable.postingDays.length > 0
+                        {deliverable.postingDays &&
+                        deliverable.postingDays.length > 0
                           ? deliverable.postingDays.join(", ")
                           : "Various days"}{" "}
                         • {(deliverable.postingTimes || ["10:00"]).join(", ")}
@@ -2644,7 +2727,9 @@ const handleDeleteClient = async (clientId: string) => {
           <DialogHeader>
             <DialogTitle className="text-gray-900">
               {/* 🔥 Dynamic title based on edit mode */}
-              {editingDeliverableId ? "Edit Monthly Deliverable" : "Add Monthly Deliverable"}
+              {editingDeliverableId
+                ? "Edit Monthly Deliverable"
+                : "Add Monthly Deliverable"}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
               {editingDeliverableId
@@ -2654,112 +2739,118 @@ const handleDeleteClient = async (clientId: string) => {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="deliverableType" className="text-gray-700">
-                Deliverable Type
-              </Label>
-              <Select
-                value={newDeliverable.type}
-                onValueChange={(value: string) => {
-                  const newType = value as DeliverableType;
-                  console.log("🎯 Setting type to:", newType);
-                  setNewDeliverable({
-                    ...newDeliverable,
-                    type: newType,
-                  });
-                  console.log("🎯 State after update should be:", newType);
-                }}
-              >
-                <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                  <SelectValue placeholder="Select deliverable type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Short Form Videos">
-                    Short Form (SF)
-                  </SelectItem>
-                  <SelectItem value="Long Form Videos">
-                    Long Form (LF)
-                  </SelectItem>
-                  <SelectItem value="Square Form Videos">
-                    Square Form Videos (SQF)
-                  </SelectItem>
-                  <SelectItem value="Thumbnails">Thumbnails (THUMB)</SelectItem>
-                  <SelectItem value="Tiles">
-                    Tiles (T)
-                  </SelectItem>
-                  <SelectItem value="Hard Posts / Graphic Images">
-                    Hard Posts / Graphic Images (HP)
-                  </SelectItem>
-                  <SelectItem value="Snapchat Episodes">
-                    Snapchat Episodes (SEP)
-                  </SelectItem>
-                  <SelectItem value="Beta Short Form">
-                    Beta Short Form (BSF)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Deliverable Type and Quantity per Month - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="deliverableType" className="text-gray-700">
+                  Deliverable Type
+                </Label>
+                <Select
+                  value={newDeliverable.type}
+                  onValueChange={(value: string) => {
+                    const newType = value as DeliverableType;
+                    console.log("🎯 Setting type to:", newType);
+                    setNewDeliverable({
+                      ...newDeliverable,
+                      type: newType,
+                    });
+                    console.log("🎯 State after update should be:", newType);
+                  }}
+                >
+                  <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                    <SelectValue placeholder="Select deliverable type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Short Form Videos">
+                      Short Form (SF)
+                    </SelectItem>
+                    <SelectItem value="Long Form Videos">
+                      Long Form (LF)
+                    </SelectItem>
+                    <SelectItem value="Square Form Videos">
+                      Square Form Videos (SQF)
+                    </SelectItem>
+                    <SelectItem value="Thumbnails">
+                      Thumbnails (THUMB)
+                    </SelectItem>
+                    <SelectItem value="Tiles">Tiles (T)</SelectItem>
+                    <SelectItem value="Hard Posts / Graphic Images">
+                      Hard Posts / Graphic Images (HP)
+                    </SelectItem>
+                    <SelectItem value="Snapchat Episodes">
+                      Snapchat Episodes (SEP)
+                    </SelectItem>
+                    <SelectItem value="Beta Short Form">
+                      Beta Short Form (BSF)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quantity" className="text-gray-700">
+                  Quantity per Month
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  value={newDeliverable.quantity}
+                  onChange={(e) =>
+                    setNewDeliverable({
+                      ...newDeliverable,
+                      quantity: parseInt(e.target.value) || 1,
+                    })
+                  }
+                  className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="quantity" className="text-gray-700">
-                Quantity per Month
-              </Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                value={newDeliverable.quantity}
-                onChange={(e) =>
-                  setNewDeliverable({
-                    ...newDeliverable,
-                    quantity: parseInt(e.target.value) || 1,
-                  })
-                }
-                className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-            </div>
+            {/* Posts Per Day and Posting Schedule - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="videosPerDay" className="text-gray-700">
+                  Posts Per Day
+                </Label>
+                <Input
+                  id="videosPerDay"
+                  type="number"
+                  min="1"
+                  value={newDeliverable.videosPerDay}
+                  onChange={(e) =>
+                    syncPostingTimesWithVideosPerDay(
+                      parseInt(e.target.value) || 1
+                    )
+                  }
+                  className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="videosPerDay" className="text-gray-700">
-                Posts Per Day
-              </Label>
-              <Input
-                id="videosPerDay"
-                type="number"
-                min="1"
-                value={newDeliverable.videosPerDay}
-                onChange={(e) =>
-                  syncPostingTimesWithVideosPerDay(
-                    parseInt(e.target.value) || 1
-                  )
-                }
-                className="bg-white border-gray-200 text-gray-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="postingSchedule" className="text-gray-700">
-                Posting Schedule
-              </Label>
-              <Select
-                value={newDeliverable.postingSchedule}
-                onValueChange={(value) =>
-                  setNewDeliverable({
-                    ...newDeliverable,
-                    postingSchedule: value as PostingSchedule,
-                  })
-                }
-              >
-                <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="postingSchedule" className="text-gray-700">
+                  Posting Schedule
+                </Label>
+                <Select
+                  value={newDeliverable.postingSchedule}
+                  onValueChange={(value) =>
+                    setNewDeliverable({
+                      ...newDeliverable,
+                      postingSchedule: value as PostingSchedule,
+                    })
+                  }
+                >
+                  <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -2849,7 +2940,23 @@ const handleDeleteClient = async (clientId: string) => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-gray-700">Platforms</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-700">Platforms</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={setAllPlatforms}
+                  className={`h-8 ${
+                    (newDeliverable.platforms || []).length === 7
+                      ? "bg-blue-50 border-blue-500 text-blue-700"
+                      : "bg-white border-gray-200 text-gray-600"
+                  }`}
+                >
+                  {(newDeliverable.platforms || []).length === 7 ? "✓ " : ""}
+                  Select All
+                </Button>
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {(
                   [
@@ -2859,18 +2966,22 @@ const handleDeleteClient = async (clientId: string) => {
                     "Youtube",
                     "Twitter",
                     "Linkedin",
+                    "Snapchat",
                   ] as SocialPlatform[]
                 ).map((platform) => (
                   <div
                     key={platform}
                     onClick={() => togglePlatform(platform)}
-                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors ${
+                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors flex items-center justify-center gap-2 ${
                       newDeliverable.platforms?.includes(platform)
                         ? "bg-blue-50 border-blue-500 text-blue-700"
                         : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                     }`}
                   >
-                    {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                    {getPlatformIcon(platform)}
+                    <span>
+                      {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                    </span>
                   </div>
                 ))}
               </div>

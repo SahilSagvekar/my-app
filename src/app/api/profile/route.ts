@@ -1,155 +1,45 @@
-// // src/api/profile/route.ts
-// import { Router, Request, Response } from "express";
-// import { getServerSession } from "next-auth";
-// import { prisma } from "@/lib/prisma";
-// // import { uploadOnCloudinary } from "@/app/config/cloudinary";
-// // import upload from "@/app/config/multer";
-// import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-// import { uploadOnCloudinary } from "../../config/cloudinary";
-// import upload from "../../config/multer";
-
-// const router = Router();
-
-// // GET - Fetch user profilecloudinary
-// router.get("/", async (req: Request, res: Response) => {
-//   try {
-//     const session = await getServerSession(authOptions);
-
-//     if (!session?.user?.email) {
-//       return res.status(401).json({ error: "Unauthorized" });
-//     }
-
-//     const user = await prisma.user.findUnique({
-//       where: { email: session.user.email },
-//       select: {
-//         id: true,
-//         name: true,
-//         email: true,
-//         image: true,
-//         phone: true,
-//         role: true,
-//         hourlyRate: true,
-//         monthlyRate: true,
-//         monthlyBaseHours: true,
-//         employeeStatus: true,
-//         joinedAt: true,
-//         hoursPerWeek: true,
-//         worksOnSaturday: true,
-//       },
-//     });
-
-//     if (!user) {
-//       return res.status(404).json({ error: "User not found" });
-//     }
-
-//     return res.status(200).json({ success: true, data: user });
-//   } catch (error) {
-//     return res.status(500).json({ error: "Failed to fetch profile" });
-//   }
-// });
-
-// // PUT - Update user profile with image upload
-// router.put("/", upload.single("image"), async (req: Request, res: Response) => {
-//   try {
-//     const session = await getServerSession(authOptions);
-
-//     if (!session?.user?.email) {
-//       return res.status(401).json({ error: "Unauthorized" });
-//     }
-
-//     const { name, phone, hourlyRate, monthlyRate, monthlyBaseHours, hoursPerWeek, worksOnSaturday } = req.body;
-
-//     // Find existing user
-//     const user = await prisma.user.findUnique({
-//       where: { email: session.user.email },
-//     });
-
-//     if (!user) {
-//       return res.status(404).json({ error: "User not found" });
-//     }
-
-//     let imageUrl = user.image;
-
-//     // Handle image upload if provided
-//     if (req.file) {
-//       try {
-//         // Upload to Cloudinary using your existing function
-//         const uploadedUrl = await uploadOnCloudinary(
-//           req.file.buffer,
-//           "user-profiles"
-//         );
-
-//         if (!uploadedUrl) {
-//           return res.status(500).json({ error: "Failed to upload image" });
-//         }
-
-//         imageUrl = uploadedUrl;
-//       } catch (uploadError) {
-//         return res.status(500).json({ error: "Failed to upload image" });
-//       }
-//     }
-
-//     // Update user profile in database
-//     const updatedUser = await prisma.user.update({
-//       where: { email: session.user.email },
-//       data: {
-//         name: name || user.name,
-//         phone: phone || user.phone,
-//         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : user.hourlyRate,
-//         monthlyRate: monthlyRate ? parseInt(monthlyRate) : user.monthlyRate,
-//         monthlyBaseHours: monthlyBaseHours ? parseInt(monthlyBaseHours) : user.monthlyBaseHours,
-//         hoursPerWeek: hoursPerWeek ? parseFloat(hoursPerWeek) : user.hoursPerWeek,
-//         worksOnSaturday: worksOnSaturday === "true",
-//         image: imageUrl,
-//         updatedAt: new Date(),
-//       },
-//       select: {
-//         id: true,
-//         name: true,
-//         email: true,
-//         image: true,
-//         phone: true,
-//         role: true,
-//         hourlyRate: true,
-//         monthlyRate: true,
-//         monthlyBaseHours: true,
-//         employeeStatus: true,
-//         joinedAt: true,
-//         hoursPerWeek: true,
-//         worksOnSaturday: true,
-//         updatedAt: true,
-//       },
-//     });
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Profile updated successfully",
-//       data: updatedUser,
-//     });
-//   } catch (error) {
-//     return res.status(500).json({ error: "Failed to update profile" });
-//   }
-// });
-
-// export default router;
-
-
-
-
 // src/app/api/profile/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { uploadOnCloudinary } from "../../config/cloudinary";
-import upload from "../../config/multer";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { jwtVerify } from "jose";
+import sharp from "sharp";
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.NEXTAUTH_SECRET || "your-secret-key"
+);
+
+// Helper function to get user from token
+async function getUserFromToken(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get("authorization");
+    console.log("Authorization header:", authHeader);
+    
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.log("No valid authorization header");
+      return null;
+    }
+
+    const token = authHeader.substring(7);
+    console.log("Token received:", token.substring(0, 50) + "...");
+    
+    const verified = await jwtVerify(token, JWT_SECRET);
+    console.log("Token verified:", verified.payload);
+    
+    return verified.payload as any;
+  } catch (error) {
+    console.error("Token verification error:", error);
+    return null;
+  }
+}
 
 // GET - Fetch user profile
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const decoded = await getUserFromToken(req);
 
-    if (!session?.user?.email) {
+    if (!decoded?.userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -157,7 +47,7 @@ export async function GET(req: NextRequest) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+      where: { id: decoded.userId },
       select: {
         id: true,
         name: true,
@@ -165,13 +55,6 @@ export async function GET(req: NextRequest) {
         image: true,
         phone: true,
         role: true,
-        hourlyRate: true,
-        monthlyRate: true,
-        monthlyBaseHours: true,
-        employeeStatus: true,
-        joinedAt: true,
-        hoursPerWeek: true,
-        worksOnSaturday: true,
       },
     });
 
@@ -184,6 +67,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: user });
   } catch (error) {
+    console.error("Error fetching profile:", error);
     return NextResponse.json(
       { error: "Failed to fetch profile" },
       { status: 500 }
@@ -194,9 +78,9 @@ export async function GET(req: NextRequest) {
 // PUT - Update user profile with image upload
 export async function PUT(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const decoded = await getUserFromToken(req);
 
-    if (!session?.user?.email) {
+    if (!decoded?.userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -207,16 +91,12 @@ export async function PUT(req: NextRequest) {
     const formData = await req.formData();
     const name = formData.get("name") as string;
     const phone = formData.get("phone") as string;
-    const hourlyRate = formData.get("hourlyRate") as string;
-    const monthlyRate = formData.get("monthlyRate") as string;
-    const monthlyBaseHours = formData.get("monthlyBaseHours") as string;
-    const hoursPerWeek = formData.get("hoursPerWeek") as string;
-    const worksOnSaturday = formData.get("worksOnSaturday") as string;
+    const role = formData.get("role") as string;
     const imageFile = formData.get("image") as File | null;
 
     // Find existing user
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+      where: { id: decoded.userId },
     });
 
     if (!user) {
@@ -232,7 +112,17 @@ export async function PUT(req: NextRequest) {
     if (imageFile && imageFile.size > 0) {
       try {
         const buffer = await imageFile.arrayBuffer();
-        const fileBuffer = Buffer.from(buffer);
+        let fileBuffer = Buffer.from(buffer);
+
+        // Compress image with sharp before uploading
+        try {
+          fileBuffer = await sharp(fileBuffer)
+            .resize(500, 500, { fit: "cover" })
+            .jpeg({ quality: 80 })
+            .toBuffer();
+        } catch (compressError) {
+          console.warn("Image compression failed, uploading original:", compressError);
+        }
 
         // Upload to Cloudinary
         const uploadedUrl = await uploadOnCloudinary(
@@ -249,6 +139,7 @@ export async function PUT(req: NextRequest) {
 
         imageUrl = uploadedUrl;
       } catch (uploadError) {
+        console.error("Image upload error:", uploadError);
         return NextResponse.json(
           { error: "Failed to upload image" },
           { status: 500 }
@@ -258,17 +149,11 @@ export async function PUT(req: NextRequest) {
 
     // Update user profile in database
     const updatedUser = await prisma.user.update({
-      where: { email: session.user.email },
+      where: { id: decoded.userId },
       data: {
         name: name || user.name,
         phone: phone || user.phone,
-        hourlyRate: hourlyRate ? parseFloat(hourlyRate) : user.hourlyRate,
-        monthlyRate: monthlyRate ? parseInt(monthlyRate) : user.monthlyRate,
-        monthlyBaseHours: monthlyBaseHours
-          ? parseInt(monthlyBaseHours)
-          : user.monthlyBaseHours,
-        hoursPerWeek: hoursPerWeek ? parseFloat(hoursPerWeek) : user.hoursPerWeek,
-        worksOnSaturday: worksOnSaturday === "true",
+        role: role || user.role,
         image: imageUrl,
         updatedAt: new Date(),
       },
@@ -279,13 +164,6 @@ export async function PUT(req: NextRequest) {
         image: true,
         phone: true,
         role: true,
-        hourlyRate: true,
-        monthlyRate: true,
-        monthlyBaseHours: true,
-        employeeStatus: true,
-        joinedAt: true,
-        hoursPerWeek: true,
-        worksOnSaturday: true,
         updatedAt: true,
       },
     });
@@ -296,8 +174,13 @@ export async function PUT(req: NextRequest) {
       data: updatedUser,
     });
   } catch (error) {
+    console.error("Error updating profile:", error);
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
     return NextResponse.json(
-      { error: "Failed to update profile" },
+      { error: "Failed to update profile", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

@@ -19,7 +19,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
-import { useRouter } from "next/navigation";
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -86,7 +85,13 @@ interface WorkflowTask {
 /* 🔥 FILE PREVIEW COMPONENT                                                  */
 /* -------------------------------------------------------------------------- */
 
-function FilePreviewCard({ file, onView }: { file: TaskFile; onView: () => void }) {
+function FilePreviewCard({
+  file,
+  onView,
+}: {
+  file: TaskFile;
+  onView: () => void;
+}) {
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith("video/"))
       return <Video className="h-4 w-4 text-blue-600" />;
@@ -179,7 +184,8 @@ function FileViewerDialog({
                       <span>{formatFileSize(file.size)}</span>
                       <span>•</span>
                       <span>
-                        Uploaded {new Date(file.uploadedAt).toLocaleDateString()}
+                        Uploaded{" "}
+                        {new Date(file.uploadedAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
@@ -238,9 +244,7 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
           <div className="flex items-center justify-between mb-4">
             <span
               className={`text-xs ${
-                isOverdue
-                  ? "text-red-500 font-medium"
-                  : "text-muted-foreground"
+                isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
               }`}
             >
               Due {new Date(task.dueDate).toLocaleDateString()}
@@ -347,8 +351,6 @@ export function EditorDashboard() {
     role: "editor",
   };
 
-  const router = useRouter();
-
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
 
   useEffect(() => {
@@ -368,7 +370,7 @@ export function EditorDashboard() {
               title: t.title,
               deliverableType: t.monthlyDeliverable?.type,
             });
-            
+
             return {
               id: t.id,
               title: t.title,
@@ -393,7 +395,6 @@ export function EditorDashboard() {
             };
           });
 
-        
         setTasks(formatted);
       } catch (err) {
         console.error("Failed to load tasks:", err);
@@ -421,14 +422,12 @@ export function EditorDashboard() {
     // Refresh task data to get updated files
     const res = await fetch("/api/tasks");
     const data = await res.json();
-    
+
     const updatedTask = data.tasks.find((t: any) => t.id === taskId);
-    
+
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === taskId 
-          ? { ...t, files: updatedTask?.files || files } 
-          : t
+        t.id === taskId ? { ...t, files: updatedTask?.files || files } : t
       )
     );
   }
@@ -471,14 +470,6 @@ export function EditorDashboard() {
           <p className="text-muted-foreground mt-2">
             Manage your assigned tasks and complete work for QC review
           </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            className="w-full"
-            onClick={() => router.push("/leave-request")}
-          >
-            Request Leave
-          </Button>
         </div>
       </div>
 

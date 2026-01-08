@@ -10,7 +10,7 @@ datasource db {
 model User {
   id                Int                @id @default(autoincrement())
   name              String?
-  email             String
+  email             String    
   password          String?
   image             String?
   role              Role?
@@ -312,6 +312,7 @@ model Leave {
   deduction    Deduction?
   employee     User        @relation(fields: [employeeId], references: [id])
 }
+
 
 model Deduction {
   id         Int      @id @default(autoincrement())

@@ -9,7 +9,6 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Calendar } from '../ui/calendar';
-import { useRouter } from "next/navigation";
 import { 
   Camera, 
   Upload, 
@@ -44,10 +43,6 @@ export function VideographerDashboard() {
     title: '',
     notes: ''
   });
-
-  const router = useRouter();
-
-
 
   const handleStartUpload = () => {
     if (!newUpload.projectId || !newUpload.title) {
@@ -113,13 +108,6 @@ export function VideographerDashboard() {
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Footage
               </Button> */}
-
-              <Button
-                className="w-full"
-                onClick={() => router.push("/leave-request")}
-              >
-                Request Leave
-              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>

@@ -7,7 +7,6 @@ import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User
 import { FullScreenReviewModal } from '../client/FullScreenReviewModal';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
-import { useRouter } from "next/navigation";
 
 // Enhanced task type definitions
 type TaskDestination = 'editor' | 'client' | 'scheduler';
@@ -101,7 +100,6 @@ export function QCDashboard() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
   const { user } = useAuth();
-  const router = useRouter();
 
   useEffect(() => {
     async function loadQCTasks() {
@@ -385,14 +383,6 @@ export function QCDashboard() {
           <p className="text-muted-foreground mt-2">
             Review submitted work and approve or reject with feedback
           </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            className="w-full"
-            onClick={() => router.push("/leave-request")}
-          >
-            Request Leave
-          </Button>
         </div>
       </div>
 

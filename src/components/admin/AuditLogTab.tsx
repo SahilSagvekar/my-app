@@ -1,15 +1,36 @@
 // components/admin/AuditLogTab.tsx
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { DatePickerWithRange } from '../ui/date-picker-with-range';
-import { ScrollArea } from '../ui/scroll-area';
-import { Shield, Search, Calendar, User, FileText, Settings, AlertTriangle, CheckCircle, Edit, Trash2, Plus, Download, Filter, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { DatePickerWithRange } from "../ui/date-picker-with-range";
+import { ScrollArea } from "../ui/scroll-area";
+import {
+  Shield,
+  Search,
+  Calendar,
+  User,
+  FileText,
+  Settings,
+  AlertTriangle,
+  CheckCircle,
+  Edit,
+  Trash2,
+  Plus,
+  Download,
+  Filter,
+  RefreshCw,
+} from "lucide-react";
 import { SimpleCalendar } from "../ui/simple-calendar";
-import { DateRangePicker } from '../ui/date-range-picker';
+import { DateRangePicker } from "../ui/date-range-picker";
 
 interface AuditLog {
   id: number;
@@ -24,7 +45,7 @@ interface AuditLog {
   targetType: string;
   entity: string | null;
   entityId: string | null;
-  severity: 'low' | 'medium' | 'high';
+  severity: "low" | "medium" | "high";
   ipAddress: string;
   userAgent: string;
   metadata?: any;
@@ -38,33 +59,33 @@ interface AuditLogStats {
 }
 
 const actionTypes = [
-  { id: 'all', name: 'All Actions' },
-  { id: 'CREATED', name: 'Creation' },
-  { id: 'UPDATED', name: 'Update' },
-  { id: 'DELETED', name: 'Deletion' },
-  { id: 'APPROVED', name: 'Approval' },
-  { id: 'REJECTED', name: 'Rejection' },
-  { id: 'LOGIN', name: 'Security' },
-  { id: 'PERMISSION', name: 'Permission' },
-  { id: 'ROLE', name: 'Role Change' }
+  { id: "all", name: "All Actions" },
+  { id: "CREATED", name: "Creation" },
+  { id: "UPDATED", name: "Update" },
+  { id: "DELETED", name: "Deletion" },
+  { id: "APPROVED", name: "Approval" },
+  { id: "REJECTED", name: "Rejection" },
+  { id: "LOGIN", name: "Security" },
+  { id: "PERMISSION", name: "Permission" },
+  { id: "ROLE", name: "Role Change" },
 ];
 
 const severityLevels = [
-  { id: 'all', name: 'All Levels' },
-  { id: 'low', name: 'Low' },
-  { id: 'medium', name: 'Medium' },
-  { id: 'high', name: 'High' }
+  { id: "all", name: "All Levels" },
+  { id: "low", name: "Low" },
+  { id: "medium", name: "Medium" },
+  { id: "high", name: "High" },
 ];
 
 export function AuditLogTab() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [actionTypeFilter, setActionTypeFilter] = useState('all');
-  const [severityFilter, setSeverityFilter] = useState('all');
-  const [userFilter, setUserFilter] = useState('all');
-const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
-  from: new Date(new Date().setDate(new Date().getDate() - 30)),
-  to: new Date()
-});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [actionTypeFilter, setActionTypeFilter] = useState("all");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [userFilter, setUserFilter] = useState("all");
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({
+    from: new Date(new Date().setDate(new Date().getDate() - 30)),
+    to: new Date(),
+  });
 
   // Data states
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -72,10 +93,10 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
     totalLogs: 0,
     todayLogs: 0,
     highSeverity: 0,
-    securityEvents: 0
+    securityEvents: 0,
   });
   const [users, setUsers] = useState<Array<{ id: string; name: string }>>([
-    { id: 'all', name: 'All Users' }
+    { id: "all", name: "All Users" },
   ]);
 
   // Loading states
@@ -96,30 +117,30 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
 
   async function loadUsers() {
     try {
-      const res = await fetch('/api/admin/audit-logs/users');
+      const res = await fetch("/api/admin/audit-logs/users");
       const data = await res.json();
-      
+
       if (data.ok) {
         setUsers(data.users);
       }
     } catch (error) {
-      console.error('Failed to load users:', error);
+      console.error("Failed to load users:", error);
     }
   }
 
   async function loadAuditLogs() {
     try {
       setLoading(true);
-      
-      const startDate = dateRange.from?.toISOString().split('T')[0];
-      const endDate = dateRange.to?.toISOString().split('T')[0];
+
+      const startDate = dateRange.from?.toISOString().split("T")[0];
+      const endDate = dateRange.to?.toISOString().split("T")[0];
 
       const params = new URLSearchParams({
         search: searchTerm,
         actionType: actionTypeFilter,
         userId: userFilter,
         ...(startDate && { startDate }),
-        ...(endDate && { endDate })
+        ...(endDate && { endDate }),
       });
 
       const res = await fetch(`/api/admin/audit-logs?${params}`);
@@ -128,10 +149,10 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
       if (data.ok) {
         setAuditLogs(data.logs || []);
       } else {
-        console.error('Failed to load audit logs:', data.message);
+        console.error("Failed to load audit logs:", data.message);
       }
     } catch (error) {
-      console.error('Failed to load audit logs:', error);
+      console.error("Failed to load audit logs:", error);
     } finally {
       setLoading(false);
     }
@@ -139,12 +160,12 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
 
   async function loadStats() {
     try {
-      const startDate = dateRange.from?.toISOString().split('T')[0];
-      const endDate = dateRange.to?.toISOString().split('T')[0];
+      const startDate = dateRange.from?.toISOString().split("T")[0];
+      const endDate = dateRange.to?.toISOString().split("T")[0];
 
       const params = new URLSearchParams({
         ...(startDate && { startDate }),
-        ...(endDate && { endDate })
+        ...(endDate && { endDate }),
       });
 
       const res = await fetch(`/api/admin/audit-logs/stats?${params}`);
@@ -154,7 +175,7 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
         setStats(data.stats);
       }
     } catch (error) {
-      console.error('Failed to load stats:', error);
+      console.error("Failed to load stats:", error);
     }
   }
 
@@ -163,76 +184,87 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
     await loadAuditLogs();
     await loadStats();
     setRefreshing(false);
-    console.log('Audit logs refreshed');
+    console.log("Audit logs refreshed");
   }
 
   async function handleExport() {
     try {
       setExporting(true);
-      
-      const startDate = dateRange.from?.toISOString().split('T')[0];
-      const endDate = dateRange.to?.toISOString().split('T')[0];
 
-      const res = await fetch('/api/admin/audit-logs/export', {
-        method: 'POST',
+      const startDate = dateRange.from?.toISOString().split("T")[0];
+      const endDate = dateRange.to?.toISOString().split("T")[0];
+
+      const res = await fetch("/api/admin/audit-logs/export", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          format: 'csv',
+          format: "csv",
           startDate,
-          endDate
-        })
+          endDate,
+        }),
       });
 
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
-        a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `audit-logs-${new Date().toISOString().split("T")[0]}.csv`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        
-        console.log('Audit logs exported successfully');
+
+        console.log("Audit logs exported successfully");
       } else {
-        console.error('Failed to export audit logs');
+        console.error("Failed to export audit logs");
       }
     } catch (error) {
-      console.error('Export error:', error);
+      console.error("Export error:", error);
     } finally {
       setExporting(false);
     }
   }
 
   // Apply severity filter on frontend (since backend doesn't filter by severity yet)
-  const filteredLogs = severityFilter === 'all' 
-    ? auditLogs 
-    : auditLogs.filter(log => log.severity === severityFilter);
+  const filteredLogs =
+    severityFilter === "all"
+      ? auditLogs
+      : auditLogs.filter((log) => log.severity === severityFilter);
 
   const getActionIcon = (actionType: string) => {
     switch (actionType) {
-      case 'edit': return <Edit className="h-4 w-4" />;
-      case 'approval': return <CheckCircle className="h-4 w-4" />;
-      case 'modification': return <Settings className="h-4 w-4" />;
-      case 'update': return <FileText className="h-4 w-4" />;
-      case 'security': return <Shield className="h-4 w-4" />;
-      case 'creation': return <Plus className="h-4 w-4" />;
-      case 'deletion': return <Trash2 className="h-4 w-4" />;
-      case 'system': return <Settings className="h-4 w-4" />;
-      default: return <FileText className="h-4 w-4" />;
+      case "edit":
+        return <Edit className="h-4 w-4" />;
+      case "approval":
+        return <CheckCircle className="h-4 w-4" />;
+      case "modification":
+        return <Settings className="h-4 w-4" />;
+      case "update":
+        return <FileText className="h-4 w-4" />;
+      case "security":
+        return <Shield className="h-4 w-4" />;
+      case "creation":
+        return <Plus className="h-4 w-4" />;
+      case "deletion":
+        return <Trash2 className="h-4 w-4" />;
+      case "system":
+        return <Settings className="h-4 w-4" />;
+      default:
+        return <FileText className="h-4 w-4" />;
     }
   };
 
   const getSeverityBadge = (severity: string) => {
     const colors = {
-      low: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      high: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+      low: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      medium:
+        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+      high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
     };
-    
+
     return (
       <Badge className={colors[severity as keyof typeof colors] || colors.low}>
         {severity.charAt(0).toUpperCase() + severity.slice(1)}
@@ -242,19 +274,25 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
 
   const getActionTypeBadge = (actionType: string) => {
     const colors = {
-      edit: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      approval: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      modification: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-      update: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-      security: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-      creation: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
-      deletion: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
-      system: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
-      rejection: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+      edit: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+      approval:
+        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      modification:
+        "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+      update:
+        "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+      security: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+      creation:
+        "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
+      deletion: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+      system: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
+      rejection: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
     };
-    
+
     return (
-      <Badge className={colors[actionType as keyof typeof colors] || colors.update}>
+      <Badge
+        className={colors[actionType as keyof typeof colors] || colors.update}
+      >
         {actionType.charAt(0).toUpperCase() + actionType.slice(1)}
       </Badge>
     );
@@ -264,7 +302,7 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
     const date = new Date(timestamp);
     return {
       date: date.toLocaleDateString(),
-      time: date.toLocaleTimeString()
+      time: date.toLocaleTimeString(),
     };
   };
 
@@ -467,9 +505,9 @@ const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
                     <th className="text-left py-3 px-4 min-w-[100px]">
                       Severity
                     </th>
-                    <th className="text-left py-3 px-4 min-w-[120px]">
+                    {/* <th className="text-left py-3 px-4 min-w-[120px]">
                       IP Address
-                    </th>
+                    </th> */}
                   </tr>
                 </thead>
                 <tbody>
