@@ -1,3 +1,4 @@
+// app/api/admin/tasks/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,7 @@ export async function GET(req: Request) {
         const clientId = searchParams.get("client");
         const status = searchParams.get("status");
         const priority = searchParams.get("priority");
+        const deliverableType = searchParams.get("deliverableType");
         const search = searchParams.get("search");
         const dueDateFrom = searchParams.get("dueDateFrom");
         const dueDateTo = searchParams.get("dueDateTo");
@@ -80,6 +82,13 @@ export async function GET(req: Request) {
         if (clientId) where.clientId = clientId;
         if (status) where.status = status as TaskStatus;
         if (priority) where.priority = priority;
+
+        // Deliverable type filter
+        if (deliverableType) {
+            where.monthlyDeliverable = {
+                type: deliverableType
+            };
+        }
 
         // Text search on title and description
         if (search) {
@@ -106,8 +115,8 @@ export async function GET(req: Request) {
         const orderBy: any = {};
         orderBy[sortBy] = sortOrder;
 
-        // Fetch tasks with related data
-        const [tasks, total] = await Promise.all([
+        // Fetch tasks with related data + unique deliverable types
+        const [tasks, total, deliverableTypes] = await Promise.all([
             prisma.task.findMany({
                 where,
                 take: limit,
@@ -156,6 +165,12 @@ export async function GET(req: Request) {
                 },
             }),
             prisma.task.count({ where }),
+            // Fetch all unique deliverable types for filter dropdown
+            prisma.monthlyDeliverable.findMany({
+                select: { type: true },
+                distinct: ['type'],
+                orderBy: { type: 'asc' },
+            }),
         ]);
 
         // Fetch team member names for assigned users (QC, Scheduler, Videographer)
@@ -205,6 +220,8 @@ export async function GET(req: Request) {
                 total,
                 totalPages: Math.ceil(total / limit),
             },
+            // Include deliverable types for filter dropdown
+            deliverableTypes: deliverableTypes.map(d => d.type),
             stats: {
                 total,
                 byStatus: statusCounts.reduce((acc, item) => {

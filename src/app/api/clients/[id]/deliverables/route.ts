@@ -5,10 +5,10 @@ import { NextResponse } from "next/server";
 // POST - Create a new deliverable for a client
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ clientId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { clientId } = await params;
+    const { id: clientId } = await params;
     const data = await req.json();
 
     console.log("➕ Creating deliverable for client:", clientId);
@@ -53,10 +53,10 @@ export async function POST(
 // GET - Get all deliverables for a client
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ clientId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { clientId } = await params;
+    const { id: clientId } = await params;
 
     const deliverables = await prisma.monthlyDeliverable.findMany({
       where: { clientId },

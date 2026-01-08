@@ -7,6 +7,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Checkbox } from '../ui/checkbox';
 import { DateRangePicker } from '../ui/date-range-picker';
 import {
     ListTodo,
@@ -19,12 +20,14 @@ import {
     Clock,
     CheckCircle2,
     XCircle,
-    Edit,
     Eye,
     MoreHorizontal,
     Calendar,
     User,
-    Users
+    Users,
+    Pencil,
+    Trash2,
+    Edit
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -77,6 +80,7 @@ interface FilterState {
     videographer: string;
     client: string;
     status: string;
+    deliverableType: string;
     search: string;
     dueDateFrom: Date | undefined;
     dueDateTo: Date | undefined;
@@ -111,6 +115,19 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
     VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', variant: 'outline', icon: <Users className="h-3 w-3" /> },
 };
 
+// Default deliverable types - will be overridden by API
+const defaultDeliverableTypes = [
+    'SHORT_FORM',
+    'LONG_FORM',
+    'REEL',
+    'STORY',
+    'POST',
+    'THUMBNAIL',
+    'BLOG',
+    'PODCAST',
+    'OTHER'
+];
+
 function StatusBadge({ status }: { status: string }) {
     const config = statusConfig[status] || { label: status, variant: 'secondary' as const, icon: null };
     return (
@@ -131,6 +148,9 @@ export function TaskManagementTab() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
+    // Selection for bulk edit
+    const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
+
     // Filters
     const [filters, setFilters] = useState<FilterState>({
         editor: 'all',
@@ -139,6 +159,7 @@ export function TaskManagementTab() {
         videographer: 'all',
         client: 'all',
         status: 'all',
+        deliverableType: 'all',
         search: '',
         dueDateFrom: undefined,
         dueDateTo: undefined,
@@ -162,7 +183,7 @@ export function TaskManagementTab() {
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
 
-    // Edit dialog
+    // Single task edit dialog
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [editForm, setEditForm] = useState<{
         status: string;
@@ -179,7 +200,28 @@ export function TaskManagementTab() {
         videographer: '',
         priority: '',
     });
+
+    // Bulk edit dialog
+    const [showBulkEdit, setShowBulkEdit] = useState(false);
+    const [bulkEditForm, setBulkEditForm] = useState<{
+        status: string;
+        assignedTo: string;
+        qc_specialist: string;
+        scheduler: string;
+        videographer: string;
+        priority: string;
+    }>({
+        status: 'no_change',
+        assignedTo: 'no_change',
+        qc_specialist: 'no_change',
+        scheduler: 'no_change',
+        videographer: 'no_change',
+        priority: 'no_change',
+    });
     const [saving, setSaving] = useState(false);
+
+    // Dynamic deliverable types from loaded tasks
+    const [availableDeliverableTypes, setAvailableDeliverableTypes] = useState<string[]>(defaultDeliverableTypes);
 
     // ─────────────────────────────────────────
     // Data Loading
@@ -233,6 +275,7 @@ export function TaskManagementTab() {
             if (filters.videographer !== 'all') params.set('videographer', filters.videographer);
             if (filters.client !== 'all') params.set('client', filters.client);
             if (filters.status !== 'all') params.set('status', filters.status);
+            if (filters.deliverableType !== 'all') params.set('deliverableType', filters.deliverableType);
             if (filters.search) params.set('search', filters.search);
             if (filters.dueDateFrom) params.set('dueDateFrom', filters.dueDateFrom.toISOString());
             if (filters.dueDateTo) params.set('dueDateTo', filters.dueDateTo.toISOString());
@@ -249,6 +292,26 @@ export function TaskManagementTab() {
             setTotalPages(data.pagination?.totalPages || 1);
             setTotal(data.pagination?.total || 0);
             setStats(data.stats || null);
+            
+            // Extract unique deliverable types from tasks
+            if (data.tasks && data.tasks.length > 0) {
+                const types = new Set<string>();
+                data.tasks.forEach((task: Task) => {
+                    if (task.monthlyDeliverable?.type) {
+                        types.add(task.monthlyDeliverable.type);
+                    }
+                });
+                // Also include types from deliverableTypes in stats if available
+                if (data.deliverableTypes && Array.isArray(data.deliverableTypes)) {
+                    data.deliverableTypes.forEach((type: string) => types.add(type));
+                }
+                if (types.size > 0) {
+                    setAvailableDeliverableTypes(Array.from(types).sort());
+                }
+            }
+            
+            // Clear selection when tasks change
+            setSelectedTasks(new Set());
         } catch (error: any) {
             console.error('Failed to load tasks:', error);
             toast({
@@ -269,7 +332,32 @@ export function TaskManagementTab() {
     }
 
     // ─────────────────────────────────────────
-    // Edit Task
+    // Selection Handlers
+    // ─────────────────────────────────────────
+
+    function handleSelectAll(checked: boolean) {
+        if (checked) {
+            setSelectedTasks(new Set(tasks.map(t => t.id)));
+        } else {
+            setSelectedTasks(new Set());
+        }
+    }
+
+    function handleSelectTask(taskId: string, checked: boolean) {
+        const newSelected = new Set(selectedTasks);
+        if (checked) {
+            newSelected.add(taskId);
+        } else {
+            newSelected.delete(taskId);
+        }
+        setSelectedTasks(newSelected);
+    }
+
+    const allSelected = tasks.length > 0 && selectedTasks.size === tasks.length;
+    const someSelected = selectedTasks.size > 0 && selectedTasks.size < tasks.length;
+
+    // ─────────────────────────────────────────
+    // Single Task Edit
     // ─────────────────────────────────────────
 
     function openEditDialog(task: Task) {
@@ -342,6 +430,88 @@ export function TaskManagementTab() {
     }
 
     // ─────────────────────────────────────────
+    // Bulk Edit
+    // ─────────────────────────────────────────
+
+    function openBulkEditDialog() {
+        setBulkEditForm({
+            status: 'no_change',
+            assignedTo: 'no_change',
+            qc_specialist: 'no_change',
+            scheduler: 'no_change',
+            videographer: 'no_change',
+            priority: 'no_change',
+        });
+        setShowBulkEdit(true);
+    }
+
+    async function handleBulkEdit() {
+        if (selectedTasks.size === 0) return;
+
+        setSaving(true);
+        try {
+            const updates: any = {};
+
+            if (bulkEditForm.status !== 'no_change') {
+                updates.status = bulkEditForm.status;
+            }
+            if (bulkEditForm.assignedTo !== 'no_change') {
+                updates.assignedTo = parseInt(bulkEditForm.assignedTo);
+            }
+            if (bulkEditForm.qc_specialist !== 'no_change') {
+                updates.qc_specialist = bulkEditForm.qc_specialist !== 'none' ? parseInt(bulkEditForm.qc_specialist) : null;
+            }
+            if (bulkEditForm.scheduler !== 'no_change') {
+                updates.scheduler = bulkEditForm.scheduler !== 'none' ? parseInt(bulkEditForm.scheduler) : null;
+            }
+            if (bulkEditForm.videographer !== 'no_change') {
+                updates.videographer = bulkEditForm.videographer !== 'none' ? parseInt(bulkEditForm.videographer) : null;
+            }
+            if (bulkEditForm.priority !== 'no_change') {
+                updates.priority = bulkEditForm.priority !== 'none' ? bulkEditForm.priority : null;
+            }
+
+            if (Object.keys(updates).length === 0) {
+                toast({ title: 'No changes', description: 'No changes were selected' });
+                setShowBulkEdit(false);
+                return;
+            }
+
+            // Send bulk update request
+            const res = await fetch('/api/admin/tasks/bulk', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    taskIds: Array.from(selectedTasks),
+                    updates,
+                }),
+            });
+
+            if (!res.ok) {
+                const error = await res.json();
+                throw new Error(error.message || 'Failed to update tasks');
+            }
+
+            const result = await res.json();
+            toast({ 
+                title: 'Success', 
+                description: `Updated ${result.updated || selectedTasks.size} tasks successfully` 
+            });
+            setShowBulkEdit(false);
+            setSelectedTasks(new Set());
+            loadTasks();
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to update tasks',
+                variant: 'destructive',
+            });
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    // ─────────────────────────────────────────
     // Filter Helpers
     // ─────────────────────────────────────────
 
@@ -353,6 +523,7 @@ export function TaskManagementTab() {
             videographer: 'all',
             client: 'all',
             status: 'all',
+            deliverableType: 'all',
             search: '',
             dueDateFrom: undefined,
             dueDateTo: undefined,
@@ -367,6 +538,7 @@ export function TaskManagementTab() {
         filters.videographer !== 'all',
         filters.client !== 'all',
         filters.status !== 'all',
+        filters.deliverableType !== 'all',
         !!filters.search,
         !!filters.dueDateFrom || !!filters.dueDateTo,
     ].filter(Boolean).length;
@@ -463,6 +635,17 @@ export function TaskManagementTab() {
                             )}
                         </CardTitle>
                         <div className="flex items-center gap-2">
+                            {/* Bulk Edit Button */}
+                            {selectedTasks.size > 0 && (
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={openBulkEditDialog}
+                                >
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Edit {selectedTasks.size} Task{selectedTasks.size > 1 ? 's' : ''}
+                                </Button>
+                            )}
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -508,7 +691,7 @@ export function TaskManagementTab() {
                         </div>
 
                         {/* Filter Dropdowns */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                             {/* Editor Filter */}
                             <div className="space-y-1">
                                 <label className="text-xs text-muted-foreground">Editor</label>
@@ -634,6 +817,27 @@ export function TaskManagementTab() {
                                     </SelectContent>
                                 </Select>
                             </div>
+
+                            {/* Deliverable Type Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">Deliverable Type</label>
+                                <Select
+                                    value={filters.deliverableType}
+                                    onValueChange={(v) => { setFilters({ ...filters, deliverableType: v }); setPage(1); }}
+                                >
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="All Types" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Types</SelectItem>
+                                        {availableDeliverableTypes.map((type) => (
+                                            <SelectItem key={type} value={type}>
+                                                {type.replace(/_/g, ' ')}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
 
                         {/* Date Range Filter */}
@@ -664,7 +868,20 @@ export function TaskManagementTab() {
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b bg-muted/50">
+                                    <th className="py-3 px-4 w-12">
+                                        <Checkbox
+                                            checked={allSelected}
+                                            ref={(el) => {
+                                                if (el) {
+                                                    (el as any).indeterminate = someSelected;
+                                                }
+                                            }}
+                                            onCheckedChange={handleSelectAll}
+                                            aria-label="Select all tasks"
+                                        />
+                                    </th>
                                     <th className="text-left py-3 px-4 font-medium">Task</th>
+                                    <th className="text-left py-3 px-4 font-medium">Type</th>
                                     <th className="text-left py-3 px-4 font-medium">Client</th>
                                     <th className="text-left py-3 px-4 font-medium">Editor</th>
                                     <th className="text-left py-3 px-4 font-medium">QC</th>
@@ -677,7 +894,7 @@ export function TaskManagementTab() {
                             <tbody>
                                 {tasks.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="text-center py-12 text-muted-foreground">
+                                        <td colSpan={10} className="text-center py-12 text-muted-foreground">
                                             No tasks found matching your filters
                                         </td>
                                     </tr>
@@ -685,19 +902,30 @@ export function TaskManagementTab() {
                                     tasks.map((task) => {
                                         const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() &&
                                             !['COMPLETED', 'SCHEDULED'].includes(task.status);
+                                        const isSelected = selectedTasks.has(task.id);
 
                                         return (
-                                            <tr key={task.id} className="border-b hover:bg-muted/50">
+                                            <tr 
+                                                key={task.id} 
+                                                className={`border-b hover:bg-muted/50 ${isSelected ? 'bg-primary/5' : ''}`}
+                                            >
+                                                <td className="py-3 px-4">
+                                                    <Checkbox
+                                                        checked={isSelected}
+                                                        onCheckedChange={(checked) => handleSelectTask(task.id, !!checked)}
+                                                        aria-label={`Select task ${task.title || task.id}`}
+                                                    />
+                                                </td>
                                                 <td className="py-3 px-4">
                                                     <div className="max-w-xs">
                                                         <div className="font-medium truncate">
                                                             {task.title || task.description?.slice(0, 50) || 'Untitled Task'}
                                                         </div>
-                                                        {task.monthlyDeliverable && (
-                                                            <div className="text-xs text-muted-foreground">
-                                                                {task.monthlyDeliverable.type}
-                                                            </div>
-                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <div className="text-sm">
+                                                        {task.monthlyDeliverable?.type?.replace(/_/g, ' ') || '-'}
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
@@ -743,6 +971,7 @@ export function TaskManagementTab() {
                                                             </DropdownMenuItem>
                                                             <DropdownMenuSeparator />
                                                             <DropdownMenuItem className="text-red-600">
+                                                                <Trash2 className="h-4 w-4 mr-2" />
                                                                 Delete Task
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
@@ -759,6 +988,9 @@ export function TaskManagementTab() {
                     {/* Pagination */}
                     <div className="flex items-center justify-between px-4 py-3 border-t">
                         <div className="text-sm text-muted-foreground">
+                            {selectedTasks.size > 0 ? (
+                                <span className="font-medium">{selectedTasks.size} selected · </span>
+                            ) : null}
                             Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total} tasks
                         </div>
                         <div className="flex items-center gap-2">
@@ -788,7 +1020,7 @@ export function TaskManagementTab() {
                 </CardContent>
             </Card>
 
-            {/* Edit Task Dialog */}
+            {/* Single Task Edit Dialog */}
             <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
                 <DialogContent className="max-w-lg">
                     <DialogHeader>
@@ -929,6 +1161,159 @@ export function TaskManagementTab() {
                         </Button>
                         <Button onClick={handleSaveEdit} disabled={saving}>
                             {saving ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Edit Dialog */}
+            <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Bulk Edit Tasks</DialogTitle>
+                        <DialogDescription>
+                            Edit {selectedTasks.size} selected task{selectedTasks.size > 1 ? 's' : ''}. 
+                            Only fields you change will be updated.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-4">
+                        {/* Status */}
+                        <div className="grid gap-2">
+                            <Label>Status</Label>
+                            <Select
+                                value={bulkEditForm.status}
+                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, status: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="no_change">— No Change —</SelectItem>
+                                    {Object.entries(statusConfig).map(([key, config]) => (
+                                        <SelectItem key={key} value={key}>
+                                            {config.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Editor */}
+                        <div className="grid gap-2">
+                            <Label>Editor</Label>
+                            <Select
+                                value={bulkEditForm.assignedTo}
+                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, assignedTo: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select editor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="no_change">— No Change —</SelectItem>
+                                    {editors.map((m) => (
+                                        <SelectItem key={m.id} value={m.id.toString()}>
+                                            {m.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* QC Specialist */}
+                        <div className="grid gap-2">
+                            <Label>QC Specialist</Label>
+                            <Select
+                                value={bulkEditForm.qc_specialist}
+                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, qc_specialist: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select QC specialist" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="no_change">— No Change —</SelectItem>
+                                    <SelectItem value="none">Remove QC</SelectItem>
+                                    {qcMembers.map((m) => (
+                                        <SelectItem key={m.id} value={m.id.toString()}>
+                                            {m.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Scheduler */}
+                        <div className="grid gap-2">
+                            <Label>Scheduler</Label>
+                            <Select
+                                value={bulkEditForm.scheduler}
+                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, scheduler: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select scheduler" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="no_change">— No Change —</SelectItem>
+                                    <SelectItem value="none">Remove Scheduler</SelectItem>
+                                    {schedulers.map((m) => (
+                                        <SelectItem key={m.id} value={m.id.toString()}>
+                                            {m.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Videographer */}
+                        <div className="grid gap-2">
+                            <Label>Videographer</Label>
+                            <Select
+                                value={bulkEditForm.videographer}
+                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, videographer: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select videographer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="no_change">— No Change —</SelectItem>
+                                    <SelectItem value="none">Remove Videographer</SelectItem>
+                                    {videographers.map((m) => (
+                                        <SelectItem key={m.id} value={m.id.toString()}>
+                                            {m.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Priority */}
+                        <div className="grid gap-2">
+                            <Label>Priority</Label>
+                            <Select
+                                value={bulkEditForm.priority}
+                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, priority: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select priority" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="no_change">— No Change —</SelectItem>
+                                    <SelectItem value="none">Remove Priority</SelectItem>
+                                    <SelectItem value="low">Low</SelectItem>
+                                    <SelectItem value="medium">Medium</SelectItem>
+                                    <SelectItem value="high">High</SelectItem>
+                                    <SelectItem value="urgent">Urgent</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowBulkEdit(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleBulkEdit} disabled={saving}>
+                            {saving ? 'Updating...' : `Update ${selectedTasks.size} Task${selectedTasks.size > 1 ? 's' : ''}`}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
