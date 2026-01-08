@@ -19,7 +19,6 @@ import {
   AlertCircle,
   ExternalLink,
   Filter,
-  X,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -89,7 +88,6 @@ interface WorkflowTask {
   clientId: string;
   projectId: string;
   deliverableType?: string;
-  taskNumber?: number | null; // Extracted from title
   files?: TaskFile[];
   qcNotes?: string | null;
   rejectionReason?: string | null;
@@ -224,8 +222,8 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
     <>
       <Card className="hover:shadow-md transition-shadow">
         <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-2 mb-3">
-            <h4 className="font-medium text-sm break-words">{task.title}</h4>
+          <div className="flex items-start justify-between mb-3">
+            <h4 className="font-medium text-sm">{task.title}</h4>
             <Badge
               variant={task.status === "completed" ? "default" : "secondary"}
               className="text-xs flex-shrink-0"
@@ -361,7 +359,6 @@ function TaskCard({ task, onUploadComplete, onStartTask }: any) {
 export function EditorDashboard() {
   const [tasks, setTasks] = useState<WorkflowTask[]>([]);
   const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>("all");
-  const [taskCountFilter, setTaskCountFilter] = useState<string>("all");
   const { user } = useAuth();
 
   const currentUser = {
@@ -440,46 +437,13 @@ export function EditorDashboard() {
     return Array.from(types).sort();
   }, [tasks]);
 
-  // Extract unique task numbers from tasks (filtered by deliverable type if selected)
-  const availableTaskNumbers = useMemo(() => {
-    const numbers = new Set<number>();
-    
-    // If deliverable type is selected, only show numbers for that type
-    const tasksToCheck = deliverableTypeFilter === "all" 
-      ? tasks 
-      : tasks.filter((task) => task.deliverableType === deliverableTypeFilter);
-    
-    tasksToCheck.forEach((task) => {
-      if (task.taskNumber !== null && task.taskNumber !== undefined) {
-        numbers.add(task.taskNumber);
-      }
-    });
-    
-    return Array.from(numbers).sort((a, b) => a - b);
-  }, [tasks, deliverableTypeFilter]);
-
-  // Filter tasks by deliverable type AND task number
+  // Filter tasks by deliverable type
   const filteredTasks = useMemo(() => {
-    let result = tasks;
-    
-    // Filter by deliverable type
-    if (deliverableTypeFilter !== "all") {
-      result = result.filter((task) => task.deliverableType === deliverableTypeFilter);
+    if (deliverableTypeFilter === "all") {
+      return tasks;
     }
-    
-    // Filter by task number
-    if (taskCountFilter !== "all") {
-      const targetNumber = parseInt(taskCountFilter);
-      result = result.filter((task) => task.taskNumber === targetNumber);
-    }
-    
-    return result;
-  }, [tasks, deliverableTypeFilter, taskCountFilter]);
-
-  // Reset task count filter when deliverable type changes
-  useEffect(() => {
-    setTaskCountFilter("all");
-  }, [deliverableTypeFilter]);
+    return tasks.filter((task) => task.deliverableType === deliverableTypeFilter);
+  }, [tasks, deliverableTypeFilter]);
 
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
@@ -581,18 +545,17 @@ export function EditorDashboard() {
               Logged in as: <span className="font-medium text-foreground">{currentUser.name}</span>
             </div>
             
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Filters:</span>
+                <span className="text-sm text-muted-foreground">Filter by:</span>
               </div>
               
-              {/* Deliverable Type Filter */}
               <Select
                 value={deliverableTypeFilter}
                 onValueChange={setDeliverableTypeFilter}
               >
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
@@ -605,61 +568,29 @@ export function EditorDashboard() {
                 </SelectContent>
               </Select>
 
-              {/* Task Count/Number Filter */}
-              <Select
-                value={taskCountFilter}
-                onValueChange={setTaskCountFilter}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="All #" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All #</SelectItem>
-                  {availableTaskNumbers.map((num) => (
-                    <SelectItem key={num} value={num.toString()}>
-                      #{num}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Clear All Filters */}
-              {hasActiveFilters && (
+              {deliverableTypeFilter !== "all" && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={clearAllFilters}
-                  className="text-xs gap-1"
+                  onClick={() => setDeliverableTypeFilter("all")}
+                  className="text-xs"
                 >
-                  <X className="h-3 w-3" />
-                  Clear all
+                  Clear filter
                 </Button>
               )}
             </div>
           </div>
 
           {/* Show filter info */}
-          {hasActiveFilters && (
+          {deliverableTypeFilter !== "all" && (
             <div className="mt-3 pt-3 border-t">
               <p className="text-sm text-muted-foreground">
                 Showing <span className="font-medium text-foreground">{totalFilteredTasks}</span> of{" "}
                 <span className="font-medium text-foreground">{totalTasks}</span> tasks
-                {deliverableTypeFilter !== "all" && (
-                  <>
-                    {" "}• Type:{" "}
-                    <Badge variant="secondary" className="ml-1">
-                      {deliverableTypeFilter.replace(/_/g, " ")}
-                    </Badge>
-                  </>
-                )}
-                {taskCountFilter !== "all" && (
-                  <>
-                    {" "}• Number:{" "}
-                    <Badge variant="secondary" className="ml-1">
-                      #{taskCountFilter}
-                    </Badge>
-                  </>
-                )}
+                {" "}filtered by{" "}
+                <Badge variant="secondary" className="ml-1">
+                  {deliverableTypeFilter.replace(/_/g, " ")}
+                </Badge>
               </p>
             </div>
           )}

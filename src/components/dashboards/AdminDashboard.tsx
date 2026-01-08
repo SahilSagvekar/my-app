@@ -12,6 +12,7 @@ import LeavesComponent from '../admin/LeavesComponent';
 import { ReportsTab } from '../admin/ReportsTab';
 import { AuditLogTab } from '../admin/AuditLogTab';
 import { FinanceTab } from '../admin/FinanceTab';
+import { TaskManagementTab } from '../admin/TaskManagementTab';
 import { ClientManagement } from '../management/ClientManagement';
 import { Button } from '../ui/button';
 import { useEffect, useState } from "react";
@@ -96,7 +97,7 @@ interface AdminDashboardProps {
 export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProps) {
   const [tasks, setTasks] = useState([]);
   const [recentTasks, setRecentTasks] = useState([]);
-  
+
   // Dashboard data states
   const [kpiData, setKpiData] = useState<KPIData | null>(null);
   const [pipelineData, setPipelineData] = useState<PipelineData[]>([]);
@@ -105,10 +106,10 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
   const [systemStatus, setSystemStatus] = useState<SystemStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
-  from: new Date(new Date().setDate(new Date().getDate() - 30)),
-  to: new Date()
-});
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({
+    from: new Date(new Date().setDate(new Date().getDate() - 30)),
+    to: new Date()
+  });
 
   const handleTaskCreated = (task: any) => {
     console.log('New task created:', task);
@@ -345,15 +346,14 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                       className="flex items-start gap-3 pb-3 border-b last:border-b-0"
                     >
                       <div
-                        className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                          activity.status === "success"
-                            ? "bg-green-500"
-                            : activity.status === "error"
+                        className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${activity.status === "success"
+                          ? "bg-green-500"
+                          : activity.status === "error"
                             ? "bg-red-500"
                             : activity.status === "warning"
-                            ? "bg-yellow-500"
-                            : "bg-blue-500"
-                        }`}
+                              ? "bg-yellow-500"
+                              : "bg-blue-500"
+                          }`}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm">{activity.message}</p>
@@ -391,18 +391,18 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Server Status</span>
-                    <Badge 
-                      variant="default" 
+                    <Badge
+                      variant="default"
                       className={systemStatus.serverStatus === 'Online' ? 'bg-green-500' : 'bg-red-500'}
                     >
                       {systemStatus.serverStatus}
                     </Badge>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Database</span>
-                    <Badge 
-                      variant="default" 
+                    <Badge
+                      variant="default"
                       className={systemStatus.databaseStatus === 'Healthy' ? 'bg-green-500' : 'bg-red-500'}
                     >
                       {systemStatus.databaseStatus}
@@ -422,18 +422,18 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                       <span className="text-sm font-medium">{systemStatus.databaseSize}</span>
                     </div>
                   )}
-                  
+
                   {systemStatus.apiResponseTime && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm">API Response Time</span>
                       <span className="text-sm font-medium">{systemStatus.apiResponseTime}</span>
                     </div>
                   )}
-                  
+
                   <div className="flex items-center justify-between group cursor-help relative">
                     <span className="text-sm">Active Users</span>
                     <span className="text-sm font-medium">{systemStatus.activeUsers}</span>
-                    
+
                     {systemStatus.activeUserList && systemStatus.activeUserList.length > 0 && (
                       <div className="absolute hidden group-hover:block right-0 top-full mt-2 w-64 p-3 bg-popover border rounded-lg shadow-lg z-50">
                         <p className="text-xs font-semibold mb-2">Currently Active:</p>
@@ -523,15 +523,15 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={handleRefresh}
                   disabled={refreshing}
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                   Refresh
                 </Button>
-                <CreateTaskDialog 
+                <CreateTaskDialog
                   onTaskCreated={handleTaskCreated}
                   trigger={
                     <Button>
@@ -572,7 +572,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <CreateTaskDialog 
+                <CreateTaskDialog
                   onTaskCreated={handleTaskCreated}
                   trigger={
                     <Button>
@@ -609,11 +609,11 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
               <div>
                 <h1 className="text-3xl font-bold">Admin Portal</h1>
                 <p className="text-muted-foreground mt-2">
-                  Daily output reports and team performance analytics
+                  Manage all tasks, assignments, and track team workload
                 </p>
               </div>
             </div>
-            <ReportsTab />
+            <TaskManagementTab />
           </div>
         );
 
@@ -635,6 +635,21 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
       case 'finance':
         return <FinanceTab />;
 
+      case 'reports':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <p className="text-muted-foreground mt-2">
+                  Manage all tasks, assignments, and track team workload
+                </p>
+              </div>
+            </div>
+            <TaskManagementTab />
+          </div>
+        );
+
       case 'leaves':
         return <LeavesComponent />;
 
@@ -649,15 +664,15 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={handleRefresh}
                   disabled={refreshing}
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                   Refresh
                 </Button>
-                <CreateTaskDialog 
+                <CreateTaskDialog
                   onTaskCreated={handleTaskCreated}
                   trigger={
                     <Button>
