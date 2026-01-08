@@ -8,10 +8,9 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { Calendar, Clock, FileText, Eye, Search, Filter, CheckCircle, MapPin, Link as LinkIcon, Download, ChevronDown, ExternalLink } from 'lucide-react';
+import { Calendar, Clock, FileText, Eye, Search, Filter, CheckCircle, MapPin, Link as LinkIcon, Download, ChevronDown, ExternalLink, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '../ui/sonner';
-import { env } from 'process';
 
 type SchedulerTask = {
   id: string;
@@ -19,6 +18,7 @@ type SchedulerTask = {
   description?: string;
   priority: string;
   status: string;
+  originalStatus: string; // Keep track of API status for debugging
   dueDate?: string;
   driveLinks?: [{ url: string }];
   files: { id: string | number; name: string; url: string; size: number; key?: string; folderType?: string }[];
@@ -40,6 +40,9 @@ const folderTypes = {
   'other': { label: 'Other', icon: '📁', color: 'bg-gray-100 text-gray-800' },
 };
 
+// Statuses that mean task is already scheduled/completed
+const SCHEDULED_STATUSES = ['SCHEDULED', 'POSTED', 'PUBLISHED'];
+
 export function SchedulerApprovedQueuePage() {
   const [tasks, setTasks] = useState<SchedulerTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<SchedulerTask | null>(null);
@@ -47,7 +50,7 @@ export function SchedulerApprovedQueuePage() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
-  
+
   // Social media link dialog state
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [socialMediaPlatform, setSocialMediaPlatform] = useState('');
@@ -62,97 +65,122 @@ export function SchedulerApprovedQueuePage() {
   }, []);
 
   async function loadTasks() {
-  try {
-    setLoading(true);
-    const res = await fetch("/api/schedular/tasks", { cache: "no-store" });
-    const data = await res.json();
+    try {
+      setLoading(true);
+      const res = await fetch("/api/schedular/tasks", { cache: "no-store" });
+      const data = await res.json();
 
-    const mapped = data.tasks.map((t: any) => {
-      // Map driveLinks to files format
-      const filesFromDriveLinks = (t.driveLinks || []).map((url: string, index: number) => {
-        // Extract filename from URL
-        const urlParts = url.split('/');
-        const filename = urlParts[urlParts.length - 1];
-        
-        // Extract folder type from URL path
-        let folderType = 'other';
-        if (url.includes('/outputs/')) {
-          // Check if it's in a subfolder within outputs
-          if (url.includes('/music-license/')) {
-            folderType = 'music';
-          } else if (url.includes('/thumbnails/')) {
-            folderType = 'thumbnail';
-          } else if (url.includes('/broll/')) {
-            folderType = 'broll';
-          } else if (url.includes('/script/')) {
-            folderType = 'script';
-          } else if (url.includes('/voiceover/')) {
-            folderType = 'voiceover';
-          } else if (url.includes('/graphics/')) {
-            folderType = 'graphics';
-          } else {
-            folderType = 'outputs'; // Main output file
+      console.log("📋 Tasks from API:", data.tasks);
+
+      if (!data.tasks || data.tasks.length === 0) {
+        console.log("⚠️ No tasks returned from API");
+        setTasks([]);
+        return;
+      }
+
+      const mapped = data.tasks.map((t: any) => {
+        // Log each task's status for debugging
+        console.log(`Task ${t.id}: API status = "${t.status}"`);
+
+        // Map driveLinks to files format
+        const filesFromDriveLinks = (t.driveLinks || []).map((url: string, index: number) => {
+          const urlParts = url.split('/');
+          const filename = urlParts[urlParts.length - 1];
+
+          let folderType = 'other';
+          if (url.includes('/outputs/')) {
+            if (url.includes('/music-license/')) folderType = 'music';
+            else if (url.includes('/thumbnails/')) folderType = 'thumbnail';
+            else if (url.includes('/broll/')) folderType = 'broll';
+            else if (url.includes('/script/')) folderType = 'script';
+            else if (url.includes('/voiceover/')) folderType = 'voiceover';
+            else if (url.includes('/graphics/')) folderType = 'graphics';
+            else folderType = 'outputs';
           }
-        }
 
-        // Extract S3 key (everything after the bucket URL)
-        const bucketUrl = "https://" + process.env.AWS_S3_BUCKET + ".s3.us-east-1.amazonaws.com/";
-        const key = url.replace(bucketUrl, "");
+          // Extract S3 key from URL
+          const key = url.split('.amazonaws.com/')[1] || '';
+
+          return {
+            id: `${t.id}-file-${index}`,
+            name: decodeURIComponent(filename),
+            url: url,
+            key: key,
+            size: 0,
+            folderType: folderType,
+          };
+        });
+
+        // Combine with existing files
+        const allFiles = [
+          ...filesFromDriveLinks,
+          ...(t.files || []).map((file: any) => ({
+            id: file.id,
+            name: file.name,
+            url: file.url,
+            key: file.url?.split('.amazonaws.com/')[1] || '',
+            size: file.size || 0,
+            folderType: file.subfolder || 'other',
+          }))
+        ];
+
+        // Normalize API status to uppercase for comparison
+        const apiStatus = (t.status || 'PENDING').toUpperCase();
+
+        // Determine UI status - is it already scheduled or still pending?
+        const isScheduled = SCHEDULED_STATUSES.includes(apiStatus);
+        const uiStatus = isScheduled ? 'SCHEDULED' : 'PENDING';
+
+        console.log(`Task ${t.id}: "${apiStatus}" → UI status: "${uiStatus}"`);
 
         return {
-          id: `${t.id}-file-${index}`,
-          name: decodeURIComponent(filename),
-          url: url,
-          key: key,
-          size: 0, // Size not available from driveLinks
-          folderType: folderType,
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          priority: t.priority || "medium",
+          status: uiStatus,
+          originalStatus: apiStatus, // Keep original for debugging
+          dueDate: t.dueDate,
+          files: allFiles,
+          createdAt: t.createdAt,
+          projectId: t.clientId,
+          deliverable: t.monthlyDeliverable,
+          socialMediaLinks: t.socialMediaLinks || [],
         };
       });
 
-      // Combine with existing files if any
-      const allFiles = [
-        ...filesFromDriveLinks,
-        ...(t.files || []).map((file: any) => ({
-          id: file.id,
-          name: file.name,
-          url: file.url,
-          key: file.url.replace("https://" + process.env.AWS_S3_BUCKET + ".s3.us-east-1.amazonaws.com/", ""),
-          size: file.size || 0,
-          folderType: file.subfolder || 'other',
-        }))
-      ];
+      console.log("📋 Mapped tasks:", mapped);
 
-      return {
-        id: t.id,
-        title: t.title,
-        description: t.description,
-        priority: t.priority || "medium",
-        status: t.status === "COMPLETED" ? "SCHEDULED" : "PENDING",
-        dueDate: t.dueDate,
-        files: allFiles,
-        createdAt: t.createdAt,
-        projectId: t.clientId,
-        deliverable: t.monthlyDeliverable,
-        socialMediaLinks: t.socialMediaLinks || [],
-      };
-    });
+      const pending = mapped.filter((t: SchedulerTask) => t.status === "PENDING");
+      const scheduled = mapped.filter((t: SchedulerTask) => t.status === "SCHEDULED");
+      console.log(`📊 Pending: ${pending.length}, Scheduled: ${scheduled.length}`);
 
-    setTasks(mapped);
+      setTasks(mapped);
 
-    if (!selectedTask && mapped.length > 0) {
-      setSelectedTask(mapped.find((t: SchedulerTask) => t.status === "PENDING") || mapped[0]);
+      // Select first pending task by default
+      if (mapped.length > 0) {
+        const firstPending = mapped.find((t: SchedulerTask) => t.status === "PENDING");
+        setSelectedTask(firstPending || mapped[0]);
+      }
+    } catch (error) {
+      console.error("❌ Error loading tasks:", error);
+      toast.error('Error', {
+        description: 'Failed to load tasks',
+      });
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Error loading tasks:", error);
-    toast.error('Error', {
-      description: 'Failed to load tasks',
-    });
-  } finally {
-    setLoading(false);
   }
-}
 
   async function scheduleTask(task: SchedulerTask) {
+    // Check if social media link is added - REQUIRED
+    if (!task.socialMediaLinks || task.socialMediaLinks.length === 0) {
+      toast.error('Social Media Link Required', {
+        description: 'Please add at least one social media post link before marking as scheduled.',
+      });
+      return;
+    }
+
     try {
       setBusyId(task.id);
 
@@ -168,7 +196,10 @@ export function SchedulerApprovedQueuePage() {
         prev.map(t => t.id === task.id ? { ...t, status: "SCHEDULED" } : t)
       );
 
-      setSelectedTask(null);
+      // Select next pending task
+      const remainingPending = tasks.filter(t => t.id !== task.id && t.status === "PENDING");
+      setSelectedTask(remainingPending.length > 0 ? remainingPending[0] : null);
+
       toast.success('Task Scheduled', {
         description: 'Content has been marked as scheduled.',
       });
@@ -187,6 +218,16 @@ export function SchedulerApprovedQueuePage() {
     if (!selectedTask || !socialMediaPlatform || !socialMediaUrl) {
       toast.error('Error', {
         description: 'Please fill in all fields.',
+      });
+      return;
+    }
+
+    // Validate URL
+    try {
+      new URL(socialMediaUrl);
+    } catch {
+      toast.error('Invalid URL', {
+        description: 'Please enter a valid URL starting with https://',
       });
       return;
     }
@@ -262,14 +303,17 @@ export function SchedulerApprovedQueuePage() {
   };
 
   const filtered = tasks.filter(t => {
-    const matchText = t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchText = t.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.id?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchPriority = priorityFilter === "all" || t.priority === priorityFilter;
     return matchText && matchPriority;
   });
 
   const pendingTasks = filtered.filter(t => t.status === "PENDING");
-  const completedTasks = filtered.filter(t => t.status === "COMPLETED");
+  const scheduledTasks = filtered.filter(t => t.status === "SCHEDULED");
+
+  // Check if selected task has social media links
+  const hasSocialMediaLink = selectedTask?.socialMediaLinks && selectedTask.socialMediaLinks.length > 0;
 
   // Group files by folder type
   const filesByFolder = selectedTask?.files.reduce((acc, file) => {
@@ -278,6 +322,17 @@ export function SchedulerApprovedQueuePage() {
     acc[folder].push(file);
     return acc;
   }, {} as Record<string, typeof selectedTask.files>) || {};
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading tasks...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -294,16 +349,16 @@ export function SchedulerApprovedQueuePage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm">Pending</p>
-              <h3>{pendingTasks.length}</h3>
+              <p className="text-sm text-muted-foreground">Pending</p>
+              <h3 className="text-2xl font-bold">{pendingTasks.length}</h3>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm">Scheduled Today</p>
-              <h3>
-                {completedTasks.filter(
+              <p className="text-sm text-muted-foreground">Scheduled Today</p>
+              <h3 className="text-2xl font-bold">
+                {scheduledTasks.filter(
                   (t) =>
                     new Date(t.createdAt).toDateString() ===
                     new Date().toDateString()
@@ -314,8 +369,8 @@ export function SchedulerApprovedQueuePage() {
 
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm">Urgent</p>
-              <h3>{pendingTasks.filter((t) => t.priority === "urgent").length}</h3>
+              <p className="text-sm text-muted-foreground">Urgent</p>
+              <h3 className="text-2xl font-bold">{pendingTasks.filter((t) => t.priority === "urgent").length}</h3>
             </CardContent>
           </Card>
         </div>
@@ -338,7 +393,7 @@ export function SchedulerApprovedQueuePage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="all">All Priorities</SelectItem>
                 <SelectItem value="urgent">Urgent</SelectItem>
                 <SelectItem value="high">High</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
@@ -353,34 +408,51 @@ export function SchedulerApprovedQueuePage() {
           {/* LEFT: Tasks */}
           <Card>
             <CardHeader>
-              <CardTitle>Pending Tasks</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Pending Tasks</span>
+                <Badge variant="secondary">{pendingTasks.length}</Badge>
+              </CardTitle>
             </CardHeader>
 
             <CardContent className="p-0 max-h-[600px] overflow-y-auto">
               {pendingTasks.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
-                  <p>No pending tasks</p>
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="font-medium">No pending tasks</p>
+                  <p className="text-sm mt-1">All tasks have been scheduled!</p>
                 </div>
               ) : (
                 pendingTasks.map((task) => (
                   <div
                     key={task.id}
-                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors ${
-                      selectedTask?.id === task.id ? "bg-muted" : ""
-                    }`}
+                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors ${selectedTask?.id === task.id ? "bg-muted border-l-4 border-l-primary" : ""
+                      }`}
                     onClick={() => setSelectedTask(task)}
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h4 className="font-medium">{task.title}</h4>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium truncate">{task.title}</h4>
                         <p className="text-xs text-muted-foreground mt-1">
                           Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "N/A"}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          Files: {task.files.length}
-                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className="text-xs">
+                            {task.files.length} files
+                          </Badge>
+                          {task.socialMediaLinks && task.socialMediaLinks.length > 0 ? (
+                            <Badge variant="default" className="text-xs bg-green-600">
+                              <LinkIcon className="h-3 w-3 mr-1" />
+                              {task.socialMediaLinks.length} link{task.socialMediaLinks.length > 1 ? 's' : ''}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              No link
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      <Badge variant={getPriorityColor(task.priority)}>
+                      <Badge variant={getPriorityColor(task.priority)} className="flex-shrink-0">
                         {task.priority}
                       </Badge>
                     </div>
@@ -398,7 +470,10 @@ export function SchedulerApprovedQueuePage() {
 
             <CardContent>
               {!selectedTask ? (
-                <p className="text-muted-foreground">Select a task to view details</p>
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Select a task to view details</p>
+                </div>
               ) : (
                 <div className="space-y-4">
                   <div>
@@ -438,7 +513,7 @@ export function SchedulerApprovedQueuePage() {
                     ) : (
                       Object.entries(filesByFolder).map(([folderType, files]) => {
                         const folderInfo = folderTypes[folderType as keyof typeof folderTypes] || folderTypes.other;
-                        const isExpanded = expandedFolders[folderType] !== false; // Default to expanded
+                        const isExpanded = expandedFolders[folderType] !== false;
 
                         return (
                           <div
@@ -458,14 +533,12 @@ export function SchedulerApprovedQueuePage() {
                                   {folderInfo.label}
                                 </span>
                                 <Badge variant="outline" className="text-xs">
-                                  {files.length} file
-                                  {files.length !== 1 ? "s" : ""}
+                                  {files.length} file{files.length !== 1 ? "s" : ""}
                                 </Badge>
                               </div>
                               <ChevronDown
-                                className={`h-4 w-4 transition-transform ${
-                                  isExpanded ? "rotate-180" : ""
-                                }`}
+                                className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""
+                                  }`}
                               />
                             </button>
 
@@ -481,10 +554,11 @@ export function SchedulerApprovedQueuePage() {
                                       <p className="text-sm font-medium truncate">
                                         {file.name}
                                       </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {(file.size / 1024 / 1024).toFixed(2)}{" "}
-                                        MB
-                                      </p>
+                                      {file.size > 0 && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                      )}
                                     </div>
 
                                     <div className="flex gap-2 flex-shrink-0">
@@ -497,54 +571,6 @@ export function SchedulerApprovedQueuePage() {
                                         View
                                       </Button>
 
-                                      {/* <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={async () => {
-                                          if (!file.key) {
-                                            toast.error("Error", {
-                                              description: "File key missing",
-                                            });
-                                            return;
-                                          }
-
-                                          try {
-                                            const res = await fetch(
-                                              "/api/download",
-                                              {
-                                                method: "POST",
-                                                headers: {
-                                                  "Content-Type":
-                                                    "application/json",
-                                                },
-                                                body: JSON.stringify({
-                                                  key: file.key,
-                                                  filename: file.name,
-                                                  action: "view", // Add this to tell API to inline instead of download
-                                                }),
-                                              }
-                                            );
-
-                                            if (!res.ok)
-                                              throw new Error(
-                                                "Failed to get file URL"
-                                              );
-
-                                            const { url } = await res.json();
-                                            window.open(url, "_blank");
-                                          } catch (err) {
-                                            console.error(err);
-                                            toast.error("Error", {
-                                              description:
-                                                "Failed to view file",
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        <Eye className="h-3 w-3 mr-1" />
-                                        View
-                                      </Button> */}
-
                                       <Button
                                         size="sm"
                                         variant="outline"
@@ -557,25 +583,18 @@ export function SchedulerApprovedQueuePage() {
                                           }
 
                                           try {
-                                            const res = await fetch(
-                                              "/api/download",
-                                              {
-                                                method: "POST",
-                                                headers: {
-                                                  "Content-Type":
-                                                    "application/json",
-                                                },
-                                                body: JSON.stringify({
-                                                  key: file.key,
-                                                  filename: file.name,
-                                                }),
-                                              }
-                                            );
+                                            const res = await fetch("/api/download", {
+                                              method: "POST",
+                                              headers: { "Content-Type": "application/json" },
+                                              body: JSON.stringify({
+                                                key: file.key,
+                                                filename: file.name,
+                                              }),
+                                            });
 
                                             const { url } = await res.json();
 
-                                            const a =
-                                              document.createElement("a");
+                                            const a = document.createElement("a");
                                             a.href = url;
                                             a.download = file.name;
                                             document.body.appendChild(a);
@@ -583,8 +602,7 @@ export function SchedulerApprovedQueuePage() {
                                             a.remove();
                                           } catch (err) {
                                             toast.error("Error", {
-                                              description:
-                                                "Failed to download file",
+                                              description: "Failed to download file",
                                             });
                                           }
                                         }}
@@ -602,12 +620,13 @@ export function SchedulerApprovedQueuePage() {
                     )}
                   </div>
 
-                  {/* Social Media Links */}
+                  {/* Social Media Links - REQUIRED */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <h4 className="font-medium flex items-center gap-2">
                         <LinkIcon className="h-4 w-4" />
                         Social Media Posts
+                        <Badge variant="destructive" className="text-xs">Required</Badge>
                       </h4>
                       <Button
                         size="sm"
@@ -619,14 +638,25 @@ export function SchedulerApprovedQueuePage() {
                       </Button>
                     </div>
 
+                    {/* Warning if no links */}
+                    {!hasSocialMediaLink && (
+                      <div className="border border-orange-200 bg-orange-50 rounded-lg p-3 flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                          <p className="font-medium text-orange-800">Social media link required</p>
+                          <p className="text-orange-700">Add the post link before marking as scheduled.</p>
+                        </div>
+                      </div>
+                    )}
+
                     {selectedTask.socialMediaLinks && selectedTask.socialMediaLinks.length > 0 ? (
                       <div className="space-y-2">
                         {selectedTask.socialMediaLinks.map((link, index) => (
                           <div
                             key={index}
-                            className="border rounded-lg p-3 flex items-center justify-between"
+                            className="border rounded-lg p-3 flex items-center justify-between bg-green-50 border-green-200"
                           >
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium capitalize">{link.platform}</p>
                               <p className="text-xs text-muted-foreground truncate">
                                 {link.url}
@@ -657,12 +687,18 @@ export function SchedulerApprovedQueuePage() {
                     <Button
                       className="flex-1"
                       onClick={() => scheduleTask(selectedTask)}
-                      disabled={busyId === selectedTask.id}
+                      disabled={busyId === selectedTask.id || !hasSocialMediaLink}
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark as Scheduled
+                      {!hasSocialMediaLink ? 'Add Link to Enable' : 'Mark as Scheduled'}
                     </Button>
                   </div>
+
+                  {!hasSocialMediaLink && (
+                    <p className="text-xs text-center text-muted-foreground">
+                      You must add at least one social media link before scheduling
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -676,13 +712,15 @@ export function SchedulerApprovedQueuePage() {
           <DialogHeader>
             <DialogTitle>Add Social Media Post Link</DialogTitle>
             <DialogDescription>
-              Add the link where this content was posted on social media.
+              Add the link where this content was posted on social media. This is required before marking the task as scheduled.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Platform</label>
+              <label className="text-sm font-medium mb-2 block">
+                Platform <span className="text-red-500">*</span>
+              </label>
               <Select value={socialMediaPlatform} onValueChange={setSocialMediaPlatform}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select platform" />
@@ -700,13 +738,18 @@ export function SchedulerApprovedQueuePage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Post URL</label>
+              <label className="text-sm font-medium mb-2 block">
+                Post URL <span className="text-red-500">*</span>
+              </label>
               <Input
-                placeholder="https://..."
+                placeholder="https://instagram.com/p/..."
                 value={socialMediaUrl}
                 onChange={(e) => setSocialMediaUrl(e.target.value)}
                 disabled={submittingLink}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter the full URL of the published post
+              </p>
             </div>
 
             <div className="flex justify-end gap-2">
