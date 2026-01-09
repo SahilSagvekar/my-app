@@ -411,6 +411,20 @@ export function ClientManagement() {
     }
   };
 
+  const getStatusBadgeClasses = (status: string) => {
+  switch (status) {
+    case "active":
+      return "bg-green-50 text-green-700 border-green-300";
+    case "pending":
+      return "bg-yellow-50 text-yellow-700 border-yellow-300";
+    case "expired":
+      return "bg-red-50 text-red-700 border-red-300";
+    default:
+      return "bg-gray-50 text-gray-700 border-gray-300";
+  }
+};
+ 
+
   const getStatusVariant = (status: string) => {
     switch (status) {
       case "active":

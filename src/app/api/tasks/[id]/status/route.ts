@@ -47,39 +47,39 @@ export async function PATCH(
     if (!task)
       return NextResponse.json({ message: "Task not found" }, { status: 404 });
 
-    const allowedTransitions: Record<string, string[]> = {
-      editor: ["IN_PROGRESS", "READY_FOR_QC", "ON_HOLD"],
-      qc: ["QC_IN_PROGRESS", "COMPLETED", "REJECTED"],
-      client: ["CLIENT_REVIEW", "COMPLETED", "REJECTED"],
-      scheduler: [],
-      manager: [
-        "PENDING",
-        "IN_PROGRESS",
-        "READY_FOR_QC",
-        "QC_IN_PROGRESS",
-        "COMPLETED",
-        "ON_HOLD",
-        "REJECTED",
-      ],
-      admin: [
-        "PENDING",
-        "IN_PROGRESS",
-        "READY_FOR_QC",
-        "QC_IN_PROGRESS",
-        "COMPLETED",
-        "ON_HOLD",
-        "REJECTED",
-      ],
-    };
+    // const allowedTransitions: Record<string, string[]> = {
+    //   editor: ["IN_PROGRESS", "READY_FOR_QC", "ON_HOLD"],
+    //   qc: ["QC_IN_PROGRESS", "COMPLETED", "REJECTED"],
+    //   client: ["CLIENT_REVIEW", "COMPLETED", "REJECTED"],
+    //   scheduler: [],
+    //   manager: [
+    //     "PENDING",
+    //     "IN_PROGRESS",
+    //     "READY_FOR_QC",
+    //     "QC_IN_PROGRESS",
+    //     "COMPLETED",
+    //     "ON_HOLD",
+    //     "REJECTED",
+    //   ],
+    //   admin: [
+    //     "PENDING",
+    //     "IN_PROGRESS",
+    //     "READY_FOR_QC",
+    //     "QC_IN_PROGRESS",
+    //     "COMPLETED",
+    //     "ON_HOLD",
+    //     "REJECTED",
+    //   ],
+    // };
 
-    const allowed = allowedTransitions[role.toLowerCase()] || [];
+    // const allowed = allowedTransitions[role.toLowerCase()] || [];
 
-    if (!allowed.includes(status)) {
-      return NextResponse.json(
-        { message: `Role '${role}' cannot set status to '${status}'` },
-        { status: 403 }
-      );
-    }
+    // if (!allowed.includes(status)) {
+    //   return NextResponse.json(
+    //     { message: `Role '${role}' cannot set status to '${status}'` },
+    //     { status: 403 }
+    //   );
+    // }
 
     if (
       role.toLowerCase() === "qc" &&
