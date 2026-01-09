@@ -233,6 +233,383 @@ html {
   display: none !important;
 }
 
+/* ================================================
+   Frame.io-Style Review System Theme
+   ================================================ */
+
+/* Review System Dark Theme Variables */
+:root {
+  --review-bg-primary: #0d0d0d;
+  --review-bg-secondary: #1a1a1a;
+  --review-bg-tertiary: #262626;
+  --review-bg-elevated: #2d2d2d;
+  --review-border: rgba(255, 255, 255, 0.08);
+  --review-border-hover: rgba(255, 255, 255, 0.15);
+  --review-text-primary: #ffffff;
+  --review-text-secondary: #a0a0a0;
+  --review-text-muted: #6b6b6b;
+  --review-accent-purple: #8b5cf6;
+  --review-accent-blue: #3b82f6;
+  --review-accent-cyan: #06b6d4;
+  --review-status-approved: #22c55e;
+  --review-status-changes: #f97316;
+  --review-status-progress: #3b82f6;
+  --review-status-pending: #6b7280;
+  --review-comment-marker: #8b5cf6;
+  --review-timeline-bg: rgba(255, 255, 255, 0.1);
+  --review-timeline-progress: #ffffff;
+  --review-timeline-hover: rgba(255, 255, 255, 0.3);
+}
+
+/* Review Modal Container */
+.review-modal {
+  background: var(--review-bg-primary);
+  color: var(--review-text-primary);
+}
+
+/* Review Modal Header */
+.review-header {
+  background: linear-gradient(to bottom, var(--review-bg-secondary), transparent);
+  border-bottom: 1px solid var(--review-border);
+  backdrop-filter: blur(10px);
+}
+
+/* Status Dropdown Styles */
+.review-status-dropdown {
+  transition: all 0.2s ease;
+}
+
+.review-status-dropdown[data-status="approved"] {
+  background: var(--review-status-approved);
+  color: white;
+}
+
+.review-status-dropdown[data-status="needs_changes"] {
+  background: var(--review-status-changes);
+  color: white;
+}
+
+.review-status-dropdown[data-status="in_progress"] {
+  background: var(--review-status-progress);
+  color: white;
+}
+
+.review-status-dropdown[data-status="needs_review"] {
+  background: var(--review-bg-tertiary);
+  color: var(--review-text-secondary);
+  border: 1px solid var(--review-border);
+}
+
+/* Comment Sidebar */
+.review-comments-sidebar {
+  background: var(--review-bg-secondary);
+  border-left: 1px solid var(--review-border);
+}
+
+.review-comment {
+  background: var(--review-bg-tertiary);
+  border: 1px solid var(--review-border);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.review-comment:hover {
+  border-color: var(--review-border-hover);
+  background: var(--review-bg-elevated);
+}
+
+.review-comment.active {
+  border-color: var(--review-accent-purple);
+  box-shadow: 0 0 0 1px var(--review-accent-purple);
+}
+
+.review-comment-timestamp {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: var(--review-accent-purple);
+  background: rgba(139, 92, 246, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.review-comment-timestamp:hover {
+  background: rgba(139, 92, 246, 0.2);
+}
+
+/* Timeline with Markers */
+.review-timeline {
+  position: relative;
+  height: 40px;
+  background: var(--review-bg-tertiary);
+  border-radius: 4px;
+  overflow: visible;
+}
+
+.review-timeline-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  background: var(--review-timeline-bg);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.review-timeline-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--review-timeline-progress);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+.review-timeline-playhead {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  cursor: grab;
+  z-index: 10;
+}
+
+.review-timeline-playhead:active {
+  cursor: grabbing;
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+/* Comment Markers on Timeline */
+.review-timeline-marker {
+  position: absolute;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  background: var(--review-comment-marker);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 5;
+}
+
+.review-timeline-marker:hover {
+  transform: translateX(-50%) scale(1.4);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+}
+
+.review-timeline-marker.active {
+  background: white;
+  box-shadow: 0 0 0 3px var(--review-accent-purple);
+}
+
+/* Annotation Tools */
+.review-annotation-toolbar {
+  background: var(--review-bg-elevated);
+  border: 1px solid var(--review-border);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  gap: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.review-annotation-tool {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--review-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.review-annotation-tool:hover {
+  background: var(--review-bg-tertiary);
+  color: var(--review-text-primary);
+}
+
+.review-annotation-tool.active {
+  background: var(--review-accent-purple);
+  color: white;
+}
+
+/* Comment Input Area */
+.review-comment-input {
+  background: var(--review-bg-tertiary);
+  border: 1px solid var(--review-border);
+  border-radius: 8px;
+  padding: 12px;
+  transition: border-color 0.2s ease;
+}
+
+.review-comment-input:focus-within {
+  border-color: var(--review-accent-purple);
+}
+
+.review-comment-input textarea {
+  background: transparent;
+  border: none;
+  color: var(--review-text-primary);
+  resize: none;
+  width: 100%;
+  outline: none;
+}
+
+.review-comment-input textarea::placeholder {
+  color: var(--review-text-muted);
+}
+
+/* Category Pills */
+.review-category-pill {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.review-category-pill[data-category="design"] {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.review-category-pill[data-category="content"] {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.review-category-pill[data-category="timing"] {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+.review-category-pill[data-category="technical"] {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.review-category-pill[data-category="other"] {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+}
+
+/* Resolve Checkbox */
+.review-resolve-checkbox {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--review-border-hover);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.review-resolve-checkbox:hover {
+  border-color: var(--review-status-approved);
+}
+
+.review-resolve-checkbox:checked {
+  background: var(--review-status-approved);
+  border-color: var(--review-status-approved);
+}
+
+.review-resolve-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* Animations */
+@keyframes review-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes review-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.review-animate-fade-in {
+  animation: review-fade-in 0.3s ease-out;
+}
+
+.review-animate-slide-in {
+  animation: review-slide-in 0.3s ease-out;
+}
+
+/* Glassmorphism Effects */
+.review-glass {
+  background: rgba(26, 26, 26, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--review-border);
+}
+
+/* Video Player Container */
+.review-video-container {
+  position: relative;
+  background: black;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Control Bar */
+.review-control-bar {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+  padding: 16px;
+}
+
+/* Scrollbar Styling for Review Components */
+.review-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.review-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.review-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--review-bg-elevated);
+  border-radius: 3px;
+}
+
+.review-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--review-text-muted);
+}
+
 
 /* :root {
   --background: #ffffff;

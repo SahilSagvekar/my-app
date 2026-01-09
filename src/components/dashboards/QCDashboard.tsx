@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink } from 'lucide-react';
-import { FullScreenReviewModal } from '../client/FullScreenReviewModal';
+import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 
@@ -123,7 +123,7 @@ export function QCDashboard() {
           ...task,
           status:
             task.status === "READY_FOR_QC" ||
-            task.status === "QC_IN_PROGRESS"
+              task.status === "QC_IN_PROGRESS"
               ? "pending"
               : String(task.status || "").toLowerCase(),
           priority: task.priority || "medium",
@@ -162,10 +162,10 @@ export function QCDashboard() {
         prev.map((task) =>
           task.id === selectedTask.id
             ? {
-                ...task,
-                status: "approved",
-                nextDestination: "client",
-              }
+              ...task,
+              status: "approved",
+              nextDestination: "client",
+            }
             : task
         )
       );
@@ -199,11 +199,11 @@ export function QCDashboard() {
         prev.map((task) =>
           task.id === selectedTask.id
             ? {
-                ...task,
-                status: "rejected",
-                qcNotes: notes,
-                nextDestination: "editor",
-              }
+              ...task,
+              status: "rejected",
+              qcNotes: notes,
+              nextDestination: "editor",
+            }
             : task
         )
       );
@@ -368,7 +368,7 @@ export function QCDashboard() {
 
   // Stats
   const pendingReviews = qcTasks.filter(task => task.status === 'pending').length;
-  const completedToday = qcTasks.filter(task => 
+  const completedToday = qcTasks.filter(task =>
     (task.status === 'approved' || task.status === 'rejected') &&
     new Date(task.createdAt).toDateString() === new Date().toDateString()
   ).length;
@@ -484,11 +484,9 @@ export function QCDashboard() {
                 qcTasks.map((task, index) => (
                   <div
                     key={task.id}
-                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${
-                      selectedTask?.id === task.id ? "bg-muted" : ""
-                    } ${getPriorityColor(task.priority)} ${
-                      isOverdue(task) ? "border-r-4 border-r-red-500" : ""
-                    }`}
+                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${selectedTask?.id === task.id ? "bg-muted" : ""
+                      } ${getPriorityColor(task.priority)} ${isOverdue(task) ? "border-r-4 border-r-red-500" : ""
+                      }`}
                     onClick={() => handleTaskClick(task)}
                   >
                     <div className="flex items-start justify-between mb-2">
@@ -520,13 +518,12 @@ export function QCDashboard() {
                       {task.priority && (
                         <Badge
                           variant="outline"
-                          className={`text-xs px-1 py-0 ${
-                            task.priority === "urgent"
-                              ? "border-red-500 text-red-700"
-                              : task.priority === "high"
+                          className={`text-xs px-1 py-0 ${task.priority === "urgent"
+                            ? "border-red-500 text-red-700"
+                            : task.priority === "high"
                               ? "border-orange-500 text-orange-700"
                               : "border-gray-500 text-gray-700"
-                          }`}
+                            }`}
                         >
                           {task.priority}
                         </Badge>
@@ -545,7 +542,7 @@ export function QCDashboard() {
                           {isOverdue(task) && " (Overdue)"}
                         </span>
                       </div>
-                      
+
                       {task.files && (
                         <Badge variant="outline" className="text-xs">
                           <FileText className="h-3 w-3 mr-1" />
@@ -588,7 +585,7 @@ export function QCDashboard() {
                 Choose a file to review from {selectedTask.title}
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="overflow-y-auto max-h-[60vh]">
               {selectedTask.files && selectedTask.files.length > 0 ? (
                 <div className="space-y-2">
@@ -601,11 +598,10 @@ export function QCDashboard() {
                       <CardContent className="p-4">
                         <div className="flex items-center gap-4">
                           {/* File Icon */}
-                          <div className={`p-3 rounded-lg ${
-                            file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
+                          <div className={`p-3 rounded-lg ${file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
                             file.mimeType?.startsWith('image/') ? 'bg-green-100' :
-                            'bg-gray-100'
-                          }`}>
+                              'bg-gray-100'
+                            }`}>
                             {getFileIcon(file.mimeType)}
                           </div>
 
@@ -656,11 +652,11 @@ export function QCDashboard() {
         </Dialog>
       )}
 
-      {/* Fullscreen Video Review Modal */}
+      {/* Fullscreen Video Review Modal - Frame.io Style */}
       {selectedTask && selectedFile && selectedFile.mimeType?.startsWith('video/') && (
-        <FullScreenReviewModal
+        <FullScreenReviewModalFrameIO
           open={showVideoReview}
-          onOpenChange={(open) => {
+          onOpenChange={(open: boolean) => {
             setShowVideoReview(open);
             if (!open) {
               setSelectedFile(null);
@@ -668,8 +664,8 @@ export function QCDashboard() {
             }
           }}
           asset={getVideoAssetFromFile(selectedFile)}
-          onApprove={() => {}}
-          onRequestRevisions={() => {}}
+          onApprove={() => { }}
+          onRequestRevisions={() => { }}
           userRole="qc"
           onSendToClient={handleSendToClient}
           onSendBackToEditor={handleSendBackToEditor}
