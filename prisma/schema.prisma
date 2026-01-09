@@ -38,6 +38,9 @@ model User {
   sessions          Session[]
   assignedTasks     Task[]             @relation("AssignedTasks")
   clientTasks       Task[]             @relation("ClientUserTasks")
+  updatedSocialLogins SocialLogin[] @relation("LoginUpdatedBy")
+  securityPin UserSecurityPin?
+  loginAuditLogs LoginAuditLog[]
 
   @@index([email])
   @@index([role])
@@ -195,6 +198,7 @@ model Client {
   monthlyRuns          MonthlyRun[]
   recurringTasks       RecurringTask[]
   tasks                Task[]
+  socialLogins         SocialLogin[]
 
   @@index([status])
 }
@@ -387,6 +391,62 @@ model FeedbackResponse {
 
   @@index([feedbackId])
   @@index([senderId])
+}
+
+model SocialLogin {
+  id                String   @id @default(cuid())
+  clientId          String
+  platform          String   // Instagram, Tiktok, Facebook, etc.
+  username          String   // @handle or email used to login
+  encryptedPassword String   @db.Text // AES-256-GCM encrypted
+  recoveryEmail     String?
+  recoveryPhone     String?
+  notes             String?  @db.Text
+  
+  // Tracking
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  updatedById       Int
+  
+  // Relations
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  updatedByUser     User     @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
+  auditLogs         LoginAuditLog[]
+  
+  @@unique([clientId, platform]) // One login per platform per client
+  @@index([clientId])
+  @@index([platform])
+}
+
+model UserSecurityPin {
+  id             String    @id @default(cuid())
+  userId         Int       @unique
+  pinHash        String    // bcrypt hashed PIN
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastVerifiedAt DateTime?
+  
+  // Relations
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LoginAuditLog {
+  id        String   @id @default(cuid())
+  action    String   // view, copy, create, update, delete, unlock, pin_set, pin_failed
+  loginId   String?  // Null for PIN-related actions
+  userId    Int
+  details   String?  @db.Text // JSON with additional context
+  ipAddress String?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  login     SocialLogin? @relation(fields: [loginId], references: [id], onDelete: SetNull)
+  user      User         @relation(fields: [userId], references: [id])
+  
+  @@index([loginId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
 }
 
 enum Role {

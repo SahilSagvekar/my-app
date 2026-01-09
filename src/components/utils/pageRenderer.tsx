@@ -25,6 +25,7 @@ import LeavesComponent from "../admin/LeavesComponent";
 import { ResetPasswordWithOTP } from "../auth/ResetPasswordWithOTP";
 import { DriveExplorer } from "../drive/DriveExplorer";
 import { EmploymentInfo } from "../EmploymentInfo";
+import { SocialLogins } from "../Sociallogins"
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="p-8 text-center text-muted-foreground">
@@ -45,6 +46,10 @@ export function renderPage(role: string, page: string): React.ReactElement {
 
   if (page === "drive") {
     return <DriveExplorer role={role} />;
+  }
+
+  if (page === "logins") {
+    return <SocialLogins />;
   }
 
   if (page === "invoices") {

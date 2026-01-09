@@ -200,3 +200,5 @@ export function isEmployee(user: { role: string } | null) {
   if (!user) return false;
   return user.role !== 'admin' && user.role !== 'client';
 }
+
+
