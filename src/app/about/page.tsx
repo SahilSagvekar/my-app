@@ -47,15 +47,25 @@ export default function AboutPage() {
       <Navigation />
       <div className="pt-24 pb-20 px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h1 className="text-black mb-6">
+          {/* <div className="text-center mb-16">
+            <h1 className="text-black mb-4">
               About E8 Productions
             </h1>
             <p className="text-black/60 max-w-2xl mx-auto text-lg">
               We're democratizing access to world-class media production, helping small businesses 
               tell their stories with the same quality and impact as the biggest brands.
             </p>
-          </div>
+          </div> */}
+
+          <div className="text-center mb-12">
+          <h1 className="text-black mb-4">
+            About E8 Productions
+          </h1>
+          <p className="text-black/60 max-w-2xl mx-auto">
+            We're democratizing access to world-class media production, helping small businesses 
+              tell their stories with the same quality and impact as the biggest brands.
+          </p>
+        </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-20">
             {values.map((value, index) => (
