@@ -51,20 +51,20 @@
 //   // Global fetch interceptor for JWT expiration
 //   useEffect(() => {
 //     const originalFetch = window.fetch;
-    
+
 //     window.fetch = async (...args) => {
 //       const response = await originalFetch(...args);
-      
+
 //       // Clone response to read it without consuming the stream
 //       const clonedResponse = response.clone();
-      
+
 //       try {
 //         const contentType = clonedResponse.headers.get("content-type");
-        
+
 //         // Only parse JSON responses
 //         if (contentType && contentType.includes("application/json")) {
 //           const data = await clonedResponse.json();
-          
+
 //           // Check for JWT expiration errors
 //           if (
 //             (response.status === 401 || response.status === 500) &&
@@ -81,7 +81,7 @@
 //       } catch (e) {
 //         // Response is not JSON or already consumed, ignore
 //       }
-      
+
 //       return response;
 //     };
 
@@ -119,7 +119,7 @@
 //     } finally {
 //       // Clear auth token cookie
 //       document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
-      
+
 //       setUser(null);
 //       setIsAuthenticated(false);
 //       router.push("/");
@@ -143,7 +143,7 @@
 //       }}
 //     >
 //       {children}
-      
+
 //       {/* Session Expired Modal */}
 //       <SessionExpiredModal 
 //         isOpen={showSessionExpired} 
@@ -199,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         // Check if token exists in localStorage
         const token = localStorage.getItem("authToken");
-        
+
         const res = await fetch("/api/auth/me", {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -220,28 +220,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Global fetch interceptor for JWT expiration
   useEffect(() => {
     const originalFetch = window.fetch;
-    
+
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
-      
+
       // Clone response to read it without consuming the stream
       const clonedResponse = response.clone();
-      
+
       try {
         const contentType = clonedResponse.headers.get("content-type");
-        
+
         // Only parse JSON responses
         if (contentType && contentType.includes("application/json")) {
           const data = await clonedResponse.json();
-          
+
           // Check for JWT expiration errors
           if (
             (response.status === 401 || response.status === 500) &&
             (data.message?.includes('jwt expired') ||
-             data.message?.includes('Token expired') ||
-             data.message?.includes('TokenExpiredError') ||
-             data.error?.includes('jwt expired') ||
-             data.message?.includes('Unauthorized'))
+              data.message?.includes('Token expired') ||
+              data.message?.includes('TokenExpiredError') ||
+              data.error?.includes('jwt expired') ||
+              data.message?.includes('Unauthorized'))
           ) {
             // Show session expired modal
             setShowSessionExpired(true);
@@ -250,7 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         // Response is not JSON or already consumed, ignore
       }
-      
+
       return response;
     };
 
@@ -275,12 +275,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const data = await res.json();
-    
+
     // ✅ Save token to localStorage
     if (data.token) {
       localStorage.setItem("authToken", data.token);
     }
-    
+
     setUser(data.user);
     setIsAuthenticated(true);
     setLoading(false);
@@ -289,24 +289,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       const token = localStorage.getItem("authToken");
+
+      // Add timeout so logout doesn't hang forever
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
       await fetch("/api/logout", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
+
     } catch (error) {
-      console.error("Logout error:", error);
+      // Ignore abort errors from timeout - we still want to log out locally
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error("Logout error:", error);
+      }
     } finally {
       // Clear auth token from localStorage
       localStorage.removeItem("authToken");
-      
+
       // Clear auth token cookie
       document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
-      
+
       setUser(null);
       setIsAuthenticated(false);
       router.push("/");
     }
   };
+
 
   const handleSessionExpired = () => {
     setShowSessionExpired(false);
@@ -314,22 +325,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        isAuthenticated, 
-        user, 
-        loading, 
-        login, 
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        user,
+        loading,
+        login,
         logout,
         handleSessionExpired
       }}
     >
       {children}
-      
+
       {/* Session Expired Modal */}
-      <SessionExpiredModal 
-        isOpen={showSessionExpired} 
-        onClose={handleSessionExpired} 
+      <SessionExpiredModal
+        isOpen={showSessionExpired}
+        onClose={handleSessionExpired}
       />
     </AuthContext.Provider>
   );
