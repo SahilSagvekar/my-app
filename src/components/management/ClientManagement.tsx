@@ -1953,9 +1953,20 @@ export function ClientManagement() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-gray-900">{client.companyName}</h3>
-                    <Badge
+                    {/* <Badge
                       variant={getStatusVariant(client.status)}
                       className="flex items-center gap-1"
+                    >
+                      {getStatusIcon(client.status)}
+                      {client.status.charAt(0).toUpperCase() +
+                        client.status.slice(1)}
+                    </Badge> */}
+
+                    <Badge
+                      variant="outline"
+                      className={`flex items-center gap-1 ${getStatusBadgeClasses(
+                        client.status
+                      )}`}
                     >
                       {getStatusIcon(client.status)}
                       {client.status.charAt(0).toUpperCase() +
