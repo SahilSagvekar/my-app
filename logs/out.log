@@ -1,0 +1,76 @@
+2026-01-10 02:25:15 +00:00: [Prisma] ✓ Keepalive OK (3ms) at 2026-01-10T02:25:15.781Z
+2026-01-10 02:26:00 +00:00: [Prisma] ✓ Keepalive OK (3ms) at 2026-01-10T02:26:00.781Z
+2026-01-10 02:26:45 +00:00: [Prisma] ✓ Keepalive OK (3ms) at 2026-01-10T02:26:45.782Z
+2026-01-10 02:27:30 +00:00: [Prisma] ✓ Keepalive OK (3ms) at 2026-01-10T02:27:30.783Z
+2026-01-10 02:28:15 +00:00: [Prisma] ✓ Keepalive OK (51ms) at 2026-01-10T02:28:15.831Z
+2026-01-10 02:29:00 +00:00: [Prisma] ✓ Keepalive OK (7ms) at 2026-01-10T02:29:00.789Z
+2026-01-10 02:29:45 +00:00: [Prisma] ✓ Keepalive OK (7ms) at 2026-01-10T02:29:45.790Z
+2026-01-10 02:30:30 +00:00: [Prisma] ✓ Keepalive OK (7ms) at 2026-01-10T02:30:30.791Z
+2026-01-10 02:30:58 +00:00: [Prisma] Received SIGINT, shutting down gracefully...
+2026-01-10 02:30:58 +00:00: [Prisma] Disconnected successfully
+2026-01-10 02:30:58 +00:00:    ▲ Next.js 15.4.6
+2026-01-10 02:30:58 +00:00:    - Local:        http://localhost:3000
+2026-01-10 02:30:58 +00:00:    - Network:      http://172.31.26.31:3000
+2026-01-10 02:30:58 +00:00: 
+2026-01-10 02:30:58 +00:00:  ✓ Starting...
+2026-01-10 02:30:59 +00:00:  ✓ Ready in 987ms
+2026-01-10 02:30:59 +00:00: [Prisma] Client initialized, keepalive interval set to 45s
+2026-01-10 02:31:44 +00:00: [Prisma] ✓ Keepalive OK (101ms) at 2026-01-10T02:31:44.649Z
+2026-01-10 02:31:52 +00:00: [Prisma] Received SIGINT, shutting down gracefully...
+2026-01-10 02:31:53 +00:00:    ▲ Next.js 15.4.6
+2026-01-10 02:31:53 +00:00:    - Local:        http://localhost:3000
+2026-01-10 02:31:53 +00:00:    - Network:      http://172.31.26.31:3000
+2026-01-10 02:31:53 +00:00: 
+2026-01-10 02:31:53 +00:00:  ✓ Starting...
+2026-01-10 02:31:54 +00:00:  ✓ Ready in 952ms
+2026-01-10 02:31:54 +00:00: [Prisma] Client initialized, keepalive interval set to 45s
+2026-01-10 02:32:39 +00:00: [Prisma] ✓ Keepalive OK (112ms) at 2026-01-10T02:32:39.411Z
+2026-01-10 02:32:59 +00:00: [Prisma] Received SIGINT, shutting down gracefully...
+2026-01-10 02:33:00 +00:00:    ▲ Next.js 15.4.6
+2026-01-10 02:33:00 +00:00:    - Local:        http://localhost:3000
+2026-01-10 02:33:00 +00:00:    - Network:      http://172.31.26.31:3000
+2026-01-10 02:33:00 +00:00: 
+2026-01-10 02:33:00 +00:00:  ✓ Starting...
+2026-01-10 02:33:01 +00:00:  ✓ Ready in 980ms
+2026-01-10 02:33:01 +00:00: [Prisma] Client initialized, keepalive interval set to 45s
+2026-01-10 02:33:46 +00:00: [Prisma] ✓ Keepalive OK (113ms) at 2026-01-10T02:33:46.313Z
+2026-01-10 02:34:31 +00:00: [Prisma] ✓ Keepalive OK (6ms) at 2026-01-10T02:34:31.207Z
+2026-01-10 02:35:16 +00:00: [Prisma] ✓ Keepalive OK (6ms) at 2026-01-10T02:35:16.208Z
+2026-01-10 02:36:01 +00:00: [Prisma] ✓ Keepalive OK (7ms) at 2026-01-10T02:36:01.209Z
+2026-01-10 02:36:46 +00:00: [Prisma] ✓ Keepalive OK (6ms) at 2026-01-10T02:36:46.209Z
+2026-01-10 02:37:31 +00:00: [Prisma] ✓ Keepalive OK (6ms) at 2026-01-10T02:37:31.210Z
+2026-01-10 02:38:16 +00:00: [Prisma] ✓ Keepalive OK (7ms) at 2026-01-10T02:38:16.211Z
+2026-01-10 02:38:32 +00:00: [Prisma] Received SIGINT, shutting down gracefully...
+2026-01-10 02:38:33 +00:00:    ▲ Next.js 15.4.6
+2026-01-10 02:38:33 +00:00:    - Local:        http://localhost:3000
+2026-01-10 02:38:33 +00:00:    - Network:      http://172.31.26.31:3000
+2026-01-10 02:38:33 +00:00: 
+2026-01-10 02:38:33 +00:00:  ✓ Starting...
+2026-01-10 02:38:34 +00:00:  ✓ Ready in 911ms
+2026-01-10 02:38:34 +00:00: [Prisma] Client initialized, keepalive interval set to 45s
+2026-01-10 02:39:19 +00:00: [Prisma] ✓ Keepalive OK (103ms) at 2026-01-10T02:39:19.265Z
+2026-01-10 02:40:04 +00:00: [Prisma] ✓ Keepalive OK (4ms) at 2026-01-10T02:40:04.166Z
+2026-01-10 02:40:49 +00:00: [Prisma] ✓ Keepalive OK (4ms) at 2026-01-10T02:40:49.166Z
+2026-01-10 02:41:34 +00:00: [Prisma] ✓ Keepalive OK (3ms) at 2026-01-10T02:41:34.166Z
+2026-01-10 02:42:19 +00:00: [Prisma] ✓ Keepalive OK (16ms) at 2026-01-10T02:42:19.180Z
+2026-01-10 02:42:28 +00:00: [LOGIN] 1. Request received
+2026-01-10 02:42:28 +00:00: [LOGIN] 2. Body parsed: sahilsagvekar230@gmail.com
+2026-01-10 02:42:28 +00:00: [LOGIN] 3. Finding user...
+2026-01-10 02:42:28 +00:00: [LOGIN] 4. User found: true
+2026-01-10 02:42:28 +00:00: [LOGIN] 7. Signing token...
+2026-01-10 02:42:28 +00:00: [LOGIN] 8. Token signed
+2026-01-10 02:42:28 +00:00: [LOGIN] 9. Done
+2026-01-10 02:43:04 +00:00: [Prisma] ✓ Keepalive OK (3ms) at 2026-01-10T02:43:04.168Z
+2026-01-10 02:43:49 +00:00: [Prisma] ✓ Keepalive OK (3ms) at 2026-01-10T02:43:49.169Z
+2026-01-10 02:44:34 +00:00: [Prisma] ✓ Keepalive OK (30ms) at 2026-01-10T02:44:34.197Z
+2026-01-10 02:45:00 +00:00: [Prisma] Received SIGINT, shutting down gracefully...
+2026-01-10 02:45:00 +00:00:    ▲ Next.js 15.4.6
+2026-01-10 02:45:00 +00:00:    - Local:        http://localhost:3000
+2026-01-10 02:45:00 +00:00:    - Network:      http://172.31.26.31:3000
+2026-01-10 02:45:00 +00:00: 
+2026-01-10 02:45:00 +00:00:  ✓ Starting...
+2026-01-10 02:45:01 +00:00:  ✓ Ready in 1156ms
+2026-01-10 02:45:02 +00:00: [Prisma] Client initialized, keepalive interval set to 45s
+2026-01-10 02:45:47 +00:00: [Prisma] ✓ Keepalive OK (106ms) at 2026-01-10T02:45:47.124Z
+2026-01-10 02:46:32 +00:00: [Prisma] ✓ Keepalive OK (4ms) at 2026-01-10T02:46:32.022Z
+2026-01-10 02:47:17 +00:00: [Prisma] ✓ Keepalive OK (4ms) at 2026-01-10T02:47:17.022Z

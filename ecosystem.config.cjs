@@ -13,7 +13,8 @@ module.exports = {
             max_restarts: 10, // Max restarts in exp_backoff_restart_delay window
 
             // ✅ Cron-based restart to prevent memory leaks
-            cron_restart: '*/30 * * * *',
+
+            cron_restart: '*/15 * * * *',  // Every 15 minutes
 
             // ✅ Environment
             env: {
