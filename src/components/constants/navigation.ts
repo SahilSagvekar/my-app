@@ -81,6 +81,7 @@ export const NAVIGATION_ITEMS = {
   ],
   client: [
     { id: 'approvals', label: 'Approvals', icon: CheckSquare }, 
+    { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
     // { id: 'projects', label: 'My Projects', icon: FolderOpen },
@@ -91,6 +92,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'archive', label: 'Archive', icon: Archive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'logins', label: 'Logins', icon: MessageSquare },
+
   ],
   videographer: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },

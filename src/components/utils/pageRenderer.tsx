@@ -26,6 +26,7 @@ import { ResetPasswordWithOTP } from "../auth/ResetPasswordWithOTP";
 import { DriveExplorer } from "../drive/DriveExplorer";
 import { EmploymentInfo } from "../EmploymentInfo";
 import { SocialLogins } from "../Sociallogins"
+import { PostedContentSidebar } from "../Postedcontentsidebar"
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="p-8 text-center text-muted-foreground">
@@ -58,6 +59,10 @@ export function renderPage(role: string, page: string): React.ReactElement {
 
   if (page === "scheduling") {
     return <ComingSoonPage title="Scheduling" />;
+  }
+
+  if( page === "posted") {
+    return <PostedContentSidebar />;
   }
 
   if (role === "admin") {
