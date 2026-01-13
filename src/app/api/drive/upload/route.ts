@@ -29,12 +29,12 @@ export async function POST(request: NextRequest) {
     const userId = formData.get('userId') as string;
     const role = formData.get('role') as string;
 
-    if ((role === 'editor' || role === 'client') && !folderPath.includes('raw-footage')) {
-  return NextResponse.json(
-    { error: 'You can only upload to raw-footage folders' },
-    { status: 403 }
-  );
-}
+//     if ((role === 'editor' || role === 'client') && !folderPath.includes('raw-footage')) {
+//   return NextResponse.json(
+//     { error: 'You can only upload to raw-footage folders' },
+//     { status: 403 }
+//   );
+// }
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
