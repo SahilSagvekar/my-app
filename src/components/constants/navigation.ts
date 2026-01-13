@@ -44,7 +44,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    // { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   qc: [

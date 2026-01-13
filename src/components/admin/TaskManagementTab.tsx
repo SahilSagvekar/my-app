@@ -9,7 +9,7 @@ import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
-import { Plus } from 'lucide-react'; // If not already imported
+import { Plus } from 'lucide-react';
 import { DateRangePicker } from '../ui/date-range-picker';
 import {
     ListTodo,
@@ -117,16 +117,6 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
     VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', variant: 'outline', icon: <Users className="h-3 w-3" /> },
 };
 
-// Add this function anywhere inside your component
-function handleTaskCreated(task: any) {
-    toast({
-        title: 'Success',
-        description: 'Task created successfully. Refreshing...',
-    });
-    setTimeout(() => window.location.reload(), 1000);
-}
-
-
 // Default deliverable types - will be overridden by API
 const defaultDeliverableTypes = [
     'SHORT_FORM',
@@ -204,6 +194,7 @@ export function TaskManagementTab() {
         scheduler: string;
         videographer: string;
         priority: string;
+        dueDate: string;  // 🔥 ADDED
     }>({
         status: '',
         assignedTo: '',
@@ -211,6 +202,7 @@ export function TaskManagementTab() {
         scheduler: '',
         videographer: '',
         priority: '',
+        dueDate: '',  // 🔥 ADDED
     });
 
     // Bulk edit dialog
@@ -222,6 +214,7 @@ export function TaskManagementTab() {
         scheduler: string;
         videographer: string;
         priority: string;
+        dueDate: string;  // 🔥 ADDED
     }>({
         status: 'no_change',
         assignedTo: 'no_change',
@@ -229,6 +222,7 @@ export function TaskManagementTab() {
         scheduler: 'no_change',
         videographer: 'no_change',
         priority: 'no_change',
+        dueDate: 'no_change',  // 🔥 ADDED
     });
     const [saving, setSaving] = useState(false);
 
@@ -247,6 +241,15 @@ export function TaskManagementTab() {
     useEffect(() => {
         loadTasks();
     }, [page, filters]);
+
+    // 🔥 Task created handler
+    const handleTaskCreated = (task: any) => {
+        toast({
+            title: 'Success',
+            description: 'Task created successfully. Refreshing...',
+        });
+        setTimeout(() => window.location.reload(), 1000);
+    };
 
     async function loadTeamMembers() {
         try {
@@ -381,6 +384,7 @@ export function TaskManagementTab() {
             scheduler: task.scheduler?.toString() || 'none',
             videographer: task.videographer?.toString() || 'none',
             priority: task.priority || 'none',
+            dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',  // 🔥 ADDED
         });
     }
 
@@ -408,6 +412,15 @@ export function TaskManagementTab() {
             }
             if (editForm.priority !== (editingTask.priority || 'none')) {
                 updates.priority = editForm.priority !== 'none' ? editForm.priority : null;
+            }
+            
+            
+            // 🔥 ADDED: Handle due date
+            const currentDueDate = editingTask.dueDate 
+                ? new Date(editingTask.dueDate).toISOString().split('T')[0] 
+                : '';
+            if (editForm.dueDate !== currentDueDate) {
+                updates.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
             }
 
             if (Object.keys(updates).length === 0) {
@@ -453,6 +466,7 @@ export function TaskManagementTab() {
             scheduler: 'no_change',
             videographer: 'no_change',
             priority: 'no_change',
+            dueDate: 'no_change',  // 🔥 ADDED
         });
         setShowBulkEdit(true);
     }
@@ -481,6 +495,15 @@ export function TaskManagementTab() {
             }
             if (bulkEditForm.priority !== 'no_change') {
                 updates.priority = bulkEditForm.priority !== 'none' ? bulkEditForm.priority : null;
+            }
+
+            if (bulkEditForm.dueDate !== 'no_change') {
+                updates.dueDate = bulkEditForm.dueDate ? new Date(bulkEditForm.dueDate).toISOString() : null;
+            }
+            
+            // 🔥 ADDED: Handle due date
+            if (bulkEditForm.dueDate !== 'no_change') {
+                updates.dueDate = bulkEditForm.dueDate ? new Date(bulkEditForm.dueDate).toISOString() : null;
             }
 
             if (Object.keys(updates).length === 0) {
@@ -577,371 +600,291 @@ export function TaskManagementTab() {
     }
 
     return (
-      <div className="space-y-6">
-        {/* Quick Stats Bar */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
-              <CardContent className="p-4">
-                <div className="text-sm text-blue-600 dark:text-blue-400">
-                  Total Tasks
-                </div>
-                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                  {stats.total}
-                </div>
-              </CardContent>
-            </Card>
+        <div className="space-y-6">
+            {/* Quick Stats Bar */}
+            {stats && (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
+                        <CardContent className="p-4">
+                            <div className="text-sm text-blue-600 dark:text-blue-400">Total Tasks</div>
+                            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.total}</div>
+                        </CardContent>
+                    </Card>
 
-            <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200">
-              <CardContent className="p-4">
-                <div className="text-sm text-yellow-600 dark:text-yellow-400">
-                  Pending
-                </div>
-                <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
-                  {stats.byStatus?.PENDING || 0}
-                </div>
-              </CardContent>
-            </Card>
+                    <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200">
+                        <CardContent className="p-4">
+                            <div className="text-sm text-yellow-600 dark:text-yellow-400">Pending</div>
+                            <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.byStatus?.PENDING || 0}</div>
+                        </CardContent>
+                    </Card>
 
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
-              <CardContent className="p-4">
-                <div className="text-sm text-purple-600 dark:text-purple-400">
-                  In Progress
-                </div>
-                <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                  {stats.byStatus?.IN_PROGRESS || 0}
-                </div>
-              </CardContent>
-            </Card>
+                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
+                        <CardContent className="p-4">
+                            <div className="text-sm text-purple-600 dark:text-purple-400">In Progress</div>
+                            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stats.byStatus?.IN_PROGRESS || 0}</div>
+                        </CardContent>
+                    </Card>
 
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200">
-              <CardContent className="p-4">
-                <div className="text-sm text-orange-600 dark:text-orange-400">
-                  Ready for QC
-                </div>
-                <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                  {stats.byStatus?.READY_FOR_QC || 0}
-                </div>
-              </CardContent>
-            </Card>
+                    <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200">
+                        <CardContent className="p-4">
+                            <div className="text-sm text-orange-600 dark:text-orange-400">Ready for QC</div>
+                            <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{stats.byStatus?.READY_FOR_QC || 0}</div>
+                        </CardContent>
+                    </Card>
 
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
-              <CardContent className="p-4">
-                <div className="text-sm text-green-600 dark:text-green-400">
-                  Completed
-                </div>
-                <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                  {stats.byStatus?.COMPLETED || 0}
-                </div>
-              </CardContent>
-            </Card>
+                    <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
+                        <CardContent className="p-4">
+                            <div className="text-sm text-green-600 dark:text-green-400">Completed</div>
+                            <div className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.byStatus?.COMPLETED || 0}</div>
+                        </CardContent>
+                    </Card>
 
-            <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200">
-              <CardContent className="p-4">
-                <div className="text-sm text-red-600 dark:text-red-400">
-                  Overdue
+                    <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200">
+                        <CardContent className="p-4">
+                            <div className="text-sm text-red-600 dark:text-red-400">Overdue</div>
+                            <div className="text-2xl font-bold text-red-700 dark:text-red-300">{stats.overdue}</div>
+                        </CardContent>
+                    </Card>
                 </div>
-                <div className="text-2xl font-bold text-red-700 dark:text-red-300">
-                  {stats.overdue}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+            )}
 
-        {/* Filters Card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <ListTodo className="h-5 w-5" />
-                Task Management
-                {activeFilterCount > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {activeFilterCount} filter{activeFilterCount > 1 ? "s" : ""}{" "}
-                    active
-                  </Badge>
+            {/* Filters Card */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                            <ListTodo className="h-5 w-5" />
+                            Task Management
+                            {activeFilterCount > 0 && (
+                                <Badge variant="secondary" className="ml-2">
+                                    {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active
+                                </Badge>
+                            )}
+                        </CardTitle>
+
+                        <div className="flex items-center gap-2">
+                            {/* Bulk Edit Button */}
+                            {selectedTasks.size > 0 && (
+                                <Button variant="default" size="sm" onClick={openBulkEditDialog}>
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Edit {selectedTasks.size} Task{selectedTasks.size > 1 ? 's' : ''}
+                                </Button>
+                            )}
+                            <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                                <Filter className="h-4 w-4 mr-2" />
+                                {showFilters ? 'Hide Filters' : 'Show Filters'}
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+                                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                                Refresh
+                            </Button>
+
+                            <CreateTaskDialog
+                                onTaskCreated={handleTaskCreated}
+                                trigger={
+                                    <Button>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Create Task
+                                    </Button>
+                                }
+                            />
+                        </div>
+                    </div>
+                </CardHeader>
+
+                {showFilters && (
+                    <CardContent className="border-t pt-4">
+                        {/* Search */}
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="relative flex-1 max-w-md">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search tasks..."
+                                    value={filters.search}
+                                    onChange={(e) => {
+                                        setFilters({ ...filters, search: e.target.value });
+                                        setPage(1);
+                                    }}
+                                    className="pl-10"
+                                />
+                            </div>
+                            {activeFilterCount > 0 && (
+                                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                                    Clear all filters
+                                </Button>
+                            )}
+                        </div>
+
+                        {/* Filter Dropdowns */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                            {/* Editor Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">Editor</label>
+                                <Select
+                                    value={filters.editor}
+                                    onValueChange={(v) => { setFilters({ ...filters, editor: v }); setPage(1); }}
+                                >
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="All Editors" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Editors</SelectItem>
+                                        {editors.map((m) => (
+                                            <SelectItem key={m.id} value={m.id.toString()}>
+                                                {m.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* QC Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">QC Specialist</label>
+                                <Select
+                                    value={filters.qc}
+                                    onValueChange={(v) => { setFilters({ ...filters, qc: v }); setPage(1); }}
+                                >
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="All QC" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All QC</SelectItem>
+                                        {qcMembers.map((m) => (
+                                            <SelectItem key={m.id} value={m.id.toString()}>
+                                                {m.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Scheduler Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">Scheduler</label>
+                                <Select
+                                    value={filters.scheduler}
+                                    onValueChange={(v) => { setFilters({ ...filters, scheduler: v }); setPage(1); }}
+                                >
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="All Schedulers" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Schedulers</SelectItem>
+                                        {schedulers.map((m) => (
+                                            <SelectItem key={m.id} value={m.id.toString()}>
+                                                {m.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Videographer Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">Videographer</label>
+                                <Select
+                                    value={filters.videographer}
+                                    onValueChange={(v) => { setFilters({ ...filters, videographer: v }); setPage(1); }}
+                                >
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="All Videographers" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Videographers</SelectItem>
+                                        {videographers.map((m) => (
+                                            <SelectItem key={m.id} value={m.id.toString()}>
+                                                {m.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Client Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">Client</label>
+                                <Select
+                                    value={filters.client}
+                                    onValueChange={(v) => { setFilters({ ...filters, client: v }); setPage(1); }}
+                                >
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="All Clients" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Clients</SelectItem>
+                                        {clients.map((c) => (
+                                            <SelectItem key={c.id} value={c.id}>
+                                                {c.companyName || c.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Status Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">Status</label>
+                                <Select
+                                    value={filters.status}
+                                    onValueChange={(v) => { setFilters({ ...filters, status: v }); setPage(1); }}
+                                >
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="All Statuses" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Statuses</SelectItem>
+                                        {Object.entries(statusConfig).map(([key, config]) => (
+                                            <SelectItem key={key} value={key}>
+                                                {config.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Deliverable Type Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">Deliverable Type</label>
+                                <Select
+                                    value={filters.deliverableType}
+                                    onValueChange={(v) => { setFilters({ ...filters, deliverableType: v }); setPage(1); }}
+                                >
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="All Types" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Types</SelectItem>
+                                        {availableDeliverableTypes.map((type) => (
+                                            <SelectItem key={type} value={type}>
+                                                {type.replace(/_/g, ' ')}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {/* Date Range Filter */}
+                        <div className="mt-4 flex items-end gap-4">
+                            <div className="space-y-1">
+                                <label className="text-xs text-muted-foreground">Due Date Range</label>
+                                <DateRangePicker
+                                    date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
+                                    setDate={(range) => {
+                                        setFilters({
+                                            ...filters,
+                                            dueDateFrom: range?.from,
+                                            dueDateTo: range?.to,
+                                        });
+                                        setPage(1);
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </CardContent>
                 )}
-              </CardTitle>
-
-              <div className="flex items-center gap-2">
-                {/* Bulk Edit Button */}
-                {selectedTasks.size > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={openBulkEditDialog}
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit {selectedTasks.size} Task
-                    {selectedTasks.size > 1 ? "s" : ""}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  {showFilters ? "Hide Filters" : "Show Filters"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 mr-2 ${
-                      refreshing ? "animate-spin" : ""
-                    }`}
-                  />
-                  Refresh
-                </Button>
-
-                <CreateTaskDialog
-                  onTaskCreated={handleTaskCreated}
-                  trigger={
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Task
-                    </Button>
-                  }
-                />
-              </div>
-            </div>
-          </CardHeader>
-
-          {showFilters && (
-            <CardContent className="border-t pt-4">
-              {/* Search */}
-              <div className="flex items-center gap-4 mb-4">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search tasks..."
-                    value={filters.search}
-                    onChange={(e) => {
-                      setFilters({ ...filters, search: e.target.value });
-                      setPage(1);
-                    }}
-                    className="pl-10"
-                  />
-                </div>
-                {activeFilterCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters}>
-                    Clear all filters
-                  </Button>
-                )}
-              </div>
-
-              {/* Filter Dropdowns */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                {/* Editor Filter */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    Editor
-                  </label>
-                  <Select
-                    value={filters.editor}
-                    onValueChange={(v) => {
-                      setFilters({ ...filters, editor: v });
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All Editors" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Editors</SelectItem>
-                      {editors.map((m) => (
-                        <SelectItem key={m.id} value={m.id.toString()}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* QC Filter */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    QC Specialist
-                  </label>
-                  <Select
-                    value={filters.qc}
-                    onValueChange={(v) => {
-                      setFilters({ ...filters, qc: v });
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All QC" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All QC</SelectItem>
-                      {qcMembers.map((m) => (
-                        <SelectItem key={m.id} value={m.id.toString()}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Scheduler Filter */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    Scheduler
-                  </label>
-                  <Select
-                    value={filters.scheduler}
-                    onValueChange={(v) => {
-                      setFilters({ ...filters, scheduler: v });
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All Schedulers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Schedulers</SelectItem>
-                      {schedulers.map((m) => (
-                        <SelectItem key={m.id} value={m.id.toString()}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Videographer Filter */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    Videographer
-                  </label>
-                  <Select
-                    value={filters.videographer}
-                    onValueChange={(v) => {
-                      setFilters({ ...filters, videographer: v });
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All Videographers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Videographers</SelectItem>
-                      {videographers.map((m) => (
-                        <SelectItem key={m.id} value={m.id.toString()}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Client Filter */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    Client
-                  </label>
-                  <Select
-                    value={filters.client}
-                    onValueChange={(v) => {
-                      setFilters({ ...filters, client: v });
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All Clients" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Clients</SelectItem>
-                      {clients.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.companyName || c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Status Filter */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    Status
-                  </label>
-                  <Select
-                    value={filters.status}
-                    onValueChange={(v) => {
-                      setFilters({ ...filters, status: v });
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All Statuses" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      {Object.entries(statusConfig).map(([key, config]) => (
-                        <SelectItem key={key} value={key}>
-                          {config.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Deliverable Type Filter */}
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    Deliverable Type
-                  </label>
-                  <Select
-                    value={filters.deliverableType}
-                    onValueChange={(v) => {
-                      setFilters({ ...filters, deliverableType: v });
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="All Types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      {availableDeliverableTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type.replace(/_/g, " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Date Range Filter */}
-              <div className="mt-4 flex items-end gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    Due Date Range
-                  </label>
-                  <DateRangePicker
-                    date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
-                    setDate={(range) => {
-                      setFilters({
-                        ...filters,
-                        dueDateFrom: range?.from,
-                        dueDateTo: range?.to,
-                      });
-                      setPage(1);
-                    }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          )}
-        </Card>
+            </Card>
 
         {/* Tasks Table */}
         <Card>
@@ -1289,6 +1232,15 @@ export function TaskManagementTab() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="grid gap-2">
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  value={editForm.dueDate}
+                  onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })}
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -1454,6 +1406,30 @@ export function TaskManagementTab() {
                     <SelectItem value="urgent">Urgent</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              
+
+               <div className="grid gap-2">
+                <Label>Due Date</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={bulkEditForm.dueDate === 'no_change' ? '' : bulkEditForm.dueDate}
+                    onChange={(e) => setBulkEditForm({ ...bulkEditForm, dueDate: e.target.value })}
+                    disabled={bulkEditForm.dueDate === 'no_change'}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBulkEditForm({ ...bulkEditForm, dueDate: 'no_change' })}
+                  >
+                    Reset
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave unchanged to keep existing due dates
+                </p>
               </div>
             </div>
 

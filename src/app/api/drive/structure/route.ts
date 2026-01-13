@@ -20,13 +20,14 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role');
     const userId = searchParams.get('userId');
 
-    console.log('Drive structure request:', { clientId, role, userId }); // DEBUG
+    console.log('🔍 Drive structure request:', { clientId, role, userId });
 
     let prefix = '';
+    let companyName = '';
 
     // Determine which folders to show based on role
     if (role === 'client') {
-      // Clients only see their own company folder
+      // Clients only see their own company folder's raw-footage
       let clientRecord;
       
       if (clientId) {
@@ -35,7 +36,6 @@ export async function GET(request: NextRequest) {
           select: { companyName: true, name: true },
         });
       } else if (userId) {
-        // Find client by user ID
         clientRecord = await prisma.client.findFirst({
           where: { userId: parseInt(userId) },
           select: { companyName: true, name: true },
@@ -43,19 +43,26 @@ export async function GET(request: NextRequest) {
       }
 
       if (!clientRecord) {
-        console.error('Client not found for:', { clientId, userId }); // DEBUG
+        console.error('❌ Client not found for:', { clientId, userId });
         return NextResponse.json(
           { error: 'Client not found' }, 
           { status: 404 }
         );
       }
 
-      const companyName = clientRecord.companyName || clientRecord.name;
-      prefix = `${companyName}/`;
+      companyName = clientRecord.companyName || clientRecord.name;
+      prefix = `${companyName}/raw-footage/`;
       
-      console.log('Using prefix:', prefix); // DEBUG
+      console.log('👤 Client prefix:', prefix);
+    } else if (role === 'editor') {
+      // Editors see all raw-footage folders across all companies
+      prefix = '';
+      console.log('✏️ Editor: Will filter for raw-footage folders');
+    } else {
+      // Admin/Manager see everything
+      prefix = '';
+      console.log('👑 Admin/Manager: Full access');
     }
-    // Admin/Manager/Other roles see all folders - no prefix filter
 
     // List all objects in S3
     const command = new ListObjectsV2Command({
@@ -63,32 +70,43 @@ export async function GET(request: NextRequest) {
       Prefix: prefix,
     });
 
-    console.log('Listing S3 objects with bucket:', process.env.AWS_S3_BUCKET, 'prefix:', prefix); // DEBUG
+    console.log('📦 Listing S3 objects with prefix:', prefix || '(none)');
 
     const response = await s3Client.send(command);
     
-    console.log('S3 response:', response.Contents?.length, 'objects found'); // DEBUG
+    console.log(`📊 S3 response: ${response.Contents?.length || 0} objects found`);
 
     if (!response.Contents || response.Contents.length === 0) {
       return NextResponse.json({
-        name: prefix ? prefix.replace('/', '') : 'Root',
+        name: prefix ? prefix.replace(/\/$/, '').split('/').pop() || 'Root' : 'Root',
         type: 'folder',
         path: '/',
         children: []
       });
     }
 
-    // Build folder tree
-    const tree = await buildFolderTree(response.Contents, prefix);
+    // 🔥 Filter objects based on role BEFORE building tree
+    let filteredObjects = response.Contents;
+    
+    if (role === 'editor') {
+      // Editors only see items inside raw-footage folders
+      filteredObjects = response.Contents.filter(obj => {
+        return obj.Key?.includes('/raw-footage/');
+      });
+      console.log(`✏️ Filtered for editor: ${filteredObjects.length} objects in raw-footage`);
+    }
 
+    // Build folder tree
+    const tree = await buildFolderTree(filteredObjects, prefix);
+
+    console.log('✅ Tree built successfully');
     return NextResponse.json(tree);
   } catch (error: any) {
-    console.error('Error fetching drive structure:', error);
+    console.error('❌ Error fetching drive structure:', error);
     return NextResponse.json(
       { 
         error: 'Failed to fetch drive structure', 
         details: error.message,
-        stack: error.stack 
       },
       { status: 500 }
     );
@@ -97,7 +115,7 @@ export async function GET(request: NextRequest) {
 
 async function buildFolderTree(objects: any[], rootPrefix: string) {
   const root: any = {
-    name: rootPrefix ? rootPrefix.replace('/', '') : 'Root',
+    name: rootPrefix ? rootPrefix.replace(/\/$/, '').split('/').pop() || 'Root' : 'Root',
     type: 'folder',
     path: '/',
     children: []
@@ -136,6 +154,7 @@ async function buildFolderTree(objects: any[], rootPrefix: string) {
             name: part,
             type: 'file',
             path: fullPath,
+            s3Key: obj.Key,
             size: obj.Size,
             url: signedUrl,
             lastModified: obj.LastModified?.toISOString(),
@@ -147,6 +166,7 @@ async function buildFolderTree(objects: any[], rootPrefix: string) {
               name: part,
               type: 'folder',
               path: fullPath,
+              s3Key: obj.Key,
               children: []
             };
             currentFolder.children.push(folder);
