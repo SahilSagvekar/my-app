@@ -25,36 +25,63 @@ export async function GET(request: NextRequest) {
     let prefix = '';
 
     // Determine which folders to show based on role
+    // if (role === 'client') {
+    //   // Clients only see their own company folder
+    //   let clientRecord;
+      
+    //   if (clientId) {
+    //     clientRecord = await prisma.client.findUnique({
+    //       where: { id: clientId },
+    //       select: { companyName: true, name: true },
+    //     });
+    //   } else if (userId) {
+    //     // Find client by user ID
+    //     clientRecord = await prisma.client.findFirst({
+    //       where: { userId: parseInt(userId) },
+    //       select: { companyName: true, name: true },
+    //     });
+    //   }
+
+    //   if (!clientRecord) {
+    //     console.error('Client not found for:', { clientId, userId }); // DEBUG
+    //     return NextResponse.json(
+    //       { error: 'Client not found' }, 
+    //       { status: 404 }
+    //     );
+    //   }
+
+    //   const companyName = clientRecord.companyName || clientRecord.name;
+    //   prefix = `${companyName}/`;
+      
+    //   console.log('Using prefix:', prefix); // DEBUG
+    // }
+
     if (role === 'client') {
-      // Clients only see their own company folder
-      let clientRecord;
-      
-      if (clientId) {
-        clientRecord = await prisma.client.findUnique({
-          where: { id: clientId },
-          select: { companyName: true, name: true },
-        });
-      } else if (userId) {
-        // Find client by user ID
-        clientRecord = await prisma.client.findFirst({
-          where: { userId: parseInt(userId) },
-          select: { companyName: true, name: true },
-        });
-      }
+  // Clients only see their own company folder
+  let clientRecord;
+  
+  if (clientId) {
+    clientRecord = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { companyName: true, name: true },
+    });
+  } else if (userId) {
+    clientRecord = await prisma.client.findFirst({
+      where: { userId: parseInt(userId) },
+      select: { companyName: true, name: true },
+    });
+  }
 
-      if (!clientRecord) {
-        console.error('Client not found for:', { clientId, userId }); // DEBUG
-        return NextResponse.json(
-          { error: 'Client not found' }, 
-          { status: 404 }
-        );
-      }
+  if (!clientRecord) {
+    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+  }
 
-      const companyName = clientRecord.companyName || clientRecord.name;
-      prefix = `${companyName}/`;
-      
-      console.log('Using prefix:', prefix); // DEBUG
-    }
+  const companyName = clientRecord.companyName || clientRecord.name;
+  prefix = `${companyName}/`; // ← CHANGE THIS LINE
+} else if (role === 'editor') {
+  // Editors see all raw-footage folders
+  prefix = 'raw-footage/';
+}
     // Admin/Manager/Other roles see all folders - no prefix filter
 
     // List all objects in S3
