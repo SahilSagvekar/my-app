@@ -148,13 +148,13 @@ export async function GET(req: Request) {
 
     // Add pagination parameters
     const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    // const page = parseInt(searchParams.get("page") || "1");
+    // const limit = parseInt(searchParams.get("limit") || "20");
 
     const tasks = await prisma.task.findMany({
       where,
-      take: limit,
-      skip: (page - 1) * limit,
+      // take: limit,
+      // skip: (page - 1) * limit,
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -183,7 +183,17 @@ export async function GET(req: Request) {
       },
     });
 
-    // ✅ NO COUNT QUERY - just return tasks
+    // const sortedTasks = tasks.sort((a, b) => {
+    //   const extractNumber = (title: string | null) => {
+    //     if (!title) return 0;
+    //     const match = title.match(/(\d+)$/); // Get trailing number
+    //     return match ? parseInt(match[1], 10) : 0;
+    //   };
+    //   return extractNumber(a.title) - extractNumber(b.title);
+    // });
+
+    // // ✅ NO COUNT QUERY - just return tasks
+    // return NextResponse.json({ tasks: sortedTasks }, { status: 200 });
     return NextResponse.json({ tasks }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
@@ -222,6 +232,9 @@ export async function POST(req: Request) {
     const folderType = form.get("folderType") as string;
     const monthlyDeliverableId = form.get("monthlyDeliverableId") as string;
 
+    console.log("Creating task for clientId:", clientId);
+    console.log("Creating task for clientId:", monthlyDeliverableId);
+
     if (!assignedTo || !clientId || !folderType) {
       return NextResponse.json(
         { message: "Missing required fields" },
@@ -243,6 +256,8 @@ export async function POST(req: Request) {
       },
     });
 
+    console.log("Fetched client:", JSON.stringify(client));
+
     if (!client)
       return NextResponse.json(
         { message: "Client not found" },
@@ -262,6 +277,8 @@ export async function POST(req: Request) {
       // Build path with month folder: companyName/raw-footage/December-2024/
       const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
       folderPrefix = `${rawFootageBase}${currentMonth}/`;
+
+      console.log("folderPrefix:", folderPrefix);
 
       // 🔥 Create the month folder (if it doesn't exist)
       try {
@@ -315,6 +332,8 @@ export async function POST(req: Request) {
           : "PENDING",
       },
     });
+
+    console.log("Created task:", JSON.stringify(task));
 
     await createAuditLog({
       userId: userId,
