@@ -1,18 +1,50 @@
 "use client";
 
+import dynamic from 'next/dynamic';
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
-import { Calendar, MessageSquare, Play, CheckCircle, FileText, Download, Eye, Link as LinkIcon, ExternalLink, ChevronDown } from "lucide-react";
+import { Calendar, MessageSquare, Play, CheckCircle, FileText, Download, Eye, Link as LinkIcon, ExternalLink, ChevronDown, Loader } from "lucide-react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
-import { FullScreenReviewModal } from "../client/FullScreenReviewModal";
 import { useTaskWorkflow, WorkflowTask } from "../workflow/TaskWorkflowEngine";
 import { useNotifications } from "../NotificationContext";
 import { toast } from "sonner";
 import { Toaster } from "../ui/sonner";
+
+// ============================================
+// LAZY LOAD HEAVY COMPONENTS
+// ============================================
+const FullScreenReviewModal = dynamic(
+  () => import('../client/FullScreenReviewModal').then(mod => ({ default: mod.FullScreenReviewModal })),
+  {
+    loading: () => <DashboardLoadingFallback componentName="Review Modal" />,
+    ssr: false,
+  }
+);
+
+// ============================================
+// LOADING FALLBACK COMPONENT
+// ============================================
+function DashboardLoadingFallback({ componentName = "Content" }) {
+  useEffect(() => {
+    console.log(`⏳ [LAZY LOADING] ${componentName} is loading...`);
+    return () => {
+      console.log(`✅ [LAZY LOADING] ${componentName} loaded successfully`);
+    };
+  }, [componentName]);
+
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="text-center space-y-4">
+        <Loader className="h-12 w-12 animate-spin mx-auto text-muted-foreground" />
+        <p className="text-muted-foreground">Loading {componentName}...</p>
+      </div>
+    </div>
+  );
+}
 
 // Update folderTypes object to match API folder types
 const folderTypes = {
@@ -39,11 +71,16 @@ export function ClientDashboard() {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    console.log('📄 [CLIENT DASHBOARD] Mounted');
     loadApprovals();
+    return () => {
+      console.log('📄 [CLIENT DASHBOARD] Unmounted');
+    };
   }, []);
 
   async function loadApprovals() {
     try {
+      console.log('🔄 [CLIENT] Fetching tasks...');
       setLoading(true);
       const res = await fetch("/api/tasks", { cache: "no-store" });
       const data = await res.json();
@@ -153,8 +190,9 @@ export function ClientDashboard() {
           };
         })
       );
+      console.log('✅ [CLIENT] Tasks loaded successfully');
     } catch (err) {
-      console.error("Failed to load approvals", err);
+      console.error("❌ [CLIENT] Failed to load approvals:", err);
       toast.error("Error", {
         description: "Failed to load tasks",
       });
