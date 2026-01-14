@@ -264,16 +264,17 @@ export function TaskManagementTab() {
     }
 
     async function loadClients() {
-        try {
-            const res = await fetch('/api/clients');
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setClients(data);
-            }
-        } catch (error) {
-            console.error('Failed to load clients:', error);
+    try {
+        const res = await fetch('/api/clients');
+        const data = await res.json();
+        console.log('Loaded clients:', JSON.stringify(data));
+        if (data.clients && Array.isArray(data.clients)) {
+            setClients(data.clients);
         }
+    } catch (error) {
+        console.error('Failed to load clients:', error);
     }
+}
 
     async function loadTasks() {
         try {

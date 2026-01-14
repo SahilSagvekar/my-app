@@ -252,57 +252,51 @@ function getTokenFromCookies(req: Request) {
 // ---------- GET /api/clients ----------
 export async function GET() {
   try {
-    const clients = await cached(
-      "clients:all",
-      async () => {
-        const clients = await prisma.client.findMany({
-          orderBy: { name: "asc" },
-          include: {
-            monthlyDeliverables: true,
-            brandAssets: true,
-            recurringTasks: true,
-          },
-        });
-
-        return clients.map((c) => ({
-          ...c,
-          emails: c.emails ?? [],
-          phones: c.phones ?? [],
-          monthlyDeliverables: c.monthlyDeliverables ?? [],
-          brandAssets: c.brandAssets ?? [],
-          recurringTasks: c.recurringTasks ?? [],
-          brandGuidelines: c.brandGuidelines ?? {
-            primaryColors: [],
-            secondaryColors: [],
-            fonts: [],
-            logoUsage: "",
-            toneOfVoice: "",
-            brandValues: "",
-            targetAudience: "",
-            contentStyle: "",
-          },
-          projectSettings: c.projectSettings ?? {
-            defaultVideoLength: "60 seconds",
-            preferredPlatforms: [],
-            contentApprovalRequired: false,
-            quickTurnaroundAvailable: false,
-          },
-          billing: c.billing ?? {
-            monthlyFee: "",
-            billingFrequency: "monthly",
-            billingDay: 1,
-            paymentMethod: "credit-card",
-            nextBillingDate: "",
-            notes: "",
-          },
-          postingSchedule: c.postingSchedule ?? {},
-          currentProgress: c.currentProgress ?? { completed: 0, total: 0 },
-        }));
+    const clients = await prisma.client.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        monthlyDeliverables: true,
+        brandAssets: true,
+        recurringTasks: true,
       },
-      600 // 10 minutes
-    );
+    });
 
-    return NextResponse.json({ clients });
+    const formattedClients = clients.map((c) => ({
+      ...c,
+      emails: c.emails ?? [],
+      phones: c.phones ?? [],
+      monthlyDeliverables: c.monthlyDeliverables ?? [],
+      brandAssets: c.brandAssets ?? [],
+      recurringTasks: c.recurringTasks ?? [],
+      brandGuidelines: c.brandGuidelines ?? {
+        primaryColors: [],
+        secondaryColors: [],
+        fonts: [],
+        logoUsage: "",
+        toneOfVoice: "",
+        brandValues: "",
+        targetAudience: "",
+        contentStyle: "",
+      },
+      projectSettings: c.projectSettings ?? {
+        defaultVideoLength: "60 seconds",
+        preferredPlatforms: [],
+        contentApprovalRequired: false,
+        quickTurnaroundAvailable: false,
+      },
+      billing: c.billing ?? {
+        monthlyFee: "",
+        billingFrequency: "monthly",
+        billingDay: 1,
+        paymentMethod: "credit-card",
+        nextBillingDate: "",
+        notes: "",
+      },
+      postingSchedule: c.postingSchedule ?? {},
+      currentProgress: c.currentProgress ?? { completed: 0, total: 0 },
+    }));
+
+    return NextResponse.json({ clients: formattedClients });
   } catch (err) {
     console.error("GET /clients error:", err);
     return NextResponse.json(
