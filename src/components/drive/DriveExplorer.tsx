@@ -521,7 +521,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         {/* Top Toolbar */}
         <div className="border-b bg-card">
           <div className="flex items-center gap-4 p-4">
-            <div className="flex-1 max-w-2xl">
+            {/* 1. Upload Button (Moved to Left) */}
+            <Button className="gap-2" onClick={handleUploadClick}>
+              <Upload className="h-4 w-4" />
+              Upload
+            </Button>
+
+            {/* 2. Search Box (Moved to Middle) */}
+            <div className="flex-1 max-w-2xl mx-auto w-full">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -533,31 +540,29 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </div>
             </div>
 
-            <Button className="gap-2" onClick={handleUploadClick}>
-              <Upload className="h-4 w-4" />
-              Upload
-            </Button>
+            {/* 3. Rest of items (View Toggles + Refresh) on the Right */}
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1 border rounded-md">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setViewMode("grid")}
+                >
+                  <Grid3x3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setViewMode("list")}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
 
-            <div className="flex gap-1 border rounded-md">
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setViewMode("grid")}
-              >
-                <Grid3x3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setViewMode("list")}
-              >
-                <List className="h-4 w-4" />
+              <Button variant="ghost" size="icon" onClick={loadDriveStructure}>
+                <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
-
-            <Button variant="ghost" size="icon" onClick={loadDriveStructure}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
           </div>
 
           {/* Breadcrumb */}
@@ -619,7 +624,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     key={item.path}
                     className={cn(
                       "group relative border rounded-lg p-4 cursor-pointer hover:bg-accent transition-colors",
-                      selectedItems.has(item.path) && "bg-accent border-primary"
+                      selectedItems.has(item.path) &&
+                        "bg-accent border-primary"
                     )}
                     onClick={() => handleItemClick(item)}
                     onDoubleClick={() => handleItemDoubleClick(item)}
