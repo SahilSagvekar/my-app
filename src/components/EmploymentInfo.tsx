@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { Briefcase, Calendar, DollarSign, Clock, User, Mail, Phone, ArrowRight } from 'lucide-react';
+import { Briefcase, Calendar, DollarSign, Clock, User, Mail, Phone, ArrowRight, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './auth/AuthContext';
 
@@ -214,6 +215,30 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
               className="w-full sm:w-auto"
             >
               Request Leave
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Leave Requests List - Only for non-admin roles */}
+      {showRequestLeave && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Leave Requests
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              View all your leave requests and their approval status. Track pending, approved, and rejected requests.
+            </p>
+            <Button
+              onClick={() => router.push("/leave-requests")}
+              className="w-full sm:w-auto"
+            >
+              View Leave Requests
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           </CardContent>

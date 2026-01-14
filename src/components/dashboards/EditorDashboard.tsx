@@ -1018,9 +1018,9 @@ export function EditorDashboard() {
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="text-sm text-muted-foreground">
+            {/* <div className="text-sm text-muted-foreground">
               Logged in as: <span className="font-medium text-foreground">{currentUser.name}</span>
-            </div>
+            </div> */}
 
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
@@ -1075,14 +1075,14 @@ export function EditorDashboard() {
       </Card>
 
       {/* Workflow Rules Info */}
-      <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 flex items-center gap-4 flex-wrap">
+      {/* <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 flex items-center gap-4 flex-wrap">
         <span className="font-medium">Workflow:</span>
         <span>Pending → In Progress</span>
         <span>→</span>
         <span>In Progress → Ready for QC <span className="text-amber-600">(requires files)</span></span>
         <span>→</span>
         <span>Revisions → In Progress</span>
-      </div>
+      </div> */}
 
       {/* Kanban Board with Drag & Drop */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
