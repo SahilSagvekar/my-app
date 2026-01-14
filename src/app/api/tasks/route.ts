@@ -598,14 +598,60 @@ export async function GET(req: Request) {
       },
     });
 
-    const sortedTasks = tasks.sort((a, b) => {
-      const extractNumber = (title: string | null) => {
-        if (!title) return 0;
-        const match = title.match(/(\d+)$/); // Get trailing number
-        return match ? parseInt(match[1], 10) : 0;
-      };
-      return extractNumber(a.title) - extractNumber(b.title);
-    });
+    // const sortedTasks = tasks.sort((a, b) => {
+    //   const extractNumber = (title: string | null) => {
+    //     if (!title) return 0;
+    //     const match = title.match(/(\d+)$/); // Get trailing number
+    //     return match ? parseInt(match[1], 10) : 0;
+    //   };
+    //   return extractNumber(a.title) - extractNumber(b.title);
+    // });
+
+const extractSortParts = (title: string | null) => {
+  if (!title) return { company: '', date: '', prefix: '', number: 0 };
+  
+  // Match: CompanyName_DD-MM-YYYY_TypeNumber
+  // Example: CoinLaundryAssociation_01-12-2026_LF1
+  const match = title.match(/^(.+)_(\d{2}-\d{2}-\d{4})_([a-zA-Z]+)(\d+)$/);
+  
+  if (match) {
+    return {
+      company: match[1].toLowerCase(),           // "coinlaundryassociation"
+      date: match[2],                            // "01-12-2026"
+      prefix: match[3].toLowerCase(),            // "lf", "sf", "sqf"
+      number: parseInt(match[4], 10)             // 1, 2, 3...
+    };
+  }
+  
+  return { company: title.toLowerCase(), date: '', prefix: '', number: 0 };
+};
+
+// Sort: company → date → prefix → number
+const sortedTasks = tasks.sort((a, b) => {
+  const taskA = extractSortParts(a.title);
+  const taskB = extractSortParts(b.title);
+  
+  // 1. Sort by company name
+  if (taskA.company !== taskB.company) {
+    return taskA.company.localeCompare(taskB.company);
+  }
+  
+  // 2. Sort by date (DD-MM-YYYY format)
+  if (taskA.date !== taskB.date) {
+    // Convert to comparable format YYYYMMDD for proper date sorting
+    const dateA = taskA.date.split('-').reverse().join('');
+    const dateB = taskB.date.split('-').reverse().join('');
+    return dateA.localeCompare(dateB);
+  }
+  
+  // 3. Sort by type prefix (LF before SF, etc.)
+  if (taskA.prefix !== taskB.prefix) {
+    return taskA.prefix.localeCompare(taskB.prefix);
+  }
+  
+  // 4. Sort by number
+  return taskA.number - taskB.number;
+});
 
     // // ✅ NO COUNT QUERY - just return tasks
     return NextResponse.json({ tasks: sortedTasks }, { status: 200 });

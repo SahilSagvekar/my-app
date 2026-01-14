@@ -283,6 +283,8 @@ export function TaskManagementTab() {
             const params = new URLSearchParams();
             params.set('page', page.toString());
             params.set('limit', limit.toString());
+            params.set('sortBy', 'title'); 
+            params.set('sortOrder', 'asc');
 
             if (filters.editor !== 'all') params.set('editor', filters.editor);
             if (filters.qc !== 'all') params.set('qc', filters.qc);
@@ -602,7 +604,7 @@ export function TaskManagementTab() {
     return (
         <div className="space-y-6">
             {/* Quick Stats Bar */}
-            {stats && (
+            {/* {stats && (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
                         <CardContent className="p-4">
@@ -646,8 +648,53 @@ export function TaskManagementTab() {
                         </CardContent>
                     </Card>
                 </div>
-            )}
+            )} */}
 
+{stats && (
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-blue-600 dark:text-blue-400">Total Tasks</div>
+                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.total}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-yellow-600 dark:text-yellow-400">Pending</div>
+                <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.byStatus?.PENDING || 0}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-purple-600 dark:text-purple-400">In Progress</div>
+                <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stats.byStatus?.IN_PROGRESS || 0}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-orange-600 dark:text-orange-400">Ready for QC</div>
+                <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{stats.byStatus?.READY_FOR_QC || 0}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-green-600 dark:text-green-400">Completed</div>
+                <div className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.byStatus?.COMPLETED || 0}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-red-600 dark:text-red-400">Overdue</div>
+                <div className="text-2xl font-bold text-red-700 dark:text-red-300">{stats.overdue}</div>
+            </CardContent>
+        </Card>
+    </div>
+)}
             {/* Filters Card */}
             <Card>
                 <CardHeader className="pb-3">
