@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Filter,
   GripVertical,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -248,7 +249,11 @@ interface WorkflowTask {
   qcNotes?: string | null;
   rejectionReason?: string | null;
   feedback?: string | null;
-  taskFeedback?: TaskFeedbackItem[];  // 🔥 NEW: Version-tracked feedback
+  taskFeedback?: TaskFeedbackItem[];  // 🔥 Version-tracked feedback
+  // 🔥 NEW: For weekly task distribution
+  monthlyDeliverableId?: string;
+  monthlyQuantity?: number;  // Total tasks per month for this deliverable
+  taskNumber?: number;       // Task number (extracted from title)
 }
 
 /* -------------------------------------------------------------------------- */
@@ -782,11 +787,14 @@ export function EditorDashboard() {
               projectId: t.clientId,
               deliverableType: t.monthlyDeliverable?.type,
               taskNumber: extractTaskNumber(t.title),
+              // 🔥 NEW: Monthly deliverable info for weekly distribution
+              monthlyDeliverableId: t.monthlyDeliverableId || null,
+              monthlyQuantity: t.monthlyDeliverable?.quantity || 4,  // Default to 4 if not set
               files: t.files || [],
               qcNotes: t.qcNotes || null,
               rejectionReason: t.rejectionReason || null,
               feedback: t.feedback || null,
-              // 🔥 NEW: Map taskFeedback with file version info from nested file data
+              // 🔥 Map taskFeedback with file version info from nested file data
               taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
                 id: fb.id,
                 fileId: fb.fileId,
@@ -825,12 +833,99 @@ export function EditorDashboard() {
     return Array.from(types).sort();
   }, [tasks]);
 
+  // 🔥 WEEKLY TASK DISTRIBUTION LOGIC
+  // This calculates which tasks should be visible based on weekly quotas
+  const weeklyVisibleTasks = useMemo(() => {
+    // Group tasks by deliverable (clientId + deliverableType combo)
+    const tasksByDeliverable: Record<string, WorkflowTask[]> = {};
+
+    tasks.forEach((task) => {
+      // Create a unique key for each deliverable per client
+      const deliverableKey = `${task.clientId}-${task.monthlyDeliverableId || task.deliverableType || 'default'}`;
+
+      if (!tasksByDeliverable[deliverableKey]) {
+        tasksByDeliverable[deliverableKey] = [];
+      }
+      tasksByDeliverable[deliverableKey].push(task);
+    });
+
+    const visibleTasks: WorkflowTask[] = [];
+
+    // For each deliverable, calculate weekly quota and determine visible tasks
+    Object.keys(tasksByDeliverable).forEach((deliverableKey) => {
+      const deliverableTasks = tasksByDeliverable[deliverableKey];
+
+      // Sort tasks by task number (ascending order)
+      deliverableTasks.sort((a, b) => {
+        const numA = a.taskNumber || 0;
+        const numB = b.taskNumber || 0;
+        return numA - numB;
+      });
+
+      // Get monthly quantity from first task (all tasks in same deliverable should have same quantity)
+      const monthlyQuantity = deliverableTasks[0]?.monthlyQuantity || 4;
+
+      // Calculate weekly quota: tasks per month / 4 weeks (minimum 1)
+      const weeklyQuota = Math.max(1, Math.ceil(monthlyQuantity / 4));
+
+      // Separate tasks by status
+      const pendingTasks = deliverableTasks.filter(t => t.status === "pending");
+      const inProgressTasks = deliverableTasks.filter(t => t.status === "in_progress");
+      const rejectedTasks = deliverableTasks.filter(t => t.status === "rejected");
+      const qcTasks = deliverableTasks.filter(t => t.status === "ready_for_qc");
+      const completedTasks = deliverableTasks.filter(t =>
+        t.status === "completed" || t.status === "approved"
+      );
+
+      // 🔥 VISIBILITY RULES:
+      // 1. Always show in_progress tasks (editor is working on them)
+      // 2. Always show rejected tasks (need revision)
+      // 3. Always show ready_for_qc tasks (in QC review)
+      // 4. Show pending tasks up to weekly quota (minus in_progress count)
+
+      // Add all active work tasks
+      visibleTasks.push(...inProgressTasks);
+      visibleTasks.push(...rejectedTasks);
+      visibleTasks.push(...qcTasks);
+
+      // Calculate how many more pending tasks to show
+      // Weekly quota minus tasks currently being worked on
+      const activeWorkCount = inProgressTasks.length + rejectedTasks.length;
+      const pendingToShow = Math.max(0, weeklyQuota - activeWorkCount);
+
+      // Add pending tasks up to the quota
+      const pendingToAdd = pendingTasks.slice(0, pendingToShow);
+      visibleTasks.push(...pendingToAdd);
+
+      // Log for debugging
+      console.log(`📊 Deliverable: ${deliverableKey}`, {
+        monthlyQuantity,
+        weeklyQuota,
+        totalTasks: deliverableTasks.length,
+        pending: pendingTasks.length,
+        inProgress: inProgressTasks.length,
+        rejected: rejectedTasks.length,
+        qc: qcTasks.length,
+        pendingShown: pendingToAdd.length,
+        totalVisible: inProgressTasks.length + rejectedTasks.length + qcTasks.length + pendingToAdd.length,
+      });
+    });
+
+    return visibleTasks;
+  }, [tasks]);
+
+  // Apply deliverable type filter on top of weekly visible tasks
   const filteredTasks = useMemo(() => {
     if (deliverableTypeFilter === "all") {
-      return tasks;
+      return weeklyVisibleTasks;
     }
-    return tasks.filter((task) => task.deliverableType === deliverableTypeFilter);
-  }, [tasks, deliverableTypeFilter]);
+    return weeklyVisibleTasks.filter((task) => task.deliverableType === deliverableTypeFilter);
+  }, [weeklyVisibleTasks, deliverableTypeFilter]);
+
+  // 🔥 Calculate hidden task count for UI feedback
+  const hiddenTaskCount = useMemo(() => {
+    return tasks.length - weeklyVisibleTasks.length;
+  }, [tasks, weeklyVisibleTasks]);
 
   /* ----------------------------- DRAG & DROP ------------------------------- */
 
@@ -1103,6 +1198,32 @@ export function EditorDashboard() {
           </p>
         </div>
       </div>
+
+      {/* 🔥 Weekly Task Queue Banner */}
+      {hiddenTaskCount > 0 && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-sm text-blue-900 dark:text-blue-100">
+                  Weekly Task Queue Active
+                </p>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Showing <span className="font-semibold">{weeklyVisibleTasks.length}</span> tasks this week.
+                  <span className="font-semibold ml-1">{hiddenTaskCount}</span> more tasks queued for later.
+                  Complete your current tasks to unlock more!
+                </p>
+              </div>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                {weeklyVisibleTasks.length} / {tasks.length} visible
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filter Section */}
       <Card>

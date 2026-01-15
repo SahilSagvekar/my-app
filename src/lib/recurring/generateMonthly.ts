@@ -382,27 +382,19 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     return { created: 0, error: "Deliverable not found" };
   }
 
-  // console.log("deliverableIdToUse:", deliverableIdToUse);
-
   if (!client || !client.monthlyDeliverables.length) {
     return { created: 0, error: "No deliverable found" };
   }
-
-  // const deliverable = client.monthlyDeliverables[0];
-
-  // console.log("Using deliverable:", deliverable);
-  // console.log("deliverable.type:", deliverable.type);
 
   const quantity = deliverable.quantity ?? 1;
   const videosPerDay = deliverable.videosPerDay ?? 1;
   const postingDays = deliverable.postingDays ?? [];
 
-  // STEP 3 — Month boundaries
+  // STEP 3 — Month boundaries (start from template task's due date)
   const firstDate = new Date(templateTask.dueDate);
-  const monthStart = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
   const monthEnd = new Date(firstDate.getFullYear(), firstDate.getMonth() + 1, 0);
 
-  const WEEKDAY = {
+  const WEEKDAY: Record<string, number> = {
     Sunday: 0,
     Monday: 1,
     Tuesday: 2,
@@ -417,26 +409,56 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     .filter((v) => v !== undefined);
 
   // STEP 4 — Build posting date list
+  // 🔥 FIX: Start from firstDate (template's due date), not monthStart
+  // 🔥 FIX: If postingDays is empty, use ALL days
   const dates: Date[] = [];
-  const cursor = new Date(monthStart);
+  const cursor = new Date(firstDate);
 
   while (cursor <= monthEnd) {
-    if (validDays.includes(cursor.getDay())) {
+    // If no specific posting days configured, use ALL days
+    if (validDays.length === 0 || validDays.includes(cursor.getDay())) {
       dates.push(new Date(cursor));
     }
     cursor.setDate(cursor.getDate() + 1);
   }
 
+  // 🔥 DEBUG LOGGING
+  console.log("=== TASK GENERATION DEBUG ===");
+  console.log("quantity:", quantity);
+  console.log("videosPerDay:", videosPerDay);
+  console.log("postingDays:", postingDays);
+  console.log("validDays (weekday numbers):", validDays);
+  console.log("firstDate:", firstDate.toDateString());
+  console.log("monthEnd:", monthEnd.toDateString());
+  console.log("dates array length:", dates.length);
+  console.log("dates sample:", dates.slice(0, 5).map(d => d.toDateString()));
+
+  // 🔥 SAFEGUARD: If no dates, use all remaining days in month
+  if (dates.length === 0) {
+    console.warn("⚠️ No valid posting dates found! Using all remaining days.");
+    const fallbackCursor = new Date(firstDate);
+    while (fallbackCursor <= monthEnd) {
+      dates.push(new Date(fallbackCursor));
+      fallbackCursor.setDate(fallbackCursor.getDate() + 1);
+    }
+  }
+
+  // Calculate tasks per day to spread evenly
+  const daysAvailable = dates.length;
+  const tasksPerDay = Math.max(1, Math.ceil(quantity / daysAvailable));
+
+  console.log("daysAvailable:", daysAvailable);
+  console.log("calculated tasksPerDay:", tasksPerDay);
+  console.log("=============================");
+
   // STEP 5 — Naming parts
-  const clientSlug = client.name.replace(/\s+/g, "");
   const companyName = client?.companyName || client.name;
-    const companyNameSlug = (client?.companyName || client.name).replace(/\s/g, '');;
+  const companyNameSlug = (client?.companyName || client.name).replace(/\s/g, '');
   const deliverableSlug = getDeliverableShortCode(deliverable.type);
   const createdAtStr = formatDateMMDDYYYY(templateTask.createdAt);
 
-  // STEP 6 — Update template task with title and folder
+  // STEP 6 — Update template task with title and folder (Task #1)
   let count = 1;
-  // const title1 = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
   const title1 = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
   // 🔥 Create folder structure for template task
@@ -446,18 +468,16 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     where: { id: taskId },
     data: {
       title: title1,
-      outputFolderId: taskFolderPath1, // 🔥 Save folder path
+      outputFolderId: taskFolderPath1,
     },
   });
 
-  // ─────────────────────────────────────────
   // Set this task as the master template for RecurringTask
-  // ─────────────────────────────────────────
   await prisma.recurringTask.updateMany({
     where: {
       clientId: clientId,
       deliverableId: deliverable.id,
-      templateTaskId: null, // Only set if not already set
+      templateTaskId: null,
     },
     data: {
       templateTaskId: taskId,
@@ -465,31 +485,23 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   });
 
   console.log(`✅ Set task ${taskId} as master template for client ${clientId}`);
+  console.log(`✅ Template task (#1) updated: ${title1}`);
 
-  // STEP 7 — Create remaining tasks
+  // STEP 7 — Create remaining tasks (starting from #2)
   const creates = [];
+  let dateIndex = 0;
+  let daySlot = 1; // Start at slot 1 because template took slot 0
 
-  for (const date of dates) {
-    for (let i = 0; i < videosPerDay; i++) {
-      if (count >= quantity) break;
+  // 🔥 FIX: Loop until we have created all tasks (quantity - 1, since template is task #1)
+  while (count < quantity && dateIndex < dates.length) {
+    const date = dates[dateIndex];
 
-      // Skip only the FIRST slot of the FIRST posting date
-      // if (date.toDateString() === firstDate.toDateString() && count === 1) {
-      //   count++;
-      //   continue;
-      // }
-
-      if (date.toDateString() === firstDate.toDateString() && i === 0) {
-      continue; 
-    }
-
-     if (count >= quantity) break;
-
+    // Create tasks for remaining slots on this day
+    while (daySlot < tasksPerDay && count < quantity) {
       count++;
-      // const title = `${clientSlug}_${createdAtStr}_${deliverableSlug}_${count}`;
       const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
-      // 🔥 Create folder structure for this task
+      // Create folder structure for this task
       const taskFolderPath = await createTaskFolderStructure(companyName, title);
 
       creates.push(
@@ -500,11 +512,9 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
             taskType: templateTask.taskType,
             status: "PENDING",
             dueDate: date,
-            // clientId,
-            outputFolderId: taskFolderPath, // 🔥 Save folder path
+            outputFolderId: taskFolderPath,
             clientId: clientId,
             clientUserId: client?.userId,
-            // Copy assignments
             assignedTo: templateTask.assignedTo,
             createdBy: templateTask.createdBy,
             scheduler: templateTask.scheduler,
@@ -514,12 +524,22 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
           },
         })
       );
+
+      console.log(`   📝 Queued task #${count}: ${title} (Due: ${date.toDateString()})`);
+      daySlot++;
     }
+
+    // Move to next day
+    dateIndex++;
+    daySlot = 0; // Reset slot counter for new day
   }
 
-  await Promise.all(creates);
+  // Execute all creates
+  if (creates.length > 0) {
+    await Promise.all(creates);
+  }
 
-  console.log(`✅ Created ${creates.length} tasks with folder structures`);
+  console.log(`✅ Created ${creates.length} additional tasks (Total: ${count} tasks)`);
 
   return { created: creates.length };
 }
