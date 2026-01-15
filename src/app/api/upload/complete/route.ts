@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       fileType, 
       taskId,
       userId,
-      subfolder // 🔥 ADD THIS - receive from request body
+      subfolder
     } = await request.json();
 
     console.log("📥 Complete upload request:", {
@@ -58,7 +58,34 @@ export async function POST(request: NextRequest) {
       // 🔥 Determine folderType based on subfolder
       const folderType = !subfolder || subfolder === "main" ? "main" : subfolder;
 
-      // Save file record to database
+      // ═══════════════════════════════════════════════════════════════
+      // 🔥 VERSION CONTROL LOGIC - START
+      // ═══════════════════════════════════════════════════════════════
+
+      // 1. Find the current active file for this task + folderType
+      const existingActiveFile = await prisma.file.findFirst({
+        where: {
+          taskId: taskId,
+          folderType: folderType,
+          isActive: true,
+        },
+        orderBy: {
+          version: 'desc', // Get highest version
+        },
+      });
+
+      let newVersion = 1;
+
+      // 2. If active file exists, mark it as inactive
+      if (existingActiveFile) {
+        newVersion = existingActiveFile.version + 1;
+        
+        console.log(`📦 Found existing v${existingActiveFile.version}, creating v${newVersion}`);
+
+        // We'll update the old file's replacedBy after creating the new file
+      }
+
+      // 3. Create new file record with version
       const fileRecord = await prisma.file.create({
         data: {
           name: fileName,
@@ -69,12 +96,32 @@ export async function POST(request: NextRequest) {
           taskId: taskId,
           uploadedBy: userId,
           folderType: folderType,
+          version: newVersion,
+          isActive: true,
         },
       });
 
-      console.log("💾 File record saved to database:", fileRecord.id);
+      console.log(`💾 File v${newVersion} saved:`, fileRecord.id);
 
-      // Add file URL to task.driveLinks
+      // 4. Now update old file with replacedBy reference
+      if (existingActiveFile) {
+        await prisma.file.update({
+          where: { id: existingActiveFile.id },
+          data: {
+            isActive: false,
+            replacedAt: new Date(),
+            replacedBy: fileRecord.id,
+          },
+        });
+
+        console.log(`📁 v${existingActiveFile.version} marked inactive, replaced by v${newVersion}`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🔥 VERSION CONTROL LOGIC - END
+      // ═══════════════════════════════════════════════════════════════
+
+      // Add file URL to task.driveLinks (only if not already there)
       await prisma.task.update({
         where: { id: taskId },
         data: {
@@ -89,6 +136,8 @@ export async function POST(request: NextRequest) {
         fileUrl,
         fileId: fileRecord.id,
         fileName: fileRecord.name,
+        version: newVersion, // 🔥 Return version info
+        previousVersion: existingActiveFile ? existingActiveFile.version : null,
         etag: s3Response.ETag,
         location: s3Response.Location,
       });
@@ -114,11 +163,10 @@ export async function POST(request: NextRequest) {
               reason: s3Error.message,
             }
           },
-          { status: 410 } // 410 Gone - resource no longer available
+          { status: 410 }
         );
       }
 
-      // Handle other S3-specific errors
       if (s3Error.Code === 'InvalidPart' || s3Error.name === 'InvalidPart') {
         console.error("❌ Invalid part error:", {
           uploadId,
@@ -136,7 +184,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Re-throw other S3 errors to be caught by outer catch
       throw s3Error;
     }
 

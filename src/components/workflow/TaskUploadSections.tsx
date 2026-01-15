@@ -7,8 +7,17 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Alert, AlertDescription } from "../ui/alert";
 import { FileUploadDialog } from "./FileUploadDialog-Resumable";
-import { CheckCircle, AlertCircle, Eye, Send, Trash2, Plus } from "lucide-react";
-import { ChevronDown } from "lucide-react";
+import { 
+  CheckCircle, 
+  AlertCircle, 
+  Eye, 
+  Send, 
+  Trash2, 
+  Plus,
+  ChevronDown,
+  History,
+  RefreshCw
+} from "lucide-react";
 
 interface UploadSection {
   folderType: string;
@@ -16,6 +25,19 @@ interface UploadSection {
   required: boolean;
   icon: string;
   uploaded: boolean;
+}
+
+interface FileRecord {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType?: string;
+  version: number;
+  isActive: boolean;
+  folderType: string;
+  createdAt: string;
+  replacedAt?: string;
 }
 
 interface TaskUploadSectionsProps {
@@ -28,9 +50,16 @@ export function TaskUploadSections({
   onUploadComplete,
 }: TaskUploadSectionsProps) {
   const [sections, setSections] = useState<UploadSection[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<Record<string, any[]>>({});
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, FileRecord[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [showHistory, setShowHistory] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+
+  // 🔥 Fetch existing files from database on mount
+  useEffect(() => {
+    fetchExistingFiles();
+  }, [task.id]);
 
   useEffect(() => {
     const uploadSections = getUploadSections(task.deliverableType);
@@ -43,6 +72,43 @@ export function TaskUploadSections({
     });
     setOpenSections(initialOpen);
   }, [task.deliverableType]);
+
+  // 🔥 NEW: Fetch existing files from database
+  const fetchExistingFiles = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/tasks/${task.id}/files`);
+      
+      if (!res.ok) {
+        console.error("Failed to fetch files");
+        return;
+      }
+
+      const data = await res.json();
+      const files: FileRecord[] = data.files || [];
+
+      // Group files by folderType
+      const grouped: Record<string, FileRecord[]> = {};
+      files.forEach((file: FileRecord) => {
+        const folderType = file.folderType || "main";
+        if (!grouped[folderType]) {
+          grouped[folderType] = [];
+        }
+        grouped[folderType].push(file);
+      });
+
+      // Sort each group by version (newest first)
+      Object.keys(grouped).forEach(key => {
+        grouped[key].sort((a, b) => b.version - a.version);
+      });
+
+      setUploadedFiles(grouped);
+    } catch (error) {
+      console.error("Error fetching files:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getUploadSections = (deliverableType: string): UploadSection[] => {
     const mainSection: UploadSection = {
@@ -120,8 +186,11 @@ export function TaskUploadSections({
     }
   };
 
-  // 🔥 NEW: Handle multiple file uploads
-  const handleFileUploaded = (folderType: string, newFiles: any[]) => {
+  // 🔥 Handle file upload - refresh from database
+  const handleFileUploaded = async (folderType: string, newFiles: any[]) => {
+    // Refresh files from database to get updated versions
+    await fetchExistingFiles();
+    
     setSections((prev) =>
       prev.map((section) =>
         section.folderType === folderType
@@ -129,51 +198,41 @@ export function TaskUploadSections({
           : section
       )
     );
-    
-    // Append new files to existing files
-    setUploadedFiles((prev) => ({
-      ...prev,
-      [folderType]: [...(prev[folderType] || []), ...newFiles],
-    }));
   };
 
-  // 🔥 NEW: Remove a specific file
-  const handleRemoveFile = (folderType: string, fileIndex: number) => {
-    setUploadedFiles((prev) => {
-      const updatedFiles = [...(prev[folderType] || [])];
-      updatedFiles.splice(fileIndex, 1);
-      
-      // Update section uploaded status
-      if (updatedFiles.length === 0) {
-        setSections((prevSections) =>
-          prevSections.map((section) =>
-            section.folderType === folderType
-              ? { ...section, uploaded: false }
-              : section
-          )
-        );
-      }
-      
-      return {
-        ...prev,
-        [folderType]: updatedFiles,
-      };
-    });
+  // 🔥 Get active files for a section
+  const getActiveFiles = (folderType: string): FileRecord[] => {
+    const files = uploadedFiles[folderType] || [];
+    return files.filter(f => f.isActive);
   };
 
-  // 🔥 UPDATED: Check if at least one file uploaded for required sections
+  // 🔥 Get inactive (historical) files for a section
+  const getHistoricalFiles = (folderType: string): FileRecord[] => {
+    const files = uploadedFiles[folderType] || [];
+    return files.filter(f => !f.isActive);
+  };
+
+  // Check if required sections have active files
   const allRequiredFilesUploaded = () => {
     return sections
       .filter((s) => s.required)
       .every((s) => {
-        const files = uploadedFiles[s.folderType] || [];
-        return files.length > 0;
+        const activeFiles = getActiveFiles(s.folderType);
+        return activeFiles.length > 0;
       });
   };
 
   // Toggle section open/closed
   const toggleSection = (folderType: string) => {
     setOpenSections((prev) => ({
+      ...prev,
+      [folderType]: !prev[folderType],
+    }));
+  };
+
+  // Toggle history visibility
+  const toggleHistory = (folderType: string) => {
+    setShowHistory((prev) => ({
       ...prev,
       [folderType]: !prev[folderType],
     }));
@@ -205,10 +264,40 @@ export function TaskUploadSections({
     }
   };
 
-  // Get total file count
+  // Get total active file count
   const getTotalFileCount = () => {
-    return Object.values(uploadedFiles).flat().length;
+    return Object.values(uploadedFiles)
+      .flat()
+      .filter(f => f.isActive)
+      .length;
   };
+
+  // Format file size
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(2)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+        <span className="ml-2 text-sm text-gray-500">Loading files...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -239,7 +328,7 @@ export function TaskUploadSections({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-blue-700">
-                📎 Total Attached Files
+                📎 Total Active Files
               </span>
               <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                 {getTotalFileCount()} files
@@ -251,15 +340,18 @@ export function TaskUploadSections({
 
       {/* Upload Section Cards */}
       {sections.map((section) => {
-        const sectionFiles = uploadedFiles[section.folderType] || [];
+        const activeFiles = getActiveFiles(section.folderType);
+        const historicalFiles = getHistoricalFiles(section.folderType);
         const isOpen = openSections[section.folderType];
-        const hasFiles = sectionFiles.length > 0;
+        const hasActiveFiles = activeFiles.length > 0;
+        const hasHistory = historicalFiles.length > 0;
+        const isHistoryOpen = showHistory[section.folderType];
 
         return (
           <Card
             key={section.folderType}
             className={`transition-all ${
-              hasFiles
+              hasActiveFiles
                 ? "border-green-500"
                 : section.required
                 ? "border-red-200"
@@ -283,16 +375,22 @@ export function TaskUploadSections({
                         <span className="text-red-500 ml-1">*</span>
                       )}
                     </h3>
-                    {hasFiles && (
+                    {hasActiveFiles && (
                       <Badge
                         variant="outline"
                         className="text-green-600 border-green-600 text-xs"
                       >
                         <CheckCircle className="h-3 w-3 mr-1" />
-                        {sectionFiles.length} file{sectionFiles.length > 1 ? 's' : ''}
+                        v{activeFiles[0].version}
                       </Badge>
                     )}
-                    {section.required && !hasFiles && (
+                    {hasHistory && (
+                      <Badge variant="secondary" className="text-xs">
+                        <History className="h-3 w-3 mr-1" />
+                        {historicalFiles.length} prev
+                      </Badge>
+                    )}
+                    {section.required && !hasActiveFiles && (
                       <Badge variant="destructive" className="text-xs">
                         Required
                       </Badge>
@@ -300,11 +398,10 @@ export function TaskUploadSections({
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     {section.required 
-                      ? "Upload at least 1 file. You can add multiple files."
-                      : "Optional. You can upload multiple files if needed."}
+                      ? "Upload required. New uploads replace the current version."
+                      : "Optional. New uploads replace the current version."}
                   </p>
                 </div>
-                {/* Dropdown Icon */}
                 <ChevronDown
                   className={`h-5 w-5 text-gray-500 transition-transform ${
                     isOpen ? "rotate-180" : ""
@@ -315,43 +412,89 @@ export function TaskUploadSections({
               {/* Collapsible Upload Section */}
               {isOpen && (
                 <div className="mt-4 space-y-3 animate-in slide-in-from-top-2">
-                  {/* Display uploaded files */}
-                  {sectionFiles.length > 0 && (
-                    <div className="space-y-2 mb-3">
-                      {sectionFiles.map((file, idx) => (
+                  
+                  {/* 🔥 Current Active Files */}
+                  {activeFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        Current Version
+                      </p>
+                      {activeFiles.map((file) => (
                         <div
-                          key={`${section.folderType}-${idx}`}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded border hover:border-gray-300 transition-colors"
+                          key={file.id}
+                          className="flex items-center justify-between p-3 bg-green-50 rounded border border-green-200 hover:border-green-300 transition-colors"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             <div className="p-2 bg-white rounded">
                               <span className="text-xl">{section.icon}</span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{file.name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium truncate">{file.name}</p>
+                                <Badge className="bg-green-600 text-xs">v{file.version}</Badge>
+                              </div>
                               <p className="text-xs text-gray-500">
-                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                                {formatSize(file.size)} • {formatDate(file.createdAt)}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => window.open(file.url, "_blank")}
-                              className="p-2 hover:bg-gray-200 rounded transition-colors"
-                              title="View file"
-                            >
-                              <Eye className="h-4 w-4 text-gray-600" />
-                            </button>
-                            <button
-                              onClick={() => handleRemoveFile(section.folderType, idx)}
-                              className="p-2 hover:bg-red-100 rounded transition-colors"
-                              title="Remove file"
-                            >
-                              <Trash2 className="h-4 w-4 text-red-600" />
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => window.open(file.url, "_blank")}
+                            className="p-2 hover:bg-green-100 rounded transition-colors"
+                            title="View file"
+                          >
+                            <Eye className="h-4 w-4 text-green-600" />
+                          </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* 🔥 Version History (Collapsible) */}
+                  {hasHistory && (
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => toggleHistory(section.folderType)}
+                        className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        <History className="h-3 w-3" />
+                        <span>Previous Versions ({historicalFiles.length})</span>
+                        <ChevronDown
+                          className={`h-3 w-3 transition-transform ${
+                            isHistoryOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                      
+                      {isHistoryOpen && (
+                        <div className="space-y-2 pl-4 border-l-2 border-gray-200">
+                          {historicalFiles.map((file) => (
+                            <div
+                              key={file.id}
+                              className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200 opacity-70 hover:opacity-100 transition-opacity"
+                            >
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm truncate">{file.name}</p>
+                                    <Badge variant="secondary" className="text-xs">v{file.version}</Badge>
+                                  </div>
+                                  <p className="text-xs text-gray-400">
+                                    {formatSize(file.size)} • Replaced {file.replacedAt ? formatDate(file.replacedAt) : ''}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => window.open(file.url, "_blank")}
+                                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                                title="View old version"
+                              >
+                                <Eye className="h-4 w-4 text-gray-500" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -366,19 +509,27 @@ export function TaskUploadSections({
                     trigger={
                       <button className="w-full p-6 border-2 border-dashed rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors">
                         <div className="flex flex-col items-center gap-2">
-                          {hasFiles ? (
-                            <Plus className="h-8 w-8 text-purple-500" />
+                          {hasActiveFiles ? (
+                            <>
+                              <RefreshCw className="h-8 w-8 text-purple-500" />
+                              <span className="text-sm font-medium text-gray-700">
+                                Upload New Version
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Current v{activeFiles[0].version} will be archived
+                              </span>
+                            </>
                           ) : (
-                            <span className="text-3xl">{section.icon}</span>
+                            <>
+                              <span className="text-3xl">{section.icon}</span>
+                              <span className="text-sm font-medium text-gray-700">
+                                Click to upload {section.label.toLowerCase()}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                This will be version 1
+                              </span>
+                            </>
                           )}
-                          <span className="text-sm font-medium text-gray-700">
-                            {hasFiles
-                              ? `Add more ${section.label.toLowerCase()}`
-                              : `Click to upload ${section.label.toLowerCase()}`}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            You can upload multiple files
-                          </span>
                         </div>
                       </button>
                     }

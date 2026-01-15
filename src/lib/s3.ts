@@ -75,7 +75,7 @@ export async function createClientFolders(companyName: string) {
 export async function createMonthFolder(companyName: string, monthYear: string) {
   const s3 = getS3();
   const monthPrefix = `${companyName}/raw-footage/${monthYear}/`;
-  
+
   try {
     await s3.send(
       new PutObjectCommand({
@@ -89,20 +89,20 @@ export async function createMonthFolder(companyName: string, monthYear: string) 
     console.error('❌ Failed to create month folder:', error);
     // Don't throw - folder might already exist
   }
-  
+
   return monthPrefix;
 }
 
 // 🔥 Create task output folder
 export async function createTaskOutputFolder(
-  companyName: string, 
-  taskId: string, 
+  companyName: string,
+  taskId: string,
   taskTitle: string
 ) {
   const s3 = getS3();
   const sanitizedTitle = taskTitle.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
   const taskPrefix = `${companyName}/outputs/${taskId}-${sanitizedTitle}/`;
-  
+
   try {
     await s3.send(
       new PutObjectCommand({
@@ -116,7 +116,7 @@ export async function createTaskOutputFolder(
     console.error('❌ Failed to create task folder:', error);
     // Don't throw - folder might already exist
   }
-  
+
   return taskPrefix;
 }
 
@@ -149,7 +149,7 @@ export async function uploadFileToS3(
     console.error("❌ S3 Upload Failed:", err);
     throw new Error("S3 upload failed");
   } finally {
-    fs.unlink(filePath, () => {});
+    fs.unlink(filePath, () => { });
   }
 
   return {
@@ -233,7 +233,8 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
   return Promise.all(
     files.map(async (file) => {
       try {
-        const s3Key = extractS3KeyFromUrl(file.url);
+        // 🔥 Use s3Key directly if available, otherwise extract from URL
+        const s3Key = file.s3Key || extractS3KeyFromUrl(file.url);
         if (!s3Key) return file;
 
         const signedUrl = await generateSignedUrl(s3Key);

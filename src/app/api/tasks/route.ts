@@ -384,7 +384,7 @@ import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
-import { uploadBufferToS3 } from "@/lib/s3";
+import { uploadBufferToS3, addSignedUrlsToFiles } from "@/lib/s3";
 import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -531,10 +531,10 @@ export async function GET(req: Request) {
 
     // 🔥 ADD STATUS FILTER - ALLOW COMMA SEPARATED STATUSES
     const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED"];
-    
+
     if (statusFilter) {
       const statuses = statusFilter.split(",").map((s) => s.trim().toUpperCase());
-      
+
       // Validate that all requested statuses are in allowed list
       const invalidStatuses = statuses.filter((s) => !ALLOWED_STATUSES.includes(s));
       if (invalidStatuses.length > 0) {
@@ -582,7 +582,22 @@ export async function GET(req: Request) {
         createdBy: true,
         clientId: true,
         clientUserId: true,
+         files: {
+        select: {
+            id: true,
+            name: true,
+            url: true,
+            s3Key: true,
+            mimeType: true,
+            size: true,
+            uploadedAt: true,
+            uploadedBy: true,
+            folderType: true,
+            version: true,
+        },
+    },
         driveLinks: true,
+        
         createdAt: true,
         priority: true,
         taskCategory: true,
@@ -592,7 +607,7 @@ export async function GET(req: Request) {
         folderType: true,
         qcNotes: true,
         feedback: true,
-        files: true,
+        // files: true,
         monthlyDeliverable: true,
         socialMediaLinks: true,
       },
@@ -607,55 +622,69 @@ export async function GET(req: Request) {
     //   return extractNumber(a.title) - extractNumber(b.title);
     // });
 
-const extractSortParts = (title: string | null) => {
-  if (!title) return { company: '', date: '', prefix: '', number: 0 };
-  
-  // Match: CompanyName_DD-MM-YYYY_TypeNumber
-  // Example: CoinLaundryAssociation_01-12-2026_LF1
-  const match = title.match(/^(.+)_(\d{2}-\d{2}-\d{4})_([a-zA-Z]+)(\d+)$/);
-  
-  if (match) {
-    return {
-      company: match[1].toLowerCase(),           // "coinlaundryassociation"
-      date: match[2],                            // "01-12-2026"
-      prefix: match[3].toLowerCase(),            // "lf", "sf", "sqf"
-      number: parseInt(match[4], 10)             // 1, 2, 3...
-    };
-  }
-  
-  return { company: title.toLowerCase(), date: '', prefix: '', number: 0 };
-};
+    const extractSortParts = (title: string | null) => {
+      if (!title) return { company: '', date: '', prefix: '', number: 0 };
 
-// Sort: company → date → prefix → number
-const sortedTasks = tasks.sort((a, b) => {
-  const taskA = extractSortParts(a.title);
-  const taskB = extractSortParts(b.title);
-  
-  // 1. Sort by company name
-  if (taskA.company !== taskB.company) {
-    return taskA.company.localeCompare(taskB.company);
-  }
-  
-  // 2. Sort by date (DD-MM-YYYY format)
-  if (taskA.date !== taskB.date) {
-    // Convert to comparable format YYYYMMDD for proper date sorting
-    const dateA = taskA.date.split('-').reverse().join('');
-    const dateB = taskB.date.split('-').reverse().join('');
-    return dateA.localeCompare(dateB);
-  }
-  
-  // 3. Sort by type prefix (LF before SF, etc.)
-  if (taskA.prefix !== taskB.prefix) {
-    return taskA.prefix.localeCompare(taskB.prefix);
-  }
-  
-  // 4. Sort by number
-  return taskA.number - taskB.number;
-});
+      // Match: CompanyName_DD-MM-YYYY_TypeNumber
+      // Example: CoinLaundryAssociation_01-12-2026_LF1
+      const match = title.match(/^(.+)_(\d{2}-\d{2}-\d{4})_([a-zA-Z]+)(\d+)$/);
+
+      if (match) {
+        return {
+          company: match[1].toLowerCase(),           // "coinlaundryassociation"
+          date: match[2],                            // "01-12-2026"
+          prefix: match[3].toLowerCase(),            // "lf", "sf", "sqf"
+          number: parseInt(match[4], 10)             // 1, 2, 3...
+        };
+      }
+
+      return { company: title.toLowerCase(), date: '', prefix: '', number: 0 };
+    };
+
+    // Sort: company → date → prefix → number
+    const sortedTasks = tasks.sort((a, b) => {
+      const taskA = extractSortParts(a.title);
+      const taskB = extractSortParts(b.title);
+
+      // 1. Sort by company name
+      if (taskA.company !== taskB.company) {
+        return taskA.company.localeCompare(taskB.company);
+      }
+
+      // 2. Sort by date (DD-MM-YYYY format)
+      if (taskA.date !== taskB.date) {
+        // Convert to comparable format YYYYMMDD for proper date sorting
+        const dateA = taskA.date.split('-').reverse().join('');
+        const dateB = taskB.date.split('-').reverse().join('');
+        return dateA.localeCompare(dateB);
+      }
+
+      // 3. Sort by type prefix (LF before SF, etc.)
+      if (taskA.prefix !== taskB.prefix) {
+        return taskA.prefix.localeCompare(taskB.prefix);
+      }
+
+      // 4. Sort by number
+      return taskA.number - taskB.number;
+    });
 
     // // ✅ NO COUNT QUERY - just return tasks
-    return NextResponse.json({ tasks: sortedTasks }, { status: 200 });
-    // return NextResponse.json({ tasks }, { status: 200 });
+    // 🔥 ADD SIGNED URLs TO ALL TASK FILES
+    const tasksWithSignedUrls = await Promise.all(
+      sortedTasks.map(async (task) => {
+        if (task.files && task.files.length > 0) {
+          const filesWithSignedUrls = await addSignedUrlsToFiles(task.files);
+          return {
+            ...task,
+            files: filesWithSignedUrls,
+          };
+        }
+        return task;
+      })
+    );
+
+    // ✅ Return tasks with signed URLs
+    return NextResponse.json({ tasks: tasksWithSignedUrls }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
     return NextResponse.json(
