@@ -194,6 +194,24 @@ export async function uploadBufferToS3({
 }
 
 // Extract S3 key from URL
+// export function extractS3KeyFromUrl(s3Url: string): string | null {
+//   if (!s3Url) return null;
+
+//   try {
+//     if (s3Url.startsWith("s3://")) {
+//       const parts = s3Url.replace("s3://", "").split("/");
+//       return parts.slice(1).join("/");
+//     }
+
+//     const url = new URL(s3Url);
+//     const pathname = url.pathname;
+//     return pathname.startsWith("/") ? pathname.substring(1) : pathname;
+//   } catch (error) {
+//     console.error("Error extracting S3 key:", error);
+//     return null;
+//   }
+// }
+
 export function extractS3KeyFromUrl(s3Url: string): string | null {
   if (!s3Url) return null;
 
@@ -204,8 +222,15 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
     }
 
     const url = new URL(s3Url);
-    const pathname = url.pathname;
-    return pathname.startsWith("/") ? pathname.substring(1) : pathname;
+    let pathname = url.pathname;
+    
+    // Remove leading slash
+    pathname = pathname.startsWith("/") ? pathname.substring(1) : pathname;
+    
+    // 🔥 Decode URL encoding (critical for files with spaces, #, etc.)
+    pathname = decodeURIComponent(pathname);
+    
+    return pathname;
   } catch (error) {
     console.error("Error extracting S3 key:", error);
     return null;
@@ -213,17 +238,40 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
 }
 
 // Generate pre-signed URL
+// export async function generateSignedUrl(
+//   key: string,
+//   expiresIn: number = 7200 // 2 hours default
+// ): Promise<string> {
+//   const command = new GetObjectCommand({
+//     Bucket: BUCKET,
+//     Key: key,
+//   });
+
+//   const signedUrl = await getSignedUrl(s3, command, { expiresIn });
+//   return signedUrl;
+// }
+
+
 export async function generateSignedUrl(
   key: string,
-  expiresIn: number = 7200 // 2 hours default
+  expiresIn: number = 7200
 ): Promise<string> {
+  console.log('🔍 Generating signed URL for key:', key);
+  console.log('🔍 Bucket:', BUCKET);
+  
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
   });
 
-  const signedUrl = await getSignedUrl(s3, command, { expiresIn });
-  return signedUrl;
+  try {
+    const signedUrl = await getSignedUrl(s3, command, { expiresIn });
+    console.log('✅ Signed URL generated successfully');
+    return signedUrl;
+  } catch (error) {
+    console.error('❌ Failed to generate signed URL:', error);
+    throw error;
+  }
 }
 
 // Add signed URLs to file objects

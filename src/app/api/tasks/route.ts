@@ -582,8 +582,8 @@ export async function GET(req: Request) {
         createdBy: true,
         clientId: true,
         clientUserId: true,
-         files: {
-        select: {
+        files: {
+          select: {
             id: true,
             name: true,
             url: true,
@@ -594,10 +594,10 @@ export async function GET(req: Request) {
             uploadedBy: true,
             folderType: true,
             version: true,
+          },
         },
-    },
         driveLinks: true,
-        
+
         createdAt: true,
         priority: true,
         taskCategory: true,
@@ -610,6 +610,27 @@ export async function GET(req: Request) {
         // files: true,
         monthlyDeliverable: true,
         socialMediaLinks: true,
+        // 🔥 Include task feedback with file info for version tracking
+        taskFeedback: {
+          select: {
+            id: true,
+            fileId: true,
+            folderType: true,
+            feedback: true,
+            status: true,
+            timestamp: true,
+            category: true,
+            createdAt: true,
+            resolvedAt: true,
+            file: {
+              select: {
+                version: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' as const },
+        },
       },
     });
 

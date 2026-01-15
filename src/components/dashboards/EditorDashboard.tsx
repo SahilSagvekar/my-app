@@ -136,11 +136,11 @@ function validateRequiredUploads(task: WorkflowTask): UploadValidation {
 
   // Get unique folder types from uploaded files
   const uploadedFolderTypes = new Set<string>();
-  
+
   files.forEach((file: any) => {
     // Check various possible properties that might indicate the section
     let folderType = file.folderType || file.subfolder || file.section || file.category;
-    
+
     // Fallback: Try to extract folder type from file URL or path
     if (!folderType && file.url) {
       const url = file.url.toLowerCase();
@@ -166,7 +166,7 @@ function validateRequiredUploads(task: WorkflowTask): UploadValidation {
         folderType = "music-license";
       }
     }
-    
+
     if (folderType) {
       uploadedFolderTypes.add(folderType);
     }
@@ -209,6 +209,24 @@ interface TaskFile {
   size: number;
   uploadedAt: string;
   uploadedBy: string;
+  folderType?: string;  // "main", "thumbnails", "music-license", "tiles", "covers"
+  version?: number;
+  isActive?: boolean;
+}
+
+// 🔥 Task Feedback interface for version-tracked comments
+interface TaskFeedbackItem {
+  id: string;
+  fileId?: string;
+  folderType: string;  // "main", "thumbnails", "music-license", "tiles", "covers"
+  feedback: string;
+  status: string;  // "needs_revision", "approved"
+  timestamp?: string;  // Video timestamp like "1:30"
+  category?: string;  // "design", "content", "timing", "technical", "spelling", "other"
+  createdAt: string;
+  resolvedAt?: string;
+  fileVersion?: number;  // The version of the file this feedback relates to
+  fileName?: string;
 }
 
 interface WorkflowTask {
@@ -230,6 +248,7 @@ interface WorkflowTask {
   qcNotes?: string | null;
   rejectionReason?: string | null;
   feedback?: string | null;
+  taskFeedback?: TaskFeedbackItem[];  // 🔥 NEW: Version-tracked feedback
 }
 
 /* -------------------------------------------------------------------------- */
@@ -367,13 +386,13 @@ function TaskCard({
 }) {
   const [showFiles, setShowFiles] = useState(false);
   const isOverdue = new Date(task.dueDate) < new Date();
-  
+
   // 🔥 Tasks in QC review shouldn't be draggable by editors
   const isDraggable = task.status !== "ready_for_qc";
 
   // 🔥 Get upload validation for in_progress tasks
-  const uploadValidation = task.status === "in_progress" 
-    ? validateRequiredUploads(task) 
+  const uploadValidation = task.status === "in_progress"
+    ? validateRequiredUploads(task)
     : null;
 
   return (
@@ -381,13 +400,11 @@ function TaskCard({
       <Card
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
-        className={`transition-all ${
-          isDraggable 
-            ? "cursor-grab active:cursor-grabbing hover:shadow-md" 
-            : "cursor-not-allowed opacity-75"
-        } ${
-          isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""
-        }`}
+        className={`transition-all ${isDraggable
+          ? "cursor-grab active:cursor-grabbing hover:shadow-md"
+          : "cursor-not-allowed opacity-75"
+          } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""
+          }`}
       >
         <CardContent className="p-4">
           {/* Drag Handle + Title */}
@@ -437,7 +454,7 @@ function TaskCard({
             </div>
           )}
 
-          {/* QC NOTES */}
+          {/* QC NOTES - Legacy format */}
           {task.qcNotes && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -448,22 +465,81 @@ function TaskCard({
             </Alert>
           )}
 
+          {/* 🔥 VERSION-TAGGED FEEDBACK - New format with version badges */}
+          {task.taskFeedback && task.taskFeedback.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <span className="text-xs font-semibold text-destructive">
+                  QC Feedback ({task.taskFeedback.length})
+                </span>
+              </div>
+
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {task.taskFeedback
+                  .filter(fb => fb.status === "needs_revision")
+                  .map((fb) => (
+                    <Alert
+                      key={fb.id}
+                      variant={fb.status === "needs_revision" ? "destructive" : "default"}
+                      className="py-2"
+                    >
+                      <AlertDescription className="text-xs">
+                        {/* Version and Section badges */}
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <Badge variant="outline" className="text-[10px] px-1 py-0">
+                            V{fb.fileVersion || 1}
+                          </Badge>
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0 capitalize">
+                            {fb.folderType === "main" ? "📁 Main" :
+                              fb.folderType === "thumbnails" ? "🖼️ Thumbnails" :
+                                fb.folderType === "tiles" ? "🎨 Tiles" :
+                                  fb.folderType === "music-license" ? "🎵 Music" :
+                                    fb.folderType}
+                          </Badge>
+                          {fb.timestamp && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50">
+                              ⏱️ {fb.timestamp}
+                            </Badge>
+                          )}
+                          {fb.category && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 capitalize">
+                              {fb.category}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Feedback text */}
+                        <p className="whitespace-pre-wrap mt-1">{fb.feedback}</p>
+
+                        {/* File reference if available */}
+                        {fb.fileName && (
+                          <p className="text-muted-foreground mt-1 text-[10px]">
+                            📎 {fb.fileName}
+                          </p>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-4">
             <span
-              className={`text-xs ${
-                isOverdue
-                  ? "text-red-500 font-medium"
-                  : "text-muted-foreground"
-              }`}
+              className={`text-xs ${isOverdue
+                ? "text-red-500 font-medium"
+                : "text-muted-foreground"
+                }`}
             >
               Due {new Date(task.dueDate).toLocaleDateString()}
               {isOverdue && " (Overdue)"}
             </span>
 
-            {task.files?.length > 0 && (
+            {(task.files?.length ?? 0) > 0 && (
               <Badge variant="outline" className="text-xs">
                 <FileText className="h-3 w-3 mr-1" />
-                {task.files.length} file{task.files.length !== 1 ? "s" : ""}
+                {task.files?.length} file{(task.files?.length ?? 0) !== 1 ? "s" : ""}
               </Badge>
             )}
           </div>
@@ -628,20 +704,19 @@ function DroppableColumn({
 
         {tasks.length === 0 && (
           <div
-            className={`text-center py-8 rounded-lg ${
-              isDragOver && isValidTarget
-                ? "text-green-600"
-                : isDragOver && !isValidTarget
+            className={`text-center py-8 rounded-lg ${isDragOver && isValidTarget
+              ? "text-green-600"
+              : isDragOver && !isValidTarget
                 ? "text-red-500"
                 : "text-muted-foreground"
-            }`}
+              }`}
           >
             <p className="text-sm">
               {isDragOver && isValidTarget
                 ? "✓ Drop task here"
                 : isDragOver && !isValidTarget
-                ? "✗ Cannot drop here"
-                : "No tasks"}
+                  ? "✗ Cannot drop here"
+                  : "No tasks"}
             </p>
           </div>
         )}
@@ -711,6 +786,21 @@ export function EditorDashboard() {
               qcNotes: t.qcNotes || null,
               rejectionReason: t.rejectionReason || null,
               feedback: t.feedback || null,
+              // 🔥 NEW: Map taskFeedback with file version info from nested file data
+              taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
+                id: fb.id,
+                fileId: fb.fileId,
+                folderType: fb.folderType,
+                feedback: fb.feedback,
+                status: fb.status,
+                timestamp: fb.timestamp,
+                category: fb.category,
+                createdAt: fb.createdAt,
+                resolvedAt: fb.resolvedAt,
+                // Use nested file data from API response
+                fileVersion: fb.file?.version || 1,
+                fileName: fb.file?.name || null,
+              })),
             };
           });
 
@@ -819,7 +909,7 @@ export function EditorDashboard() {
     // Special validation: Can't submit for QC without ALL required files
     if (toStatus === "ready_for_qc") {
       const uploadValidation = validateRequiredUploads(task);
-      
+
       if (!uploadValidation.isComplete) {
         const missingList = uploadValidation.missingUploads.join(", ");
         return {
@@ -875,7 +965,7 @@ export function EditorDashboard() {
 
     // 🔥 VALIDATE THE TRANSITION
     const validation = validateTransition(draggingTask.status, targetStatus, draggingTask);
-    
+
     if (!validation.valid) {
       if (validation.message) {
         setValidationError(validation.message);

@@ -43,6 +43,7 @@ import { toast } from 'sonner';
 import { getVideoSource } from '../workflow/VideoUrlHelper';
 import { ReviewCommentCard, CommentInput, ReviewTimeline, StatusDropdown } from '../review';
 import { ReviewComment, ReviewStatus, REVIEW_STATUSES } from '../review/types';
+import { useAuth } from '../auth/AuthContext';
 
 interface Version {
     id: string;
@@ -83,6 +84,14 @@ interface FullScreenReviewModalProps {
     userRole?: 'client' | 'qc';
     onSendToClient?: (asset: ReviewAsset) => void;
     onSendBackToEditor?: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
+    // 🔥 NEW: Section info for linking feedback to specific files
+    currentFileSection?: {
+        folderType: string;
+        fileId: string;
+        version: number;
+    };
+    // 🔥 NEW: Task ID for saving feedback
+    taskId?: string;
 }
 
 interface RevisionRequest {
@@ -109,8 +118,13 @@ export function FullScreenReviewModalFrameIO({
     onNextAsset,
     userRole = 'client',
     onSendToClient,
-    onSendBackToEditor
+    onSendBackToEditor,
+    currentFileSection,
+    taskId
 }: FullScreenReviewModalProps) {
+    // Auth context
+    const { user } = useAuth();
+    
     // Video state
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
@@ -128,6 +142,7 @@ export function FullScreenReviewModalFrameIO({
     const [activeCommentId, setActiveCommentId] = useState<string | undefined>();
     const [showCommentInput, setShowCommentInput] = useState(false);
     const [confirmFinal, setConfirmFinal] = useState(false);
+    const [savingFeedback, setSavingFeedback] = useState(false);
 
     // UI State
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
@@ -166,33 +181,8 @@ export function FullScreenReviewModalFrameIO({
                 setReviewStatus('needs_review');
             }
 
-            // Load mock comments for demo
-            setComments([
-                {
-                    id: '1',
-                    taskId: asset.id,
-                    authorId: 'user1',
-                    authorName: 'QC Reviewer',
-                    timestamp: '0:15',
-                    timestampSeconds: 15,
-                    content: 'The transition here feels a bit abrupt. Can we smooth it out?',
-                    category: 'timing',
-                    resolved: false,
-                    createdAt: new Date(Date.now() - 3600000),
-                },
-                {
-                    id: '2',
-                    taskId: asset.id,
-                    authorId: 'user2',
-                    authorName: 'Art Director',
-                    timestamp: '0:45',
-                    timestampSeconds: 45,
-                    content: 'Love the color grading in this section!',
-                    category: 'design',
-                    resolved: true,
-                    createdAt: new Date(Date.now() - 7200000),
-                },
-            ]);
+            // Clear comments when asset changes
+            setComments([]);
         }
     }, [asset]);
 
@@ -355,8 +345,53 @@ export function FullScreenReviewModalFrameIO({
         }, 100);
     };
 
+    // 🔥 NEW: Save feedback to database
+    const saveFeedbackToDatabase = async (feedbackComments: ReviewComment[]) => {
+        const actualTaskId = taskId || asset?.id;
+        if (!actualTaskId || !user?.id) {
+            console.error('Missing taskId or user for saving feedback');
+            return false;
+        }
+
+        try {
+            setSavingFeedback(true);
+            
+            const feedbackItems = feedbackComments
+                .filter(c => !c.resolved)
+                .map(c => ({
+                    folderType: currentFileSection?.folderType || 'main',
+                    fileId: currentFileSection?.fileId || null,
+                    feedback: c.content,
+                    timestamp: c.timestamp,
+                    category: c.category,
+                }));
+
+            const res = await fetch(`/api/tasks/${actualTaskId}/feedback`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    feedbackItems,
+                    createdBy: user.id,
+                }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Failed to save feedback');
+            }
+
+            console.log('✅ Feedback saved successfully');
+            return true;
+        } catch (err) {
+            console.error('❌ Failed to save feedback:', err);
+            toast.error('Failed to save feedback');
+            return false;
+        } finally {
+            setSavingFeedback(false);
+        }
+    };
+
     // Status change handler
-    const handleStatusChange = (newStatus: ReviewStatus['value']) => {
+    const handleStatusChange = async (newStatus: ReviewStatus['value']) => {
         setReviewStatus(newStatus);
 
         if (newStatus === 'approved' && asset) {
@@ -376,12 +411,23 @@ export function FullScreenReviewModalFrameIO({
                 }, 2000);
             }
         } else if (newStatus === 'needs_changes' && asset) {
-            // Convert comments to revision request
+            // 🔥 NEW: Save feedback to database with section info
+            const feedbackSaved = await saveFeedbackToDatabase(comments);
+            
+            if (!feedbackSaved) {
+                toast.error('Failed to save feedback. Please try again.');
+                return;
+            }
+
+            // Build revision data with section context
+            const sectionLabel = currentFileSection?.folderType?.toUpperCase() || 'MAIN';
+            const versionLabel = currentFileSection?.version || 1;
+            
             const revisionData: RevisionRequest = {
                 reason: 'other',
                 notes: comments
                     .filter(c => !c.resolved)
-                    .map(c => `[${c.category.toUpperCase()} @ ${c.timestamp}] ${c.content}`)
+                    .map(c => `[${sectionLabel} v${versionLabel} @ ${c.timestamp}] ${c.content}`)
                     .join('\n\n'),
                 assignTo: 'editor',
                 entries: comments.filter(c => !c.resolved).map(c => ({
@@ -461,6 +507,11 @@ export function FullScreenReviewModalFrameIO({
                                     </h3>
                                     <p className="text-orange-300/80">
                                         {comments.filter(c => !c.resolved).length} comments sent as feedback
+                                        {currentFileSection && (
+                                            <span className="block mt-1 text-sm">
+                                                for {currentFileSection.folderType} v{currentFileSection.version}
+                                            </span>
+                                        )}
                                     </p>
                                 </CardContent>
                             </Card>
@@ -485,7 +536,15 @@ export function FullScreenReviewModalFrameIO({
                                 <div className="h-6 w-px bg-[var(--review-border)]" />
 
                                 <div>
-                                    <h1 className="text-lg font-medium text-white">{asset.title}</h1>
+                                    <div className="flex items-center gap-2">
+                                        <h1 className="text-lg font-medium text-white">{asset.title}</h1>
+                                        {/* 🔥 NEW: Show section badge */}
+                                        {currentFileSection && (
+                                            <Badge className="bg-purple-600 text-xs">
+                                                {currentFileSection.folderType} v{currentFileSection.version}
+                                            </Badge>
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <span className="text-sm text-[var(--review-text-muted)]">{asset.runtime}</span>
                                         <span className="text-[var(--review-text-muted)]">•</span>
@@ -516,7 +575,7 @@ export function FullScreenReviewModalFrameIO({
                                 <StatusDropdown
                                     currentStatus={reviewStatus}
                                     onStatusChange={handleStatusChange}
-                                    disabled={asset.approvalLocked}
+                                    disabled={asset.approvalLocked || savingFeedback}
                                 />
 
                                 <Button
@@ -746,6 +805,14 @@ export function FullScreenReviewModalFrameIO({
                                         {comments.filter(c => !c.resolved).length} open
                                     </Badge>
                                 </div>
+                                {/* 🔥 NEW: Show which section feedback is for */}
+                                {currentFileSection && (
+                                    <p className="text-xs text-[var(--review-text-muted)] mt-2">
+                                        Feedback for: <span className="text-[var(--review-text-secondary)]">
+                                            {currentFileSection.folderType} v{currentFileSection.version}
+                                        </span>
+                                    </p>
+                                )}
                             </div>
 
                             {/* Comment Input */}
@@ -801,7 +868,7 @@ export function FullScreenReviewModalFrameIO({
                                             size="sm"
                                             className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white"
                                             onClick={() => handleStatusChange('approved')}
-                                            disabled={asset.approvalLocked}
+                                            disabled={asset.approvalLocked || savingFeedback}
                                         >
                                             <CheckCircle2 className="h-4 w-4 mr-2" />
                                             Approve & Send to Client
@@ -811,10 +878,19 @@ export function FullScreenReviewModalFrameIO({
                                             variant="outline"
                                             className="w-full bg-transparent border-[var(--review-status-changes)] text-[var(--review-status-changes)] hover:bg-[var(--review-status-changes)]/10"
                                             onClick={() => handleStatusChange('needs_changes')}
-                                            disabled={comments.filter(c => !c.resolved).length === 0}
+                                            disabled={comments.filter(c => !c.resolved).length === 0 || savingFeedback}
                                         >
-                                            <MessageSquare className="h-4 w-4 mr-2" />
-                                            Send Back with {comments.filter(c => !c.resolved).length} Comments
+                                            {savingFeedback ? (
+                                                <>
+                                                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                    Saving...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <MessageSquare className="h-4 w-4 mr-2" />
+                                                    Send Back with {comments.filter(c => !c.resolved).length} Comments
+                                                </>
+                                            )}
                                         </Button>
                                     </>
                                 ) : (
@@ -873,6 +949,19 @@ export function FullScreenReviewModalFrameIO({
                                 </div>
 
                                 <div className="space-y-4 text-sm">
+                                    {/* 🔥 NEW: Show section info */}
+                                    {currentFileSection && (
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] mb-1">Section</div>
+                                            <div className="text-white capitalize">{currentFileSection.folderType}</div>
+                                        </div>
+                                    )}
+                                    {currentFileSection && (
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] mb-1">Version</div>
+                                            <div className="text-white">v{currentFileSection.version}</div>
+                                        </div>
+                                    )}
                                     <div>
                                         <div className="text-[var(--review-text-muted)] mb-1">Resolution</div>
                                         <div className="text-white">{asset.resolution}</div>

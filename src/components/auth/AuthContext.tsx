@@ -51,28 +51,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Global fetch interceptor for JWT expiration
   useEffect(() => {
     const originalFetch = window.fetch;
-    
+
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
-      
+
+      // 🔥 Skip S3/AWS URLs - don't intercept file uploads
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url || '';
+      if (url.includes('s3.amazonaws.com') ||
+        url.includes('amazonaws.com') ||
+        url.includes('X-Amz-') ||
+        url.includes('.s3.')) {
+        return response;
+      }
+
       // Clone response to read it without consuming the stream
       const clonedResponse = response.clone();
-      
+
       try {
         const contentType = clonedResponse.headers.get("content-type");
-        
+
         // Only parse JSON responses
         if (contentType && contentType.includes("application/json")) {
           const data = await clonedResponse.json();
-          
+
           // Check for JWT expiration errors
           if (
             (response.status === 401 || response.status === 500) &&
             (data.message?.includes('jwt expired') ||
-             data.message?.includes('Token expired') ||
-             data.message?.includes('TokenExpiredError') ||
-             data.error?.includes('jwt expired') ||
-             data.message?.includes('Unauthorized'))
+              data.message?.includes('Token expired') ||
+              data.message?.includes('TokenExpiredError') ||
+              data.error?.includes('jwt expired') ||
+              data.message?.includes('Unauthorized'))
           ) {
             // Show session expired modal
             setShowSessionExpired(true);
@@ -81,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         // Response is not JSON or already consumed, ignore
       }
-      
+
       return response;
     };
 
@@ -119,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       // Clear auth token cookie
       document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
-      
+
       setUser(null);
       setIsAuthenticated(false);
       router.push("/");
@@ -132,22 +141,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        isAuthenticated, 
-        user, 
-        loading, 
-        login, 
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        user,
+        loading,
+        login,
         logout,
         handleSessionExpired
       }}
     >
       {children}
-      
+
       {/* Session Expired Modal */}
-      <SessionExpiredModal 
-        isOpen={showSessionExpired} 
-        onClose={handleSessionExpired} 
+      <SessionExpiredModal
+        isOpen={showSessionExpired}
+        onClose={handleSessionExpired}
       />
     </AuthContext.Provider>
   );
