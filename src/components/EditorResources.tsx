@@ -225,32 +225,32 @@ export function EditorResources() {
   const [searchTerm, setSearchTerm] = useState('');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
       <div>
-        <h1>Resources</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-xl sm:text-2xl">Resources</h1>
+        <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
           Access brand assets, tutorials, stock resources, and helpful tools
         </p>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
+      <div className="relative w-full sm:max-w-md">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search resources..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
+          className="pl-10 text-sm sm:text-base"
         />
       </div>
 
-      <Tabs defaultValue="brand-assets" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="brand-assets">Brand Assets</TabsTrigger>
-          <TabsTrigger value="tutorials">Tutorials</TabsTrigger>
-          <TabsTrigger value="stock">Stock Resources</TabsTrigger>
-          <TabsTrigger value="tools">Tools</TabsTrigger>
+      <Tabs defaultValue="brand-assets" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsTrigger value="brand-assets" className="text-xs sm:text-sm py-2">Brand Assets</TabsTrigger>
+          <TabsTrigger value="tutorials" className="text-xs sm:text-sm py-2">Tutorials</TabsTrigger>
+          <TabsTrigger value="stock" className="text-xs sm:text-sm py-2">Stock Resources</TabsTrigger>
+          <TabsTrigger value="tools" className="text-xs sm:text-sm py-2">Tools</TabsTrigger>
         </TabsList>
 
         <TabsContent value="brand-assets" className="space-y-6">
@@ -259,7 +259,7 @@ export function EditorResources() {
             <p className="text-muted-foreground mb-6">Download official brand assets and guidelines</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {brandAssets.map((asset) => (
               <Card key={asset.id} className="overflow-hidden hover:shadow-md transition-shadow">
                 <div className="relative">
@@ -309,7 +309,7 @@ export function EditorResources() {
             <p className="text-muted-foreground mb-6">Tutorials and guides to improve your skills</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {tutorials.map((tutorial) => (
               <Card key={tutorial.id} className="overflow-hidden hover:shadow-md transition-shadow">
                 <div className="relative">
@@ -368,7 +368,7 @@ export function EditorResources() {
             <p className="text-muted-foreground mb-6">Licensed stock photos, videos, and audio</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {stockResources.map((resource) => (
               <Card key={resource.id} className="overflow-hidden hover:shadow-md transition-shadow">
                 <div className="relative">
@@ -413,7 +413,7 @@ export function EditorResources() {
             <p className="text-muted-foreground mb-6">Essential tools and software for content creation</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {tools.map((tool) => (
               <Card key={tool.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-6 space-y-4">

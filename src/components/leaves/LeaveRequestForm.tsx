@@ -169,24 +169,24 @@ export default function LeaveRequestForm() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Employee Info Card */}
       {userName && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <User className="h-4 w-4 sm:h-5 sm:w-5" />
               Employee Information
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <p className="text-sm text-muted-foreground">Requesting as</p>
-                <p className="font-semibold text-lg">{userName}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Requesting as</p>
+                <p className="font-semibold text-base sm:text-lg">{userName}</p>
               </div>
               {worksOnSaturday && (
-                <Badge variant="outline">Works on Saturday</Badge>
+                <Badge variant="outline" className="w-fit">Works on Saturday</Badge>
               )}
             </div>
           </CardContent>
@@ -195,20 +195,20 @@ export default function LeaveRequestForm() {
 
       {/* Leave Request Form Card */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5" />
             Leave Request Details
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
             Fill in the details below to submit your leave request
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
           {/* Date Section */}
           <div className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-4">
               {/* Start Date */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Start Date</label>
@@ -277,20 +277,20 @@ export default function LeaveRequestForm() {
             {/* Days Preview */}
             {startDate && endDate && (
               <Card>
-                <CardContent className="p-4">
+                <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Clock className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
                       <div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs sm:text-sm text-muted-foreground">
                           Total Working Days
                         </p>
-                        <p className="text-lg font-semibold">
+                        <p className="text-base sm:text-lg font-semibold">
                           {days} {days === 1 ? "day" : "days"}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="text-base">
+                    <Badge variant="secondary" className="text-sm sm:text-base">
                       {days}
                     </Badge>
                   </div>
@@ -343,14 +343,14 @@ export default function LeaveRequestForm() {
 
       {/* Footer Note */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarIcon className="h-4 w-4" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+            <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4" />
             Important Notes
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ul className="space-y-2 text-sm text-muted-foreground list-disc list-inside">
+        <CardContent className="p-4 sm:p-6 pt-0">
+          <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-muted-foreground list-disc list-inside">
             <li>Sundays are excluded from working days</li>
             {!worksOnSaturday && <li>Saturdays are excluded</li>}
             <li>Submit at least 3 days before the leave date</li>

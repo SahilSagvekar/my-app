@@ -1,34 +1,30 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Play, ArrowRight, Link } from 'lucide-react';
-import blindDateImage from '../../../public/assets/dfbfcb4ef7475b451e2c0943ae8cc34504b65021.png';
-import missbehaveImage from '../../../public/assets/c8100524ea3926b19a0c5342d6bf18a813da6dea.png';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-
-
+import React from "react";
+import { Play, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import blindDateImage from "../../../public/assets/dfbfcb4ef7475b451e2c0943ae8cc34504b65021.png";
+import missbehaveImage from "../../../public/assets/c8100524ea3926b19a0c5342d6bf18a813da6dea.png";
+import Image from "next/image";
 
 const shows = [
   {
-    title: 'The Dating Blind Show',
-    description: 'A modern dating series where singles form real connections before appearances are revealed—proving chemistry starts with conversation, not looks.',
+    title: "The Dating Blind Show",
+    description:
+      "A modern dating series where singles form real connections before appearances are revealed—proving chemistry starts with conversation, not looks.",
     image: blindDateImage,
-    videoUrl: 'https://youtu.be/Z7Ucs-JjmcY?si=h-LK1wQqqseLpJE9',
-    tagline: 'Love is more than what meets the eye',
+    videoUrl: "https://youtu.be/Z7Ucs-JjmcY?si=h-LK1wQqqseLpJE9",
   },
   {
-    title: 'MissBehaveTV',
-    description: 'Bold, unapologetic, and unfiltered. Join us for conversations that break boundaries and challenge the status quo in dating and culture.',
+    title: "MissBehaveTV",
+    description:
+      "Bold, unapologetic, and unfiltered. Join us for conversations that break boundaries and challenge the status quo in dating and culture.",
     image: missbehaveImage,
-    videoUrl: 'https://youtu.be/0_lGz3rAVr4?si=5GvmwEOaXEOu_nMN',
-    tagline: 'Breaking rules, making waves',
+    videoUrl: "https://youtu.be/0_lGz3rAVr4?si=5GvmwEOaXEOu_nMN",
   },
 ];
 
 export function OriginalShows() {
-
-  const router = useRouter();
   return (
     <section id="shows" className="pt-16 pb-24 px-6 lg:px-8 bg-white">
       <div className="max-w-7xl mx-auto">
@@ -61,12 +57,6 @@ export function OriginalShows() {
                     <Play className="w-7 h-7 text-black ml-1" fill="black" />
                   </div>
                 </div>
-                {/* Tagline Badge */}
-                <div className="absolute bottom-4 left-4 right-4">
-                  <div className="bg-black/80 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm inline-block">
-                    {show.tagline}
-                  </div>
-                </div>
               </div>
 
               {/* Show Info */}
@@ -74,8 +64,9 @@ export function OriginalShows() {
                 <h3 className="text-black mb-3">{show.title}</h3>
                 <p className="text-black/60 mb-6">{show.description}</p>
                 <button
-                  // onClick={() => router.push("https://youtu.be/Z7Ucs-JjmcY?si=h-LK1wQqqseLpJE9")}
-                  onClick={() => router.push(show.videoUrl)}
+                  onClick={() =>
+                    window.open(show.videoUrl, "_blank", "noopener,noreferrer")
+                  }
                   className="group/btn inline-flex items-center gap-2 text-black transition-all hover:gap-3"
                 >
                   <span>Watch Now</span>
@@ -91,7 +82,10 @@ export function OriginalShows() {
           <p className="text-black/60 mb-6">
             Want to produce your own original content with us?
           </p>
-          <Link href="/contact" className="inline-flex items-center gap-2 px-8 py-4 bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105">
+          <Link
+            href="/contact"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105"
+          >
             Pitch Your Show
             <ArrowRight className="w-4 h-4" />
           </Link>

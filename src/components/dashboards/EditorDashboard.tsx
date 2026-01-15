@@ -305,12 +305,12 @@ function FileViewerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
+      <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] sm:max-h-[80vh] p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Task Files ({files.length})</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">Task Files ({files.length})</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-2 overflow-y-auto max-h-[60vh]">
+        <div className="space-y-2 overflow-y-auto max-h-[70vh] sm:max-h-[60vh]">
           {files.map((file) => (
             <Card
               key={file.id}
@@ -334,9 +334,9 @@ function FileViewerDialog({
                     </div>
                   </div>
 
-                  <Button size="sm" variant="outline">
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Open
+                  <Button size="sm" variant="outline" className="shrink-0">
+                    <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Open</span>
                   </Button>
                 </div>
               </CardContent>
@@ -389,148 +389,117 @@ function TaskCard({
           isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""
         }`}
       >
-        <CardContent className="p-4">
+        <CardContent className="p-3">
           {/* Drag Handle + Title */}
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <h4 className="font-medium text-sm">{task.title}</h4>
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              <h4 className="font-medium text-xs truncate">{task.title}</h4>
             </div>
             <Badge
               variant={task.status === "completed" ? "default" : "secondary"}
-              className="text-xs flex-shrink-0"
+              className="text-[10px] flex-shrink-0 ml-1 px-1.5 py-0 h-4"
             >
               {task.status.replace("_", " ").toUpperCase()}
             </Badge>
           </div>
 
-          {/* Deliverable Type Badge */}
-          {task.deliverableType && (
-            <Badge variant="outline" className="text-xs mb-2">
-              {task.deliverableType.replace(/_/g, " ")}
-            </Badge>
-          )}
+          {/* Deliverable Type + Description combined */}
+          <div className="mb-2">
+            {task.deliverableType && (
+              <Badge variant="outline" className="text-[10px] mb-1 mr-1 px-1.5 py-0 h-4">
+                {task.deliverableType.replace(/_/g, " ")}
+              </Badge>
+            )}
+            <p className="text-xs text-muted-foreground line-clamp-1">
+              {task.description}
+            </p>
+          </div>
 
-          <p className="text-sm text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
-            {task.description}
-          </p>
-
-          {/* 🔥 Upload Progress for In Progress Tasks */}
+          {/* Compact Upload Progress for In Progress Tasks */}
           {task.status === "in_progress" && uploadValidation && (
-            <div className="mb-4 p-2 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium">Upload Progress</span>
-                <span className={`text-xs ${uploadValidation.isComplete ? "text-green-600" : "text-amber-600"}`}>
-                  {uploadValidation.isComplete ? "✓ Ready for QC" : "Incomplete"}
+            <div className="mb-2 p-1.5 bg-muted/50 rounded text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium">Upload Progress:</span>
+                <span className={`text-[10px] ${uploadValidation.isComplete ? "text-green-600" : "text-amber-600"}`}>
+                  {uploadValidation.isComplete ? "✓ Ready" : `${uploadValidation.uploadedSections.length}/${uploadValidation.uploadedSections.length + uploadValidation.missingUploads.length}`}
                 </span>
               </div>
-              {!uploadValidation.isComplete && uploadValidation.missingUploads.length > 0 && (
-                <p className="text-xs text-red-500">
-                  Missing: {uploadValidation.missingUploads.join(", ")}
-                </p>
-              )}
-              {uploadValidation.uploadedSections.length > 0 && (
-                <p className="text-xs text-green-600">
-                  Uploaded: {uploadValidation.uploadedSections.join(", ")}
-                </p>
-              )}
             </div>
           )}
 
-          {/* QC NOTES */}
+          {/* Compact QC NOTES */}
           {task.qcNotes && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                <strong>QC Feedback:</strong>
-                <p className="mt-1 whitespace-pre-wrap">{task.qcNotes}</p>
+            <Alert variant="destructive" className="mb-2 py-1.5">
+              <AlertCircle className="h-3 w-3" />
+              <AlertDescription className="text-[10px] py-0">
+                <strong>QC:</strong> {task.qcNotes.slice(0, 50)}{task.qcNotes.length > 50 ? "..." : ""}
               </AlertDescription>
             </Alert>
           )}
 
-          <div className="flex items-center justify-between mb-4">
+          {/* Compact Due Date + Files */}
+          <div className="flex items-center justify-between mb-2 text-xs">
             <span
-              className={`text-xs ${
+              className={`text-[10px] ${
                 isOverdue
                   ? "text-red-500 font-medium"
                   : "text-muted-foreground"
               }`}
             >
               Due {new Date(task.dueDate).toLocaleDateString()}
-              {isOverdue && " (Overdue)"}
+              {isOverdue && " ⚠"}
             </span>
 
             {task.files?.length > 0 && (
-              <Badge variant="outline" className="text-xs">
-                <FileText className="h-3 w-3 mr-1" />
-                {task.files.length} file{task.files.length !== 1 ? "s" : ""}
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                <FileText className="h-2.5 w-2.5 mr-0.5" />
+                {task.files.length}
               </Badge>
             )}
           </div>
 
-          {/* FILE PREVIEWS */}
-          {task.files && task.files.length > 0 && (
-            <div className="mb-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Attached Files
-                </p>
-                {task.files.length > 2 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto p-0 text-xs"
-                    onClick={() => setShowFiles(true)}
-                  >
-                    View all ({task.files.length})
-                  </Button>
-                )}
-              </div>
-
-              {/* Show first 2 files as preview */}
-              <div className="space-y-1">
-                {task.files.slice(0, 2).map((file: TaskFile) => (
+          {/* Compact FILE PREVIEWS - Only show if files exist and not in progress (to avoid duplication) */}
+          {task.files && task.files.length > 0 && task.status !== "in_progress" && (
+            <div className="mb-2">
+              <div className="space-y-0.5">
+                {task.files.slice(0, 1).map((file: TaskFile) => (
                   <FilePreviewCard
                     key={file.id}
                     file={file}
                     onView={() => window.open(file.url, "_blank")}
                   />
                 ))}
+                {task.files.length > 1 && (
+                  <button
+                    className="text-[10px] text-primary hover:underline w-full text-left"
+                    onClick={() => setShowFiles(true)}
+                  >
+                    +{task.files.length - 1} more
+                  </button>
+                )}
               </div>
-
-              {/* Show "X more files" if there are more than 2 */}
-              {task.files.length > 2 && (
-                <button
-                  className="text-xs text-primary hover:underline w-full text-left"
-                  onClick={() => setShowFiles(true)}
-                >
-                  + {task.files.length - 2} more file
-                  {task.files.length - 2 !== 1 ? "s" : ""}
-                </button>
-              )}
             </div>
           )}
 
           {/* 🔥 Upload Section */}
-          <div className="space-y-2">
-            {(task.status === "pending" || task.status === "rejected") && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                onClick={onStartTask}
-              >
-                {task.status === "rejected" ? "Start Revision" : "Start"}
-              </Button>
-            )}
+          {(task.status === "pending" || task.status === "rejected") && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs"
+              onClick={onStartTask}
+            >
+              {task.status === "rejected" ? "Start Revision" : "Start"}
+            </Button>
+          )}
 
-            {task.status === "in_progress" && (
-              <TaskUploadSections
-                task={task}
-                onUploadComplete={onUploadComplete}
-              />
-            )}
-          </div>
+          {task.status === "in_progress" && (
+            <TaskUploadSections
+              task={task}
+              onUploadComplete={onUploadComplete}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -601,9 +570,9 @@ function DroppableColumn({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       <div className="flex items-center justify-between pb-2 border-b">
-        <h3 className="font-medium">{title}</h3>
+        <h3 className="font-medium text-sm sm:text-base">{title}</h3>
         <Badge variant="secondary" className="text-xs">
           {tasks.length}
         </Badge>
@@ -613,7 +582,7 @@ function DroppableColumn({
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, status)}
         onDragLeave={onDragLeave}
-        className={`space-y-4 min-h-[400px] p-2 rounded-lg transition-all duration-200 ${getDropZoneStyles()}`}
+        className={`space-y-3 sm:space-y-4 min-h-[200px] sm:min-h-[400px] p-2 rounded-lg transition-all duration-200 ${getDropZoneStyles()}`}
       >
         {tasks.map((task) => (
           <TaskCard
@@ -996,81 +965,79 @@ export function EditorDashboard() {
     <div className="space-y-6">
       {/* 🔥 Validation Error Toast */}
       {validationError && (
-        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
-          <Alert variant="destructive" className="w-auto max-w-md shadow-lg">
+        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-auto z-50 animate-in slide-in-from-top-2 fade-in duration-300">
+          <Alert variant="destructive" className="w-full sm:w-auto sm:max-w-md shadow-lg">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{validationError}</AlertDescription>
+            <AlertDescription className="text-sm">{validationError}</AlertDescription>
           </Alert>
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1>Editor Portal</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl sm:text-2xl">Editor Portal</h1>
+          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
             Manage your assigned tasks and complete work for QC review.
-            <span className="text-xs ml-2 text-primary">(Drag tasks to change status)</span>
+            <span className="hidden sm:inline text-xs ml-2 text-primary">(Drag tasks to change status)</span>
           </p>
         </div>
       </div>
 
       {/* Filter Section */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            {/* <div className="text-sm text-muted-foreground">
-              Logged in as: <span className="font-medium text-foreground">{currentUser.name}</span>
-            </div> */}
-
-            <div className="flex items-center gap-3">
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Filter by:</span>
+                <span className="text-xs sm:text-sm text-muted-foreground">Filter by:</span>
               </div>
 
-              <Select
-                value={deliverableTypeFilter}
-                onValueChange={setDeliverableTypeFilter}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  {availableDeliverableTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type.replace(/_/g, " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {deliverableTypeFilter !== "all" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDeliverableTypeFilter("all")}
-                  className="text-xs"
+              <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+                <Select
+                  value={deliverableTypeFilter}
+                  onValueChange={setDeliverableTypeFilter}
                 >
-                  Clear filter
-                </Button>
-              )}
-            </div>
-          </div>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {availableDeliverableTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type.replace(/_/g, " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-          {/* Show filter info */}
-          {deliverableTypeFilter !== "all" && (
-            <div className="mt-3 pt-3 border-t">
-              <p className="text-sm text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{totalFilteredTasks}</span> of{" "}
-                <span className="font-medium text-foreground">{totalTasks}</span> tasks
-                {" "}filtered by{" "}
-                <Badge variant="secondary" className="ml-1">
-                  {deliverableTypeFilter.replace(/_/g, " ")}
-                </Badge>
-              </p>
+                {deliverableTypeFilter !== "all" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDeliverableTypeFilter("all")}
+                    className="text-xs shrink-0"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
             </div>
-          )}
+
+            {/* Show filter info */}
+            {deliverableTypeFilter !== "all" && (
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Showing <span className="font-medium text-foreground">{totalFilteredTasks}</span> of{" "}
+                  <span className="font-medium text-foreground">{totalTasks}</span> tasks
+                  {" "}filtered by{" "}
+                  <Badge variant="secondary" className="ml-1">
+                    {deliverableTypeFilter.replace(/_/g, " ")}
+                  </Badge>
+                </p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -1085,7 +1052,7 @@ export function EditorDashboard() {
       </div> */}
 
       {/* Kanban Board with Drag & Drop */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {columns.map((column) => (
           <DroppableColumn
             key={column.id}

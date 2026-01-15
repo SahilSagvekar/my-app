@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Alert, AlertDescription } from "../ui/alert";
 import { FileUploadDialog } from "./FileUploadDialog-Resumable";
 import { CheckCircle, AlertCircle, Eye, Send } from "lucide-react";
 import { ChevronDown } from "lucide-react";
@@ -30,12 +29,7 @@ export function TaskUploadSections({
   const [sections, setSections] = useState<UploadSection[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, any[]>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    const uploadSections = getUploadSections(task.deliverableType);
-    setSections(uploadSections);
-  }, [task.deliverableType]);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   const getUploadSections = (deliverableType: string): UploadSection[] => {
     const mainSection: UploadSection = {
@@ -113,6 +107,32 @@ export function TaskUploadSections({
     }
   };
 
+  useEffect(() => {
+    const uploadSections = getUploadSections(task.deliverableType);
+
+    // Initialize sections with uploaded status from task.files
+    const taskFiles = task.files || [];
+    const filesByFolder: Record<string, any[]> = {};
+
+    taskFiles.forEach((file: any) => {
+      const folderType = file.folderType || file.subfolder || "main";
+      if (!filesByFolder[folderType]) {
+        filesByFolder[folderType] = [];
+      }
+      filesByFolder[folderType].push(file);
+    });
+
+    // Update sections with uploaded status
+    const updatedSections = uploadSections.map((section) => ({
+      ...section,
+      uploaded: filesByFolder[section.folderType]?.length > 0 || false,
+    }));
+
+    setSections(updatedSections);
+    setUploadedFiles(filesByFolder);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.deliverableType, task.files]);
+
   const handleFileUploaded = (folderType: string, files: any[]) => {
     setSections((prev) =>
       prev.map((section) =>
@@ -121,7 +141,7 @@ export function TaskUploadSections({
           : section
       )
     );
-    
+
     setUploadedFiles((prev) => ({
       ...prev,
       [folderType]: files,
@@ -129,9 +149,7 @@ export function TaskUploadSections({
   };
 
   const allRequiredFilesUploaded = () => {
-    return sections
-      .filter((s) => s.required)
-      .every((s) => s.uploaded);
+    return sections.filter((s) => s.required).every((s) => s.uploaded);
   };
 
   // 🔥 NEW: Submit to QC handler
@@ -152,7 +170,7 @@ export function TaskUploadSections({
 
       // Notify parent component
       onUploadComplete([]);
-      
+
       // Reload page to refresh task status
       window.location.reload();
     } catch (error) {
@@ -163,137 +181,166 @@ export function TaskUploadSections({
     }
   };
 
+  const toggleSection = (folderType: string) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [folderType]: !prev[folderType],
+    }));
+  };
+
+  // Get file count for a section
+  const getSectionFileCount = (folderType: string) => {
+    return uploadedFiles[folderType]?.length || 0;
+  };
+
   return (
-    <div className="space-y-3">
-      {/* Status Alert */}
-      {sections.length > 1 && (
-        <Alert variant={allRequiredFilesUploaded() ? "default" : "destructive"}>
+    <div className="space-y-1.5">
+      {/* Compact Status Bar */}
+      <div
+        className={`flex items-center justify-between px-2 py-1 rounded text-xs ${
+          allRequiredFilesUploaded()
+            ? "bg-green-50 text-green-700 border border-green-200"
+            : "bg-amber-50 text-amber-700 border border-amber-200"
+        }`}
+      >
+        <div className="flex items-center gap-1.5">
           {allRequiredFilesUploaded() ? (
-            <>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <AlertDescription className="text-sm text-green-700">
-                ✅ All required files uploaded! Ready to submit to QC.
-              </AlertDescription>
-            </>
+            <CheckCircle className="h-3.5 w-3.5 text-green-600" />
           ) : (
-            <>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                Please upload all required files (marked with *) before
-                submitting to QC.
-              </AlertDescription>
-            </>
+            <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
           )}
-        </Alert>
-      )}
+          <span className="font-medium">
+            {allRequiredFilesUploaded()
+              ? "Ready to Submit"
+              : `${sections.filter((s) => s.required && s.uploaded).length}/${
+                  sections.filter((s) => s.required).length
+                } Required Uploaded`}
+          </span>
+        </div>
+        {Object.keys(uploadedFiles).length > 0 && (
+          <span className="text-[10px] opacity-75">
+            {Object.values(uploadedFiles).flat().length} file
+            {Object.values(uploadedFiles).flat().length !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
 
-      {/* Uploaded Files Preview (like first image) */}
-      {Object.keys(uploadedFiles).length > 0 && (
-        <Card className="border-gray-200">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-gray-700">
-                Attached Files
-              </span>
-              <span className="text-xs text-gray-500">
-                {Object.values(uploadedFiles).flat().length} files
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              {Object.entries(uploadedFiles).map(([folderType, files]) =>
-                files.map((file, idx) => (
-                  <div
-                    key={`${folderType}-${idx}`}
-                    className="flex items-center justify-between p-2 bg-gray-50 rounded border"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white rounded">
-                        {folderType === "main"
-                          ? "🎬"
-                          : folderType === "thumbnails"
-                          ? "🖼️"
-                          : folderType === "tiles"
-                          ? "🎨"
-                          : folderType === "music-license"
-                          ? "🎵"
-                          : "📁"}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{file.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => window.open(file.url, "_blank")}
-                      className="p-2 hover:bg-gray-200 rounded"
-                    >
-                      <Eye className="h-4 w-4 text-gray-600" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Upload Section Cards (like first image) */}
+      {/* Enhanced Accordion Upload Sections with inline file info */}
       {sections.map((section) => {
-        
+        const isOpen = openSections[section.folderType] || false;
+        const fileCount = getSectionFileCount(section.folderType);
+        const sectionFiles = uploadedFiles[section.folderType] || [];
 
         return (
           <Card
             key={section.folderType}
             className={`transition-all ${
               section.uploaded
-                ? "border-green-500"
+                ? "border-green-500 bg-green-50/30"
                 : section.required
-                ? "border-red-200"
+                ? "border-amber-200"
                 : "border-gray-200"
             }`}
           >
-            <CardContent className="p-4">
-              {/* Clickable Header */}
-              <div
-                className="flex items-start gap-3 mb-3 cursor-pointer"
-                onClick={() => setIsOpen(!isOpen)}
-              >
-                <div className="p-2 bg-purple-100 rounded">
-                  <span className="text-2xl">{section.icon}</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-medium">
-                      {section.label}
-                      {section.required && (
-                        <span className="text-red-500 ml-1">*</span>
+            <CardContent className="p-2">
+              {/* Enhanced Header with Summary Info */}
+              <div className="flex items-center gap-2">
+                <div
+                  className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+                  onClick={() => toggleSection(section.folderType)}
+                >
+                  <div
+                    className={`p-1 rounded shrink-0 ${
+                      section.uploaded ? "bg-green-100" : "bg-purple-100"
+                    }`}
+                  >
+                    <span className="text-base">{section.icon}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="text-xs font-medium truncate">
+                        {section.label}
+                        {section.required && (
+                          <span className="text-red-500 ml-0.5">*</span>
+                        )}
+                      </h3>
+                      {section.uploaded && (
+                        <Badge
+                          variant="outline"
+                          className="text-green-600 border-green-600 text-[10px] px-1 py-0 h-3.5"
+                        >
+                          <CheckCircle className="h-2 w-2 mr-0.5" />
+                          Done
+                        </Badge>
                       )}
-                    </h3>
-                    {section.uploaded && (
-                      <Badge
-                        variant="outline"
-                        className="text-green-600 border-green-600 text-xs"
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Uploaded
-                      </Badge>
+                      {fileCount > 0 && (
+                        <span className="text-[10px] text-gray-500">
+                          ({fileCount} file{fileCount !== 1 ? "s" : ""})
+                        </span>
+                      )}
+                    </div>
+                    {/* Show file names when collapsed */}
+                    {!isOpen && sectionFiles.length > 0 && (
+                      <div className="mt-0.5">
+                        {sectionFiles.slice(0, 2).map((file, idx) => (
+                          <p
+                            key={idx}
+                            className="text-[10px] text-gray-600 truncate"
+                          >
+                            • {file.name}
+                          </p>
+                        ))}
+                        {sectionFiles.length > 2 && (
+                          <p className="text-[10px] text-gray-500">
+                            +{sectionFiles.length - 2} more
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 text-gray-500 transition-transform shrink-0 ${
+                      isOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </div>
-                {/* Dropdown Icon */}
-                <ChevronDown
-                  className={`h-5 w-5 text-gray-500 transition-transform ${
-                    isOpen ? "rotate-180" : ""
-                  }`}
-                />
               </div>
 
-              {/* Collapsible Upload Section */}
+              {/* Expanded Content */}
               {isOpen && (
-                <div className="mt-3 animate-in slide-in-from-top-2">
+                <div className="mt-2 space-y-2 animate-in slide-in-from-top-2">
+                  {/* Show uploaded files for this section */}
+                  {sectionFiles.length > 0 && (
+                    <div className="space-y-1 p-1.5 bg-white/50 rounded border">
+                      {sectionFiles.map((file, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-1.5 bg-white rounded text-xs"
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="text-xs">{section.icon}</span>
+                            <span className="font-medium truncate text-[11px]">
+                              {file.name}
+                            </span>
+                            <span className="text-gray-500 text-[10px]">
+                              ({(file.size / 1024).toFixed(0)} KB)
+                            </span>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(file.url, "_blank");
+                            }}
+                            className="p-1 hover:bg-gray-200 rounded ml-2"
+                          >
+                            <Eye className="h-3 w-3 text-gray-600" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Upload Button */}
                   <FileUploadDialog
                     task={task}
                     subfolder={section.folderType}
@@ -302,10 +349,10 @@ export function TaskUploadSections({
                       onUploadComplete(files);
                     }}
                     trigger={
-                      <button className="w-full p-6 border-2 border-dashed rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors">
-                        <div className="flex flex-col items-center gap-2">
-                          <span className="text-3xl">{section.icon}</span>
-                          <span className="text-sm font-medium text-gray-700">
+                      <button className="w-full p-2.5 border-2 border-dashed rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-lg">{section.icon}</span>
+                          <span className="text-xs font-medium text-gray-700">
                             {section.uploaded
                               ? "Upload new version"
                               : `Click to upload ${section.label.toLowerCase()}`}
@@ -321,25 +368,25 @@ export function TaskUploadSections({
         );
       })}
 
-      {/* 🔥 NEW: Submit to QC Button */}
+      {/* Compact Submit to QC Button */}
       <Button
         onClick={handleSubmitToQC}
         disabled={!allRequiredFilesUploaded() || submitting}
         className="w-full"
-        size="lg"
+        size="sm"
       >
         {submitting ? (
           <>
-            <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <div className="h-3.5 w-3.5 mr-1.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
             Submitting...
           </>
         ) : (
           <>
-            <Send className="h-4 w-4 mr-2" />
+            <Send className="h-3.5 w-3.5 mr-1.5" />
             Submit to QC
           </>
         )}
       </Button>
     </div>
   );
-} 
+}

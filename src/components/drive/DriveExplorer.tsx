@@ -414,7 +414,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex flex-col sm:flex-row h-screen bg-background">
       {/* Hidden File Input */}
       <input
         ref={fileInputRef}
@@ -426,7 +426,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       {/* Upload Progress Dialog */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Uploading files</DialogTitle>
             <DialogDescription>
@@ -517,51 +517,55 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       </AlertDialog>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Top Toolbar */}
         <div className="border-b bg-card">
-          <div className="flex items-center gap-4 p-4">
-            <div className="flex-1 max-w-2xl">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4">
+            <div className="flex-1 w-full sm:max-w-2xl">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search in Drive"
-                  className="pl-10 bg-secondary/50"
+                  className="pl-10 bg-secondary/50 text-sm sm:text-base"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
             </div>
 
-            <Button className="gap-2" onClick={handleUploadClick}>
-              <Upload className="h-4 w-4" />
-              Upload
-            </Button>
-
-            <div className="flex gap-1 border rounded-md">
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setViewMode("grid")}
-              >
-                <Grid3x3 className="h-4 w-4" />
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Button className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm" onClick={handleUploadClick}>
+                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Upload</span>
               </Button>
-              <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setViewMode("list")}
-              >
-                <List className="h-4 w-4" />
+
+              <div className="flex gap-1 border rounded-md">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-9 w-9 sm:h-10 sm:w-10"
+                  onClick={() => setViewMode("grid")}
+                >
+                  <Grid3x3 className="h-3 w-3 sm:h-4 sm:w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-9 w-9 sm:h-10 sm:w-10"
+                  onClick={() => setViewMode("list")}
+                >
+                  <List className="h-3 w-3 sm:h-4 sm:w-4" />
+                </Button>
+              </div>
+
+              <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10" onClick={loadDriveStructure}>
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
-
-            <Button variant="ghost" size="icon" onClick={loadDriveStructure}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
           </div>
 
           {/* Breadcrumb */}
-          <div className="px-4 pb-3 flex items-center gap-2 text-sm">
+          <div className="px-3 sm:px-4 pb-2 sm:pb-3 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm overflow-x-auto">
             {breadcrumb.map((folder, index) => (
               <div key={folder.path} className="flex items-center gap-2">
                 {index > 0 && (
@@ -585,7 +589,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
         {/* Files Area */}
         <ScrollArea className="flex-1">
-          <div className="p-6">
+          <div className="p-3 sm:p-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mb-4">
                 <p className="font-medium">Error loading files</p>
@@ -613,12 +617,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </div>
             ) : viewMode === "grid" ? (
               // Grid View
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                 {filteredItems.map((item) => (
                   <div
                     key={item.path}
                     className={cn(
-                      "group relative border rounded-lg p-4 cursor-pointer hover:bg-accent transition-colors",
+                      "group relative border rounded-lg p-2 sm:p-4 cursor-pointer hover:bg-accent transition-colors",
                       selectedItems.has(item.path) && "bg-accent border-primary"
                     )}
                     onClick={() => handleItemClick(item)}
@@ -626,17 +630,17 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   >
                     <div className="flex flex-col items-center text-center">
                       {item.type === "folder" ? (
-                        <Folder className="h-16 w-16 text-blue-500 mb-2" />
+                        <Folder className="h-12 w-12 sm:h-16 sm:w-16 text-blue-500 mb-1 sm:mb-2" />
                       ) : (
-                        <div className="mb-2">{getFileIcon(item.name)}</div>
+                        <div className="mb-1 sm:mb-2 scale-75 sm:scale-100">{getFileIcon(item.name)}</div>
                       )}
 
-                      <p className="text-sm font-medium truncate w-full">
+                      <p className="text-xs sm:text-sm font-medium truncate w-full px-1">
                         {item.name}
                       </p>
 
                       {item.type === "file" && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                           {item.size && formatBytes(item.size)}
                         </p>
                       )}
@@ -692,20 +696,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </div>
             ) : (
               // List View
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full">
+              <div className="border rounded-lg overflow-x-auto">
+                <table className="w-full min-w-[600px]">
                   <thead className="bg-muted/50 border-b">
                     <tr>
-                      <th className="text-left p-3 font-medium text-sm">
+                      <th className="text-left p-2 sm:p-3 font-medium text-xs sm:text-sm">
                         Name
                       </th>
-                      <th className="text-left p-3 font-medium text-sm">
+                      <th className="text-left p-2 sm:p-3 font-medium text-xs sm:text-sm hidden sm:table-cell">
                         Modified
                       </th>
-                      <th className="text-left p-3 font-medium text-sm">
+                      <th className="text-left p-2 sm:p-3 font-medium text-xs sm:text-sm hidden md:table-cell">
                         Size
                       </th>
-                      <th className="w-12"></th>
+                      <th className="w-10 sm:w-12"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -719,27 +723,30 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         onClick={() => handleItemClick(item)}
                         onDoubleClick={() => handleItemDoubleClick(item)}
                       >
-                        <td className="p-3">
-                          <div className="flex items-center gap-3">
+                        <td className="p-2 sm:p-3">
+                          <div className="flex items-center gap-2 sm:gap-3">
                             {item.type === "folder" ? (
-                              <Folder className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                              <Folder className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
                             ) : (
-                              <div className="flex-shrink-0">
+                              <div className="flex-shrink-0 scale-75 sm:scale-100">
                                 {getFileIcon(item.name)}
                               </div>
                             )}
-                            <span className="truncate">{item.name}</span>
+                            <span className="truncate text-xs sm:text-sm">{item.name}</span>
+                            <span className="sm:hidden text-xs text-muted-foreground ml-auto">
+                              {item.type === "file" && item.size ? formatBytes(item.size) : ""}
+                            </span>
                           </div>
                         </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        <td className="p-2 sm:p-3 text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">
                           {item.lastModified && formatDate(item.lastModified)}
                         </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        <td className="p-2 sm:p-3 text-xs sm:text-sm text-muted-foreground hidden md:table-cell">
                           {item.type === "file" && item.size
                             ? formatBytes(item.size)
                             : "-"}
                         </td>
-                        <td className="p-3">
+                        <td className="p-2 sm:p-3">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button

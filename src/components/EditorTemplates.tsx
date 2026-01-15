@@ -197,53 +197,56 @@ export function EditorTemplates() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
       <div>
-        <h1>Template Library</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-xl sm:text-2xl">Template Library</h1>
+        <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
           Browse and download branded templates for your projects
         </p>
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col lg:flex-row gap-4">
+      <div className="flex flex-col gap-3 sm:gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search templates..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 text-sm sm:text-base"
           />
         </div>
         
-        <div className="flex flex-wrap gap-2">
-          {categories.map((category) => (
-            <Button
-              key={category}
-              variant={selectedCategory === category ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedCategory(category)}
-            >
-              {category}
-            </Button>
-          ))}
-        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-wrap gap-2 flex-1">
+            {categories.map((category) => (
+              <Button
+                key={category}
+                variant={selectedCategory === category ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedCategory(category)}
+                className="text-xs sm:text-sm"
+              >
+                {category}
+              </Button>
+            ))}
+          </div>
 
-        <Button
-          variant={showFavoritesOnly ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-          className="flex items-center gap-2"
-        >
-          <Star className="h-4 w-4" />
-          Favorites Only
-        </Button>
+          <Button
+            variant={showFavoritesOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            className="flex items-center gap-2 shrink-0"
+          >
+            <Star className="h-4 w-4" />
+            <span className="text-xs sm:text-sm">Favorites Only</span>
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4 text-center">
             <h3 className="text-xl font-medium">{templates.length}</h3>
@@ -271,7 +274,7 @@ export function EditorTemplates() {
       </div>
 
       {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
         {filteredTemplates.map((template) => (
           <Card key={template.id} className="overflow-hidden hover:shadow-md transition-shadow group">
             <div className="relative">
