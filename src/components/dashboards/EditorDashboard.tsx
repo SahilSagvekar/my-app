@@ -1199,32 +1199,6 @@ export function EditorDashboard() {
         </div>
       </div>
 
-      {/* 🔥 Weekly Task Queue Banner */}
-      {hiddenTaskCount > 0 && (
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-sm text-blue-900 dark:text-blue-100">
-                  Weekly Task Queue Active
-                </p>
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  Showing <span className="font-semibold">{weeklyVisibleTasks.length}</span> tasks this week.
-                  <span className="font-semibold ml-1">{hiddenTaskCount}</span> more tasks queued for later.
-                  Complete your current tasks to unlock more!
-                </p>
-              </div>
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                {weeklyVisibleTasks.length} / {tasks.length} visible
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Filter Section */}
       <Card>
         <CardContent className="p-4">
