@@ -11,9 +11,9 @@ export function Navigation() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-black/5">
-      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo */}
             <div className="flex-shrink-0">
               <Link href="/" className="text-black transition-opacity hover:opacity-60">
@@ -22,7 +22,7 @@ export function Navigation() {
                   alt="E8 Productions" 
                   width={120} 
                   height={32}
-                  className="h-8 w-auto"
+                  className="h-6 sm:h-8 w-auto"
                 />
               </Link>
             </div>
@@ -47,10 +47,10 @@ export function Navigation() {
             </div>
 
             {/* Sign In Button - Redirects to Dashboard */}
-            <div className="flex items-center">
+            <div className="flex items-center gap-2 sm:gap-0">
               <Link 
                 href="/dashboard"
-                className="hidden md:inline-flex px-5 py-2 bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105"
+                className="hidden md:inline-flex px-4 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105"
               >
                 Sign In
               </Link>
@@ -59,8 +59,9 @@ export function Navigation() {
               <button 
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="md:hidden p-2 text-black"
+                aria-label="Toggle menu"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path 
                     strokeLinecap="round" 
                     strokeLinejoin="round" 

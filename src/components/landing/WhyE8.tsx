@@ -29,32 +29,32 @@ export function WhyE8() {
     <section className="pt-16 pb-24 px-6 lg:px-8 bg-white">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
-        <div className="max-w-2xl mx-auto text-center mb-16">
-          <h2 className="text-black mb-4">
+        <div className="max-w-2xl mx-auto text-center mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
             Why E8 Productions
           </h2>
-          <p className="text-black/60">
+          <p className="text-sm sm:text-base text-black/60 px-4 sm:px-0">
             Small business pricing. Real results.
           </p>
         </div>
 
         {/* Value Props Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 max-w-5xl mx-auto px-4 sm:px-0">
           {values.map((value, index) => (
             <div
               key={index}
-              className="flex gap-6 group"
+              className="flex gap-4 sm:gap-6 group"
             >
               <div className="flex-shrink-0">
-                <div className="w-14 h-14 bg-black rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110">
-                  <value.icon className="w-7 h-7 text-white" />
+                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-black rounded-xl sm:rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110">
+                  <value.icon className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                 </div>
               </div>
               <div>
-                <h3 className="text-black mb-2">
+                <h3 className="text-base sm:text-lg text-black mb-1.5 sm:mb-2">
                   {value.title}
                 </h3>
-                <p className="text-black/60">
+                <p className="text-sm sm:text-base text-black/60">
                   {value.description}
                 </p>
               </div>

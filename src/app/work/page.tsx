@@ -1,158 +1,399 @@
-import { Navigation } from '@/components/landing/Navigation';
-import { WhoWeWorkWith } from '@/components/landing/WhoWeWorkWith';
-import { Footer } from '@/components/landing/Footer';
-import { ImageWithFallback } from '@/components/figma/ImageWithFallback';
-import { Play, TrendingUp, Users, Eye } from 'lucide-react';
+"use client";
 
-const caseStudies = [
+import { Navigation } from "@/components/landing/Navigation";
+import { Footer } from "@/components/landing/Footer";
+import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
+import {
+  Play,
+  TrendingUp,
+  Users,
+  Eye,
+  Building2,
+  Dumbbell,
+  User,
+  Heart,
+  Music,
+  ShoppingBag,
+  Store,
+  Rocket,
+  ShoppingCart,
+  Wrench,
+  UtensilsCrossed,
+  Shirt,
+  Code,
+  Coffee,
+  Sparkles,
+} from "lucide-react";
+
+const clients = [
   {
-    title: 'Urban Bistro',
-    category: 'Restaurant',
-    description: 'Complete brand video series showcasing their farm-to-table story and seasonal menu',
-    image: 'https://images.unsplash.com/photo-1685040235380-a42a129ade4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjByZXN0YXVyYW50JTIwaW50ZXJpb3J8ZW58MXx8fHwxNzY1ODIxOTQ2fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    results: [
-      { label: 'Social Engagement', value: '+245%' },
-      { label: 'New Customers', value: '+180%' },
-      { label: 'Video Views', value: '2.4M' },
-    ],
+    id: 1,
+    name: "Coin Laundry Association",
+    category: "Association",
+    icon: Building2,
+    description:
+      "National content partnership showcasing top laundromat owners and industry success stories.",
+    image: "https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=800",
   },
   {
-    title: 'FitCore Training',
-    category: 'Fitness',
-    description: 'Monthly content strategy with workout tutorials and member success stories',
-    image: 'https://images.unsplash.com/photo-1584827386916-b5351d3ba34b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaXRuZXNzJTIwZ3ltJTIwd29ya291dHxlbnwxfHx8fDE3NjU4OTAxNDl8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    results: [
-      { label: 'Membership Growth', value: '+320%' },
-      { label: 'Content Reach', value: '1.8M' },
-      { label: 'Engagement Rate', value: '+190%' },
-    ],
+    id: 2,
+    name: "StayFit305",
+    category: "Event Company",
+    icon: Dumbbell,
+    description:
+      "High-energy fitness event content highlighting workouts, seasonal events, and community engagement.",
+    image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800",
   },
   {
-    title: 'Brew & Co.',
-    category: 'Coffee Shop',
-    description: 'Social media management and daily content creation for Instagram and TikTok',
-    image: 'https://images.unsplash.com/photo-1550071659-f7c7dc95e180?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2ZmZWUlMjBzaG9wJTIwYnVzaW5lc3N8ZW58MXx8fHwxNzY1ODQ3MzE5fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    results: [
-      { label: 'Followers', value: '+450%' },
-      { label: 'Store Visits', value: '+125%' },
-      { label: 'Brand Awareness', value: '+280%' },
-    ],
+    id: 3,
+    name: "Cole Simpson",
+    category: "Influencer",
+    icon: User,
+    description: "",
+    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800",
   },
   {
-    title: 'Style Collective',
-    category: 'Retail',
-    description: 'Product videos and seasonal campaign content for online and in-store promotion',
-    image: 'https://images.unsplash.com/photo-1562280963-8a5475740a10?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyZXRhaWwlMjBzdG9yZSUyMHNob3BwaW5nfGVufDF8fHx8MTc2NTgwODQ2OXww&ixlib=rb-4.1.0&q=80&w=1080',
-    results: [
-      { label: 'Online Sales', value: '+385%' },
-      { label: 'Video Views', value: '3.2M' },
-      { label: 'Conversion Rate', value: '+215%' },
-    ],
+    id: 4,
+    name: "The Dating Blind Show",
+    category: "Original Show",
+    icon: Heart,
+    description:
+      "Original dating series built for viral engagement, audience growth, and monetized entertainment.",
+    image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800",
+  },
+  {
+    id: 5,
+    name: "Collegiate Nightlife",
+    category: "Promotion Company",
+    icon: Music,
+    description:
+      "High-impact promotional content for clubs and nightlife brands through cinematic montages and event photography.",
+    image: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800",
+  },
+  {
+    id: 6,
+    name: "Turpone",
+    category: "Retail",
+    icon: ShoppingBag,
+    description:
+      "Branded product content designed to drive awareness and sales for a consumer pizza oven in retail markets.",
+    image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800",
+  },
+];
+
+const brandLogos = [
+  {
+    name: "Turpone",
+    logo: "/assets/Logo/TURPONE.png",
+    fallbackIcon: ShoppingBag,
+  },
+  {
+    name: "Bare Knuckle Fighting Championship",
+    logo: "/assets/Logo/BKFC---Logo-badge-_Nov2020_207614f6-8a80-49fe-b5de-0eb116826438_1200x1200 (1).webp",
+    fallbackIcon: Music,
+  },
+  {
+    name: "Connect AI",
+    logo: "/assets/Logo/INSTA_POST - 02-100.jpg",
+    fallbackIcon: Code,
+  },
+  {
+    name: "Kirgo",
+    logo: "/assets/Logo/kirgo-casino-logo (1).jpeg",
+    fallbackIcon: Rocket,
+  },
+  {
+    name: "Local Businesses",
+    logo: null,
+    fallbackIcon: Store,
+  },
+  {
+    name: "Startups",
+    logo: null,
+    fallbackIcon: Rocket,
+  },
+  {
+    name: "E-commerce Brands",
+    logo: null,
+    fallbackIcon: ShoppingCart,
+  },
+  {
+    name: "Service Providers",
+    logo: null,
+    fallbackIcon: Wrench,
+  },
+  {
+    name: "Restaurants & Cafes",
+    logo: null,
+    fallbackIcon: UtensilsCrossed,
+  },
+  {
+    name: "Retail Shops",
+    logo: null,
+    fallbackIcon: ShoppingBag,
+  },
+  {
+    name: "Fitness Brands",
+    logo: null,
+    fallbackIcon: Dumbbell,
+  },
+  {
+    name: "Entertainment",
+    logo: null,
+    fallbackIcon: Music,
+  },
+  {
+    name: "Tech Companies",
+    logo: null,
+    fallbackIcon: Code,
+  },
+  {
+    name: "Food & Beverage",
+    logo: null,
+    fallbackIcon: Coffee,
+  },
+  {
+    name: "Fashion Brands",
+    logo: null,
+    fallbackIcon: Shirt,
+  },
+  {
+    name: "Beauty & Wellness",
+    logo: null,
+    fallbackIcon: Sparkles,
   },
 ];
 
 const videoShowcase = [
   {
-    title: 'Brand Story Series',
-    description: 'A 5-part documentary series showcasing local business founders',
-    thumbnail: 'https://images.unsplash.com/photo-1683770997177-0603bd44d070?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBvZmZpY2UlMjB0ZWFtfGVufDF8fHx8MTc2NTg0ODMyOHww&ixlib=rb-4.1.0&q=80&w=1080',
-    duration: '3:45',
+    title: "Brand Story Series",
+    description:
+      "A 5-part documentary series showcasing local business founders",
+    thumbnail:
+      "https://images.unsplash.com/photo-1683770997177-0603bd44d070?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBvZmZpY2UlMjB0ZWFtfGVufDF8fHx8MTc2NTg0ODMyOHww&ixlib=rb-4.1.0&q=80&w=1080",
+    duration: "3:45",
   },
   {
-    title: 'Product Launch Campaign',
-    description: 'Multi-platform video campaign for a tech startup product launch',
-    thumbnail: 'https://images.unsplash.com/photo-1654288891700-95f67982cbcc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx2aWRlbyUyMHByb2R1Y3Rpb24lMjBjYW1lcmF8ZW58MXx8fHwxNzY1ODMwMTczfDA&ixlib=rb-4.1.0&q=80&w=1080',
-    duration: '2:30',
+    title: "Product Launch Campaign",
+    description:
+      "Multi-platform video campaign for a tech startup product launch",
+    thumbnail:
+      "https://images.unsplash.com/photo-1654288891700-95f67982cbcc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx2aWRlbyUyMHByb2R1Y3Rpb24lMjBjYW1lcmF8ZW58MXx8fHwxNzY1ODMwMTczfDA&ixlib=rb-4.1.0&q=80&w=1080",
+    duration: "2:30",
   },
 ];
+
+function InfiniteScrollCarousel() {
+  return (
+    <div className="relative overflow-hidden">
+      <div className="flex animate-scroll gap-4 sm:gap-6">
+        {/* First set */}
+        {brandLogos.map((brand, index) => {
+          const IconComponent = brand.fallbackIcon;
+          return (
+            <div
+              key={`first-${index}`}
+              className="shrink-0 w-48 sm:w-56 lg:w-64 h-32 sm:h-36 lg:h-40 bg-white border border-black/5 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-6 transition-all hover:border-black/20 hover:shadow-lg"
+            >
+              {brand.logo ? (
+                <div className="w-full h-full flex items-center justify-center mb-2">
+                  <ImageWithFallback
+                    src={brand.logo}
+                    alt={brand.name}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4">
+                    <IconComponent className="w-6 h-6 sm:w-7 sm:h-7 text-black" />
+                  </div>
+                  <p className="text-black/70 text-xs sm:text-sm font-medium text-center">
+                    {brand.name}
+                  </p>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {/* Duplicate set for seamless loop */}
+        {brandLogos.map((brand, index) => {
+          const IconComponent = brand.fallbackIcon;
+          return (
+            <div
+              key={`second-${index}`}
+              className="shrink-0 w-48 sm:w-56 lg:w-64 h-32 sm:h-36 lg:h-40 bg-white border border-black/5 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-6 transition-all hover:border-black/20 hover:shadow-lg"
+            >
+              {brand.logo ? (
+                <div className="w-full h-full flex items-center justify-center mb-2">
+                  <ImageWithFallback
+                    src={brand.logo}
+                    alt={brand.name}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4">
+                    <IconComponent className="w-6 h-6 sm:w-7 sm:h-7 text-black" />
+                  </div>
+                  <p className="text-black/70 text-xs sm:text-sm font-medium text-center">
+                    {brand.name}
+                  </p>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <style jsx global>{`
+        @keyframes scroll {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
+        .animate-scroll {
+          animation: scroll 15s linear infinite;
+          will-change: transform;
+        }
+        .animate-scroll:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 export default function WorkPage() {
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
-      
+
       {/* Hero Section */}
-      <div className="pt-24 pb-16 px-6 lg:px-8 bg-white">
+      <div className="pt-20 sm:pt-24 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-black mb-4">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4 px-4 sm:px-0">
             Results That Speak for Themselves
           </h1>
-          <p className="text-black/60 max-w-2xl mx-auto">
-            Real businesses. Real growth. See how our content strategies and production services 
-            have helped small businesses achieve remarkable results.
+          <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+            Real businesses. Real growth. See how our content strategies and
+            production services have helped small businesses achieve remarkable
+            results.
           </p>
         </div>
       </div>
 
-      {/* Case Studies Grid */}
-      <div className="pb-24 px-6 lg:px-8">
+      {/* Clients Section */}
+      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {caseStudies.map((study, index) => (
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
+              Clients
+            </h2>
+            <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto">
+              Trusted partners who&apos;ve achieved remarkable growth with our
+              content solutions.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            {clients.map((client) => (
               <div
-                key={index}
-                className="group bg-white border border-black/5 rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300"
+                key={client.id}
+                className="group bg-white border border-black/5 rounded-2xl sm:rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300"
               >
                 {/* Image */}
-                <div className="relative aspect-video overflow-hidden">
+                <div className="relative aspect-video overflow-hidden bg-black/5">
                   <ImageWithFallback
-                    src={study.image}
-                    alt={study.title}
+                    src={client.image}
+                    alt={client.name}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
-                  <div className="absolute top-4 left-4">
-                    <span className="px-3 py-1 bg-white/90 backdrop-blur-sm text-black text-sm rounded-full">
-                      {study.category}
+                  <div className="absolute top-4 left-4 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-white/90 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                      {(() => {
+                        const IconComponent = client.icon;
+                        return <IconComponent className="w-4 h-4 text-black" />;
+                      })()}
+                    </div>
+                    <span className="px-3 py-1 bg-white/90 backdrop-blur-sm text-black text-xs sm:text-sm rounded-full font-medium">
+                      {client.category}
                     </span>
                   </div>
                 </div>
 
                 {/* Content */}
-                <div className="p-8">
-                  <h3 className="text-black mb-2">
-                    {study.title}
-                  </h3>
-                  <p className="text-black/60 mb-6">
-                    {study.description}
-                  </p>
-
-                  {/* Results */}
-                  <div className="grid grid-cols-3 gap-4">
-                    {study.results.map((result, idx) => (
-                      <div key={idx} className="text-center">
-                        <div className="text-black font-semibold mb-1">
-                          {result.value}
-                        </div>
-                        <div className="text-black/50 text-sm">
-                          {result.label}
-                        </div>
-                      </div>
-                    ))}
+                <div className="p-5 sm:p-6 lg:p-8">
+                  <div className="flex items-center gap-3 mb-2 sm:mb-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center">
+                      {(() => {
+                        const IconComponent = client.icon;
+                        return (
+                          <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-black" />
+                        );
+                      })()}
+                    </div>
+                    <h3 className="text-lg sm:text-xl text-black font-semibold">
+                      {client.name}
+                    </h3>
                   </div>
+                  {client.description && (
+                    <p className="text-sm sm:text-base text-black/60 leading-relaxed">
+                      {client.description}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Video Showcase */}
-      <div className="py-24 px-6 lg:px-8 bg-black/[0.02]">
+      {/* Who We Work With - Infinite Scroll Carousel */}
+      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-black mb-4">
-              Featured Projects
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
+              Who We Work With
             </h2>
-            <p className="text-black/60 max-w-2xl mx-auto">
-              A selection of our video production work across different industries
+            <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+              Small businesses and growing brands that want to make a big
+              impact.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          <InfiniteScrollCarousel />
+
+          {/* Trust Badge */}
+          <div className="mt-10 sm:mt-12 text-center">
+            <p className="text-black/40 text-xs sm:text-sm">
+              Helping small businesses compete and win in their markets.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Projects */}
+      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8 sm:mb-12 lg:mb-16">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
+              Featured Projects
+            </h2>
+            <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+              A selection of our video production work across different
+              industries
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-5xl mx-auto">
             {videoShowcase.map((video, index) => (
               <div
                 key={index}
-                className="group bg-white border border-black/5 rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                className="group bg-white border border-black/5 rounded-2xl sm:rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer"
               >
                 <div className="relative aspect-video overflow-hidden bg-black/5">
                   <ImageWithFallback
@@ -161,21 +402,24 @@ export default function WorkPage() {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center transition-transform group-hover:scale-110">
-                      <Play className="w-6 h-6 text-black ml-1" fill="black" />
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full flex items-center justify-center transition-transform group-hover:scale-110">
+                      <Play
+                        className="w-5 h-5 sm:w-6 sm:h-6 text-black ml-1"
+                        fill="black"
+                      />
                     </div>
                   </div>
                   <div className="absolute bottom-4 right-4">
-                    <span className="px-3 py-1 bg-black/80 backdrop-blur-sm text-white text-sm rounded-full">
+                    <span className="px-3 py-1 bg-black/80 backdrop-blur-sm text-white text-xs sm:text-sm rounded-full">
                       {video.duration}
                     </span>
                   </div>
                 </div>
-                <div className="p-6">
-                  <h3 className="text-black mb-2">
+                <div className="p-5 sm:p-6">
+                  <h3 className="text-base sm:text-lg text-black mb-1.5 sm:mb-2 font-semibold">
                     {video.title}
                   </h3>
-                  <p className="text-black/60 text-sm">
+                  <p className="text-xs sm:text-sm text-black/60">
                     {video.description}
                   </p>
                 </div>
@@ -183,66 +427,59 @@ export default function WorkPage() {
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Stats Section */}
-      <div className="py-16 px-6 lg:px-8 bg-white">
+      {/* Impact By Numbers */}
+      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-black mb-4">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Impact by the Numbers
             </h2>
-            <p className="text-black/60">
+            <p className="text-sm sm:text-base text-black/60">
               Aggregate results across our client portfolio
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            <div className="text-center p-6 bg-black/[0.02] rounded-3xl">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-black rounded-2xl mb-4">
-                <TrendingUp className="w-6 h-6 text-white" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 max-w-4xl mx-auto">
+            <div className="text-center p-5 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5">
+              <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <div className="text-black mb-2">
+              <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
                 285%
               </div>
-              <div className="text-black/60">
+              <div className="text-xs sm:text-sm text-black/60">
                 Average Growth
               </div>
             </div>
 
-            <div className="text-center p-6 bg-black/[0.02] rounded-3xl">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-black rounded-2xl mb-4">
-                <Eye className="w-6 h-6 text-white" />
+            <div className="text-center p-5 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5">
+              <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <div className="text-black mb-2">
+              <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
                 12.5M+
               </div>
-              <div className="text-black/60">
+              <div className="text-xs sm:text-sm text-black/60">
                 Total Video Views
               </div>
             </div>
 
-            <div className="text-center p-6 bg-black/[0.02] rounded-3xl">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-black rounded-2xl mb-4">
-                <Users className="w-6 h-6 text-white" />
+            <div className="text-center p-5 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5">
+              <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <div className="text-black mb-2">
+              <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
                 50+
               </div>
-              <div className="text-black/60">
+              <div className="text-xs sm:text-sm text-black/60">
                 Happy Clients
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Who We Work With */}
-      <div className="pb-20 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <WhoWeWorkWith />
-        </div>
-      </div>
+      </section>
 
       <Footer />
     </div>

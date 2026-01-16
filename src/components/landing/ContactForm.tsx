@@ -49,17 +49,17 @@ export default function ContactForm() {
   }
 
   return (
-    <form className="space-y-6" onSubmit={handleSubmit}>
+    <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
       {status ? (
         <div
-          className={`p-3 rounded-md text-sm ${status.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}
+          className={`p-2.5 sm:p-3 rounded-md text-xs sm:text-sm ${status.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}
         >
           {status.message}
         </div>
       ) : null}
 
       <div>
-        <label htmlFor="name" className="block text-sm text-black/70 mb-2">
+        <label htmlFor="name" className="block text-xs sm:text-sm text-black/70 mb-1.5 sm:mb-2">
           Name
         </label>
         <input
@@ -67,13 +67,13 @@ export default function ContactForm() {
           onChange={(e) => setName(e.target.value)}
           type="text"
           id="name"
-          className="w-full px-4 py-3 border border-black/10 rounded-xl focus:outline-none focus:border-black/30 transition-colors"
+          className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-black/10 rounded-lg sm:rounded-xl focus:outline-none focus:border-black/30 transition-colors"
           placeholder="Your name"
         />
       </div>
 
       <div>
-        <label htmlFor="email" className="block text-sm text-black/70 mb-2">
+        <label htmlFor="email" className="block text-xs sm:text-sm text-black/70 mb-1.5 sm:mb-2">
           Email
         </label>
         <input
@@ -81,13 +81,13 @@ export default function ContactForm() {
           onChange={(e) => setEmail(e.target.value)}
           type="email"
           id="email"
-          className="w-full px-4 py-3 border border-black/10 rounded-xl focus:outline-none focus:border-black/30 transition-colors"
+          className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-black/10 rounded-lg sm:rounded-xl focus:outline-none focus:border-black/30 transition-colors"
           placeholder="your@email.com"
         />
       </div>
 
       <div>
-        <label htmlFor="message" className="block text-sm text-black/70 mb-2">
+        <label htmlFor="message" className="block text-xs sm:text-sm text-black/70 mb-1.5 sm:mb-2">
           Message
         </label>
         <textarea
@@ -95,7 +95,7 @@ export default function ContactForm() {
           onChange={(e) => setMessage(e.target.value)}
           id="message"
           rows={5}
-          className="w-full px-4 py-3 border border-black/10 rounded-xl focus:outline-none focus:border-black/30 transition-colors resize-none"
+          className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-black/10 rounded-lg sm:rounded-xl focus:outline-none focus:border-black/30 transition-colors resize-none"
           placeholder="Tell us about your project..."
         />
       </div>
@@ -104,7 +104,7 @@ export default function ContactForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full px-6 py-4 bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105 disabled:opacity-60"
+        className="w-full px-5 sm:px-6 py-3 sm:py-4 text-sm sm:text-base bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105 disabled:opacity-60"
       >
         {loading ? 'Sending…' : 'Send Message'}
       </button>

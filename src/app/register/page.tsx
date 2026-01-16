@@ -53,36 +53,36 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4 sm:px-6">
       <form
         onSubmit={handleRegister}
-        className="bg-white p-6 rounded-xl shadow-md w-full max-w-md"
+        className="bg-white p-5 sm:p-6 rounded-xl shadow-md w-full max-w-md"
       >
-        <h1 className="text-2xl font-bold text-center mb-6">Create an Account</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-center mb-5 sm:mb-6">Create an Account</h1>
 
         {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
         {success && <p className="text-green-500 text-sm mb-2">{success}</p>}
 
         {/* First Name and Last Name Fields */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
           <div>
-            <label className="block text-sm font-medium mb-1">First Name</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1">First Name</label>
             <input
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full border border-gray-300 rounded-lg p-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="First name"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Last Name</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1">Last Name</label>
             <input
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full border border-gray-300 rounded-lg p-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Last name"
               required
             />
@@ -90,13 +90,13 @@ export default function RegisterPage() {
         </div>
 
          {/* Phone Field */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Phone Number</label>
+        <div className="mb-3 sm:mb-4">
+          <label className="block text-xs sm:text-sm font-medium mb-1">Phone Number</label>
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full border border-gray-300 rounded-lg p-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder="Enter your phone number"
             required
           />
@@ -104,41 +104,41 @@ export default function RegisterPage() {
 
 
         {/* Email Field */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Email</label>
+        <div className="mb-3 sm:mb-4">
+          <label className="block text-xs sm:text-sm font-medium mb-1">Email</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full border border-gray-300 rounded-lg p-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder="Enter your email"
             required
           />
         </div>
 
         {/* Password Field */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Password</label>
+        <div className="mb-3 sm:mb-4">
+          <label className="block text-xs sm:text-sm font-medium mb-1">Password</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full border border-gray-300 rounded-lg p-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder="Enter your password"
             required
           />
         </div>
 
         {/* Terms Checkbox */}
-        <div className="flex items-center mb-4">
+        <div className="flex items-start mb-4 sm:mb-5">
           <input
             type="checkbox"
             checked={acceptTerms}
             onChange={(e) => setAcceptTerms(e.target.checked)}
-            className="mr-2"
+            className="mr-2 mt-0.5"
             required
           />
-          <span className="text-sm">
+          <span className="text-xs sm:text-sm">
             I agree to the{" "}
             <a href="/terms" className="text-primary hover:underline">
               Terms and Conditions
@@ -150,7 +150,7 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-primary text-white font-semibold py-2 rounded-lg hover:bg-primary-dark transition"
+          className="w-full bg-primary text-white font-semibold py-2.5 sm:py-3 text-sm sm:text-base rounded-lg hover:bg-primary-dark transition"
         >
           {loading ? "Registering..." : "Register"}
         </button>

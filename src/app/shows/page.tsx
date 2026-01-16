@@ -6,7 +6,7 @@ export default function OriginalShowsPage() {
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
-      <div className="pt-16">
+      <div className="pt-14 sm:pt-16">
         <OriginalShows />
       </div>
       <Footer />
