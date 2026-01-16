@@ -437,12 +437,14 @@ export function FinanceTab() {
       const data = await apiFetch(url, { method: "GET" });
 
       const mapped = data?.payrolls?.map((p: any) => {
+        // Use UTC methods to avoid timezone issues
+        const periodStartDate = p.periodStart ? new Date(p.periodStart) : null;
         return {
           id: p.id,
           employeeId: p.employeeId,
           employeeName: p.employee?.name || `Employee #${p.employeeId}`,
-          month: p.periodStart ? new Date(p.periodStart).getMonth() + 1 : null,
-          year: p.periodStart ? new Date(p.periodStart).getFullYear() : null,
+          month: periodStartDate ? periodStartDate.getUTCMonth() + 1 : null,
+          year: periodStartDate ? periodStartDate.getUTCFullYear() : null,
           periodStart: p.periodStart,
           periodEnd: p.periodEnd,
           baseSalary: Number(p.baseSalary),
