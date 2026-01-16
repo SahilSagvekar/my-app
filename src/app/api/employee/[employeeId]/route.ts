@@ -50,16 +50,27 @@ export async function PATCH(
 
     console.log("Updating employee with ID:", id, "Payload:", payload.hoursPerWeek);
 
+    // Sanitize phone - treat "N/A", empty strings, etc. as null
+    let sanitizedPhone: string | null | undefined = undefined;
+    if (payload.phone !== undefined) {
+      const phoneValue = payload.phone.trim().toLowerCase();
+      if (phoneValue === "" || phoneValue === "n/a" || phoneValue === "na" || phoneValue === "none") {
+        sanitizedPhone = null;
+      } else {
+        sanitizedPhone = payload.phone;
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data: {
         name: payload.name ?? undefined,
         email: payload.email ?? undefined,
         role: payload.role ?? undefined,
-        phone: payload.phone ?? undefined,
+        phone: sanitizedPhone,
         hourlyRate: payload.hourlyRate ?? undefined,
-        hoursPerWeek: Number(payload.hoursPerWeek)  ?? undefined,
-        monthlyRate: Number(payload.monthlyRate)  ?? undefined,
+        hoursPerWeek: Number(payload.hoursPerWeek) ?? undefined,
+        monthlyRate: Number(payload.monthlyRate) ?? undefined,
         monthlyBaseHours: payload.monthlyBaseHours ?? undefined,
         employeeStatus: payload.employeeStatus ?? undefined,
         joinedAt: payload.joinedAt ? new Date(payload.joinedAt) : undefined,
