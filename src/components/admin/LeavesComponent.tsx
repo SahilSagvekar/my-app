@@ -57,6 +57,8 @@ import {
   UserCheck,
   UserX,
   Filter,
+  Gift,
+  Loader2,
 } from "lucide-react";
 import { SimpleCalendar } from "../ui/simple-calendar";
 // import {
@@ -329,17 +331,17 @@ export default function LeavesComponent() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [newUser, setNewUser] = useState({
-  firstName: "",
-  lastName: "",
-  email: "",
-  phone: "",
-  role: "",
-  hourlyRate: "",
-  hoursPerWeek: "40",
-  hireDate: undefined as Date | undefined,
-  worksOnSaturday: false,
-  status: "active",
-});
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    role: "",
+    hourlyRate: "",
+    hoursPerWeek: "40",
+    hireDate: undefined as Date | undefined,
+    worksOnSaturday: false,
+    status: "active",
+  });
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [leaves, setLeaves] = useState<LeaveRow[]>([]);
@@ -371,6 +373,10 @@ export default function LeavesComponent() {
     status: "active" as "active" | "inactive" | "terminated",
   });
   const [isSavingEmployee, setIsSavingEmployee] = useState(false);
+
+  // Bonus state for edit employee modal
+  const [bonusAmount, setBonusAmount] = useState("");
+  const [isAddingBonus, setIsAddingBonus] = useState(false);
 
   // FETCH EMPLOYEES FROM YOUR API
   // ------------------------------
@@ -519,9 +525,9 @@ export default function LeavesComponent() {
           const initials =
             u.name && u.name.trim() !== ""
               ? u.name
-                  .split(" ")
-                  .map((n: string) => n[0])
-                  .join("")
+                .split(" ")
+                .map((n: string) => n[0])
+                .join("")
               : "U";
 
           const tasksCount = u.assignedTasks?.length || 0;
@@ -539,10 +545,10 @@ export default function LeavesComponent() {
               u.employeeStatus === "ACTIVE"
                 ? "active"
                 : u.employeeStatus === "INACTIVE"
-                ? "inactive"
-                : u.employeeStatus === "TERMINATED"
-                ? "terminated"
-                : "active",
+                  ? "inactive"
+                  : u.employeeStatus === "TERMINATED"
+                    ? "terminated"
+                    : "active",
             joinDate: u.joinedAt || null,
             lastActive: "N/A",
             tasksCompleted: tasksCount,
@@ -562,111 +568,112 @@ export default function LeavesComponent() {
   };
 
   const handleAddUser = async () => {
-  // if (
-  //   !newUser.firstName ||
-  //   !newUser.lastName ||
-  //   !newUser.email ||
-  //   !newUser.hourlyRate ||
-  //   !newUser.hireDate
-  // ) {
-  //   toast.error("Please fill in all required fields.");
-  //   return;
-  // }
+    // if (
+    //   !newUser.firstName ||
+    //   !newUser.lastName ||
+    //   !newUser.email ||
+    //   !newUser.hourlyRate ||
+    //   !newUser.hireDate
+    // ) {
+    //   toast.error("Please fill in all required fields.");
+    //   return;
+    // }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(newUser.email)) {
-    toast.error("Please enter a valid email address.");
-    return;
-  }
-
-  const hourlyRate = parseFloat(newUser.hourlyRate);
-  if (isNaN(hourlyRate) || hourlyRate <= 0) {
-    toast.error("Please enter a valid hourly rate.");
-    return;
-  }
-
-  if (isAddingEmployee) return;
-  setIsAddingEmployee(true);
-
-  try {
-    const hoursPerWeek = Number(newUser.hoursPerWeek);
-    const fullName = `${newUser.firstName} ${newUser.lastName}`.trim();
-
-    if (!newUser.hireDate) {
-      toast.error("Please select a hire date.");
-      setIsAddingEmployee(false);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUser.email)) {
+      toast.error("Please enter a valid email address.");
       return;
     }
 
-    await apiFetch("/api/employee", {
-      method: "POST",
-      body: JSON.stringify({
-        name: fullName,
-        email: newUser.email,
-        role: newUser.role || "editor",
-        phone: newUser.phone,
-        hourlyRate,
-        hoursPerWeek,
-        joinedAt: newUser.hireDate.toISOString(),
-        worksOnSaturday: newUser.worksOnSaturday,
-      }),
-    });
+    const hourlyRate = parseFloat(newUser.hourlyRate);
+    if (isNaN(hourlyRate) || hourlyRate <= 0) {
+      toast.error("Please enter a valid hourly rate.");
+      return;
+    }
 
-    toast.success("✅ Employee Added", {
-      description: `${fullName} has been added. Welcome email sent to ${newUser.email}`,
-    });
+    if (isAddingEmployee) return;
+    setIsAddingEmployee(true);
 
-    setNewUser({
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      role: "",
-      hourlyRate: "",
-      hoursPerWeek: "40",
-      hireDate: undefined,
-      worksOnSaturday: false,
-      status: "active",
-    });
+    try {
+      const hoursPerWeek = Number(newUser.hoursPerWeek);
+      const fullName = `${newUser.firstName} ${newUser.lastName}`.trim();
 
-    setIsAddUserDialogOpen(false);
+      if (!newUser.hireDate) {
+        toast.error("Please select a hire date.");
+        setIsAddingEmployee(false);
+        return;
+      }
 
-    // Reload employees
-    await loadEmployees();
-  } catch (err: any) {
-    console.error("Add employee error:", err);
-    toast.error("Failed to add employee", {
-      description: err.message || "An error occurred.",
-    });
-  } finally {
-    setIsAddingEmployee(false);
-  }
-};
+      await apiFetch("/api/employee", {
+        method: "POST",
+        body: JSON.stringify({
+          name: fullName,
+          email: newUser.email,
+          role: newUser.role || "editor",
+          phone: newUser.phone,
+          hourlyRate,
+          hoursPerWeek,
+          joinedAt: newUser.hireDate.toISOString(),
+          worksOnSaturday: newUser.worksOnSaturday,
+        }),
+      });
+
+      toast.success("✅ Employee Added", {
+        description: `${fullName} has been added. Welcome email sent to ${newUser.email}`,
+      });
+
+      setNewUser({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        role: "",
+        hourlyRate: "",
+        hoursPerWeek: "40",
+        hireDate: undefined,
+        worksOnSaturday: false,
+        status: "active",
+      });
+
+      setIsAddUserDialogOpen(false);
+
+      // Reload employees
+      await loadEmployees();
+    } catch (err: any) {
+      console.error("Add employee error:", err);
+      toast.error("Failed to add employee", {
+        description: err.message || "An error occurred.",
+      });
+    } finally {
+      setIsAddingEmployee(false);
+    }
+  };
 
   const openEditEmployeeModal = (employee: any) => {
-  console.log('Opening edit modal for:', employee);
-  
-  const [firstName, ...lastNameParts] = (employee.name || '').split(" ");
-  const lastName = lastNameParts.join(" ");
+    console.log('Opening edit modal for:', employee);
 
-  setEditingEmployee(employee);
-  
-  // Use setTimeout to batch state updates
-  setTimeout(() => {
-    setEditEmployeeForm({
-      firstName: firstName || "",
-      lastName: lastName || "",
-      email: employee.email || "",
-      phone: employee.phone || "",
-      role: employee.role || "",
-      hourlyRate: String(employee.hourlyRate || 0),
-      hoursPerWeek: String(employee.hoursPerWeek || 40),
-      hireDate: employee.joinDate ? new Date(employee.joinDate) : undefined,
-      status: employee.status || "active",
-    });
-    setEditEmployeeModalOpen(true);
-  }, 0);
-};
+    const [firstName, ...lastNameParts] = (employee.name || '').split(" ");
+    const lastName = lastNameParts.join(" ");
+
+    setEditingEmployee(employee);
+    setBonusAmount(""); // Reset bonus amount when opening modal
+
+    // Use setTimeout to batch state updates
+    setTimeout(() => {
+      setEditEmployeeForm({
+        firstName: firstName || "",
+        lastName: lastName || "",
+        email: employee.email || "",
+        phone: employee.phone || "",
+        role: employee.role || "",
+        hourlyRate: String(employee.hourlyRate || 0),
+        hoursPerWeek: String(employee.hoursPerWeek || 40),
+        hireDate: employee.joinDate ? new Date(employee.joinDate) : undefined,
+        status: employee.status || "active",
+      });
+      setEditEmployeeModalOpen(true);
+    }, 0);
+  };
 
   const router = useRouter();
 
@@ -728,6 +735,36 @@ export default function LeavesComponent() {
 
   const handleDeleteUser = (userId: number) => {
     console.log("Deleting user:", userId);
+  };
+
+  const handleAddBonus = async () => {
+    if (!editingEmployee) return;
+    const value = parseFloat(bonusAmount);
+    if (!value || value <= 0) {
+      toast.error("Please enter a valid bonus amount");
+      return;
+    }
+
+    setIsAddingBonus(true);
+    try {
+      await apiFetch(`/api/employee/${editingEmployee.id}/bonus`, {
+        method: "POST",
+        body: JSON.stringify({ amount: value }),
+      });
+
+      toast.success("Bonus Added", {
+        description: `Bonus of $${value.toLocaleString()} added for ${editingEmployee.name}`,
+      });
+
+      setBonusAmount("");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to add bonus", {
+        description: err.message || "An error occurred.",
+      });
+    } finally {
+      setIsAddingBonus(false);
+    }
   };
 
   const handleUpdateUserStatus = (userId: number, newStatus: string) => {
@@ -1014,8 +1051,8 @@ export default function LeavesComponent() {
                       <p className="text-lg font-bold text-primary">
                         {formatCurrency(
                           parseFloat(newUser.hourlyRate || "0") *
-                            parseFloat(newUser.hoursPerWeek || "0") *
-                            4
+                          parseFloat(newUser.hoursPerWeek || "0") *
+                          4
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -1847,8 +1884,8 @@ export default function LeavesComponent() {
                 <p className="text-lg font-bold text-primary">
                   {formatCurrency(
                     parseFloat(editEmployeeForm.hourlyRate || "0") *
-                      parseFloat(editEmployeeForm.hoursPerWeek || "0") *
-                      4
+                    parseFloat(editEmployeeForm.hoursPerWeek || "0") *
+                    4
                   )}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -1911,6 +1948,39 @@ export default function LeavesComponent() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Add Bonus Section */}
+            <div className="border-t pt-4 mt-4">
+              <label className="text-sm font-medium flex items-center gap-2 mb-2">
+                <Gift className="h-4 w-4 text-green-600" />
+                Add Bonus
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  placeholder="Enter bonus amount"
+                  value={bonusAmount}
+                  onChange={(e) => setBonusAmount(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={handleAddBonus}
+                  disabled={isAddingBonus || !bonusAmount}
+                  variant="outline"
+                  className="border-green-500 text-green-600 hover:bg-green-50"
+                >
+                  {isAddingBonus ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Gift className="h-4 w-4 mr-2" />
+                  )}
+                  Add Bonus
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                This bonus will be included in the next payroll calculation.
+              </p>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

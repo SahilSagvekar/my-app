@@ -45,6 +45,8 @@ import {
   Eye,
   Receipt,
   Gift,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "../ui/sonner";
@@ -359,8 +361,12 @@ export function FinanceTab() {
     year: new Date().getFullYear(),
   });
 
-
-
+  // Payroll filter state
+  const [payrollYearFilter, setPayrollYearFilter] = useState<string>("all");
+  const [payrollMonthFilter, setPayrollMonthFilter] = useState<string>("all");
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [hidingPayrollId, setHidingPayrollId] = useState<number | null>(null);
+  const [isGeneratingPayroll, setIsGeneratingPayroll] = useState(false);
 
 
 
@@ -400,8 +406,8 @@ export function FinanceTab() {
               u.employeeStatus === "ACTIVE"
                 ? "active"
                 : u.employeeStatus === "TERMINATED"
-                ? "terminated"
-                : "inactive",
+                  ? "terminated"
+                  : "inactive",
             avatar,
             worksOnSaturday: !!u.worksOnSaturday,
           };
@@ -418,33 +424,17 @@ export function FinanceTab() {
     }
   };
 
-  const loadPayroll = async () => {
+  const loadPayroll = async (year?: string, month?: string) => {
     try {
       setLoadingPayroll(true);
-      const data = await apiFetch("/api/payroll/list", { method: "GET" });
 
-      // const mapped: PayrollRecord[] =
-      //   data?.payrolls?.map((p: any) => {
-      //     const periodStart = new Date(p.periodStart);
-      //     const monthName = monthNames[periodStart.getUTCMonth()] || "-";
-      //     const year = periodStart.getUTCFullYear();
+      // Build query params for filtering
+      const params = new URLSearchParams();
+      if (year && year !== "all") params.append("year", year);
+      if (month && month !== "all") params.append("month", month);
 
-      //     const employeeName = p.employee?.name || `Employee #${p.employeeId}`;
-
-      //     return {
-      //       id: p.id,
-      //       employeeId: p.employeeId,
-      //       employeeName,
-      //       month: monthName,
-      //       year,
-      //       baseSalary: Number(p.baseSalary),
-      //       bonuses: Number(p.totalBonuses),
-      //       deductions: Number(p.totalDeductions),
-      //       netPay: Number(p.netPay),
-      //       status: p.status === "PAID" ? "paid" : "pending",
-      //       payDate: p.paidAt || undefined,
-      //     };
-      //   }) ?? [];
+      const url = `/api/payroll/list${params.toString() ? `?${params.toString()}` : ""}`;
+      const data = await apiFetch(url, { method: "GET" });
 
       const mapped = data?.payrolls?.map((p: any) => {
         return {
@@ -462,9 +452,14 @@ export function FinanceTab() {
           status: p.status === "PAID" ? "paid" : "pending",
           payDate: p.paidAt || undefined,
         };
-      });
+      }) || [];
 
       setPayroll(mapped);
+
+      // Set available years for filter dropdown
+      if (data?.availableYears) {
+        setAvailableYears(data.availableYears);
+      }
     } catch (err: any) {
       console.error("Failed to load payroll", err);
       toast("Error loading payroll", {
@@ -477,8 +472,8 @@ export function FinanceTab() {
 
   useEffect(() => {
     loadEmployees();
-    loadPayroll();
-  }, []);
+    loadPayroll(payrollYearFilter, payrollMonthFilter);
+  }, [payrollYearFilter, payrollMonthFilter]);
 
   // ---------- Calculations ----------
 
@@ -559,13 +554,13 @@ export function FinanceTab() {
       prev.map((inv) =>
         inv.id === invoiceId
           ? {
-              ...inv,
-              status: newStatus,
-              paymentDate:
-                newStatus === "paid"
-                  ? new Date().toISOString().split("T")[0]
-                  : undefined,
-            }
+            ...inv,
+            status: newStatus,
+            paymentDate:
+              newStatus === "paid"
+                ? new Date().toISOString().split("T")[0]
+                : undefined,
+          }
           : inv
       )
     );
@@ -605,9 +600,8 @@ export function FinanceTab() {
       });
 
       toast("✅ Bonus added", {
-        description: `Bonus of ${formatCurrency(value)} added to ${
-          selectedEmployee.name
-        }`,
+        description: `Bonus of ${formatCurrency(value)} added to ${selectedEmployee.name
+          }`,
       });
 
       setBonusModalOpen(false);
@@ -638,9 +632,8 @@ export function FinanceTab() {
       });
 
       toast("✅ Hourly rate updated", {
-        description: `${
-          selectedEmployee.name
-        }'s hourly rate set to ${formatCurrency(value)}/hr`,
+        description: `${selectedEmployee.name
+          }'s hourly rate set to ${formatCurrency(value)}/hr`,
       });
 
       setHourlyModalOpen(false);
@@ -671,6 +664,7 @@ export function FinanceTab() {
     }
 
     try {
+      setIsGeneratingPayroll(true);
       await apiFetch(
         `/api/payroll/generate/${newPayroll.year}/${monthIndex + 1}`,
         {
@@ -687,12 +681,14 @@ export function FinanceTab() {
         year: new Date().getFullYear(),
       });
       setShowPayrollDialog(false);
-      await loadPayroll();
+      await loadPayroll(payrollYearFilter, payrollMonthFilter);
     } catch (err: any) {
       console.error(err);
       toast("❌ Error", {
         description: err.message || "Failed to generate payroll.",
       });
+    } finally {
+      setIsGeneratingPayroll(false);
     }
   };
 
@@ -708,13 +704,34 @@ export function FinanceTab() {
         toast("✅ Status Updated", {
           description: "Payroll marked as paid.",
         });
-        await loadPayroll();
+        await loadPayroll(payrollYearFilter, payrollMonthFilter);
       } catch (err: any) {
         console.error(err);
         toast("❌ Error", {
           description: err.message || "Failed to update payroll.",
         });
       }
+    }
+  };
+
+  const handleHidePayroll = async (record: PayrollRecord) => {
+    setHidingPayrollId(record.id);
+    try {
+      await apiFetch(`/api/payroll/${record.id}/hide`, {
+        method: "PATCH",
+        body: JSON.stringify({ hidden: true }),
+      });
+      toast("✅ Payroll Hidden", {
+        description: `Payroll record for ${record.employeeName} has been hidden.`,
+      });
+      await loadPayroll(payrollYearFilter, payrollMonthFilter);
+    } catch (err: any) {
+      console.error(err);
+      toast("❌ Error", {
+        description: err.message || "Failed to hide payroll.",
+      });
+    } finally {
+      setHidingPayrollId(null);
     }
   };
 
@@ -1017,7 +1034,7 @@ export function FinanceTab() {
             </Card>
           </TabsContent>
           <TabsContent value="payroll" className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <h3>Payroll Management</h3>
                 <p className="text-sm text-muted-foreground">
@@ -1025,89 +1042,139 @@ export function FinanceTab() {
                   leave deductions
                 </p>
               </div>
-              <Dialog
-                open={showPayrollDialog}
-                onOpenChange={setShowPayrollDialog}
-              >
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Generate Payroll
-                  </Button>
-                </DialogTrigger>
-                <DialogContent aria-describedby="payroll-dialog-description">
-                  <DialogHeader>
-                    <DialogTitle id="payroll-dialog-title">
-                      Generate Monthly Payroll
-                    </DialogTitle>
-                    <DialogDescription id="payroll-dialog-description">
-                      This will generate payroll for all active employees for
-                      the selected month and year.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium">Month</label>
-                        <Select
-                          value={newPayroll.month}
-                          onValueChange={(value) =>
-                            setNewPayroll((prev) => ({
-                              ...prev,
-                              month: value,
-                            }))
-                          }
+
+              {/* Filters */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <Select value={payrollYearFilter} onValueChange={setPayrollYearFilter}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Years</SelectItem>
+                    {availableYears.map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={payrollMonthFilter} onValueChange={setPayrollMonthFilter}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Months</SelectItem>
+                    <SelectItem value="1">January</SelectItem>
+                    <SelectItem value="2">February</SelectItem>
+                    <SelectItem value="3">March</SelectItem>
+                    <SelectItem value="4">April</SelectItem>
+                    <SelectItem value="5">May</SelectItem>
+                    <SelectItem value="6">June</SelectItem>
+                    <SelectItem value="7">July</SelectItem>
+                    <SelectItem value="8">August</SelectItem>
+                    <SelectItem value="9">September</SelectItem>
+                    <SelectItem value="10">October</SelectItem>
+                    <SelectItem value="11">November</SelectItem>
+                    <SelectItem value="12">December</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Dialog
+                  open={showPayrollDialog}
+                  onOpenChange={setShowPayrollDialog}
+                >
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Generate Payroll
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent aria-describedby="payroll-dialog-description">
+                    <DialogHeader>
+                      <DialogTitle id="payroll-dialog-title">
+                        Generate Monthly Payroll
+                      </DialogTitle>
+                      <DialogDescription id="payroll-dialog-description">
+                        This will generate payroll for all active employees for
+                        the selected month and year.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium">Month</label>
+                          <Select
+                            value={newPayroll.month}
+                            onValueChange={(value) =>
+                              setNewPayroll((prev) => ({
+                                ...prev,
+                                month: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select month" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {monthNames.map((month) => (
+                                <SelectItem key={month} value={month}>
+                                  {month}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Year</label>
+                          <Input
+                            type="number"
+                            value={newPayroll.year}
+                            onChange={(e) =>
+                              setNewPayroll((prev) => ({
+                                ...prev,
+                                year: parseInt(e.target.value) || prev.year,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md">
+                        <p>Backend will calculate:</p>
+                        <ul className="list-disc ml-4">
+                          <li>Base salary = hourly × working days × 8</li>
+                          <li>Sum of bonuses for that month</li>
+                          <li>Leave-based deductions</li>
+                        </ul>
+                      </div>
+
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowPayrollDialog(false)}
+                          disabled={isGeneratingPayroll}
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select month" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {monthNames.map((month) => (
-                              <SelectItem key={month} value={month}>
-                                {month}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Year</label>
-                        <Input
-                          type="number"
-                          value={newPayroll.year}
-                          onChange={(e) =>
-                            setNewPayroll((prev) => ({
-                              ...prev,
-                              year: parseInt(e.target.value) || prev.year,
-                            }))
-                          }
-                        />
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleProcessPayroll}
+                          disabled={isGeneratingPayroll || !newPayroll.month}
+                        >
+                          {isGeneratingPayroll ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              Generating...
+                            </>
+                          ) : (
+                            "Generate Payroll"
+                          )}
+                        </Button>
                       </div>
                     </div>
-
-                    <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md">
-                      <p>Backend will calculate:</p>
-                      <ul className="list-disc ml-4">
-                        <li>Base salary = hourly × working days × 8</li>
-                        <li>Sum of bonuses for that month</li>
-                        <li>Leave-based deductions</li>
-                      </ul>
-                    </div>
-
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowPayrollDialog(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button onClick={handleProcessPayroll}>
-                        Generate Payroll
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
 
             {loadingPayroll && (
@@ -1173,23 +1240,39 @@ export function FinanceTab() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Select
-                          value={record.status}
-                          onValueChange={(value) =>
-                            handleUpdatePayrollStatus(
-                              record,
-                              value as PayrollRecord["status"]
-                            )
-                          }
-                        >
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="paid">Paid</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={record.status}
+                            onValueChange={(value) =>
+                              handleUpdatePayrollStatus(
+                                record,
+                                value as PayrollRecord["status"]
+                              )
+                            }
+                          >
+                            <SelectTrigger className="w-28">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="paid">Paid</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleHidePayroll(record)}
+                            title="Hide payroll record"
+                            disabled={hidingPayrollId === record.id}
+                          >
+                            {hidingPayrollId === record.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1270,8 +1353,8 @@ export function FinanceTab() {
                   <span className="font-semibold">
                     {formatCurrency(
                       parseFloat(hourlyRateInput || "0") *
-                        DEFAULT_WORKING_DAYS *
-                        8
+                      DEFAULT_WORKING_DAYS *
+                      8
                     )}
                   </span>{" "}
                   / month

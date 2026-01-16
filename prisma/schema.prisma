@@ -370,6 +370,7 @@ model Payroll {
   totalDeductions Decimal       @default(0) @db.Decimal(12, 2)
   netPay          Decimal       @db.Decimal(12, 2)
   status          PayrollStatus @default(PENDING)
+  hidden          Boolean       @default(false)
   createdAt       DateTime      @default(now())
   paidAt          DateTime?
   employee        User          @relation(fields: [employeeId], references: [id])

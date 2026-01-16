@@ -13,14 +13,17 @@ export async function POST(
 
     const { params } = await Promise.resolve(context);
     const year = Number(params.year);
-    const month = Number(params.month) - 1; // 0 based
+    const monthParam = Number(params.month);
 
-    if (!year || !month.toString() || month < 0 || month > 11) {
+    // Validate year and month (month comes as 1-12 from URL)
+    if (isNaN(year) || isNaN(monthParam) || monthParam < 1 || monthParam > 12 || year < 2000 || year > 2100) {
       return NextResponse.json(
-        { ok: false, message: "Invalid year or month" },
+        { ok: false, message: "Invalid year or month. Month should be 1-12." },
         { status: 400 }
       );
     }
+
+    const month = monthParam - 1; // Convert to 0-based for Date constructor
 
     const periodStart = new Date(Date.UTC(year, month, 1));
     const periodEnd = new Date(Date.UTC(year, month + 1, 0));
@@ -45,28 +48,30 @@ export async function POST(
     for (const emp of employees) {
       if (!emp.hourlyRate) continue;
 
-      // 2) Working days for this employee
+      // Default hoursPerWeek to 40 if not set
+      const hoursPerWeek = emp.hoursPerWeek ? Number(emp.hoursPerWeek) : 40;
+      const hourly = Number(emp.hourlyRate);
+
+      // 2) Calculate working days for this employee (considering join date)
       const joinDate = emp.joinedAt ? new Date(emp.joinedAt) : null;
       const effectiveStart =
         joinDate && joinDate > periodStart ? joinDate : periodStart;
 
-      const workingDays = countWorkingDaysBetween(
+      const actualWorkingDays = countWorkingDaysBetween(
         effectiveStart,
         periodEnd,
         emp.worksOnSaturday ?? false
       );
 
-      if (workingDays <= 0) {
-        // employee didn't work this month
+      if (actualWorkingDays <= 0) {
+        // Employee didn't work this month
         continue;
       }
 
-      const hourly = Number(emp.hourlyRate);
-      const hoursPerWeek = Number(emp.hoursPerWeek);
-      // const baseSalary = hourly * 8 * workingDays;
+      // Calculate base salary (fixed monthly rate)
       const baseSalary = hourly * hoursPerWeek * 4;
 
-      // 3) Total Bonuses
+      // 3) Total Bonuses for this period
       const bonuses = await prisma.bonus.findMany({
         where: {
           employeeId: emp.id,
@@ -78,7 +83,7 @@ export async function POST(
         0
       );
 
-      // 4) Total Deductions
+      // 4) Total Deductions for this period
       const deductions = await prisma.deduction.findMany({
         where: {
           employeeId: emp.id,
@@ -93,55 +98,42 @@ export async function POST(
         0
       );
 
-      const netPay = baseSalary + totalBonuses - totalDeductions;
-
-      // const payroll = await prisma.payroll.create({
-      //   data: {
-      //     employeeId: emp.id,
-      //     periodStart,
-      //     periodEnd,
-      //     baseSalary,
-      //     totalBonuses,
-      //     totalDeductions,
-      //     netPay
-      //   }
-      // });
+      const netPay = Math.round((baseSalary + totalBonuses - totalDeductions) * 100) / 100;
 
       // Check if payroll already exists for this employee & month
-const existing = await prisma.payroll.findFirst({
-  where: {
-    employeeId: emp.id,
-    periodStart,
-    periodEnd
-  }
-});
+      const existing = await prisma.payroll.findFirst({
+        where: {
+          employeeId: emp.id,
+          periodStart,
+          periodEnd
+        }
+      });
 
-let payroll;
+      let payroll;
 
-if (existing) {
-  payroll = await prisma.payroll.update({
-    where: { id: existing.id },
-    data: {
-      baseSalary,
-      totalBonuses,
-      totalDeductions,
-      netPay
-    }
-  });
-} else {
-  payroll = await prisma.payroll.create({
-    data: {
-      employeeId: emp.id,
-      periodStart,
-      periodEnd,
-      baseSalary,
-      totalBonuses,
-      totalDeductions,
-      netPay
-    }
-  });
-}
-
+      if (existing) {
+        payroll = await prisma.payroll.update({
+          where: { id: existing.id },
+          data: {
+            baseSalary,
+            totalBonuses,
+            totalDeductions,
+            netPay
+          }
+        });
+      } else {
+        payroll = await prisma.payroll.create({
+          data: {
+            employeeId: emp.id,
+            periodStart,
+            periodEnd,
+            baseSalary,
+            totalBonuses,
+            totalDeductions,
+            netPay
+          }
+        });
+      }
 
       payrolls.push(payroll);
     }
