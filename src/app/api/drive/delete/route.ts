@@ -20,6 +20,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'No S3 key provided' }, { status: 400 });
     }
 
+    const isRestrictedRole = role === 'editor' || role === 'client';
+
+    if (isRestrictedRole) {
+      return NextResponse.json(
+        { error: "You cannot delete items from raw-footage folders" },
+        { status: 403 }
+      );
+    }
+
     console.log('Delete request:', { s3Key, type, userId, role });
 
     // Verify user has permission to delete

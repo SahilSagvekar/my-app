@@ -694,6 +694,8 @@ export function SocialLogins() {
   const userRole = user?.role?.toLowerCase() || "";
   const canView = ["admin", "client", "scheduler"].includes(userRole);
   const canEdit = userRole === "admin";
+  const isClient = userRole === "client";
+  const userClientId = user?.clientId || null;
 
   /* ----------------------------- AUTO-LOCK --------------------------------- */
 
@@ -738,7 +740,14 @@ export function SocialLogins() {
         // Load clients
         const clientsRes = await fetch("/api/clients");
         const clientsData = await clientsRes.json();
-        setClients(clientsData.clients || []);
+        
+        // If user is a client, only show their own client in the list
+        const allClients = clientsData.clients || [];
+        if (isClient && userClientId) {
+          setClients(allClients.filter((c: Client) => c.id === userClientId));
+        } else {
+          setClients(allClients);
+        }
 
         // Check if user has PIN set
         const pinRes = await fetch("/api/logins/check-pin");
@@ -755,15 +764,28 @@ export function SocialLogins() {
     if (canView) {
       loadData();
     }
-  }, [canView]);
+  }, [canView, isClient, userClientId]);
 
   // Load logins only when unlocked
   useEffect(() => {
     async function loadLogins() {
       try {
-        const res = await fetch("/api/logins");
+        // For clients, fetch only their logins; for others, fetch all
+        const url = isClient && userClientId 
+          ? `/api/logins?clientId=${userClientId}`
+          : "/api/logins";
+        const res = await fetch(url);
         const data = await res.json();
-        setLogins(data.logins || []);
+        
+        // Double-check filtering on client side for extra security
+        let fetchedLogins = data.logins || [];
+        if (isClient && userClientId) {
+          fetchedLogins = fetchedLogins.filter(
+            (login: SocialLogin) => login.clientId === userClientId
+          );
+        }
+        
+        setLogins(fetchedLogins);
       } catch (err) {
         console.error("Failed to load logins:", err);
       }
@@ -772,7 +794,7 @@ export function SocialLogins() {
     if (isUnlocked) {
       loadLogins();
     }
-  }, [isUnlocked]);
+  }, [isUnlocked, isClient, userClientId]);
 
   /* ----------------------------- PIN HANDLERS ------------------------------ */
 
@@ -982,7 +1004,9 @@ export function SocialLogins() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Social Media Logins</h2>
           <p className="text-sm text-gray-600">
-            Secure storage for client social media credentials
+            {isClient 
+              ? "Access your social media credentials securely" 
+              : "Secure storage for client social media credentials"}
           </p>
         </div>
 
@@ -994,7 +1018,7 @@ export function SocialLogins() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Section Locked</h3>
               <p className="text-gray-600 mb-6">
-                This section contains sensitive client credentials.
+                This section contains sensitive {isClient ? "account" : "client"} credentials.
                 {hasPin
                   ? " Enter your security PIN to access."
                   : " Set up a security PIN to continue."}
@@ -1037,14 +1061,18 @@ export function SocialLogins() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-gray-900">Social Media Logins</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {isClient ? "Your Social Media Logins" : "Social Media Logins"}
+            </h2>
             <Badge variant="outline" className="gap-1 text-green-600 border-green-300 bg-green-50">
               <Unlock className="h-3 w-3" />
               Unlocked
             </Badge>
           </div>
           <p className="text-sm text-gray-600">
-            Secure storage for client social media credentials
+            {isClient 
+              ? "Your social media credentials" 
+              : "Secure storage for client social media credentials"}
           </p>
         </div>
 
@@ -1082,10 +1110,10 @@ export function SocialLogins() {
         </AlertDescription>
       </Alert>
 
-      {/* Filters */}
+      {/* Filters - Hide client filter for client users since they only see their own */}
       <Card>
         <CardContent className="pt-4 pb-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${isClient ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -1096,19 +1124,22 @@ export function SocialLogins() {
               />
             </div>
 
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by client" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Clients</SelectItem>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.companyName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Only show client filter for non-client users */}
+            {!isClient && (
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.companyName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Select value={platformFilter} onValueChange={setPlatformFilter}>
               <SelectTrigger>
@@ -1238,7 +1269,9 @@ export function SocialLogins() {
               <p className="text-gray-500 mb-4">
                 {searchTerm || clientFilter !== "all" || platformFilter !== "all"
                   ? "No results match your filters"
-                  : "Add your first social media login credentials"}
+                  : isClient 
+                    ? "No social media credentials have been added for your account yet"
+                    : "Add your first social media login credentials"}
               </p>
               {canEdit && !searchTerm && clientFilter === "all" && platformFilter === "all" && (
                 <Button

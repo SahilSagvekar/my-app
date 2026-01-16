@@ -47,6 +47,7 @@ model User {
   achievements      QCAchievement[]
   monthlyTrends     QCMonthlyTrend[]
   categoryMetrics   QCCategoryMetrics[]
+  taskFeedback     TaskFeedback[] @relation("TaskFeedbackAuthor")
 
   @@index([email])
   @@index([role])
@@ -133,6 +134,7 @@ model Task {
   client               Client?             @relation(fields: [clientId], references: [id])
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
+  taskFeedback     TaskFeedback[]
 
   @@index([assignedTo])
   @@index([clientId])
@@ -145,6 +147,28 @@ model Task {
   @@index([assignedTo, status])
   @@index([clientId, status])
   @@index([dueDate, status])
+}
+
+model TaskFeedback {
+  id          String   @id @default(cuid())
+  taskId      String
+  fileId      String?  
+  folderType  String   // "main", "thumbnails", "music-license", "tiles", "covers"
+  feedback    String   
+  status      String   @default("needs_revision") // "needs_revision", "approved"
+  timestamp   String?  // Video timestamp like "1:30"
+  category    String?  // "design", "content", "timing", "technical", "spelling", "other"
+  createdBy   Int
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  file        File?    @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  user        User     @relation("TaskFeedbackAuthor", fields: [createdBy], references: [id])
+  
+  @@index([taskId])
+  @@index([fileId])
+  @@index([taskId, folderType])
 }
 
 model RecurringTask {
@@ -258,7 +282,8 @@ model File {
   s3Key        String?
   version      Int       @default(1)
   task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
+  feedback     TaskFeedback[]
+  
   @@index([taskId, folderType])
   @@index([taskId, isActive])
 }

@@ -106,12 +106,8 @@ export function DateRangePicker({ date, setDate, className }: CustomDateRangePic
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
   };
 
-  const setQuickRange = (from: Date, to: Date) => {
-    setTempFrom(from);
-    setTempTo(to);
-    setDate({ from, to });
-    setOpen(false);
-  };
+  // Removed setQuickRange function as it is no longer used in the UI
+  // but kept logic just in case you want to add it back later
 
   const renderMonth = (monthOffset: number = 0) => {
     const displayDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + monthOffset);
@@ -147,7 +143,6 @@ export function DateRangePicker({ date, setDate, className }: CustomDateRangePic
       const isStart = isRangeStart(currentDate);
       const isEnd = isRangeEnd(currentDate);
       const inRange = isInRange(currentDate);
-      const isPast = currentDate < today && !isToday;
 
       days.push(
         <button
@@ -232,85 +227,8 @@ export function DateRangePicker({ date, setDate, className }: CustomDateRangePic
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <div className="flex">
-          {/* Quick Select Sidebar */}
-          <div className="border-r p-3 space-y-1 bg-muted/30 min-w-[140px]">
-            <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">Quick Select</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-sm"
-              onClick={() => {
-                const today = new Date();
-                setQuickRange(today, today);
-              }}
-            >
-              Today
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-sm"
-              onClick={() => {
-                const today = new Date();
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                setQuickRange(yesterday, yesterday);
-              }}
-            >
-              Yesterday
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-sm"
-              onClick={() => {
-                const today = new Date();
-                const lastWeek = new Date(today);
-                lastWeek.setDate(today.getDate() - 7);
-                setQuickRange(lastWeek, today);
-              }}
-            >
-              Last 7 days
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-sm"
-              onClick={() => {
-                const today = new Date();
-                const lastMonth = new Date(today);
-                lastMonth.setDate(today.getDate() - 30);
-                setQuickRange(lastMonth, today);
-              }}
-            >
-              Last 30 days
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-sm"
-              onClick={() => {
-                const today = new Date();
-                const first = new Date(today.getFullYear(), today.getMonth(), 1);
-                setQuickRange(first, today);
-              }}
-            >
-              This month
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start text-sm"
-              onClick={() => {
-                const today = new Date();
-                const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                const last = new Date(today.getFullYear(), today.getMonth(), 0);
-                setQuickRange(first, last);
-              }}
-            >
-              Last month
-            </Button>
-          </div>
+          
+          {/* REMOVED QUICK SELECT SIDEBAR HERE */}
 
           {/* Calendar */}
           <div className="p-4">

@@ -6,8 +6,19 @@ import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { FileUploadDialog } from "./FileUploadDialog-Resumable";
-import { CheckCircle, AlertCircle, Eye, Send } from "lucide-react";
-import { ChevronDown } from "lucide-react";
+import {
+  CheckCircle,
+  AlertCircle,
+  Eye,
+  Send,
+  Trash2,
+  Plus,
+  ChevronDown,
+  History,
+  RefreshCw,
+  MessageSquare,
+  Clock,
+} from "lucide-react";
 
 interface UploadSection {
   folderType: string;
@@ -15,6 +26,42 @@ interface UploadSection {
   required: boolean;
   icon: string;
   uploaded: boolean;
+}
+
+interface FileRecord {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType?: string;
+  version: number;
+  isActive: boolean;
+  folderType: string;
+  createdAt: string;
+  replacedAt?: string;
+}
+
+interface FeedbackRecord {
+  id: string;
+  folderType: string;
+  fileId?: string;
+  feedback: string;
+  timestamp?: string;
+  category?: string;
+  status: string;
+  createdBy: number;
+  resolvedAt?: string;
+  createdAt: string;
+  user?: {
+    id: number;
+    name: string;
+    role: string;
+  };
+  file?: {
+    id: string;
+    name: string;
+    version: number;
+  };
 }
 
 interface TaskUploadSectionsProps {
@@ -27,7 +74,12 @@ export function TaskUploadSections({
   onUploadComplete,
 }: TaskUploadSectionsProps) {
   const [sections, setSections] = useState<UploadSection[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<Record<string, any[]>>({});
+  const [uploadedFiles, setUploadedFiles] = useState<
+    Record<string, FileRecord[]>
+  >({});
+  const [sectionFeedback, setSectionFeedback] = useState<
+    Record<string, FeedbackRecord[]>
+  >({});
   const [submitting, setSubmitting] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
@@ -148,11 +200,28 @@ export function TaskUploadSections({
     }));
   };
 
+  // Check if required sections have active files
   const allRequiredFilesUploaded = () => {
     return sections.filter((s) => s.required).every((s) => s.uploaded);
   };
 
-  // 🔥 NEW: Submit to QC handler
+  // Toggle history visibility
+  const toggleHistory = (folderType: string) => {
+    setShowHistory((prev) => ({
+      ...prev,
+      [folderType]: !prev[folderType],
+    }));
+  };
+
+  // Toggle feedback visibility
+  const toggleFeedbackVisibility = (folderType: string) => {
+    setShowFeedback((prev) => ({
+      ...prev,
+      [folderType]: !prev[folderType],
+    }));
+  };
+
+  // Submit to QC handler
   const handleSubmitToQC = async () => {
     if (!allRequiredFilesUploaded()) return;
 
@@ -168,7 +237,6 @@ export function TaskUploadSections({
         throw new Error("Failed to submit to QC");
       }
 
-      // Notify parent component
       onUploadComplete([]);
 
       // Reload page to refresh task status

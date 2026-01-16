@@ -75,7 +75,7 @@ export async function createClientFolders(companyName: string) {
 export async function createMonthFolder(companyName: string, monthYear: string) {
   const s3 = getS3();
   const monthPrefix = `${companyName}/raw-footage/${monthYear}/`;
-  
+
   try {
     await s3.send(
       new PutObjectCommand({
@@ -89,20 +89,20 @@ export async function createMonthFolder(companyName: string, monthYear: string) 
     console.error('❌ Failed to create month folder:', error);
     // Don't throw - folder might already exist
   }
-  
+
   return monthPrefix;
 }
 
 // 🔥 Create task output folder
 export async function createTaskOutputFolder(
-  companyName: string, 
-  taskId: string, 
+  companyName: string,
+  taskId: string,
   taskTitle: string
 ) {
   const s3 = getS3();
   const sanitizedTitle = taskTitle.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
   const taskPrefix = `${companyName}/outputs/${taskId}-${sanitizedTitle}/`;
-  
+
   try {
     await s3.send(
       new PutObjectCommand({
@@ -116,7 +116,7 @@ export async function createTaskOutputFolder(
     console.error('❌ Failed to create task folder:', error);
     // Don't throw - folder might already exist
   }
-  
+
   return taskPrefix;
 }
 
@@ -149,7 +149,7 @@ export async function uploadFileToS3(
     console.error("❌ S3 Upload Failed:", err);
     throw new Error("S3 upload failed");
   } finally {
-    fs.unlink(filePath, () => {});
+    fs.unlink(filePath, () => { });
   }
 
   return {
@@ -194,6 +194,24 @@ export async function uploadBufferToS3({
 }
 
 // Extract S3 key from URL
+// export function extractS3KeyFromUrl(s3Url: string): string | null {
+//   if (!s3Url) return null;
+
+//   try {
+//     if (s3Url.startsWith("s3://")) {
+//       const parts = s3Url.replace("s3://", "").split("/");
+//       return parts.slice(1).join("/");
+//     }
+
+//     const url = new URL(s3Url);
+//     const pathname = url.pathname;
+//     return pathname.startsWith("/") ? pathname.substring(1) : pathname;
+//   } catch (error) {
+//     console.error("Error extracting S3 key:", error);
+//     return null;
+//   }
+// }
+
 export function extractS3KeyFromUrl(s3Url: string): string | null {
   if (!s3Url) return null;
 
@@ -204,8 +222,15 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
     }
 
     const url = new URL(s3Url);
-    const pathname = url.pathname;
-    return pathname.startsWith("/") ? pathname.substring(1) : pathname;
+    let pathname = url.pathname;
+    
+    // Remove leading slash
+    pathname = pathname.startsWith("/") ? pathname.substring(1) : pathname;
+    
+    // 🔥 Decode URL encoding (critical for files with spaces, #, etc.)
+    pathname = decodeURIComponent(pathname);
+    
+    return pathname;
   } catch (error) {
     console.error("Error extracting S3 key:", error);
     return null;
@@ -213,17 +238,40 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
 }
 
 // Generate pre-signed URL
+// export async function generateSignedUrl(
+//   key: string,
+//   expiresIn: number = 7200 // 2 hours default
+// ): Promise<string> {
+//   const command = new GetObjectCommand({
+//     Bucket: BUCKET,
+//     Key: key,
+//   });
+
+//   const signedUrl = await getSignedUrl(s3, command, { expiresIn });
+//   return signedUrl;
+// }
+
+
 export async function generateSignedUrl(
   key: string,
-  expiresIn: number = 7200 // 2 hours default
+  expiresIn: number = 7200
 ): Promise<string> {
+  console.log('🔍 Generating signed URL for key:', key);
+  console.log('🔍 Bucket:', BUCKET);
+  
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
   });
 
-  const signedUrl = await getSignedUrl(s3, command, { expiresIn });
-  return signedUrl;
+  try {
+    const signedUrl = await getSignedUrl(s3, command, { expiresIn });
+    console.log('✅ Signed URL generated successfully');
+    return signedUrl;
+  } catch (error) {
+    console.error('❌ Failed to generate signed URL:', error);
+    throw error;
+  }
 }
 
 // Add signed URLs to file objects
@@ -233,7 +281,8 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
   return Promise.all(
     files.map(async (file) => {
       try {
-        const s3Key = extractS3KeyFromUrl(file.url);
+        // 🔥 Use s3Key directly if available, otherwise extract from URL
+        const s3Key = file.s3Key || extractS3KeyFromUrl(file.url);
         if (!s3Key) return file;
 
         const signedUrl = await generateSignedUrl(s3Key);

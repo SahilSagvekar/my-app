@@ -8,6 +8,8 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
+import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
+import { Plus } from 'lucide-react';
 import { DateRangePicker } from '../ui/date-range-picker';
 import {
     ListTodo,
@@ -192,6 +194,7 @@ export function TaskManagementTab() {
         scheduler: string;
         videographer: string;
         priority: string;
+        dueDate: string;  // 🔥 ADDED
     }>({
         status: '',
         assignedTo: '',
@@ -199,6 +202,7 @@ export function TaskManagementTab() {
         scheduler: '',
         videographer: '',
         priority: '',
+        dueDate: '',  // 🔥 ADDED
     });
 
     // Bulk edit dialog
@@ -210,6 +214,7 @@ export function TaskManagementTab() {
         scheduler: string;
         videographer: string;
         priority: string;
+        dueDate: string;  // 🔥 ADDED
     }>({
         status: 'no_change',
         assignedTo: 'no_change',
@@ -217,6 +222,7 @@ export function TaskManagementTab() {
         scheduler: 'no_change',
         videographer: 'no_change',
         priority: 'no_change',
+        dueDate: 'no_change',  // 🔥 ADDED
     });
     const [saving, setSaving] = useState(false);
 
@@ -236,6 +242,15 @@ export function TaskManagementTab() {
         loadTasks();
     }, [page, filters]);
 
+    // 🔥 Task created handler
+    const handleTaskCreated = (task: any) => {
+        toast({
+            title: 'Success',
+            description: 'Task created successfully. Refreshing...',
+        });
+        setTimeout(() => window.location.reload(), 1000);
+    };
+
     async function loadTeamMembers() {
         try {
             const res = await fetch('/api/employee/list?status=ACTIVE');
@@ -249,16 +264,17 @@ export function TaskManagementTab() {
     }
 
     async function loadClients() {
-        try {
-            const res = await fetch('/api/clients');
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setClients(data);
-            }
-        } catch (error) {
-            console.error('Failed to load clients:', error);
+    try {
+        const res = await fetch('/api/clients');
+        const data = await res.json();
+        console.log('Loaded clients:', JSON.stringify(data));
+        if (data.clients && Array.isArray(data.clients)) {
+            setClients(data.clients);
         }
+    } catch (error) {
+        console.error('Failed to load clients:', error);
     }
+}
 
     async function loadTasks() {
         try {
@@ -268,6 +284,8 @@ export function TaskManagementTab() {
             const params = new URLSearchParams();
             params.set('page', page.toString());
             params.set('limit', limit.toString());
+            params.set('sortBy', 'title'); 
+            params.set('sortOrder', 'asc');
 
             if (filters.editor !== 'all') params.set('editor', filters.editor);
             if (filters.qc !== 'all') params.set('qc', filters.qc);
@@ -369,6 +387,7 @@ export function TaskManagementTab() {
             scheduler: task.scheduler?.toString() || 'none',
             videographer: task.videographer?.toString() || 'none',
             priority: task.priority || 'none',
+            dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',  // 🔥 ADDED
         });
     }
 
@@ -396,6 +415,15 @@ export function TaskManagementTab() {
             }
             if (editForm.priority !== (editingTask.priority || 'none')) {
                 updates.priority = editForm.priority !== 'none' ? editForm.priority : null;
+            }
+            
+            
+            // 🔥 ADDED: Handle due date
+            const currentDueDate = editingTask.dueDate 
+                ? new Date(editingTask.dueDate).toISOString().split('T')[0] 
+                : '';
+            if (editForm.dueDate !== currentDueDate) {
+                updates.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
             }
 
             if (Object.keys(updates).length === 0) {
@@ -441,6 +469,7 @@ export function TaskManagementTab() {
             scheduler: 'no_change',
             videographer: 'no_change',
             priority: 'no_change',
+            dueDate: 'no_change',  // 🔥 ADDED
         });
         setShowBulkEdit(true);
     }
@@ -469,6 +498,15 @@ export function TaskManagementTab() {
             }
             if (bulkEditForm.priority !== 'no_change') {
                 updates.priority = bulkEditForm.priority !== 'none' ? bulkEditForm.priority : null;
+            }
+
+            if (bulkEditForm.dueDate !== 'no_change') {
+                updates.dueDate = bulkEditForm.dueDate ? new Date(bulkEditForm.dueDate).toISOString() : null;
+            }
+            
+            // 🔥 ADDED: Handle due date
+            if (bulkEditForm.dueDate !== 'no_change') {
+                updates.dueDate = bulkEditForm.dueDate ? new Date(bulkEditForm.dueDate).toISOString() : null;
             }
 
             if (Object.keys(updates).length === 0) {
@@ -567,7 +605,7 @@ export function TaskManagementTab() {
     return (
         <div className="space-y-6">
             {/* Quick Stats Bar */}
-            {stats && (
+            {/* {stats && (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
                         <CardContent className="p-4">
@@ -579,36 +617,28 @@ export function TaskManagementTab() {
                     <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200">
                         <CardContent className="p-4">
                             <div className="text-sm text-yellow-600 dark:text-yellow-400">Pending</div>
-                            <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
-                                {stats.byStatus?.PENDING || 0}
-                            </div>
+                            <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.byStatus?.PENDING || 0}</div>
                         </CardContent>
                     </Card>
 
                     <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
                         <CardContent className="p-4">
                             <div className="text-sm text-purple-600 dark:text-purple-400">In Progress</div>
-                            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                                {stats.byStatus?.IN_PROGRESS || 0}
-                            </div>
+                            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stats.byStatus?.IN_PROGRESS || 0}</div>
                         </CardContent>
                     </Card>
 
                     <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200">
                         <CardContent className="p-4">
                             <div className="text-sm text-orange-600 dark:text-orange-400">Ready for QC</div>
-                            <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                                {stats.byStatus?.READY_FOR_QC || 0}
-                            </div>
+                            <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{stats.byStatus?.READY_FOR_QC || 0}</div>
                         </CardContent>
                     </Card>
 
                     <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
                         <CardContent className="p-4">
                             <div className="text-sm text-green-600 dark:text-green-400">Completed</div>
-                            <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                                {stats.byStatus?.COMPLETED || 0}
-                            </div>
+                            <div className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.byStatus?.COMPLETED || 0}</div>
                         </CardContent>
                     </Card>
 
@@ -619,8 +649,53 @@ export function TaskManagementTab() {
                         </CardContent>
                     </Card>
                 </div>
-            )}
+            )} */}
 
+{stats && (
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-blue-600 dark:text-blue-400">Total Tasks</div>
+                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.total}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-yellow-600 dark:text-yellow-400">Pending</div>
+                <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.byStatus?.PENDING || 0}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-purple-600 dark:text-purple-400">In Progress</div>
+                <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stats.byStatus?.IN_PROGRESS || 0}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-orange-600 dark:text-orange-400">Ready for QC</div>
+                <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{stats.byStatus?.READY_FOR_QC || 0}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-green-600 dark:text-green-400">Completed</div>
+                <div className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.byStatus?.COMPLETED || 0}</div>
+            </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <div className="text-sm text-red-600 dark:text-red-400">Overdue</div>
+                <div className="text-2xl font-bold text-red-700 dark:text-red-300">{stats.overdue}</div>
+            </CardContent>
+        </Card>
+    </div>
+)}
             {/* Filters Card */}
             <Card>
                 <CardHeader className="pb-3">
@@ -634,35 +709,33 @@ export function TaskManagementTab() {
                                 </Badge>
                             )}
                         </CardTitle>
+
                         <div className="flex items-center gap-2">
                             {/* Bulk Edit Button */}
                             {selectedTasks.size > 0 && (
-                                <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={openBulkEditDialog}
-                                >
+                                <Button variant="default" size="sm" onClick={openBulkEditDialog}>
                                     <Pencil className="h-4 w-4 mr-2" />
                                     Edit {selectedTasks.size} Task{selectedTasks.size > 1 ? 's' : ''}
                                 </Button>
                             )}
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowFilters(!showFilters)}
-                            >
+                            <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
                                 <Filter className="h-4 w-4 mr-2" />
                                 {showFilters ? 'Hide Filters' : 'Show Filters'}
                             </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleRefresh}
-                                disabled={refreshing}
-                            >
+                            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
                                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                                 Refresh
                             </Button>
+
+                            <CreateTaskDialog
+                                onTaskCreated={handleTaskCreated}
+                                trigger={
+                                    <Button>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Create Task
+                                    </Button>
+                                }
+                            />
                         </div>
                     </div>
                 </CardHeader>
@@ -861,463 +934,567 @@ export function TaskManagementTab() {
                 )}
             </Card>
 
-            {/* Tasks Table */}
-            <Card>
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="border-b bg-muted/50">
-                                    <th className="py-3 px-4 w-12">
-                                        <Checkbox
-                                            checked={allSelected}
-                                            ref={(el) => {
-                                                if (el) {
-                                                    (el as any).indeterminate = someSelected;
-                                                }
-                                            }}
-                                            onCheckedChange={handleSelectAll}
-                                            aria-label="Select all tasks"
-                                        />
-                                    </th>
-                                    <th className="text-left py-3 px-4 font-medium">Task</th>
-                                    <th className="text-left py-3 px-4 font-medium">Type</th>
-                                    <th className="text-left py-3 px-4 font-medium">Client</th>
-                                    <th className="text-left py-3 px-4 font-medium">Editor</th>
-                                    <th className="text-left py-3 px-4 font-medium">QC</th>
-                                    <th className="text-left py-3 px-4 font-medium">Scheduler</th>
-                                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                                    <th className="text-left py-3 px-4 font-medium">Due Date</th>
-                                    <th className="text-left py-3 px-4 font-medium">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {tasks.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={10} className="text-center py-12 text-muted-foreground">
-                                            No tasks found matching your filters
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    tasks.map((task) => {
-                                        const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() &&
-                                            !['COMPLETED', 'SCHEDULED'].includes(task.status);
-                                        const isSelected = selectedTasks.has(task.id);
+        {/* Tasks Table */}
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="py-3 px-4 w-12">
+                      <Checkbox
+                        checked={allSelected}
+                        ref={(el) => {
+                          if (el) {
+                            (el as any).indeterminate = someSelected;
+                          }
+                        }}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all tasks"
+                      />
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium">Task</th>
+                    <th className="text-left py-3 px-4 font-medium">Type</th>
+                    <th className="text-left py-3 px-4 font-medium">Client</th>
+                    <th className="text-left py-3 px-4 font-medium">Editor</th>
+                    <th className="text-left py-3 px-4 font-medium">QC</th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Scheduler
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium">Status</th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Due Date
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tasks.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        className="text-center py-12 text-muted-foreground"
+                      >
+                        No tasks found matching your filters
+                      </td>
+                    </tr>
+                  ) : (
+                    tasks.map((task) => {
+                      const isOverdue =
+                        task.dueDate &&
+                        new Date(task.dueDate) < new Date() &&
+                        !["COMPLETED", "SCHEDULED"].includes(task.status);
+                      const isSelected = selectedTasks.has(task.id);
 
-                                        return (
-                                            <tr 
-                                                key={task.id} 
-                                                className={`border-b hover:bg-muted/50 ${isSelected ? 'bg-primary/5' : ''}`}
-                                            >
-                                                <td className="py-3 px-4">
-                                                    <Checkbox
-                                                        checked={isSelected}
-                                                        onCheckedChange={(checked) => handleSelectTask(task.id, !!checked)}
-                                                        aria-label={`Select task ${task.title || task.id}`}
-                                                    />
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="max-w-xs">
-                                                        <div className="font-medium truncate">
-                                                            {task.title || task.description?.slice(0, 50) || 'Untitled Task'}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="text-sm">
-                                                        {task.monthlyDeliverable?.type?.replace(/_/g, ' ') || '-'}
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="text-sm">
-                                                        {task.client?.companyName || task.client?.name || '-'}
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="text-sm">{task.editor?.name || '-'}</div>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="text-sm">{task.qcSpecialist?.name || '-'}</div>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="text-sm">{task.schedulerUser?.name || '-'}</div>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <StatusBadge status={task.status} />
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    {task.dueDate ? (
-                                                        <div className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : ''}`}>
-                                                            {new Date(task.dueDate).toLocaleDateString()}
-                                                            {isOverdue && (
-                                                                <div className="text-xs text-red-500">Overdue</div>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-muted-foreground">-</span>
-                                                    )}
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="sm">
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => openEditDialog(task)}>
-                                                                <Edit className="h-4 w-4 mr-2" />
-                                                                Edit Task
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                            <DropdownMenuItem className="text-red-600">
+                      return (
+                        <tr
+                          key={task.id}
+                          className={`border-b hover:bg-muted/50 ${
+                            isSelected ? "bg-primary/5" : ""
+                          }`}
+                        >
+                          <td className="py-3 px-4">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) =>
+                                handleSelectTask(task.id, !!checked)
+                              }
+                              aria-label={`Select task ${
+                                task.title || task.id
+                              }`}
+                            />
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="max-w-xs">
+                              <div className="font-medium truncate">
+                                {task.title ||
+                                  task.description?.slice(0, 50) ||
+                                  "Untitled Task"}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm">
+                              {task.monthlyDeliverable?.type?.replace(
+                                /_/g,
+                                " "
+                              ) || "-"}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm">
+                              {task.client?.companyName ||
+                                task.client?.name ||
+                                "-"}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm">
+                              {task.editor?.name || "-"}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm">
+                              {task.qcSpecialist?.name || "-"}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm">
+                              {task.schedulerUser?.name || "-"}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={task.status} />
+                          </td>
+                          <td className="py-3 px-4">
+                            {task.dueDate ? (
+                              <div
+                                className={`text-sm ${
+                                  isOverdue ? "text-red-600 font-medium" : ""
+                                }`}
+                              >
+                                {new Date(task.dueDate).toLocaleDateString()}
+                                {isOverdue && (
+                                  <div className="text-xs text-red-500">
+                                    Overdue
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => openEditDialog(task)}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit Task
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {/* <DropdownMenuItem className="text-red-600">
                                                                 <Trash2 className="h-4 w-4 mr-2" />
                                                                 Delete Task
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                                            </DropdownMenuItem> */}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-                    {/* Pagination */}
-                    <div className="flex items-center justify-between px-4 py-3 border-t">
-                        <div className="text-sm text-muted-foreground">
-                            {selectedTasks.size > 0 ? (
-                                <span className="font-medium">{selectedTasks.size} selected · </span>
-                            ) : null}
-                            Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, total)} of {total} tasks
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage(page - 1)}
-                                disabled={page <= 1}
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                                Previous
-                            </Button>
-                            <span className="text-sm px-2">
-                                Page {page} of {totalPages}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage(page + 1)}
-                                disabled={page >= totalPages}
-                            >
-                                Next
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            {/* Pagination */}
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <div className="text-sm text-muted-foreground">
+                {selectedTasks.size > 0 ? (
+                  <span className="font-medium">
+                    {selectedTasks.size} selected ·{" "}
+                  </span>
+                ) : null}
+                Showing {(page - 1) * limit + 1} to{" "}
+                {Math.min(page * limit, total)} of {total} tasks
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page - 1)}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm px-2">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Single Task Edit Dialog */}
-            <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
-                <DialogContent className="max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>Edit Task</DialogTitle>
-                        <DialogDescription>
-                            {editingTask?.title || editingTask?.description?.slice(0, 50) || 'Untitled Task'}
-                        </DialogDescription>
-                    </DialogHeader>
+        {/* Single Task Edit Dialog */}
+        <Dialog
+          open={!!editingTask}
+          onOpenChange={(open) => !open && setEditingTask(null)}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Edit Task</DialogTitle>
+              <DialogDescription>
+                {editingTask?.title ||
+                  editingTask?.description?.slice(0, 50) ||
+                  "Untitled Task"}
+              </DialogDescription>
+            </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
-                        {/* Status */}
-                        <div className="grid gap-2">
-                            <Label>Status</Label>
-                            <Select
-                                value={editForm.status}
-                                onValueChange={(v) => setEditForm({ ...editForm, status: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {Object.entries(statusConfig).map(([key, config]) => (
-                                        <SelectItem key={key} value={key}>
-                                            {config.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+            <div className="grid gap-4 py-4">
+              {/* Status */}
+              <div className="grid gap-2">
+                <Label>Status</Label>
+                <Select
+                  value={editForm.status}
+                  onValueChange={(v) => setEditForm({ ...editForm, status: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(statusConfig).map(([key, config]) => (
+                      <SelectItem key={key} value={key}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* Editor */}
-                        <div className="grid gap-2">
-                            <Label>Editor</Label>
-                            <Select
-                                value={editForm.assignedTo}
-                                onValueChange={(v) => setEditForm({ ...editForm, assignedTo: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select editor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {editors.map((m) => (
-                                        <SelectItem key={m.id} value={m.id.toString()}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+              {/* Editor */}
+              <div className="grid gap-2">
+                <Label>Editor</Label>
+                <Select
+                  value={editForm.assignedTo}
+                  onValueChange={(v) =>
+                    setEditForm({ ...editForm, assignedTo: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select editor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editors.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* QC Specialist */}
-                        <div className="grid gap-2">
-                            <Label>QC Specialist</Label>
-                            <Select
-                                value={editForm.qc_specialist}
-                                onValueChange={(v) => setEditForm({ ...editForm, qc_specialist: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select QC specialist" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">None</SelectItem>
-                                    {qcMembers.map((m) => (
-                                        <SelectItem key={m.id} value={m.id.toString()}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+              {/* QC Specialist */}
+              <div className="grid gap-2">
+                <Label>QC Specialist</Label>
+                <Select
+                  value={editForm.qc_specialist}
+                  onValueChange={(v) =>
+                    setEditForm({ ...editForm, qc_specialist: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select QC specialist" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {qcMembers.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* Scheduler */}
-                        <div className="grid gap-2">
-                            <Label>Scheduler</Label>
-                            <Select
-                                value={editForm.scheduler}
-                                onValueChange={(v) => setEditForm({ ...editForm, scheduler: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select scheduler" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">None</SelectItem>
-                                    {schedulers.map((m) => (
-                                        <SelectItem key={m.id} value={m.id.toString()}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+              {/* Scheduler */}
+              <div className="grid gap-2">
+                <Label>Scheduler</Label>
+                <Select
+                  value={editForm.scheduler}
+                  onValueChange={(v) =>
+                    setEditForm({ ...editForm, scheduler: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select scheduler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {schedulers.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* Videographer */}
-                        <div className="grid gap-2">
-                            <Label>Videographer</Label>
-                            <Select
-                                value={editForm.videographer}
-                                onValueChange={(v) => setEditForm({ ...editForm, videographer: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select videographer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">None</SelectItem>
-                                    {videographers.map((m) => (
-                                        <SelectItem key={m.id} value={m.id.toString()}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+              {/* Videographer */}
+              <div className="grid gap-2">
+                <Label>Videographer</Label>
+                <Select
+                  value={editForm.videographer}
+                  onValueChange={(v) =>
+                    setEditForm({ ...editForm, videographer: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select videographer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {videographers.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* Priority */}
-                        <div className="grid gap-2">
-                            <Label>Priority</Label>
-                            <Select
-                                value={editForm.priority}
-                                onValueChange={(v) => setEditForm({ ...editForm, priority: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select priority" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">None</SelectItem>
-                                    <SelectItem value="low">Low</SelectItem>
-                                    <SelectItem value="medium">Medium</SelectItem>
-                                    <SelectItem value="high">High</SelectItem>
-                                    <SelectItem value="urgent">Urgent</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
+              {/* Priority */}
+              <div className="grid gap-2">
+                <Label>Priority</Label>
+                <Select
+                  value={editForm.priority}
+                  onValueChange={(v) =>
+                    setEditForm({ ...editForm, priority: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditingTask(null)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleSaveEdit} disabled={saving}>
-                            {saving ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+              <div className="grid gap-2">
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  value={editForm.dueDate}
+                  onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })}
+                />
+              </div>
+            </div>
 
-            {/* Bulk Edit Dialog */}
-            <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
-                <DialogContent className="max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>Bulk Edit Tasks</DialogTitle>
-                        <DialogDescription>
-                            Edit {selectedTasks.size} selected task{selectedTasks.size > 1 ? 's' : ''}. 
-                            Only fields you change will be updated.
-                        </DialogDescription>
-                    </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingTask(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-                    <div className="grid gap-4 py-4">
-                        {/* Status */}
-                        <div className="grid gap-2">
-                            <Label>Status</Label>
-                            <Select
-                                value={bulkEditForm.status}
-                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, status: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="no_change">— No Change —</SelectItem>
-                                    {Object.entries(statusConfig).map(([key, config]) => (
-                                        <SelectItem key={key} value={key}>
-                                            {config.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+        {/* Bulk Edit Dialog */}
+        <Dialog open={showBulkEdit} onOpenChange={setShowBulkEdit}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Bulk Edit Tasks</DialogTitle>
+              <DialogDescription>
+                Edit {selectedTasks.size} selected task
+                {selectedTasks.size > 1 ? "s" : ""}. Only fields you change will
+                be updated.
+              </DialogDescription>
+            </DialogHeader>
 
-                        {/* Editor */}
-                        <div className="grid gap-2">
-                            <Label>Editor</Label>
-                            <Select
-                                value={bulkEditForm.assignedTo}
-                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, assignedTo: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select editor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="no_change">— No Change —</SelectItem>
-                                    {editors.map((m) => (
-                                        <SelectItem key={m.id} value={m.id.toString()}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+            <div className="grid gap-4 py-4">
+              {/* Status */}
+              <div className="grid gap-2">
+                <Label>Status</Label>
+                <Select
+                  value={bulkEditForm.status}
+                  onValueChange={(v) =>
+                    setBulkEditForm({ ...bulkEditForm, status: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no_change">— No Change —</SelectItem>
+                    {Object.entries(statusConfig).map(([key, config]) => (
+                      <SelectItem key={key} value={key}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* QC Specialist */}
-                        <div className="grid gap-2">
-                            <Label>QC Specialist</Label>
-                            <Select
-                                value={bulkEditForm.qc_specialist}
-                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, qc_specialist: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select QC specialist" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="no_change">— No Change —</SelectItem>
-                                    <SelectItem value="none">Remove QC</SelectItem>
-                                    {qcMembers.map((m) => (
-                                        <SelectItem key={m.id} value={m.id.toString()}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+              {/* Editor */}
+              <div className="grid gap-2">
+                <Label>Editor</Label>
+                <Select
+                  value={bulkEditForm.assignedTo}
+                  onValueChange={(v) =>
+                    setBulkEditForm({ ...bulkEditForm, assignedTo: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select editor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no_change">— No Change —</SelectItem>
+                    {editors.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* Scheduler */}
-                        <div className="grid gap-2">
-                            <Label>Scheduler</Label>
-                            <Select
-                                value={bulkEditForm.scheduler}
-                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, scheduler: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select scheduler" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="no_change">— No Change —</SelectItem>
-                                    <SelectItem value="none">Remove Scheduler</SelectItem>
-                                    {schedulers.map((m) => (
-                                        <SelectItem key={m.id} value={m.id.toString()}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+              {/* QC Specialist */}
+              <div className="grid gap-2">
+                <Label>QC Specialist</Label>
+                <Select
+                  value={bulkEditForm.qc_specialist}
+                  onValueChange={(v) =>
+                    setBulkEditForm({ ...bulkEditForm, qc_specialist: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select QC specialist" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no_change">— No Change —</SelectItem>
+                    <SelectItem value="none">Remove QC</SelectItem>
+                    {qcMembers.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* Videographer */}
-                        <div className="grid gap-2">
-                            <Label>Videographer</Label>
-                            <Select
-                                value={bulkEditForm.videographer}
-                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, videographer: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select videographer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="no_change">— No Change —</SelectItem>
-                                    <SelectItem value="none">Remove Videographer</SelectItem>
-                                    {videographers.map((m) => (
-                                        <SelectItem key={m.id} value={m.id.toString()}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+              {/* Scheduler */}
+              <div className="grid gap-2">
+                <Label>Scheduler</Label>
+                <Select
+                  value={bulkEditForm.scheduler}
+                  onValueChange={(v) =>
+                    setBulkEditForm({ ...bulkEditForm, scheduler: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select scheduler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no_change">— No Change —</SelectItem>
+                    <SelectItem value="none">Remove Scheduler</SelectItem>
+                    {schedulers.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        {/* Priority */}
-                        <div className="grid gap-2">
-                            <Label>Priority</Label>
-                            <Select
-                                value={bulkEditForm.priority}
-                                onValueChange={(v) => setBulkEditForm({ ...bulkEditForm, priority: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select priority" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="no_change">— No Change —</SelectItem>
-                                    <SelectItem value="none">Remove Priority</SelectItem>
-                                    <SelectItem value="low">Low</SelectItem>
-                                    <SelectItem value="medium">Medium</SelectItem>
-                                    <SelectItem value="high">High</SelectItem>
-                                    <SelectItem value="urgent">Urgent</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
+              {/* Videographer */}
+              <div className="grid gap-2">
+                <Label>Videographer</Label>
+                <Select
+                  value={bulkEditForm.videographer}
+                  onValueChange={(v) =>
+                    setBulkEditForm({ ...bulkEditForm, videographer: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select videographer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no_change">— No Change —</SelectItem>
+                    <SelectItem value="none">Remove Videographer</SelectItem>
+                    {videographers.map((m) => (
+                      <SelectItem key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowBulkEdit(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleBulkEdit} disabled={saving}>
-                            {saving ? 'Updating...' : `Update ${selectedTasks.size} Task${selectedTasks.size > 1 ? 's' : ''}`}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
+              {/* Priority */}
+              <div className="grid gap-2">
+                <Label>Priority</Label>
+                <Select
+                  value={bulkEditForm.priority}
+                  onValueChange={(v) =>
+                    setBulkEditForm({ ...bulkEditForm, priority: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no_change">— No Change —</SelectItem>
+                    <SelectItem value="none">Remove Priority</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              
+
+               <div className="grid gap-2">
+                <Label>Due Date</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={bulkEditForm.dueDate === 'no_change' ? '' : bulkEditForm.dueDate}
+                    onChange={(e) => setBulkEditForm({ ...bulkEditForm, dueDate: e.target.value })}
+                    disabled={bulkEditForm.dueDate === 'no_change'}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBulkEditForm({ ...bulkEditForm, dueDate: 'no_change' })}
+                  >
+                    Reset
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave unchanged to keep existing due dates
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowBulkEdit(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleBulkEdit} disabled={saving}>
+                {saving
+                  ? "Updating..."
+                  : `Update ${selectedTasks.size} Task${
+                      selectedTasks.size > 1 ? "s" : ""
+                    }`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     );
 }

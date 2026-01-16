@@ -696,6 +696,13 @@ interface TaskFile {
   driveFileId: string;
   mimeType: string;
   size: number;
+  folderType?: string;  // "main", "thumbnails", "music-license", "tiles", "covers"
+  version?: number;
+  isActive?: boolean;
+  replacedAt?: string;
+  replacedBy?: string;
+  revisionNote?: string;
+  s3Key?: string;
 }
 
 interface EnhancedWorkflowTask {
@@ -952,6 +959,75 @@ export function QCDashboard() {
     return 'File';
   };
 
+  // 🔥 Helper to get folder type display info
+  const getFolderTypeInfo = (folderType?: string) => {
+    switch (folderType) {
+      case 'main':
+        return { label: '📁 Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+      case 'thumbnails':
+        return { label: '🖼️ Thumbnails', icon: '🖼️', color: 'bg-green-100 text-green-800 border-green-200' };
+      case 'tiles':
+        return { label: '🎨 Tiles (Snapchat)', icon: '🎨', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+      case 'music-license':
+        return { label: '🎵 Music License', icon: '🎵', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+      case 'covers':
+        return { label: '📔 Covers', icon: '📔', color: 'bg-pink-100 text-pink-800 border-pink-200' };
+      default:
+        return { label: '📁 Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+    }
+  };
+
+  // 🔥 Group files by folder type
+  const groupFilesByFolderType = (files: TaskFile[]) => {
+    const groups: Record<string, TaskFile[]> = {};
+
+    files.forEach(file => {
+      const folderType = file.folderType || 'main';
+      if (!groups[folderType]) {
+        groups[folderType] = [];
+      }
+      groups[folderType].push(file);
+    });
+
+    // Sort files within each group by version (newest first) and then by upload date
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => {
+        // Sort by version descending (latest version first)
+        const versionDiff = (b.version || 1) - (a.version || 1);
+        if (versionDiff !== 0) return versionDiff;
+        // Then by upload date descending
+        return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
+      });
+    });
+
+    // Order: main files first, then thumbnails, tiles, music-license, covers
+    const orderedKeys = ['main', 'thumbnails', 'tiles', 'music-license', 'covers'];
+    const result: { folderType: string; files: TaskFile[]; info: ReturnType<typeof getFolderTypeInfo> }[] = [];
+
+    orderedKeys.forEach(key => {
+      if (groups[key] && groups[key].length > 0) {
+        result.push({
+          folderType: key,
+          files: groups[key],
+          info: getFolderTypeInfo(key)
+        });
+      }
+    });
+
+    // Add any other folder types not in the ordered list
+    Object.keys(groups).forEach(key => {
+      if (!orderedKeys.includes(key) && groups[key].length > 0) {
+        result.push({
+          folderType: key,
+          files: groups[key],
+          info: getFolderTypeInfo(key)
+        });
+      }
+    });
+
+    return result;
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'approved':
@@ -1178,70 +1254,134 @@ export function QCDashboard() {
 
       {selectedTask && (
         <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogContent className="max-w-4xl max-h-[85vh]">
             <DialogHeader>
-              <DialogTitle>Select File to Review</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Review Files by Section
+              </DialogTitle>
               <DialogDescription>
-                Choose a file to review from {selectedTask.title}
+                {selectedTask.title} - Select a file to review. Files are organized by folder type.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="overflow-y-auto max-h-[60vh]">
+            <div className="overflow-y-auto max-h-[65vh] pr-2">
               {selectedTask.files && selectedTask.files.length > 0 ? (
-                <div className="space-y-2">
-                  {selectedTask.files.map((file, index) => (
-                    <Card
-                      key={file.id}
-                      className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
-                      onClick={() => handleFileSelect(file)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-4">
-                          <div className={`p-3 rounded-lg ${file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
-                            file.mimeType?.startsWith('image/') ? 'bg-green-100' :
-                              'bg-gray-100'
-                            }`}>
-                            {getFileIcon(file.mimeType)}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="font-medium text-sm truncate">
-                                {file.name}
-                              </p>
-                              <Badge variant="secondary" className="text-xs">
-                                {getFileTypeLabel(file.mimeType)}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span>{formatFileSize(file.size)}</span>
-                              <span>•</span>
-                              <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {file.mimeType?.startsWith('video/') ? (
-                              <Button size="sm" variant="default">
-                                <Play className="h-4 w-4 mr-2" />
-                                Review
-                              </Button>
-                            ) : (
-                              <Button size="sm" variant="outline">
-                                <ExternalLink className="h-4 w-4 mr-2" />
-                                View
-                              </Button>
-                            )}
-                          </div>
+                <div className="space-y-4">
+                  {groupFilesByFolderType(selectedTask.files).map((group) => (
+                    <div key={group.folderType} className="border rounded-lg overflow-hidden">
+                      {/* Section Header */}
+                      <div className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{group.info.icon}</span>
+                          <h4 className="font-semibold text-sm">{group.info.label}</h4>
+                          <Badge variant="secondary" className="text-xs">
+                            {group.files.length} file{group.files.length !== 1 ? 's' : ''}
+                          </Badge>
                         </div>
-                      </CardContent>
-                    </Card>
+                        {/* Show if there are multiple versions */}
+                        {group.files.some(f => (f.version || 1) > 1) && (
+                          <Badge variant="outline" className="text-xs">
+                            Multiple versions
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Files in this section */}
+                      <div className="divide-y">
+                        {group.files.map((file, index) => (
+                          <div
+                            key={file.id}
+                            className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false ? 'opacity-60 bg-muted/20' : ''
+                              }`}
+                            onClick={() => handleFileSelect(file)}
+                          >
+                            <div className="flex items-center gap-4">
+                              {/* File Icon */}
+                              <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
+                                file.mimeType?.startsWith('image/') ? 'bg-green-100' :
+                                  'bg-gray-100'
+                                }`}>
+                                {getFileIcon(file.mimeType)}
+                              </div>
+
+                              {/* File Info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <p className="font-medium text-sm truncate max-w-[300px]">
+                                    {file.name}
+                                  </p>
+
+                                  {/* Version Badge */}
+                                  <Badge
+                                    variant={file.isActive !== false ? "default" : "secondary"}
+                                    className="text-xs"
+                                  >
+                                    V{file.version || 1}
+                                  </Badge>
+
+                                  {/* Active/Latest indicator */}
+                                  {file.isActive !== false && index === 0 && (
+                                    <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Latest
+                                    </Badge>
+                                  )}
+
+                                  {/* Inactive indicator */}
+                                  {file.isActive === false && (
+                                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                                      Replaced
+                                    </Badge>
+                                  )}
+
+                                  {/* File type */}
+                                  <Badge variant="secondary" className="text-xs">
+                                    {getFileTypeLabel(file.mimeType)}
+                                  </Badge>
+                                </div>
+
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                  <span>{formatFileSize(file.size)}</span>
+                                  <span>•</span>
+                                  <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
+                                  {file.revisionNote && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-orange-600" title={file.revisionNote}>
+                                        📝 Has revision note
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Action Button */}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {file.mimeType?.startsWith('video/') ? (
+                                  <Button size="sm" variant="default">
+                                    <Play className="h-4 w-4 mr-2" />
+                                    Review
+                                  </Button>
+                                ) : (
+                                  <Button size="sm" variant="outline">
+                                    <ExternalLink className="h-4 w-4 mr-2" />
+                                    View
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
-                  <p>No files found in this task</p>
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileText className="h-16 w-16 mx-auto mb-4 opacity-40" />
+                  <p className="text-lg font-medium">No files found in this task</p>
+                  <p className="text-sm mt-1">Files will appear here once they are uploaded by the editor.</p>
                 </div>
               )}
             </div>
@@ -1265,6 +1405,13 @@ export function QCDashboard() {
           userRole="qc"
           onSendToClient={handleSendToClient}
           onSendBackToEditor={handleSendBackToEditor}
+          // 🔥 Pass file info for version-tracked feedback
+          taskId={selectedTask.id}
+          currentFileSection={{
+            folderType: selectedFile.folderType || 'main',
+            fileId: selectedFile.id,
+            version: selectedFile.version || 1,
+          }}
         />
       )}
     </div>

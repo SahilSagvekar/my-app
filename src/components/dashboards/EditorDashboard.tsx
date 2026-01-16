@@ -6,7 +6,13 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
 import { TaskUploadSections } from "../workflow/TaskUploadSections";
 import {
   Calendar,
@@ -20,6 +26,7 @@ import {
   ExternalLink,
   Filter,
   GripVertical,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -136,17 +143,22 @@ function validateRequiredUploads(task: WorkflowTask): UploadValidation {
 
   // Get unique folder types from uploaded files
   const uploadedFolderTypes = new Set<string>();
-  
+
   files.forEach((file: any) => {
     // Check various possible properties that might indicate the section
-    let folderType = file.folderType || file.subfolder || file.section || file.category;
-    
+    let folderType =
+      file.folderType || file.subfolder || file.section || file.category;
+
     // Fallback: Try to extract folder type from file URL or path
     if (!folderType && file.url) {
       const url = file.url.toLowerCase();
       if (url.includes("/main/") || url.includes("/main-")) {
         folderType = "main";
-      } else if (url.includes("/music-license/") || url.includes("/music-license-") || url.includes("/music_license")) {
+      } else if (
+        url.includes("/music-license/") ||
+        url.includes("/music-license-") ||
+        url.includes("/music_license")
+      ) {
         folderType = "music-license";
       } else if (url.includes("/thumbnails/") || url.includes("/thumbnail")) {
         folderType = "thumbnails";
@@ -166,7 +178,7 @@ function validateRequiredUploads(task: WorkflowTask): UploadValidation {
         folderType = "music-license";
       }
     }
-    
+
     if (folderType) {
       uploadedFolderTypes.add(folderType);
     }
@@ -209,6 +221,24 @@ interface TaskFile {
   size: number;
   uploadedAt: string;
   uploadedBy: string;
+  folderType?: string; // "main", "thumbnails", "music-license", "tiles", "covers"
+  version?: number;
+  isActive?: boolean;
+}
+
+// 🔥 Task Feedback interface for version-tracked comments
+interface TaskFeedbackItem {
+  id: string;
+  fileId?: string;
+  folderType: string; // "main", "thumbnails", "music-license", "tiles", "covers"
+  feedback: string;
+  status: string; // "needs_revision", "approved"
+  timestamp?: string; // Video timestamp like "1:30"
+  category?: string; // "design", "content", "timing", "technical", "spelling", "other"
+  createdAt: string;
+  resolvedAt?: string;
+  fileVersion?: number; // The version of the file this feedback relates to
+  fileName?: string;
 }
 
 interface WorkflowTask {
@@ -230,13 +260,24 @@ interface WorkflowTask {
   qcNotes?: string | null;
   rejectionReason?: string | null;
   feedback?: string | null;
+  taskFeedback?: TaskFeedbackItem[]; // 🔥 Version-tracked feedback
+  // 🔥 NEW: For weekly task distribution
+  monthlyDeliverableId?: string;
+  monthlyQuantity?: number; // Total tasks per month for this deliverable
+  taskNumber?: number; // Task number (extracted from title)
 }
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 FILE PREVIEW COMPONENT                                                  */
 /* -------------------------------------------------------------------------- */
 
-function FilePreviewCard({ file, onView }: { file: TaskFile; onView: () => void }) {
+function FilePreviewCard({
+  file,
+  onView,
+}: {
+  file: TaskFile;
+  onView: () => void;
+}) {
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith("video/"))
       return <Video className="h-4 w-4 text-blue-600" />;
@@ -307,7 +348,9 @@ function FileViewerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] sm:max-h-[80vh] p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg">Task Files ({files.length})</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">
+            Task Files ({files.length})
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-2 overflow-y-auto max-h-[70vh] sm:max-h-[60vh]">
@@ -329,7 +372,8 @@ function FileViewerDialog({
                       <span>{formatFileSize(file.size)}</span>
                       <span>•</span>
                       <span>
-                        Uploaded {new Date(file.uploadedAt).toLocaleDateString()}
+                        Uploaded{" "}
+                        {new Date(file.uploadedAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
@@ -367,14 +411,13 @@ function TaskCard({
 }) {
   const [showFiles, setShowFiles] = useState(false);
   const isOverdue = new Date(task.dueDate) < new Date();
-  
+
   // 🔥 Tasks in QC review shouldn't be draggable by editors
   const isDraggable = task.status !== "ready_for_qc";
 
   // 🔥 Get upload validation for in_progress tasks
-  const uploadValidation = task.status === "in_progress" 
-    ? validateRequiredUploads(task) 
-    : null;
+  const uploadValidation =
+    task.status === "in_progress" ? validateRequiredUploads(task) : null;
 
   return (
     <>
@@ -382,12 +425,10 @@ function TaskCard({
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
         className={`transition-all ${
-          isDraggable 
-            ? "cursor-grab active:cursor-grabbing hover:shadow-md" 
+          isDraggable
+            ? "cursor-grab active:cursor-grabbing hover:shadow-md"
             : "cursor-not-allowed opacity-75"
-        } ${
-          isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""
-        }`}
+        } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}
       >
         <CardContent className="p-3">
           {/* Drag Handle + Title */}
@@ -407,7 +448,10 @@ function TaskCard({
           {/* Deliverable Type + Description combined */}
           <div className="mb-2">
             {task.deliverableType && (
-              <Badge variant="outline" className="text-[10px] mb-1 mr-1 px-1.5 py-0 h-4">
+              <Badge
+                variant="outline"
+                className="text-[10px] mb-1 mr-1 px-1.5 py-0 h-4"
+              >
                 {task.deliverableType.replace(/_/g, " ")}
               </Badge>
             )}
@@ -420,9 +464,22 @@ function TaskCard({
           {task.status === "in_progress" && uploadValidation && (
             <div className="mb-2 p-1.5 bg-muted/50 rounded text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-medium">Upload Progress:</span>
-                <span className={`text-[10px] ${uploadValidation.isComplete ? "text-green-600" : "text-amber-600"}`}>
-                  {uploadValidation.isComplete ? "✓ Ready" : `${uploadValidation.uploadedSections.length}/${uploadValidation.uploadedSections.length + uploadValidation.missingUploads.length}`}
+                <span className="text-[10px] font-medium">
+                  Upload Progress:
+                </span>
+                <span
+                  className={`text-[10px] ${
+                    uploadValidation.isComplete
+                      ? "text-green-600"
+                      : "text-amber-600"
+                  }`}
+                >
+                  {uploadValidation.isComplete
+                    ? "✓ Ready"
+                    : `${uploadValidation.uploadedSections.length}/${
+                        uploadValidation.uploadedSections.length +
+                        uploadValidation.missingUploads.length
+                      }`}
                 </span>
               </div>
             </div>
@@ -433,7 +490,8 @@ function TaskCard({
             <Alert variant="destructive" className="mb-2 py-1.5">
               <AlertCircle className="h-3 w-3" />
               <AlertDescription className="text-[10px] py-0">
-                <strong>QC:</strong> {task.qcNotes.slice(0, 50)}{task.qcNotes.length > 50 ? "..." : ""}
+                <strong>QC:</strong> {task.qcNotes.slice(0, 50)}
+                {task.qcNotes.length > 50 ? "..." : ""}
               </AlertDescription>
             </Alert>
           )}
@@ -442,9 +500,7 @@ function TaskCard({
           <div className="flex items-center justify-between mb-2 text-xs">
             <span
               className={`text-[10px] ${
-                isOverdue
-                  ? "text-red-500 font-medium"
-                  : "text-muted-foreground"
+                isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
               }`}
             >
               Due {new Date(task.dueDate).toLocaleDateString()}
@@ -460,27 +516,29 @@ function TaskCard({
           </div>
 
           {/* Compact FILE PREVIEWS - Only show if files exist and not in progress (to avoid duplication) */}
-          {task.files && task.files.length > 0 && task.status !== "in_progress" && (
-            <div className="mb-2">
-              <div className="space-y-0.5">
-                {task.files.slice(0, 1).map((file: TaskFile) => (
-                  <FilePreviewCard
-                    key={file.id}
-                    file={file}
-                    onView={() => window.open(file.url, "_blank")}
-                  />
-                ))}
-                {task.files.length > 1 && (
-                  <button
-                    className="text-[10px] text-primary hover:underline w-full text-left"
-                    onClick={() => setShowFiles(true)}
-                  >
-                    +{task.files.length - 1} more
-                  </button>
-                )}
+          {task.files &&
+            task.files.length > 0 &&
+            task.status !== "in_progress" && (
+              <div className="mb-2">
+                <div className="space-y-0.5">
+                  {task.files.slice(0, 1).map((file: TaskFile) => (
+                    <FilePreviewCard
+                      key={file.id}
+                      file={file}
+                      onView={() => window.open(file.url, "_blank")}
+                    />
+                  ))}
+                  {task.files.length > 1 && (
+                    <button
+                      className="text-[10px] text-primary hover:underline w-full text-left"
+                      onClick={() => setShowFiles(true)}
+                    >
+                      +{task.files.length - 1} more
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* 🔥 Upload Section */}
           {(task.status === "pending" || task.status === "rejected") && (
@@ -625,7 +683,8 @@ function DroppableColumn({
 
 export function EditorDashboard() {
   const [tasks, setTasks] = useState<WorkflowTask[]>([]);
-  const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>("all");
+  const [deliverableTypeFilter, setDeliverableTypeFilter] =
+    useState<string>("all");
   const [draggingTask, setDraggingTask] = useState<WorkflowTask | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const { user } = useAuth();
@@ -676,10 +735,28 @@ export function EditorDashboard() {
               projectId: t.clientId,
               deliverableType: t.monthlyDeliverable?.type,
               taskNumber: extractTaskNumber(t.title),
+              // 🔥 NEW: Monthly deliverable info for weekly distribution
+              monthlyDeliverableId: t.monthlyDeliverableId || null,
+              monthlyQuantity: t.monthlyDeliverable?.quantity || 4, // Default to 4 if not set
               files: t.files || [],
               qcNotes: t.qcNotes || null,
               rejectionReason: t.rejectionReason || null,
               feedback: t.feedback || null,
+              // 🔥 Map taskFeedback with file version info from nested file data
+              taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
+                id: fb.id,
+                fileId: fb.fileId,
+                folderType: fb.folderType,
+                feedback: fb.feedback,
+                status: fb.status,
+                timestamp: fb.timestamp,
+                category: fb.category,
+                createdAt: fb.createdAt,
+                resolvedAt: fb.resolvedAt,
+                // Use nested file data from API response
+                fileVersion: fb.file?.version || 1,
+                fileName: fb.file?.name || null,
+              })),
             };
           });
 
@@ -704,12 +781,115 @@ export function EditorDashboard() {
     return Array.from(types).sort();
   }, [tasks]);
 
+  // 🔥 WEEKLY TASK DISTRIBUTION LOGIC
+  // This calculates which tasks should be visible based on weekly quotas
+  const weeklyVisibleTasks = useMemo(() => {
+    // Group tasks by deliverable (clientId + deliverableType combo)
+    const tasksByDeliverable: Record<string, WorkflowTask[]> = {};
+
+    tasks.forEach((task) => {
+      // Create a unique key for each deliverable per client
+      const deliverableKey = `${task.clientId}-${
+        task.monthlyDeliverableId || task.deliverableType || "default"
+      }`;
+
+      if (!tasksByDeliverable[deliverableKey]) {
+        tasksByDeliverable[deliverableKey] = [];
+      }
+      tasksByDeliverable[deliverableKey].push(task);
+    });
+
+    const visibleTasks: WorkflowTask[] = [];
+
+    // For each deliverable, calculate weekly quota and determine visible tasks
+    Object.keys(tasksByDeliverable).forEach((deliverableKey) => {
+      const deliverableTasks = tasksByDeliverable[deliverableKey];
+
+      // Sort tasks by task number (ascending order)
+      deliverableTasks.sort((a, b) => {
+        const numA = a.taskNumber || 0;
+        const numB = b.taskNumber || 0;
+        return numA - numB;
+      });
+
+      // Get monthly quantity from first task (all tasks in same deliverable should have same quantity)
+      const monthlyQuantity = deliverableTasks[0]?.monthlyQuantity || 4;
+
+      // Calculate weekly quota: tasks per month / 4 weeks (minimum 1)
+      const weeklyQuota = Math.max(1, Math.ceil(monthlyQuantity / 4));
+
+      // Separate tasks by status
+      const pendingTasks = deliverableTasks.filter(
+        (t) => t.status === "pending"
+      );
+      const inProgressTasks = deliverableTasks.filter(
+        (t) => t.status === "in_progress"
+      );
+      const rejectedTasks = deliverableTasks.filter(
+        (t) => t.status === "rejected"
+      );
+      const qcTasks = deliverableTasks.filter(
+        (t) => t.status === "ready_for_qc"
+      );
+      const completedTasks = deliverableTasks.filter(
+        (t) => t.status === "completed" || t.status === "approved"
+      );
+
+      // 🔥 VISIBILITY RULES:
+      // 1. Always show in_progress tasks (editor is working on them)
+      // 2. Always show rejected tasks (need revision)
+      // 3. Always show ready_for_qc tasks (in QC review)
+      // 4. Show pending tasks up to weekly quota (minus in_progress count)
+
+      // Add all active work tasks
+      visibleTasks.push(...inProgressTasks);
+      visibleTasks.push(...rejectedTasks);
+      visibleTasks.push(...qcTasks);
+
+      // Calculate how many more pending tasks to show
+      // Weekly quota minus tasks currently being worked on
+      const activeWorkCount = inProgressTasks.length + rejectedTasks.length;
+      const pendingToShow = Math.max(0, weeklyQuota - activeWorkCount);
+
+      // Add pending tasks up to the quota
+      const pendingToAdd = pendingTasks.slice(0, pendingToShow);
+      visibleTasks.push(...pendingToAdd);
+
+      // Log for debugging
+      console.log(`📊 Deliverable: ${deliverableKey}`, {
+        monthlyQuantity,
+        weeklyQuota,
+        totalTasks: deliverableTasks.length,
+        pending: pendingTasks.length,
+        inProgress: inProgressTasks.length,
+        rejected: rejectedTasks.length,
+        qc: qcTasks.length,
+        pendingShown: pendingToAdd.length,
+        totalVisible:
+          inProgressTasks.length +
+          rejectedTasks.length +
+          qcTasks.length +
+          pendingToAdd.length,
+      });
+    });
+
+    return visibleTasks;
+  }, [tasks]);
+
+  // Apply deliverable type filter on top of weekly visible tasks
   const filteredTasks = useMemo(() => {
     if (deliverableTypeFilter === "all") {
-      return tasks;
+      return weeklyVisibleTasks;
     }
-    return tasks.filter((task) => task.deliverableType === deliverableTypeFilter);
-  }, [tasks, deliverableTypeFilter]);
+    return weeklyVisibleTasks.filter(
+      (task) => task.deliverableType === deliverableTypeFilter
+    );
+  }, [weeklyVisibleTasks, deliverableTypeFilter]);
+
+  // 🔥 Calculate hidden task count for UI feedback
+  const hiddenTaskCount = useMemo(() => {
+    return tasks.length - weeklyVisibleTasks.length;
+  }, [tasks, weeklyVisibleTasks]);
 
   /* ----------------------------- DRAG & DROP ------------------------------- */
 
@@ -788,7 +968,7 @@ export function EditorDashboard() {
     // Special validation: Can't submit for QC without ALL required files
     if (toStatus === "ready_for_qc") {
       const uploadValidation = validateRequiredUploads(task);
-      
+
       if (!uploadValidation.isComplete) {
         const missingList = uploadValidation.missingUploads.join(", ");
         return {
@@ -836,15 +1016,22 @@ export function EditorDashboard() {
     }
   }
 
-  async function handleDrop(e: DragEvent<HTMLDivElement>, targetStatus: string) {
+  async function handleDrop(
+    e: DragEvent<HTMLDivElement>,
+    targetStatus: string
+  ) {
     e.preventDefault();
     setDragOverColumn(null);
 
     if (!draggingTask) return;
 
     // 🔥 VALIDATE THE TRANSITION
-    const validation = validateTransition(draggingTask.status, targetStatus, draggingTask);
-    
+    const validation = validateTransition(
+      draggingTask.status,
+      targetStatus,
+      draggingTask
+    );
+
     if (!validation.valid) {
       if (validation.message) {
         setValidationError(validation.message);
@@ -901,7 +1088,11 @@ export function EditorDashboard() {
   // 🔥 Helper to check if a column is a valid drop target for current dragging task
   function isValidDropTarget(columnStatus: string): boolean {
     if (!draggingTask) return false;
-    const validation = validateTransition(draggingTask.status, columnStatus, draggingTask);
+    const validation = validateTransition(
+      draggingTask.status,
+      columnStatus,
+      draggingTask
+    );
     return validation.valid;
   }
 
@@ -950,10 +1141,30 @@ export function EditorDashboard() {
   };
 
   const columns = [
-    { id: "pending", title: "Pending", status: "pending", tasks: tasksByStatus.pending },
-    { id: "inProgress", title: "In Progress", status: "in_progress", tasks: tasksByStatus.inProgress },
-    { id: "readyForQC", title: "Ready for QC", status: "ready_for_qc", tasks: tasksByStatus.readyForQC },
-    { id: "revisions", title: "Revisions Needed", status: "rejected", tasks: tasksByStatus.revisions },
+    {
+      id: "pending",
+      title: "Pending",
+      status: "pending",
+      tasks: tasksByStatus.pending,
+    },
+    {
+      id: "inProgress",
+      title: "In Progress",
+      status: "in_progress",
+      tasks: tasksByStatus.inProgress,
+    },
+    {
+      id: "readyForQC",
+      title: "Ready for QC",
+      status: "ready_for_qc",
+      tasks: tasksByStatus.readyForQC,
+    },
+    {
+      id: "revisions",
+      title: "Revisions Needed",
+      status: "rejected",
+      tasks: tasksByStatus.revisions,
+    },
   ];
 
   const totalFilteredTasks = filteredTasks.length;
@@ -966,9 +1177,14 @@ export function EditorDashboard() {
       {/* 🔥 Validation Error Toast */}
       {validationError && (
         <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-auto z-50 animate-in slide-in-from-top-2 fade-in duration-300">
-          <Alert variant="destructive" className="w-full sm:w-auto sm:max-w-md shadow-lg">
+          <Alert
+            variant="destructive"
+            className="w-full sm:w-auto sm:max-w-md shadow-lg"
+          >
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-sm">{validationError}</AlertDescription>
+            <AlertDescription className="text-sm">
+              {validationError}
+            </AlertDescription>
           </Alert>
         </div>
       )}
@@ -978,7 +1194,9 @@ export function EditorDashboard() {
           <h1 className="text-xl sm:text-2xl">Editor Portal</h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
             Manage your assigned tasks and complete work for QC review.
-            <span className="hidden sm:inline text-xs ml-2 text-primary">(Drag tasks to change status)</span>
+            <span className="hidden sm:inline text-xs ml-2 text-primary">
+              (Drag tasks to change status)
+            </span>
           </p>
         </div>
       </div>
@@ -990,7 +1208,9 @@ export function EditorDashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs sm:text-sm text-muted-foreground">Filter by:</span>
+                <span className="text-xs sm:text-sm text-muted-foreground">
+                  Filter by:
+                </span>
               </div>
 
               <div className="flex items-center gap-2 flex-1 sm:flex-initial">
@@ -1028,9 +1248,15 @@ export function EditorDashboard() {
             {deliverableTypeFilter !== "all" && (
               <div className="mt-3 pt-3 border-t">
                 <p className="text-sm text-muted-foreground">
-                  Showing <span className="font-medium text-foreground">{totalFilteredTasks}</span> of{" "}
-                  <span className="font-medium text-foreground">{totalTasks}</span> tasks
-                  {" "}filtered by{" "}
+                  Showing{" "}
+                  <span className="font-medium text-foreground">
+                    {totalFilteredTasks}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-medium text-foreground">
+                    {totalTasks}
+                  </span>{" "}
+                  tasks filtered by{" "}
                   <Badge variant="secondary" className="ml-1">
                     {deliverableTypeFilter.replace(/_/g, " ")}
                   </Badge>

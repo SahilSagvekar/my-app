@@ -534,7 +534,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
-              <Button className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm" onClick={handleUploadClick}>
+              <Button
+                className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
+                onClick={handleUploadClick}
+              >
                 <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Upload</span>
               </Button>
@@ -558,7 +561,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 </Button>
               </div>
 
-              <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-10 sm:w-10" onClick={loadDriveStructure}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 sm:h-10 sm:w-10"
+                onClick={loadDriveStructure}
+              >
                 <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
@@ -632,7 +640,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       {item.type === "folder" ? (
                         <Folder className="h-12 w-12 sm:h-16 sm:w-16 text-blue-500 mb-1 sm:mb-2" />
                       ) : (
-                        <div className="mb-1 sm:mb-2 scale-75 sm:scale-100">{getFileIcon(item.name)}</div>
+                        <div className="mb-1 sm:mb-2 scale-75 sm:scale-100">
+                          {getFileIcon(item.name)}
+                        </div>
                       )}
 
                       <p className="text-xs sm:text-sm font-medium truncate w-full px-1">
@@ -732,9 +742,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                 {getFileIcon(item.name)}
                               </div>
                             )}
-                            <span className="truncate text-xs sm:text-sm">{item.name}</span>
+                            <span className="truncate text-xs sm:text-sm">
+                              {item.name}
+                            </span>
                             <span className="sm:hidden text-xs text-muted-foreground ml-auto">
-                              {item.type === "file" && item.size ? formatBytes(item.size) : ""}
+                              {item.type === "file" && item.size
+                                ? formatBytes(item.size)
+                                : ""}
                             </span>
                           </div>
                         </td>
