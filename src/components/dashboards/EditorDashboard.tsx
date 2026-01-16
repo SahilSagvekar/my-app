@@ -1267,16 +1267,6 @@ export function EditorDashboard() {
         </CardContent>
       </Card>
 
-      {/* Workflow Rules Info */}
-      {/* <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 flex items-center gap-4 flex-wrap">
-        <span className="font-medium">Workflow:</span>
-        <span>Pending → In Progress</span>
-        <span>→</span>
-        <span>In Progress → Ready for QC <span className="text-amber-600">(requires files)</span></span>
-        <span>→</span>
-        <span>Revisions → In Progress</span>
-      </div> */}
-
       {/* Kanban Board with Drag & Drop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {columns.map((column) => (
