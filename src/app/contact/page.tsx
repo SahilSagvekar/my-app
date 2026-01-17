@@ -23,7 +23,7 @@ export default function ContactPage() {  // ← Changed: Added "default"
             {/* Contact Form */}
             <div className="bg-white border border-black/5 rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-lg">
               <h3 className="text-lg sm:text-xl text-black mb-4 sm:mb-6">
-                Send us a message
+                Send Us A Message
               </h3>
               <ContactForm />
             </div>

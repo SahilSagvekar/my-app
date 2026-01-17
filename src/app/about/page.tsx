@@ -53,8 +53,7 @@ export default function AboutPage() {
             About E8 Productions
           </h1>
           <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
-            We're democratizing access to world-class media production, helping small businesses 
-              tell their stories with the same quality and impact as the biggest brands.
+            We don’t just make videos — we build media that works.E8 Productions creates original shows, brand content, and social systems designed to earn attention, build trust, and turn audiences into real value.
           </p>
         </div>
 

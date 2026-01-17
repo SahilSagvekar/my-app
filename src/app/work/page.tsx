@@ -33,7 +33,7 @@ const clients = [
     icon: Building2,
     description:
       "National content partnership showcasing top laundromat owners and industry success stories.",
-    image: "/assets/CLA RESULTS IMAGE.jpeg",
+    image: "/assets/results/CLA RESULTS IMAGE.jpeg",
   },
   {
     id: 2,
@@ -42,15 +42,15 @@ const clients = [
     icon: Dumbbell,
     description:
       "High-energy fitness event content highlighting workouts, seasonal events, and community engagement.",
-    image: "/assets/STAYFIT305 RESULTS IMAGE.jpeg",
+    image: "/assets/results/STAYFIT305 RESULTS.jpg",
   },
   {
     id: 3,
     name: "Cole Simpson",
     category: "Influencer",
     icon: User,
-    description: "",
-    image: "/assets/COLE SIMPSON RESULTS IMAGE.jpeg",
+    description: "Reality-style social media series following a roofing company owner who gives back to his community by providing free roofs and more.",
+    image: "/assets/results/SODACITYSIMPSON.jpg",
   },
   {
     id: 4,
@@ -59,7 +59,7 @@ const clients = [
     icon: Heart,
     description:
       "Original dating series built for viral engagement, audience growth, and monetized entertainment.",
-    image: "/assets/TDBS RESULTS IMAGE.jpeg",
+    image: "/assets/results/TDBS RESULTS.jpg",
   },
   {
     id: 5,
@@ -68,7 +68,7 @@ const clients = [
     icon: Music,
     description:
       "High-impact promotional content for clubs and nightlife brands through cinematic montages and event photography.",
-    image: "/assets/COLLEGIA TE NIGHTLIFE RESULTS IMAGE.jpeg",
+    image: "/assets/results/RESULTS COLLEGIATE.jpeg",
   },
   {
     id: 6,
@@ -77,59 +77,124 @@ const clients = [
     icon: ShoppingBag,
     description:
       "Branded product content designed to drive awareness and sales for a consumer pizza oven in retail markets.",
-    image: "/assets/TURPONE RESULTS.jpeg",
+    image: "/assets/results/TURPONE RESULTS.jpeg",
   },
 ];
+
+// const brandLogos = [
+//   {
+//     name: "TDBS",
+//     // logo: "/assets/CAROUSEL/PROFILE PIC TEMPLATE TDBS (8).png",
+//     logo: "/assets/CAROUSEL-2/PROFILE PIC TEMPLATE TDBS (8).png",
+//     fallbackIcon: Store,
+//   },  
+//   {
+//     name: "Turpone",
+//     logo: "/assets/CAROUSEL-2/TURPONE.png",
+//     fallbackIcon: ShoppingBag,
+//   },
+//   {
+//     name: "YouTube",
+//     logo: "/assets/CAROUSEL-2/YT Logo (1).png",
+//     fallbackIcon: Music,
+//   },
+//   {
+//     name: "Collegiate",
+//     logo: "/assets/CAROUSEL-2/COLLEGIATE.jpeg",
+//     fallbackIcon: Music,
+//   },
+//   {
+//     name: "Bare Knuckle Fighting Championship",
+//     logo: "/assets/CAROUSEL-2/BKFC---Logo-badge-_Nov2020_207614f6-8a80-49fe-b5de-0eb116826438_1200x1200 (1).webp",
+//     fallbackIcon: Music,
+//   },
+//   {
+//     name: "StayFit305",
+//     logo: "/assets/CAROUSEL-2/STAYFIT305.jpg",
+//     fallbackIcon: Dumbbell,
+//   },
+//   {
+//     name: "ContractorPlus",
+//     logo: "/assets/CAROUSEL-2/ContractorPlus-04-01.png",
+//     fallbackIcon: Wrench,
+//   },
+//   {
+//     name: "Client",
+//     logo: "/assets/CAROUSEL-2/IMG_5681.PNG",
+//     fallbackIcon: Store,
+//   },
+//   {
+//     name: "Connect AI",
+//     logo: "/assets/CAROUSEL-2/connectai.png",
+//     fallbackIcon: Code,
+//   },
+//   {
+//     name: "Kirgo",
+//     logo: "/assets/CAROUSEL-2/KIRGO RESULTS.jpg",
+//     fallbackIcon: Rocket,
+//   },
+//   {
+//     name: "Heal Plan Invest",
+//     logo: "/assets/CAROUSEL-2/HEALPLANINVEST RESULTS.jpg",
+//     fallbackIcon: Rocket,
+//   },
+// ];
+
 
 const brandLogos = [
   {
     name: "TDBS",
-    logo: "/assets/CAROUSEL/PROFILE PIC TEMPLATE TDBS (8).png",
+    logo: "/assets/CAROUSEL-2/PROFILE PIC TEMPLATE TDBS (8).png", // Fixed: added leading slash
     fallbackIcon: Store,
   },  
   {
     name: "Turpone",
-    logo: "/assets/CAROUSEL/TURPONE.png",
+    logo: "/assets/CAROUSEL-2/TURPONE.png",
     fallbackIcon: ShoppingBag,
   },
   {
     name: "YouTube",
-    logo: "/assets/CAROUSEL/YT 1.png",
+    logo: "/assets/CAROUSEL-2/YT Logo (1).png",
     fallbackIcon: Music,
   },
   {
     name: "Collegiate",
-    logo: "/assets/CAROUSEL/COLLEGIATE.jpeg",
+    logo: "/assets/CAROUSEL-2/COLLEGIATE.jpeg",
     fallbackIcon: Music,
   },
   {
     name: "Bare Knuckle Fighting Championship",
-    logo: "/assets/CAROUSEL/BKFC---Logo-badge-_Nov2020_207614f6-8a80-49fe-b5de-0eb116826438_1200x1200 (1).webp",
+    logo: "/assets/CAROUSEL-2/BKFC---Logo-badge-_Nov2020_207614f6-8a80-49fe-b5de-0eb116826438_1200x1200 (1).webp",
     fallbackIcon: Music,
   },
   {
     name: "StayFit305",
-    logo: "/assets/CAROUSEL/5fb058d2177e60b05fff035a_stayfi- 305-opengraph-03 (1).png",
+    logo: "/assets/CAROUSEL-2/STAYFIT305.jpg",
     fallbackIcon: Dumbbell,
   },
   {
     name: "ContractorPlus",
-    logo: "/assets/CAROUSEL/ContractorPlus-04-01.png",
+    logo: "/assets/CAROUSEL-2/ContractorPlus-04-01.png",
     fallbackIcon: Wrench,
   },
   {
     name: "Client",
-    logo: "/assets/CAROUSEL/IMG_5681.PNG",
+    logo: "/assets/CAROUSEL-2/IMG_5681.PNG",
     fallbackIcon: Store,
   },
   {
     name: "Connect AI",
-    logo: "/assets/CAROUSEL/INSTA_POST - 02-100.jpg",
+    logo: "/assets/CAROUSEL-2/connectai.png", // Fixed: removed /public prefix
     fallbackIcon: Code,
   },
   {
     name: "Kirgo",
-    logo: "/assets/CAROUSEL/Kirgo Black Box White Text Mint Horns.png",
+    logo: "/assets/CAROUSEL-2/KIRGO RESULTS.jpg",
+    fallbackIcon: Rocket,
+  },
+  {
+    name: "Heal Plan Invest",
+    logo: "/assets/CAROUSEL-2/HEALPLANINVEST RESULTS.jpg",
     fallbackIcon: Rocket,
   },
 ];
@@ -228,7 +293,7 @@ function InfiniteScrollCarousel() {
           }
         }
         .animate-scroll {
-          animation: scroll 15s linear infinite;
+          animation: scroll 25s linear infinite;
           will-change: transform;
         }
         .animate-scroll:hover {
@@ -414,7 +479,7 @@ export default function WorkPage() {
                   <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
-                  285%
+                  180%
                 </div>
                 <div className="text-sm sm:text-sm text-black/60">
                   Average Growth
@@ -426,7 +491,7 @@ export default function WorkPage() {
                   <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
-                  12.5M+
+                  743M+
                 </div>
                 <div className="text-sm sm:text-sm text-black/60">
                   Total Video Views
