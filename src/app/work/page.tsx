@@ -77,90 +77,55 @@ const clients = [
     icon: ShoppingBag,
     description:
       "Branded product content designed to drive awareness and sales for a consumer pizza oven in retail markets.",
-    image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800",
+    image: "/assets/TURPONE RESULTS.jpeg",
   },
 ];
 
 const brandLogos = [
   {
+    name: "TDBS",
+    logo: "/assets/CAROUSEL/PROFILE PIC TEMPLATE TDBS (8).png",
+    fallbackIcon: Store,
+  },
+  {
     name: "Turpone",
-    logo: "/assets/Logo/TURPONE.png",
+    logo: "/assets/CAROUSEL/TURPONE.png",
     fallbackIcon: ShoppingBag,
   },
   {
-    name: "Bare Knuckle Fighting Championship",
-    logo: "/assets/Logo/BKFC---Logo-badge-_Nov2020_207614f6-8a80-49fe-b5de-0eb116826438_1200x1200 (1).webp",
+    name: "YouTube",
+    logo: "/assets/CAROUSEL/YT Logo (1).png",
     fallbackIcon: Music,
   },
   {
+    name: "StayFit305",
+    logo: "/assets/CAROUSEL/5fb058d2177e60b05fff035a_stayfi- 305-opengraph-03 (1).png",
+    fallbackIcon: Dumbbell,
+  },
+  {
+    name: "Bare Knuckle Fighting Championship",
+    logo: "/assets/CAROUSEL/BKFC---Logo-badge-_Nov2020_207614f6-8a80-49fe-b5de-0eb116826438_1200x1200 (1).webp",
+    fallbackIcon: Music,
+  },
+  {
+    name: "ContractorPlus",
+    logo: "/assets/CAROUSEL/ContractorPlus-04-01.png",
+    fallbackIcon: Wrench,
+  },
+  {
+    name: "Client",
+    logo: "/assets/CAROUSEL/IMG_5681.PNG",
+    fallbackIcon: Store,
+  },
+  {
     name: "Connect AI",
-    logo: "/assets/Logo/INSTA_POST - 02-100.jpg",
+    logo: "/assets/CAROUSEL/INSTA_POST - 02-100.jpg",
     fallbackIcon: Code,
   },
   {
     name: "Kirgo",
-    logo: "/assets/Logo/kirgo-casino-logo (1).jpeg",
+    logo: "/assets/CAROUSEL/Kirgo Black Box White Text Mint Horns.png",
     fallbackIcon: Rocket,
-  },
-  {
-    name: "Local Businesses",
-    logo: null,
-    fallbackIcon: Store,
-  },
-  {
-    name: "Startups",
-    logo: null,
-    fallbackIcon: Rocket,
-  },
-  {
-    name: "E-commerce Brands",
-    logo: null,
-    fallbackIcon: ShoppingCart,
-  },
-  {
-    name: "Service Providers",
-    logo: null,
-    fallbackIcon: Wrench,
-  },
-  {
-    name: "Restaurants & Cafes",
-    logo: null,
-    fallbackIcon: UtensilsCrossed,
-  },
-  {
-    name: "Retail Shops",
-    logo: null,
-    fallbackIcon: ShoppingBag,
-  },
-  {
-    name: "Fitness Brands",
-    logo: null,
-    fallbackIcon: Dumbbell,
-  },
-  {
-    name: "Entertainment",
-    logo: null,
-    fallbackIcon: Music,
-  },
-  {
-    name: "Tech Companies",
-    logo: null,
-    fallbackIcon: Code,
-  },
-  {
-    name: "Food & Beverage",
-    logo: null,
-    fallbackIcon: Coffee,
-  },
-  {
-    name: "Fashion Brands",
-    logo: null,
-    fallbackIcon: Shirt,
-  },
-  {
-    name: "Beauty & Wellness",
-    logo: null,
-    fallbackIcon: Sparkles,
   },
 ];
 
@@ -273,7 +238,7 @@ export default function WorkPage() {
       <Navigation />
 
       {/* Hero Section */}
-      <div className="pt-20 sm:pt-24 pb-16 sm:pb-16 px-5 sm:px-6 lg:px-8 bg-white">
+      <div className="pt-20 sm:pt-24 pb-2 sm:pb-8 px-5 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4 px-4 sm:px-0">
             Results That Speak for Themselves
@@ -287,7 +252,7 @@ export default function WorkPage() {
       </div>
 
       {/* Clients Section */}
-      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
+      <section className="pt-2 sm:pt-8 pb-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
           {/* <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
@@ -313,12 +278,6 @@ export default function WorkPage() {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   <div className="absolute top-4 left-4 flex items-center gap-2">
-                    <div className="w-8 h-8 bg-white/90 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                      {(() => {
-                        const IconComponent = client.icon;
-                        return <IconComponent className="w-4 h-4 text-black" />;
-                      })()}
-                    </div>
                     <span className="px-3 py-1 bg-white/90 backdrop-blur-sm text-black text-sm sm:text-sm rounded-full font-medium">
                       {client.category}
                     </span>
@@ -377,7 +336,7 @@ export default function WorkPage() {
       </section>
 
       {/* Featured Projects */}
-      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
+      {/* <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-12 lg:mb-16">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
@@ -427,7 +386,7 @@ export default function WorkPage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Impact By Numbers */}
       <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">

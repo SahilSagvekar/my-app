@@ -33,56 +33,56 @@ export default function LandingPage() {
       <Hero />
 
       {/* Services Preview */}
-      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
+      <section className="pt-8 pb-8 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-8 sm:gap-10 lg:gap-12">
+          <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 lg:gap-12">
             <div className="flex-1 order-2 md:order-1 w-full">
-              <div className="aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl bg-white p-4 sm:p-6">
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 h-full">
+              <div className="aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl bg-white p-3 sm:p-6">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 h-full auto-rows-fr">
                   {/* Content Strategy */}
-                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-3 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
+                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-2 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
                     <Target className="w-4 h-4 sm:w-6 sm:h-6 text-black mb-0.5 sm:mb-1" />
                     <span className="text-black text-[10px] sm:text-[10px] text-center leading-tight">Content Strategy</span>
                   </div>
                   
                   {/* Video Production */}
-                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-3 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
+                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-2 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
                     <Video className="w-4 h-4 sm:w-6 sm:h-6 text-black mb-0.5 sm:mb-1" />
                     <span className="text-black text-[10px] sm:text-[10px] text-center leading-tight">Video Production</span>
                   </div>
                   
                   {/* Video Editing */}
-                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-3 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
+                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-2 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
                     <Scissors className="w-4 h-4 sm:w-6 sm:h-6 text-black mb-0.5 sm:mb-1" />
                     <span className="text-black text-[10px] sm:text-[10px] text-center leading-tight">Video Editing</span>
                   </div>
                   
                   {/* Social Media Management */}
-                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-3 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
+                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-2 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
                     <Users className="w-4 h-4 sm:w-6 sm:h-6 text-black mb-0.5 sm:mb-1" />
                     <span className="text-black text-[10px] sm:text-[10px] text-center leading-tight">Social Media Management</span>
                   </div>
                   
                   {/* Posting & Distribution */}
-                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-3 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
+                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-2 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
                     <Send className="w-4 h-4 sm:w-6 sm:h-6 text-black mb-0.5 sm:mb-1" />
                     <span className="text-black text-[10px] sm:text-[10px] text-center leading-tight">Posting & Distribution</span>
                   </div>
                   
                   {/* Monetized Accounts */}
-                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-3 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
+                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-2 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
                     <DollarSign className="w-4 h-4 sm:w-6 sm:h-6 text-black mb-0.5 sm:mb-1" />
                     <span className="text-black text-[10px] sm:text-[10px] text-center leading-tight">Monetized Accounts</span>
                   </div>
                   
                   {/* Original Show Production */}
-                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-3 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
+                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-2 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
                     <Tv className="w-4 h-4 sm:w-6 sm:h-6 text-black mb-0.5 sm:mb-1" />
                     <span className="text-black text-[10px] sm:text-[10px] text-center leading-tight">Original Show Production</span>
                   </div>
                   
                   {/* UGC Content */}
-                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-3 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
+                  <div className="bg-black/5 rounded-lg sm:rounded-xl flex flex-col items-center justify-center p-2 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
                     <Camera className="w-4 h-4 sm:w-6 sm:h-6 text-black mb-0.5 sm:mb-1" />
                     <span className="text-black text-[10px] sm:text-[10px] text-center leading-tight">UGC Content</span>
                   </div>
@@ -123,9 +123,9 @@ export default function LandingPage() {
       </section>
 
       {/* Results Preview */}
-      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
+      <section className="pt-8 pb-8 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-8 sm:gap-10 lg:gap-12">
+          <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 lg:gap-12">
             <div className="flex-1 w-full md:w-auto px-4 sm:px-0">
               <h2 className="text-2xl sm:text-3xl lg:text-3xl text-black mb-3 sm:mb-4 text-center md:text-left">
                 Real Results for Real Businesses
@@ -136,11 +136,11 @@ export default function LandingPage() {
               
               <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8 max-w-xs mx-auto md:max-w-none md:mx-0">
                 <div>
-                  <div className="text-base sm:text-lg text-black mb-1 font-semibold">205%</div>
+                  <div className="text-base sm:text-lg text-black mb-1 sm:mb-1 font-semibold">205%</div>
                   <div className="text-black/50 text-sm sm:text-sm">Average Growth</div>
                 </div>
                 <div>
-                  <div className="text-base sm:text-lg text-black mb-1 font-semibold">12.5M+</div>
+                  <div className="text-base sm:text-lg text-black mb-1 sm:mb-1 font-semibold">12.5M+</div>
                   <div className="text-black/50 text-sm sm:text-sm">Total Views</div>
                 </div>
               </div>
@@ -169,9 +169,9 @@ export default function LandingPage() {
       </section>
 
       {/* Original Shows Preview */}
-      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
+      <section className="pt-8 pb-8 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-8 sm:gap-10 lg:gap-12">
+          <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 lg:gap-12">
             <div className="flex-1 order-2 md:order-1 w-full md:w-auto">
               <div className="aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl">
                 {/* <ImageWithFallback
@@ -185,7 +185,7 @@ export default function LandingPage() {
             </div>
 
             <div className="flex-1 order-1 md:order-2 w-full md:w-auto px-4 sm:px-0">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-black text-white text-sm sm:text-sm rounded-full mb-3 sm:mb-4 mx-auto md:mx-0 block w-fit">
+              <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1 bg-black text-white text-sm sm:text-sm rounded-full mb-3 sm:mb-4 mx-auto md:mx-0 block w-fit">
                 <Tv className="w-3 h-3 sm:w-4 sm:h-4" />
                 Original Content
               </div>
@@ -209,7 +209,7 @@ export default function LandingPage() {
       </section>
 
       {/* About Preview */}
-      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
+      <section className="pt-8 pb-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl lg:text-3xl text-black mb-3 sm:mb-4">
             Why E8 Productions?
