@@ -320,6 +320,35 @@ export function ClientDashboard() {
   const getVideoAssetFromFile = (file: TaskFile) => {
     if (!selectedTask) return null;
 
+    // Get all video files from the same folder type to show as versions
+    const allVideosInFolder = selectedTask.files
+      ?.filter(f =>
+        f.mimeType?.startsWith('video/') &&
+        (f.folderType || 'main') === (file.folderType || 'main')
+      )
+      .sort((a, b) => (b.version || 1) - (a.version || 1)) || [];
+
+    // Build versions array from all videos in the same folder
+    const versions = allVideosInFolder.length > 0
+      ? allVideosInFolder.map((f, index) => ({
+        id: f.id,
+        number: String(f.version || index + 1),
+        thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
+        duration: '2:30',
+        uploadDate: new Date(f.uploadedAt).toLocaleDateString(),
+        status: 'client_review' as const,
+        url: f.url // Store URL to switch videos
+      }))
+      : [{
+        id: file.id,
+        number: String(file.version || 1),
+        thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
+        duration: '2:30',
+        uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
+        status: 'client_review' as const,
+        url: file.url
+      }];
+
     return {
       id: selectedTask.id,
       title: `${selectedTask.title} - ${file.name}`,
@@ -327,22 +356,15 @@ export function ClientDashboard() {
       videoUrl: file.url,
       thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
       runtime: '2:30',
-      status: 'pending_client' as const,
+      status: 'client_review' as const,
       client: 'You',
       platform: 'Web',
       resolution: '1920x1080',
       fileSize: formatFileSize(file.size),
       uploader: 'Editor',
       uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
-      versions: [{
-        id: 'v1',
-        number: String(file.version || 1),
-        thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
-        duration: '2:30',
-        uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
-        status: 'pending_client' as const
-      }],
-      currentVersion: 'v1',
+      versions: versions,
+      currentVersion: file.id,
       downloadEnabled: true,
       approvalLocked: false
     };
@@ -377,17 +399,17 @@ export function ClientDashboard() {
   const getFolderTypeInfo = (folderType?: string) => {
     switch (folderType) {
       case 'main':
-        return { label: '📁 Main Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { label: 'Main Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
       case 'thumbnails':
-        return { label: '🖼️ Thumbnails', icon: '🖼️', color: 'bg-green-100 text-green-800 border-green-200' };
+        return { label: 'Thumbnails', icon: '🖼️', color: 'bg-green-100 text-green-800 border-green-200' };
       case 'tiles':
-        return { label: '🎨 Tiles', icon: '🎨', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+        return { label: 'Tiles', icon: '🎨', color: 'bg-purple-100 text-purple-800 border-purple-200' };
       case 'music-license':
-        return { label: '🎵 Music License', icon: '🎵', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+        return { label: 'Music License', icon: '🎵', color: 'bg-orange-100 text-orange-800 border-orange-200' };
       case 'covers':
-        return { label: '📔 Covers', icon: '📔', color: 'bg-pink-100 text-pink-800 border-pink-200' };
+        return { label: 'Covers', icon: '📔', color: 'bg-pink-100 text-pink-800 border-pink-200' };
       default:
-        return { label: '📁 Main Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { label: 'Main Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
     }
   };
 
@@ -502,17 +524,6 @@ export function ClientDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Overdue</p>
-                <h3 className="text-2xl font-bold text-red-500">{overdueReviews}</h3>
-              </div>
-              <AlertCircle className="h-8 w-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Review Queue */}
@@ -544,11 +555,8 @@ export function ClientDashboard() {
                 tasks.map((task, index) => (
                   <div
                     key={task.id}
-                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${
-                      selectedTask?.id === task.id ? "bg-muted" : ""
-                    } ${getPriorityColor(task.priority)} ${
-                      isOverdue(task) ? "border-r-4 border-r-red-500" : ""
-                    }`}
+                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${selectedTask?.id === task.id ? "bg-muted" : ""
+                      } ${getPriorityColor(task.priority)}`}
                     onClick={() => handleTaskClick(task)}
                   >
                     <div className="flex items-start justify-between mb-2">
@@ -558,13 +566,13 @@ export function ClientDashboard() {
                           <span className="text-xs font-mono text-muted-foreground">
                             #{index + 1}
                           </span>
-                          {getTaskCategoryIcon(task.taskCategory)}
+                          {/* {getTaskCategoryIcon(task.taskCategory)} */}
                         </div>
                         <h4 className="text-sm font-medium truncate">
                           {task.title}
                         </h4>
                       </div>
-                      <Badge variant="default" className="text-xs ml-2 flex-shrink-0">
+                      <Badge variant="outline" className="text-xs ml-2 flex-shrink-0 bg-yellow-100 text-yellow-800 border-yellow-300">
                         Awaiting Review
                       </Badge>
                     </div>
@@ -578,9 +586,8 @@ export function ClientDashboard() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
-                        <span className={isOverdue(task) ? "text-red-500 font-medium" : ""}>
+                        <span>
                           Due {new Date(task.dueDate).toLocaleDateString()}
-                          {isOverdue(task) && " (Overdue)"}
                         </span>
                       </div>
 
@@ -639,13 +646,12 @@ export function ClientDashboard() {
                           >
                             <div className="flex items-center gap-4">
                               {/* File Icon */}
-                              <div className={`p-3 rounded-lg flex-shrink-0 ${
-                                file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
+                              {/* <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
                                 file.mimeType?.startsWith('image/') ? 'bg-green-100' :
-                                'bg-gray-100'
-                              }`}>
+                                  'bg-gray-100'
+                                }`}>
                                 {getFileIcon(file.mimeType)}
-                              </div>
+                              </div> */}
 
                               {/* File Info */}
                               <div className="flex-1 min-w-0">
@@ -712,6 +718,7 @@ export function ClientDashboard() {
               <Button
                 onClick={() => handleApprove()}
                 disabled={isSubmitting}
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Approve All
