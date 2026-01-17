@@ -335,17 +335,19 @@ model Bonus {
 }
 
 model Leave {
-  id           Int         @id @default(autoincrement())
-  employeeId   Int
-  startDate    DateTime
-  endDate      DateTime
-  reason       String?
-  status       LeaveStatus @default(PENDING)
-  numberOfDays Int
-  approvedBy   Int?
-  createdAt    DateTime    @default(now())
-  deduction    Deduction?
-  employee     User        @relation(fields: [employeeId], references: [id])
+  id              Int         @id @default(autoincrement())
+  employeeId      Int
+  startDate       DateTime
+  endDate         DateTime
+  reason          String?
+  status          LeaveStatus @default(PENDING)
+  numberOfDays    Int
+  approvedBy      Int?
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime    @default(now())
+  deduction       Deduction?
+  employee        User        @relation(fields: [employeeId], references: [id])
 }
 
 

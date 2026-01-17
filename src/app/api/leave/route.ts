@@ -17,7 +17,7 @@
 // function getUserFromToken(req: NextRequest) {
 //   try {
 //     const token = req.cookies.get('authToken')?.value;
-    
+
 //     if (!token) {
 //       return null;
 //     }
@@ -133,7 +133,7 @@
 //     return NextResponse.json({ ok: true, leave });
 //   } catch (err: any) {
 //     console.error('POST /api/employee/[id]/leave error:', err);
-    
+
 //     // Handle Zod validation errors
 //     if (err.name === 'ZodError') {
 //       return NextResponse.json(
@@ -141,7 +141,7 @@
 //         { status: 400 }
 //       );
 //     }
-    
+
 //     const status = err?.status || 500;
 //     return NextResponse.json(
 //       { ok: false, message: err?.message || "Something went wrong" },
@@ -157,7 +157,7 @@
 //   try {
 //     // Get and verify user from token
 //     const user = getUserFromToken(req);
-    
+
 //     if (!user) {
 //       return NextResponse.json(
 //         { ok: false, message: "Unauthorized" },
@@ -243,7 +243,7 @@ const LeaveSchema = z.object({
 function getUserFromToken(req: NextRequest) {
   try {
     const token = req.cookies.get('authToken')?.value;
-    
+
     if (!token) {
       return null;
     }
@@ -351,14 +351,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, leave });
   } catch (err: any) {
     console.error('POST /api/leave error:', err);
-    
+
     if (err.name === 'ZodError') {
       return NextResponse.json(
         { ok: false, message: "Invalid request data", errors: err.errors },
         { status: 400 }
       );
     }
-    
+
     const status = err?.status || 500;
     return NextResponse.json(
       { ok: false, message: err?.message || "Something went wrong" },
@@ -380,7 +380,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const user = getUserFromToken(req);
-    
+
     if (!user) {
       return NextResponse.json(
         { ok: false, message: "Unauthorized" },
@@ -481,7 +481,7 @@ export async function GET(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = getUserFromToken(req);
-    
+
     if (!user) {
       return NextResponse.json(
         { ok: false, message: "Unauthorized" },
@@ -512,7 +512,7 @@ export async function DELETE(req: NextRequest) {
 
     // Verify leave exists
     const existingLeave = await prisma.leave.findUnique({
-      where: { id: leaveId },
+      where: { id: Number(leaveId) },
     });
 
     if (!existingLeave) {
@@ -533,9 +533,9 @@ export async function DELETE(req: NextRequest) {
     // Can only delete PENDING leaves
     if (existingLeave.status !== "PENDING") {
       return NextResponse.json(
-        { 
-          ok: false, 
-          message: `Only pending leave requests can be deleted. This request is ${existingLeave.status.toLowerCase()}.` 
+        {
+          ok: false,
+          message: `Only pending leave requests can be deleted. This request is ${existingLeave.status.toLowerCase()}.`
         },
         { status: 400 }
       );
@@ -543,7 +543,7 @@ export async function DELETE(req: NextRequest) {
 
     // Delete the leave request
     await prisma.leave.delete({
-      where: { id: leaveId },
+      where: { id: Number(leaveId) },
     });
 
     console.log(`Leave request ${leaveId} deleted by user ${employeeId}`);
@@ -575,7 +575,7 @@ export async function DELETE(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = getUserFromToken(req);
-    
+
     if (!user) {
       return NextResponse.json(
         { ok: false, message: "Unauthorized" },
@@ -611,9 +611,19 @@ export async function PATCH(req: NextRequest) {
 
     const body = UpdateLeaveStatusSchema.parse(bodyRaw);
 
-    // Verify leave exists
+    // Verify leave exists with employee data for deduction calculation
     const existingLeave = await prisma.leave.findUnique({
-      where: { id: leaveId },
+      where: { id: Number(leaveId) },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            hourlyRate: true,
+            hoursPerWeek: true,
+          },
+        },
+        deduction: true,
+      },
     });
 
     if (!existingLeave) {
@@ -625,19 +635,75 @@ export async function PATCH(req: NextRequest) {
 
     // Update the leave request
     const updatedLeave = await prisma.leave.update({
-      where: { id: leaveId },
+      where: { id: Number(leaveId) },
       data: {
         status: body.status,
         rejectionReason: body.rejectionReason || null,
-        approvedBy: user.id,
-        approvedAt: new Date(),
+        approvedBy: user.userId || user.id,
+        approvedAt: body.status === "APPROVED" ? new Date() : null,
       },
       include: {
         deduction: true,
+        employee: {
+          select: {
+            name: true,
+            hourlyRate: true,
+            hoursPerWeek: true,
+          },
+        },
       },
     });
 
-    console.log(`Leave request ${leaveId} updated to ${body.status} by admin ${user.id}`);
+    // 🔥 LEAVE DEDUCTION LOGIC: Only create deduction for APPROVED leaves
+    if (body.status === "APPROVED" && !existingLeave.deduction) {
+      // Calculate daily deduction amount
+      const hourlyRate = Number(existingLeave.employee.hourlyRate || 0);
+      const hoursPerWeek = Number(existingLeave.employee.hoursPerWeek || 40);
+      const hoursPerDay = hoursPerWeek / 5; // Assuming 5 working days per week
+      const dailyRate = hourlyRate * hoursPerDay;
+      const deductionAmount = dailyRate * existingLeave.numberOfDays;
+
+      if (deductionAmount > 0) {
+        // Create deduction linked to this leave
+        const deduction = await prisma.deduction.create({
+          data: {
+            employeeId: existingLeave.employeeId,
+            amount: deductionAmount,
+            leaveId: existingLeave.id,
+            month: existingLeave.startDate, // Use leave start date as the month for deduction
+          },
+        });
+
+        console.log(`✅ Deduction created for leave ${leaveId}: $${deductionAmount.toFixed(2)} (${existingLeave.numberOfDays} days × $${dailyRate.toFixed(2)}/day)`);
+
+        // Re-fetch with updated deduction
+        const leaveWithDeduction = await prisma.leave.findUnique({
+          where: { id: Number(leaveId) },
+          include: {
+            deduction: true,
+            employee: {
+              select: { name: true },
+            },
+          },
+        });
+
+        return NextResponse.json({
+          ok: true,
+          message: `Leave request approved. Deduction of $${deductionAmount.toFixed(2)} created for ${existingLeave.numberOfDays} day(s).`,
+          leave: leaveWithDeduction,
+        });
+      }
+    }
+
+    // 🔥 If status changed FROM APPROVED to something else, remove the deduction
+    if (existingLeave.status === "APPROVED" && body.status !== "APPROVED" && existingLeave.deduction) {
+      await prisma.deduction.delete({
+        where: { id: existingLeave.deduction.id },
+      });
+      console.log(`🗑️ Deduction removed for leave ${leaveId} (status changed from APPROVED to ${body.status})`);
+    }
+
+    console.log(`Leave request ${leaveId} updated to ${body.status} by admin ${user.userId || user.id}`);
 
     return NextResponse.json({
       ok: true,
