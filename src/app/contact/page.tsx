@@ -14,7 +14,7 @@ export default function ContactPage() {  // ← Changed: Added "default"
               Get in Touch
             </h1>
             <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
-              Ready to start your project? Have questions about our services? We'd love to hear from you.
+              Ready to start your project? Have questions about our services? We love to hear from you.
             </p>
           </div>
 
