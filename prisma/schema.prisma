@@ -170,6 +170,22 @@ model RecurringTask {
   client              Client             @relation(fields: [clientId], references: [id])
   deliverable         MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
   templateTask        Task?              @relation("TemplateTask", fields: [templateTaskId], references: [id])
+  id                  String             @id @default(cuid())
+  clientId            String
+  deliverableId       String
+  templateTaskId      String?
+  nextRunDate         DateTime
+  lastRunDate         DateTime?
+  scheduleType        String
+  active              Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  defaultAssignedTo   Int?
+  defaultQcSpecialist Int?
+  defaultScheduler    Int?
+  defaultVideographer Int?
+  client              Client             @relation(fields: [clientId], references: [id])
+  deliverable         MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
+  templateTask        Task?              @relation("TemplateTask", fields: [templateTaskId], references: [id])
 }
 
 model Client {
@@ -208,6 +224,7 @@ model Client {
   recurringTasks       RecurringTask[]
   socialLogins         SocialLogin[]
   tasks                Task[]
+  tasks                Task[]
 
   @@index([status])
 }
@@ -244,15 +261,15 @@ model BrandAsset {
 }
 
 model File {
-  id           String    @id @default(cuid())
+  id           String         @id @default(cuid())
   taskId       String
   name         String
   url          String
   mimeType     String?
   size         BigInt
-  uploadedAt   DateTime  @default(now())
+  uploadedAt   DateTime       @default(now())
   uploadedBy   Int?
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime       @default(now())
   folderType   String?
   s3Key        String?
   isActive     Boolean   @default(true)
@@ -313,19 +330,17 @@ model Bonus {
 }
 
 model Leave {
-  id              Int         @id @default(autoincrement())
-  employeeId      Int
-  startDate       DateTime
-  endDate         DateTime
-  reason          String?
-  status          LeaveStatus @default(PENDING)
-  numberOfDays    Int
-  approvedBy      Int?
-  approvedAt      DateTime?
-  rejectionReason String?
-  createdAt       DateTime    @default(now())
-  deduction       Deduction?
-  employee        User        @relation(fields: [employeeId], references: [id])
+  id           Int         @id @default(autoincrement())
+  employeeId   Int
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  numberOfDays Int
+  approvedBy   Int?
+  createdAt    DateTime    @default(now())
+  deduction    Deduction?
+  employee     User        @relation(fields: [employeeId], references: [id])
 }
 
 model Deduction {
@@ -349,9 +364,9 @@ model Payroll {
   totalDeductions Decimal       @default(0) @db.Decimal(12, 2)
   netPay          Decimal       @db.Decimal(12, 2)
   status          PayrollStatus @default(PENDING)
-  hidden          Boolean       @default(false)
   createdAt       DateTime      @default(now())
   paidAt          DateTime?
+  hidden          Boolean       @default(false)
   employee        User          @relation(fields: [employeeId], references: [id])
 }
 
@@ -406,7 +421,11 @@ model FeedbackResponse {
 
 model SocialLogin {
   id                String          @id @default(cuid())
+  id                String          @id @default(cuid())
   clientId          String
+  platform          String
+  username          String
+  encryptedPassword String
   platform          String
   username          String
   encryptedPassword String
@@ -415,8 +434,15 @@ model SocialLogin {
   notes             String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   updatedById       Int
   auditLogs         LoginAuditLog[]
+  client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  updatedByUser     User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([clientId, platform])
   client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedByUser     User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
 
@@ -429,6 +455,7 @@ model UserSecurityPin {
   id             String    @id @default(cuid())
   userId         Int       @unique
   pinHash        String
+  pinHash        String
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   lastVerifiedAt DateTime?
@@ -439,12 +466,19 @@ model LoginAuditLog {
   id        String       @id @default(cuid())
   action    String
   loginId   String?
+  id        String       @id @default(cuid())
+  action    String
+  loginId   String?
   userId    Int
+  details   String?
   details   String?
   ipAddress String?
   createdAt DateTime     @default(now())
   login     SocialLogin? @relation(fields: [loginId], references: [id])
+  createdAt DateTime     @default(now())
+  login     SocialLogin? @relation(fields: [loginId], references: [id])
   user      User         @relation(fields: [userId], references: [id])
+
 
   @@index([loginId])
   @@index([userId])
