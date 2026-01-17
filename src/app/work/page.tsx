@@ -33,7 +33,7 @@ const clients = [
     icon: Building2,
     description:
       "National content partnership showcasing top laundromat owners and industry success stories.",
-    image: "https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=800",
+    image: "/assets/landing/CLA RESULTS IMAGE.jpeg",
   },
   {
     id: 2,
@@ -289,7 +289,7 @@ export default function WorkPage() {
       {/* Clients Section */}
       <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8 sm:mb-12">
+          {/* <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Clients
             </h2>
@@ -297,7 +297,7 @@ export default function WorkPage() {
               Trusted partners who&apos;ve achieved remarkable growth with our
               content solutions.
             </p>
-          </div>
+          </div> */}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {clients.map((client) => (

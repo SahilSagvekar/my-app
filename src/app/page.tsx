@@ -157,7 +157,8 @@ export default function LandingPage() {
             <div className="flex-1 w-full md:w-auto">
               <div className="aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl">
                 <ImageWithFallback
-                  src="https://images.unsplash.com/photo-1611926653458-09294b3142bf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzb2NpYWwlMjBtZWRpYSUyMGNvbnRlbnR8ZW58MXx8fHwxNzY1OTA5MTE1fDA&ixlib=rb-4.1.0&q=80&w=1080"
+                  // src="https://images.unsplash.com/photo-1611926653458-09294b3142bf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzb2NpYWwlMjBtZWRpYSUyMGNvbnRlbnR8ZW58MXx8fHwxNzY1OTA5MTE1fDA&ixlib=rb-4.1.0&q=80&w=1080"
+                  src="/assets/landing/photo.jpg"
                   alt="Content creation"
                   className="w-full h-full object-cover"
                 />
