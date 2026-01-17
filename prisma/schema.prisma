@@ -8,46 +8,45 @@ datasource db {
 }
 
 model User {
-  id                Int                @id @default(autoincrement())
-  name              String?
-  email             String    
-  password          String?
-  image             String?
-  role              Role?
-  hourlyRate        Decimal?           @db.Decimal(10, 2)
-  monthlyBaseHours  Int?
-  employeeStatus    EmployeeStatus?    @default(ACTIVE)
-  joinedAt          DateTime?
-  worksOnSaturday   Boolean            @default(false)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  resetOTP          String?
-  resetOTPExpiry    DateTime?
-  hoursPerWeek      Decimal?           @default(0) @db.Decimal(5, 2)
-  phone             String?            @unique
-  monthlyRate       Int?
-  accounts          Account[]
-  auditLogs         AuditLog[]
-  bonuses           Bonus[]
-  client            Client?
-  deductions        Deduction[]
-  feedbackSent      Feedback[]         @relation("FeedbackSender")
-  feedbackResponses FeedbackResponse[] @relation("FeedbackResponseSender")
-  leaves            Leave[]
-  payrolls          Payroll[]
-  sessions          Session[]
-  assignedTasks     Task[]             @relation("AssignedTasks")
-  clientTasks       Task[]             @relation("ClientUserTasks")
-  updatedSocialLogins SocialLogin[] @relation("LoginUpdatedBy")
-  securityPin UserSecurityPin?
-  loginAuditLogs LoginAuditLog[]
-
-  qcAnalytics       QCAnalytics[]
-  rejectionReasons  QCRejectionReason[]
-  achievements      QCAchievement[]
-  monthlyTrends     QCMonthlyTrend[]
-  categoryMetrics   QCCategoryMetrics[]
-  taskFeedback     TaskFeedback[] @relation("TaskFeedbackAuthor")
+  id                  Int                 @id @default(autoincrement())
+  name                String?
+  email               String
+  password            String?
+  image               String?
+  role                Role?
+  hourlyRate          Decimal?            @db.Decimal(10, 2)
+  monthlyBaseHours    Int?
+  employeeStatus      EmployeeStatus?     @default(ACTIVE)
+  joinedAt            DateTime?
+  worksOnSaturday     Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  resetOTP            String?
+  resetOTPExpiry      DateTime?
+  hoursPerWeek        Decimal?            @default(0) @db.Decimal(5, 2)
+  phone               String?             @unique
+  monthlyRate         Int?
+  accounts            Account[]
+  auditLogs           AuditLog[]
+  bonuses             Bonus[]
+  client              Client?
+  deductions          Deduction[]
+  feedbackSent        Feedback[]          @relation("FeedbackSender")
+  feedbackResponses   FeedbackResponse[]  @relation("FeedbackResponseSender")
+  leaves              Leave[]
+  loginAuditLogs      LoginAuditLog[]
+  payrolls            Payroll[]
+  achievements        QCAchievement[]
+  qcAnalytics         QCAnalytics[]
+  categoryMetrics     QCCategoryMetrics[]
+  monthlyTrends       QCMonthlyTrend[]
+  rejectionReasons    QCRejectionReason[]
+  sessions            Session[]
+  updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
+  assignedTasks       Task[]              @relation("AssignedTasks")
+  clientTasks         Task[]              @relation("ClientUserTasks")
+  taskFeedback        TaskFeedback[]      @relation("TaskFeedbackAuthor")
+  securityPin         UserSecurityPin?
 
   @@index([email])
   @@index([role])
@@ -134,7 +133,7 @@ model Task {
   client               Client?             @relation(fields: [clientId], references: [id])
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
-  taskFeedback     TaskFeedback[]
+  taskFeedback         TaskFeedback[]
 
   @@index([assignedTo])
   @@index([clientId])
@@ -150,47 +149,43 @@ model Task {
 }
 
 model TaskFeedback {
-  id          String   @id @default(cuid())
-  taskId      String
-  fileId      String?  
-  folderType  String   // "main", "thumbnails", "music-license", "tiles", "covers"
-  feedback    String   
-  status      String   @default("needs_revision") // "needs_revision", "approved"
-  timestamp   String?  // Video timestamp like "1:30"
-  category    String?  // "design", "content", "timing", "technical", "spelling", "other"
-  createdBy   Int
-  resolvedAt  DateTime?
-  createdAt   DateTime @default(now())
-  
-  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  file        File?    @relation(fields: [fileId], references: [id], onDelete: SetNull)
-  user        User     @relation("TaskFeedbackAuthor", fields: [createdBy], references: [id])
-  
+  id         String    @id @default(cuid())
+  taskId     String
+  fileId     String?
+  folderType String
+  feedback   String
+  status     String    @default("needs_revision")
+  timestamp  String?
+  category   String?
+  createdBy  Int
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation("TaskFeedbackAuthor", fields: [createdBy], references: [id])
+  file       File?     @relation(fields: [fileId], references: [id])
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
   @@index([taskId])
   @@index([fileId])
   @@index([taskId, folderType])
 }
 
 model RecurringTask {
-  id             String             @id @default(cuid())
-  clientId       String
-  deliverableId  String
-  templateTaskId String?
-  nextRunDate    DateTime
-  lastRunDate    DateTime?
-  scheduleType   String
-  active         Boolean            @default(true)
-  createdAt      DateTime           @default(now())
-  
-  // Default assignment fields (used when no templateTask)
-  defaultAssignedTo    Int?
-  defaultQcSpecialist  Int?
-  defaultScheduler     Int?
-  defaultVideographer  Int?
-  
-  client         Client             @relation(fields: [clientId], references: [id])
-  deliverable    MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
-  templateTask   Task?              @relation("TemplateTask", fields: [templateTaskId], references: [id])
+  id                  String             @id @default(cuid())
+  clientId            String
+  deliverableId       String
+  templateTaskId      String?
+  nextRunDate         DateTime
+  lastRunDate         DateTime?
+  scheduleType        String
+  active              Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  defaultAssignedTo   Int?
+  defaultQcSpecialist Int?
+  defaultScheduler    Int?
+  defaultVideographer Int?
+  client              Client             @relation(fields: [clientId], references: [id])
+  deliverable         MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
+  templateTask        Task?              @relation("TemplateTask", fields: [templateTaskId], references: [id])
 }
 
 model Client {
@@ -227,8 +222,8 @@ model Client {
   monthlyDeliverables  MonthlyDeliverable[]
   monthlyRuns          MonthlyRun[]
   recurringTasks       RecurringTask[]
-  tasks                Task[]
   socialLogins         SocialLogin[]
+  tasks                Task[]
 
   @@index([status])
 }
@@ -265,25 +260,25 @@ model BrandAsset {
 }
 
 model File {
-  id           String    @id @default(cuid())
+  id           String         @id @default(cuid())
   taskId       String
   name         String
   url          String
   mimeType     String?
   size         BigInt
-  uploadedAt   DateTime  @default(now())
+  uploadedAt   DateTime       @default(now())
   uploadedBy   Int?
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime       @default(now())
   folderType   String?
-  isActive     Boolean   @default(true)
+  isActive     Boolean        @default(true)
   replacedAt   DateTime?
   replacedBy   String?
   revisionNote String?
   s3Key        String?
-  version      Int       @default(1)
-  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  version      Int            @default(1)
+  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   feedback     TaskFeedback[]
-  
+
   @@index([taskId, folderType])
   @@index([taskId, isActive])
 }
@@ -335,21 +330,18 @@ model Bonus {
 }
 
 model Leave {
-  id              Int         @id @default(autoincrement())
-  employeeId      Int
-  startDate       DateTime
-  endDate         DateTime
-  reason          String?
-  status          LeaveStatus @default(PENDING)
-  numberOfDays    Int
-  approvedBy      Int?
-  approvedAt      DateTime?
-  rejectionReason String?
-  createdAt       DateTime    @default(now())
-  deduction       Deduction?
-  employee        User        @relation(fields: [employeeId], references: [id])
+  id           Int         @id @default(autoincrement())
+  employeeId   Int
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+  status       LeaveStatus @default(PENDING)
+  numberOfDays Int
+  approvedBy   Int?
+  createdAt    DateTime    @default(now())
+  deduction    Deduction?
+  employee     User        @relation(fields: [employeeId], references: [id])
 }
-
 
 model Deduction {
   id         Int      @id @default(autoincrement())
@@ -372,9 +364,9 @@ model Payroll {
   totalDeductions Decimal       @default(0) @db.Decimal(12, 2)
   netPay          Decimal       @db.Decimal(12, 2)
   status          PayrollStatus @default(PENDING)
-  hidden          Boolean       @default(false)
   createdAt       DateTime      @default(now())
   paidAt          DateTime?
+  hidden          Boolean       @default(false)
   employee        User          @relation(fields: [employeeId], references: [id])
 }
 
@@ -428,26 +420,22 @@ model FeedbackResponse {
 }
 
 model SocialLogin {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   clientId          String
-  platform          String   // Instagram, Tiktok, Facebook, etc.
-  username          String   // @handle or email used to login
-  encryptedPassword String   @db.Text // AES-256-GCM encrypted
+  platform          String
+  username          String
+  encryptedPassword String
   recoveryEmail     String?
   recoveryPhone     String?
-  notes             String?  @db.Text
-  
-  // Tracking
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   updatedById       Int
-  
-  // Relations
-  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  updatedByUser     User     @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
   auditLogs         LoginAuditLog[]
-  
-  @@unique([clientId, platform]) // One login per platform per client
+  client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  updatedByUser     User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([clientId, platform])
   @@index([clientId])
   @@index([platform])
 }
@@ -455,32 +443,116 @@ model SocialLogin {
 model UserSecurityPin {
   id             String    @id @default(cuid())
   userId         Int       @unique
-  pinHash        String    // bcrypt hashed PIN
+  pinHash        String
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   lastVerifiedAt DateTime?
-  
-  // Relations
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model LoginAuditLog {
-  id        String   @id @default(cuid())
-  action    String   // view, copy, create, update, delete, unlock, pin_set, pin_failed
-  loginId   String?  // Null for PIN-related actions
+  id        String       @id @default(cuid())
+  action    String
+  loginId   String?
   userId    Int
-  details   String?  @db.Text // JSON with additional context
+  details   String?
   ipAddress String?
-  createdAt DateTime @default(now())
-  
-  // Relations
-  login     SocialLogin? @relation(fields: [loginId], references: [id], onDelete: SetNull)
+  createdAt DateTime     @default(now())
+  login     SocialLogin? @relation(fields: [loginId], references: [id])
   user      User         @relation(fields: [userId], references: [id])
-  
+
   @@index([loginId])
   @@index([userId])
   @@index([createdAt])
   @@index([action])
+}
+
+model QCAnalytics {
+  id             String   @id @default(cuid())
+  qcSpecialistId Int
+  avgReviewTime  Decimal  @db.Decimal(10, 2)
+  approvalRate   Decimal  @db.Decimal(10, 2)
+  firstPassRate  Decimal  @db.Decimal(10, 2)
+  totalReviews   Int      @default(0)
+  approvedCount  Int      @default(0)
+  rejectedCount  Int      @default(0)
+  period         String   @default("month")
+  startDate      DateTime
+  endDate        DateTime
+  calculatedAt   DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  qcSpecialist   User     @relation(fields: [qcSpecialistId], references: [id])
+
+  @@unique([qcSpecialistId, period, startDate])
+  @@index([qcSpecialistId])
+  @@index([period])
+  @@index([calculatedAt])
+}
+
+model QCRejectionReason {
+  id              String   @id @default(cuid())
+  qcSpecialistId  Int
+  reason          String
+  caseCount       Int      @default(1)
+  taskIds         String[] @default([])
+  firstOccurrence DateTime @default(now())
+  lastOccurrence  DateTime @updatedAt
+  qcSpecialist    User     @relation(fields: [qcSpecialistId], references: [id])
+
+  @@unique([qcSpecialistId, reason])
+  @@index([qcSpecialistId])
+  @@index([reason])
+}
+
+model QCAchievement {
+  id              String   @id @default(cuid())
+  qcSpecialistId  Int
+  achievementType String
+  unlockedAt      DateTime @default(now())
+  achievementData Json?
+  qcSpecialist    User     @relation(fields: [qcSpecialistId], references: [id])
+
+  @@unique([qcSpecialistId, achievementType])
+  @@index([qcSpecialistId])
+  @@index([achievementType])
+}
+
+model QCMonthlyTrend {
+  id             String   @id @default(cuid())
+  qcSpecialistId Int
+  year           Int
+  month          Int
+  reviewCount    Int      @default(0)
+  approvedCount  Int      @default(0)
+  rejectedCount  Int      @default(0)
+  avgReviewTime  Decimal  @db.Decimal(10, 2)
+  approvalRate   Decimal  @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+  qcSpecialist   User     @relation(fields: [qcSpecialistId], references: [id])
+
+  @@unique([qcSpecialistId, year, month])
+  @@index([qcSpecialistId])
+  @@index([year, month])
+}
+
+model QCCategoryMetrics {
+  id             String   @id @default(cuid())
+  qcSpecialistId Int
+  category       String
+  reviewCount    Int      @default(0)
+  approvedCount  Int      @default(0)
+  rejectedCount  Int      @default(0)
+  approvalRate   Decimal  @db.Decimal(10, 2)
+  avgReviewTime  Decimal  @db.Decimal(10, 2)
+  period         String   @default("month")
+  startDate      DateTime
+  endDate        DateTime
+  updatedAt      DateTime @updatedAt
+  qcSpecialist   User     @relation(fields: [qcSpecialistId], references: [id])
+
+  @@unique([qcSpecialistId, category, period, startDate])
+  @@index([qcSpecialistId])
+  @@index([category])
 }
 
 enum Role {
@@ -542,87 +614,4 @@ enum FeedbackStatus {
   ACKNOWLEDGED
   IN_PROGRESS
   RESOLVED
-}
-
-model QCAnalytics {
-  id                String    @id @default(cuid())
-  qcSpecialistId    Int
-  avgReviewTime     Decimal   @db.Decimal(10, 2)
-  approvalRate      Decimal   @db.Decimal(10, 2)
-  firstPassRate     Decimal   @db.Decimal(10, 2)
-  totalReviews      Int       @default(0)
-  approvedCount     Int       @default(0)
-  rejectedCount     Int       @default(0)
-  period            String    @default("month")
-  startDate         DateTime
-  endDate           DateTime
-  calculatedAt      DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  qcSpecialist      User      @relation(fields: [qcSpecialistId], references: [id])
-  @@index([qcSpecialistId])
-  @@index([period])
-  @@index([calculatedAt])
-  @@unique([qcSpecialistId, period, startDate])
-}
-
-model QCRejectionReason {
-  id                String    @id @default(cuid())
-  qcSpecialistId    Int
-  reason            String
-  caseCount         Int       @default(1)
-  taskIds           String[]  @default([])
-  firstOccurrence   DateTime  @default(now())
-  lastOccurrence    DateTime  @updatedAt
-  qcSpecialist      User      @relation(fields: [qcSpecialistId], references: [id])
-  @@index([qcSpecialistId])
-  @@index([reason])
-  @@unique([qcSpecialistId, reason])
-}
-
-model QCAchievement {
-  id                String    @id @default(cuid())
-  qcSpecialistId    Int
-  achievementType   String
-  unlockedAt        DateTime  @default(now())
-  achievementData   Json?
-  qcSpecialist      User      @relation(fields: [qcSpecialistId], references: [id])
-  @@index([qcSpecialistId])
-  @@index([achievementType])
-  @@unique([qcSpecialistId, achievementType])
-}
-
-model QCMonthlyTrend {
-  id                String    @id @default(cuid())
-  qcSpecialistId    Int
-  year              Int
-  month             Int
-  reviewCount       Int       @default(0)
-  approvedCount     Int       @default(0)
-  rejectedCount     Int       @default(0)
-  avgReviewTime     Decimal   @db.Decimal(10, 2)
-  approvalRate      Decimal   @db.Decimal(10, 2)
-  createdAt         DateTime  @default(now())
-  qcSpecialist      User      @relation(fields: [qcSpecialistId], references: [id])
-  @@index([qcSpecialistId])
-  @@index([year, month])
-  @@unique([qcSpecialistId, year, month])
-}
-
-model QCCategoryMetrics {
-  id                String    @id @default(cuid())
-  qcSpecialistId    Int
-  category          String
-  reviewCount       Int       @default(0)
-  approvedCount     Int       @default(0)
-  rejectedCount     Int       @default(0)
-  approvalRate      Decimal   @db.Decimal(10, 2)
-  avgReviewTime     Decimal   @db.Decimal(10, 2)
-  period            String    @default("month")
-  startDate         DateTime
-  endDate           DateTime
-  updatedAt         DateTime  @updatedAt
-  qcSpecialist      User      @relation(fields: [qcSpecialistId], references: [id])
-  @@index([qcSpecialistId])
-  @@index([category])
-  @@unique([qcSpecialistId, category, period, startDate])
 }
