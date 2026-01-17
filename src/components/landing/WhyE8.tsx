@@ -9,13 +9,13 @@ const values = [
   },
   {
     icon: Zap,
-    title: 'Systems-Driven',
+    title: 'E8 App | System Driven ',
     description: 'Automated workflows and smart tools that ensure consistency and speed.',
   },
   {
     icon: Award,
     title: 'Uncompromising Quality',
-    description: 'Award-winning creative paired with technical precision on every deliverable.',
+    description: 'Creativity paired with technical precision on every deliverable.',
   },
   {
     icon: TrendingUp,
@@ -26,12 +26,12 @@ const values = [
 
 export function WhyE8() {
   return (
-    <section className="pt-16 pb-24 px-5 sm:px-6 lg:px-8 bg-white">
+    <section className="pt-14 pb-20 px-4 sm:px-6 lg:px-8 bg-white">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
-        <div className="max-w-2xl mx-auto text-center mb-10 sm:mb-16">
+        <div className="max-w-2xl mx-auto text-center mb-8 sm:mb-12">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
-            Why E8 Productions
+          Why E8 Productions? 
           </h2>
           <p className="text-base sm:text-base text-black/60 px-4 sm:px-0">
             Small business pricing. Real results.

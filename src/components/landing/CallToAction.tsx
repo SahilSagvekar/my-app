@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react';
 
 export function CallToAction() {
   return (
-    <section className="pt-12 sm:pt-16 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 bg-black">
+    <section className="pt-10 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8 bg-black">
       <div className="max-w-4xl mx-auto text-center">
         <h2 className="text-xl sm:text-2xl lg:text-3xl text-white mb-4 sm:mb-6 px-4 sm:px-0">
           Ready to Level Up Your Brand?

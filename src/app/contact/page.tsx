@@ -7,9 +7,10 @@ export default function ContactPage() {  // ← Changed: Added "default"
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
-      <div className="pt-20 sm:pt-24 pb-16 sm:pb-20 px-5 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-10 sm:mb-16">
+      <div className="pt-12 sm:pt-14">
+        <section className="pt-12 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-8 sm:mb-12">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Get in Touch
             </h1>
@@ -83,7 +84,8 @@ export default function ContactPage() {  // ← Changed: Added "default"
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </section>
       </div>
       <Footer />
     </div>

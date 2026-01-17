@@ -10,7 +10,7 @@ export default function OriginalShowsPage() {
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
-      <div className="pt-14 sm:pt-16">
+      <div className="pt-12 sm:pt-14">
         <WhatWeDo />
         <WhyE8 />
         <CallToAction />
