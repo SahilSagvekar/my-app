@@ -652,6 +652,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   }, [open]);
 
   // when clientId changes, populate deliverables from embedded clients or fetch endpoint
+  // Also filter out deliverables that already have tasks created
   useEffect(() => {
     async function populateDeliverables() {
       if (!formData.clientId) {
@@ -662,38 +663,62 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       }
 
       const client = clients.find((c) => String(c.id) === String(formData.clientId));
+      let allDeliverables: any[] = [];
 
       if (client && Array.isArray(client.monthlyDeliverables)) {
         // filter to only items with valid ids
-        const filtered = client.monthlyDeliverables.filter((d: any) => d && d.id && String(d.id).trim() !== "");
-        setDeliverables(filtered);
-        if (filtered.length === 1) {
-          setSelectedDeliverable(filtered[0].id);
-          handleInputChange("monthlyDeliverableId", filtered[0].id);
-        } else {
-          setSelectedDeliverable("");
-          handleInputChange("monthlyDeliverableId", "");
+        allDeliverables = client.monthlyDeliverables.filter((d: any) => d && d.id && String(d.id).trim() !== "");
+      } else {
+        // fallback: fetch from API endpoint for client deliverables (if available)
+        try {
+          const res = await fetch(`/api/clients/${formData.clientId}/deliverables`);
+          if (res.ok) {
+            const payload = await res.json();
+            const list = Array.isArray(payload.monthlyDeliverables) ? payload.monthlyDeliverables : [];
+            allDeliverables = list.filter((d: any) => d && d.id && String(d.id).trim() !== "");
+          }
+        } catch {
+          allDeliverables = [];
         }
-        return;
       }
 
-      // fallback: fetch from API endpoint for client deliverables (if available)
+      // 🔥 Fetch existing tasks for this client to filter out already-assigned deliverables
+      let existingDeliverableIds: Set<string> = new Set();
       try {
-        const res = await fetch(`/api/clients/${formData.clientId}/deliverables`);
-        if (!res.ok) throw new Error("no deliverables");
-        const payload = await res.json();
-        const list = Array.isArray(payload.monthlyDeliverables) ? payload.monthlyDeliverables : [];
-        const filtered = list.filter((d: any) => d && d.id && String(d.id).trim() !== "");
-        setDeliverables(filtered);
-        if (filtered.length === 1) {
-          setSelectedDeliverable(filtered[0].id);
-          handleInputChange("monthlyDeliverableId", filtered[0].id);
-        } else {
-          setSelectedDeliverable("");
-          handleInputChange("monthlyDeliverableId", "");
+        const tasksRes = await fetch(`/api/tasks?clientId=${formData.clientId}`);
+        if (tasksRes.ok) {
+          const tasksData = await tasksRes.json();
+          const tasks = Array.isArray(tasksData) ? tasksData : (tasksData.tasks || []);
+
+          console.log(`🔍 Found ${tasks.length} existing tasks for client ${formData.clientId}`);
+
+          // Collect all deliverable IDs that already have tasks
+          tasks.forEach((task: any) => {
+            if (task.monthlyDeliverableId) {
+              existingDeliverableIds.add(String(task.monthlyDeliverableId));
+              console.log(`  - Task "${task.title}" uses deliverable: ${task.monthlyDeliverableId}`);
+            }
+          });
+
+          console.log(`🚫 Deliverable IDs with existing tasks:`, Array.from(existingDeliverableIds));
         }
-      } catch {
-        setDeliverables([]);
+      } catch (err) {
+        console.error("Error fetching existing tasks:", err);
+      }
+
+      // Filter out deliverables that already have tasks
+      const availableDeliverables = allDeliverables.filter(
+        (d: any) => !existingDeliverableIds.has(String(d.id))
+      );
+
+      console.log(`✅ Available deliverables after filtering: ${availableDeliverables.length} of ${allDeliverables.length}`);
+
+      setDeliverables(availableDeliverables);
+
+      if (availableDeliverables.length === 1) {
+        setSelectedDeliverable(availableDeliverables[0].id);
+        handleInputChange("monthlyDeliverableId", availableDeliverables[0].id);
+      } else {
         setSelectedDeliverable("");
         handleInputChange("monthlyDeliverableId", "");
       }
