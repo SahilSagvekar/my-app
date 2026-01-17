@@ -94,18 +94,23 @@ const brandLogos = [
   },
   {
     name: "YouTube",
-    logo: "/assets/CAROUSEL/YT Logo (1).png",
+    logo: "/assets/CAROUSEL/YT 1.png",
+    fallbackIcon: Music,
+  },
+  {
+    name: "Collegiate",
+    logo: "/assets/CAROUSEL/COLLEGIATE.jpeg",
+    fallbackIcon: Music,
+  },
+  {
+    name: "Bare Knuckle Fighting Championship",
+    logo: "/assets/CAROUSEL/BKFC---Logo-badge-_Nov2020_207614f6-8a80-49fe-b5de-0eb116826438_1200x1200 (1).webp",
     fallbackIcon: Music,
   },
   {
     name: "StayFit305",
     logo: "/assets/CAROUSEL/5fb058d2177e60b05fff035a_stayfi- 305-opengraph-03 (1).png",
     fallbackIcon: Dumbbell,
-  },
-  {
-    name: "Bare Knuckle Fighting Championship",
-    logo: "/assets/CAROUSEL/BKFC---Logo-badge-_Nov2020_207614f6-8a80-49fe-b5de-0eb116826438_1200x1200 (1).webp",
-    fallbackIcon: Music,
   },
   {
     name: "ContractorPlus",
@@ -155,17 +160,18 @@ function InfiniteScrollCarousel() {
         {/* First set */}
         {brandLogos.map((brand, index) => {
           const IconComponent = brand.fallbackIcon;
+          const isFullCover = brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone";
           return (
             <div
               key={`first-${index}`}
-              className="shrink-0 w-48 sm:w-56 lg:w-64 h-32 sm:h-36 lg:h-40 bg-white border border-black/5 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-6 transition-all hover:border-black/20 hover:shadow-lg"
+              className={`shrink-0 w-48 sm:w-56 lg:w-64 h-32 sm:h-36 lg:h-40 ${isFullCover ? "bg-transparent border-0 relative" : "bg-white border border-black/5"} rounded-xl sm:rounded-2xl flex flex-col items-center justify-center ${isFullCover ? "p-0" : "p-4 sm:p-6"} transition-all ${isFullCover ? "" : "hover:border-black/20 hover:shadow-lg"} overflow-hidden`}
             >
               {brand.logo ? (
-                <div className="w-full h-full flex items-center justify-center mb-2">
+                <div className={`${brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone" ? "absolute inset-0 w-full h-full" : "w-full h-full flex items-center justify-center mb-2"}`}>
                   <ImageWithFallback
                     src={brand.logo}
                     alt={brand.name}
-                    className="max-w-full max-h-full object-contain"
+                    className={brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone" ? "w-full h-full object-cover rounded-xl sm:rounded-2xl" : "max-w-full max-h-full object-contain"}
                   />
                 </div>
               ) : (
@@ -184,17 +190,18 @@ function InfiniteScrollCarousel() {
         {/* Duplicate set for seamless loop */}
         {brandLogos.map((brand, index) => {
           const IconComponent = brand.fallbackIcon;
+          const isFullCover = brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone";
           return (
             <div
               key={`second-${index}`}
-              className="shrink-0 w-48 sm:w-56 lg:w-64 h-32 sm:h-36 lg:h-40 bg-white border border-black/5 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center p-4 sm:p-6 transition-all hover:border-black/20 hover:shadow-lg"
+              className={`shrink-0 w-48 sm:w-56 lg:w-64 h-32 sm:h-36 lg:h-40 ${isFullCover ? "bg-transparent border-0 relative" : "bg-white border border-black/5"} rounded-xl sm:rounded-2xl flex flex-col items-center justify-center ${isFullCover ? "p-0" : "p-4 sm:p-6"} transition-all ${isFullCover ? "" : "hover:border-black/20 hover:shadow-lg"} overflow-hidden`}
             >
               {brand.logo ? (
-                <div className="w-full h-full flex items-center justify-center mb-2">
+                <div className={`${brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone" ? "absolute inset-0 w-full h-full" : "w-full h-full flex items-center justify-center mb-2"}`}>
                   <ImageWithFallback
                     src={brand.logo}
                     alt={brand.name}
-                    className="max-w-full max-h-full object-contain"
+                    className={brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone" ? "w-full h-full object-cover rounded-xl sm:rounded-2xl" : "max-w-full max-h-full object-contain"}
                   />
                 </div>
               ) : (
