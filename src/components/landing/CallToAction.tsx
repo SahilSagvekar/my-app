@@ -15,14 +15,16 @@ export function CallToAction() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 sm:px-0">
-            <Link href="/contact" className="group inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base bg-white text-black rounded-full transition-all hover:bg-white/90 hover:scale-105 hover:shadow-xl w-full sm:w-auto justify-center">
+            <Link href="/dashboard" className="group inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base bg-white text-black rounded-full transition-all hover:bg-white/90 hover:scale-105 hover:shadow-xl w-full sm:w-auto justify-center">
               Start Your Project
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </Link>
             
-            <button className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base bg-transparent text-white border border-white/20 rounded-full transition-all hover:border-white/40 hover:bg-white/5 w-full sm:w-auto justify-center">
+            {/* <button className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base bg-transparent text-white border border-white/20 rounded-full transition-all hover:border-white/40 hover:bg-white/5 w-full sm:w-auto justify-center"> */}
+              <Link href="/dashboard" className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base bg-transparent text-white border border-white/20 rounded-full transition-all hover:border-white/40 hover:bg-white/5 w-full sm:w-auto justify-center">
               Sign In to Dashboard
-            </button>
+              </Link>
+                         {/* </button> */}
           </div>
       </div>
     </section>

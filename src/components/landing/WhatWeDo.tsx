@@ -30,7 +30,7 @@ const services = [
   {
     icon: DollarSign,
     title: 'Monetized Accounts',
-    description: 'Build and grow revenue-generating social media accounts that turn followers into income.',
+    description: 'Build and grow revenue-generating social media accounts that turn views into income.',
   },
   {
     icon: Tv,

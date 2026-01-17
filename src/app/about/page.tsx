@@ -1,6 +1,7 @@
 import { Navigation } from '@/components/landing/Navigation';
 import { Footer } from '@/components/landing/Footer';
 import { Target, Users, Zap, Briefcase, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 const values = [
   {
@@ -137,9 +138,9 @@ export default function AboutPage() {
                 We're always interested in meeting talented people. Send us your resume and tell us 
                 how you'd like to contribute to E8 Productions.
               </p>
-              <button className="px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-base bg-white text-black rounded-full transition-all hover:bg-white/90 active:scale-95 w-full sm:w-auto font-medium">
+              <Link href="/contact" className="px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-base bg-white text-black rounded-full transition-all hover:bg-white/90 active:scale-95 w-full sm:w-auto font-medium">
                 Send Your Resume
-              </button>
+              </Link>
             </div>
           </div>
           </div>
