@@ -52,6 +52,7 @@ interface Version {
     duration: string;
     uploadDate: string;
     status: 'draft' | 'in_qc' | 'client_review' | 'approved';
+    url?: string; // Video URL for this version
 }
 
 interface ReviewAsset {
@@ -124,7 +125,7 @@ export function FullScreenReviewModalFrameIO({
 }: FullScreenReviewModalProps) {
     // Auth context
     const { user } = useAuth();
-    
+
     // Video state
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
@@ -132,6 +133,7 @@ export function FullScreenReviewModalFrameIO({
     const [duration, setDuration] = useState(0);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [currentVersion, setCurrentVersion] = useState('');
+    const [currentVideoUrl, setCurrentVideoUrl] = useState('');
     const [videoError, setVideoError] = useState(false);
     const [iframeLoaded, setIframeLoaded] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -155,13 +157,14 @@ export function FullScreenReviewModalFrameIO({
     const containerRef = useRef<HTMLDivElement>(null);
     const commentsRef = useRef<HTMLDivElement>(null);
 
-    // Video source
-    const videoSource = asset ? getVideoSource(asset.videoUrl) : { type: 'video' as const, src: '' };
+    // Video source - use currentVideoUrl state for version switching
+    const videoSource = currentVideoUrl ? getVideoSource(currentVideoUrl) : (asset ? getVideoSource(asset.videoUrl) : { type: 'video' as const, src: '' });
 
     // Initialize state when asset changes
     useEffect(() => {
         if (asset) {
             setCurrentVersion(asset.currentVersion);
+            setCurrentVideoUrl(asset.videoUrl);
             setIsPlaying(false);
             setCurrentTime(0);
             setConfirmFinal(false);
@@ -291,6 +294,21 @@ export function FullScreenReviewModalFrameIO({
         }
     };
 
+    // Handle version change - switch to different video version
+    const handleVersionChange = (versionId: string) => {
+        if (!asset) return;
+
+        const selectedVersion = asset.versions.find(v => v.id === versionId);
+        if (selectedVersion?.url) {
+            setCurrentVersion(versionId);
+            setCurrentVideoUrl(selectedVersion.url);
+            setIsPlaying(false);
+            setCurrentTime(0);
+            setVideoError(false);
+            setIframeLoaded(false);
+        }
+    };
+
     const formatTime = (time: number) => {
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
@@ -355,7 +373,7 @@ export function FullScreenReviewModalFrameIO({
 
         try {
             setSavingFeedback(true);
-            
+
             const feedbackItems = feedbackComments
                 .filter(c => !c.resolved)
                 .map(c => ({
@@ -413,7 +431,7 @@ export function FullScreenReviewModalFrameIO({
         } else if (newStatus === 'needs_changes' && asset) {
             // 🔥 NEW: Save feedback to database with section info
             const feedbackSaved = await saveFeedbackToDatabase(comments);
-            
+
             if (!feedbackSaved) {
                 toast.error('Failed to save feedback. Please try again.');
                 return;
@@ -422,7 +440,7 @@ export function FullScreenReviewModalFrameIO({
             // Build revision data with section context
             const sectionLabel = currentFileSection?.folderType?.toUpperCase() || 'MAIN';
             const versionLabel = currentFileSection?.version || 1;
-            
+
             const revisionData: RevisionRequest = {
                 reason: 'other',
                 notes: comments
@@ -527,7 +545,7 @@ export function FullScreenReviewModalFrameIO({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => onOpenChange(false)}
-                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
                                 >
                                     <ArrowLeft className="h-4 w-4 mr-2" />
                                     Back
@@ -572,17 +590,35 @@ export function FullScreenReviewModalFrameIO({
 
                             {/* Right: Status + Actions */}
                             <div className="flex items-center gap-3">
-                                <StatusDropdown
-                                    currentStatus={reviewStatus}
-                                    onStatusChange={handleStatusChange}
-                                    disabled={asset.approvalLocked || savingFeedback}
-                                />
+                                {/* Version Selector */}
+                                {asset.versions.length > 1 ? (
+                                    <Select value={currentVersion} onValueChange={handleVersionChange}>
+                                        <SelectTrigger className="h-8 w-auto min-w-[100px] bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-sm">
+                                            <SelectValue placeholder="Version" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
+                                            {asset.versions.map((v) => (
+                                                <SelectItem
+                                                    key={v.id}
+                                                    value={v.id}
+                                                    className="text-[var(--review-text-secondary)] hover:text-white"
+                                                >
+                                                    Version {v.number} - {v.uploadDate}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <Badge className="bg-[var(--review-bg-tertiary)] text-white text-sm px-3 py-1">
+                                        Version {asset.versions[0]?.number || '1'}
+                                    </Badge>
+                                )}
 
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setShowInfoPanel(!showInfoPanel)}
-                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
                                 >
                                     <Info className="h-4 w-4" />
                                 </Button>
@@ -590,7 +626,7 @@ export function FullScreenReviewModalFrameIO({
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
                                 >
                                     <Share className="h-4 w-4" />
                                 </Button>
@@ -599,7 +635,7 @@ export function FullScreenReviewModalFrameIO({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => onOpenChange(false)}
-                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                    className="text-red-500 hover:text-red-400 hover:bg-red-500/10"
                                 >
                                     <X className="h-4 w-4" />
                                 </Button>
@@ -921,7 +957,7 @@ export function FullScreenReviewModalFrameIO({
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="w-full bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] hover:bg-[var(--review-bg-tertiary)]"
+                                            className="w-full bg-transparent border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-400"
                                             onClick={() => handleStatusChange('needs_changes')}
                                             disabled={comments.filter(c => !c.resolved).length === 0}
                                         >
