@@ -33,7 +33,7 @@ const clients = [
     icon: Building2,
     description:
       "National content partnership showcasing top laundromat owners and industry success stories.",
-    image: "/assets/landing/CLA RESULTS IMAGE.jpeg",
+    image: "/assets/CLA RESULTS IMAGE.jpeg",
   },
   {
     id: 2,
@@ -42,7 +42,7 @@ const clients = [
     icon: Dumbbell,
     description:
       "High-energy fitness event content highlighting workouts, seasonal events, and community engagement.",
-    image: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800",
+    image: "/assets/STAYFIT305 RESULTS IMAGE.jpeg",
   },
   {
     id: 3,
@@ -50,7 +50,7 @@ const clients = [
     category: "Influencer",
     icon: User,
     description: "",
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800",
+    image: "/assets/COLE SIMPSON RESULTS IMAGE.jpeg",
   },
   {
     id: 4,
@@ -59,7 +59,7 @@ const clients = [
     icon: Heart,
     description:
       "Original dating series built for viral engagement, audience growth, and monetized entertainment.",
-    image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800",
+    image: "/assets/TDBS RESULTS IMAGE.jpeg",
   },
   {
     id: 5,
@@ -68,7 +68,7 @@ const clients = [
     icon: Music,
     description:
       "High-impact promotional content for clubs and nightlife brands through cinematic montages and event photography.",
-    image: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800",
+    image: "/assets/COLLEGIA TE NIGHTLIFE RESULTS IMAGE.jpeg",
   },
   {
     id: 6,
@@ -86,7 +86,7 @@ const brandLogos = [
     name: "TDBS",
     logo: "/assets/CAROUSEL/PROFILE PIC TEMPLATE TDBS (8).png",
     fallbackIcon: Store,
-  },
+  },  
   {
     name: "Turpone",
     logo: "/assets/CAROUSEL/TURPONE.png",
@@ -277,11 +277,11 @@ export default function WorkPage() {
                     alt={client.name}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
-                  <div className="absolute top-4 left-4 flex items-center gap-2">
+                  {/* <div className="absolute top-4 left-4 flex items-center gap-2">
                     <span className="px-3 py-1 bg-white/90 backdrop-blur-sm text-black text-sm sm:text-sm rounded-full font-medium">
                       {client.category}
                     </span>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Content */}
