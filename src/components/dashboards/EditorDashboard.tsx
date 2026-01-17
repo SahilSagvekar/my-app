@@ -485,15 +485,64 @@ function TaskCard({
             </div>
           )}
 
-          {/* Compact QC NOTES */}
-          {task.qcNotes && (
-            <Alert variant="destructive" className="mb-2 py-1.5">
-              <AlertCircle className="h-3 w-3" />
-              <AlertDescription className="text-[10px] py-0">
-                <strong>QC:</strong> {task.qcNotes.slice(0, 50)}
-                {task.qcNotes.length > 50 ? "..." : ""}
-              </AlertDescription>
-            </Alert>
+          {/* 🔥 VERSION-TAGGED FEEDBACK - New format with version badges */}
+          {task.taskFeedback && task.taskFeedback.length > 0 && (
+            <div className="mb-2 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle className="h-3 w-3 text-destructive" />
+                <span className="text-[10px] font-semibold text-destructive">
+                  QC Feedback ({task.taskFeedback.filter(fb => fb.status === "needs_revision").length})
+                </span>
+              </div>
+
+              <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
+                {task.taskFeedback
+                  .filter(fb => fb.status === "needs_revision")
+                  .map((fb) => (
+                    <Alert
+                      key={fb.id}
+                      variant="destructive"
+                      className="py-1.5"
+                    >
+                      <AlertDescription className="text-[10px]">
+                        {/* Version and Section badges */}
+                        <div className="flex items-center gap-1 mb-1 flex-wrap">
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
+                            V{fb.fileVersion || 1}
+                          </Badge>
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                            {fb.folderType === "main" ? "📁 Main" :
+                              fb.folderType === "thumbnails" ? "🖼️ Thumb" :
+                                fb.folderType === "tiles" ? "🎨 Tiles" :
+                                  fb.folderType === "music-license" ? "🎵 Music" :
+                                    fb.folderType}
+                          </Badge>
+                          {fb.timestamp && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">
+                              ⏱️ {fb.timestamp}
+                            </Badge>
+                          )}
+                          {fb.category && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                              {fb.category}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Feedback text */}
+                        <p className="whitespace-pre-wrap line-clamp-2">{fb.feedback}</p>
+
+                        {/* File reference if available */}
+                        {fb.fileName && (
+                          <p className="text-muted-foreground mt-0.5 text-[9px] truncate">
+                            📎 {fb.fileName}
+                          </p>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+              </div>
+            </div>
           )}
 
           {/* Compact Due Date + Files */}
@@ -1266,16 +1315,6 @@ export function EditorDashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Workflow Rules Info */}
-      {/* <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3 flex items-center gap-4 flex-wrap">
-        <span className="font-medium">Workflow:</span>
-        <span>Pending → In Progress</span>
-        <span>→</span>
-        <span>In Progress → Ready for QC <span className="text-amber-600">(requires files)</span></span>
-        <span>→</span>
-        <span>Revisions → In Progress</span>
-      </div> */}
 
       {/* Kanban Board with Drag & Drop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">

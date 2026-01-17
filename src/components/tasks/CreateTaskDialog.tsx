@@ -234,7 +234,7 @@
 //     console.log("📤 SENDING TO API:");
 //     console.log("- clientId:", formData.clientId);
 //     console.log("- monthlyDeliverableId:", formData.monthlyDeliverableId);
-    
+
 //     // Find the actual deliverable to see its type
 //     const deliverable = deliverables.find(d => String(d.id) === String(formData.monthlyDeliverableId));
 //     console.log("- Deliverable type:", deliverable?.type);
@@ -251,10 +251,10 @@
 //     });
 
 //     const data = await res.json();
-    
+
 //     // 🔥 DEBUG: Log what we got back
 //     console.log("📥 RECEIVED FROM API:", data);
-    
+
 //     if (!res.ok) throw new Error(data.message || "Failed to create task");
 
 //     onTaskCreated?.(data);
@@ -573,7 +573,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     qc_specialist: "",
     dueDate: "",
     clientId: "",
-    folderType: "",
     monthlyDeliverableId: "",
   });
 
@@ -584,7 +583,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
   // list of available people for roles
   const [availableMembers, setAvailableMembers] = useState<any[]>([]);
-  const [files, setFiles] = useState<FileList | null>(null);
 
   // --- clients must be declared BEFORE any effect which references it ---
   const [clients, setClients] = useState<any[]>([]);
@@ -705,17 +703,12 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.clientId, clients]);
 
-  // file input handler
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFiles(e.target.files);
-  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.assignedTo) newErrors.assignedTo = "Please assign this task";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     if (!formData.clientId) newErrors.clientId = "Client is required";
-    if (!formData.folderType) newErrors.folderType = "Choose folder type";
     if (!formData.monthlyDeliverableId) newErrors.monthlyDeliverableId = "Choose a deliverable for this task";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -742,7 +735,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       formPayload.append("scheduler", String(formData.scheduler || ""));
       formPayload.append("videographer", String(formData.videographer || ""));
       formPayload.append("clientId", formData.clientId);
-      formPayload.append("folderType", formData.folderType);
       formPayload.append("monthlyDeliverableId", formData.monthlyDeliverableId);
 
       // 🔥 DEBUG: Log what we're sending
@@ -754,10 +746,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       const deliverable = deliverables.find(d => String(d.id) === String(formData.monthlyDeliverableId));
       console.log("- Deliverable type:", deliverable?.type);
       console.log("- Full deliverable:", deliverable);
-
-      if (files) {
-        Array.from(files).forEach((file) => formPayload.append("files", file));
-      }
 
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -783,11 +771,10 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         qc_specialist: "",
         dueDate: "",
         clientId: "",
-        folderType: "",
         monthlyDeliverableId: "",
       });
 
-      setFiles(null);
+
       setAvailableMembers([]);
       setDeliverables([]);
       setSelectedDeliverable("");
@@ -862,20 +849,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
             {errors.clientId && <p className="text-sm text-destructive">{errors.clientId}</p>}
           </div>
 
-          {/* Folder type */}
-          <div className="space-y-2">
-            <Label>Folder Type</Label>
-            <Select value={formData.folderType} onValueChange={(v) => handleInputChange("folderType", v)}>
-              <SelectTrigger className={errors.folderType ? "border-destructive" : ""}>
-                <SelectValue placeholder="raw footage / elements" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="rawFootage">Raw Footage</SelectItem>
-                <SelectItem value="essentials">Elements</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.folderType && <p className="text-sm text-destructive">{errors.folderType}</p>}
-          </div>
 
           {/* MONTHLY DELIVERABLE */}
           <div className="space-y-2">
@@ -922,17 +895,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
             {errors.dueDate && <p className="text-sm text-destructive">{errors.dueDate}</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label>Upload Files</Label>
-            <Input type="file" multiple onChange={handleFileChange} />
-            {files && (
-              <ul className="text-sm mt-2 space-y-1">
-                {Array.from(files).map((f, i) => (
-                  <li key={i}>{f.name}</li>
-                ))}
-              </ul>
-            )}
-          </div>
 
           <RoleAssign
             title="Assign Videographer"

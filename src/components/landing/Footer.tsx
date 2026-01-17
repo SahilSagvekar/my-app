@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import TermsOfService from "@/components/TermsOfService";
 
 export function Footer() {
   return (
@@ -127,12 +128,12 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-white/60 hover:text-white transition-colors">
+                <Link href="/privacy" className="text-white/60 hover:text-white transition-colors">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-white/60 hover:text-white transition-colors">
+                <Link href="/terms" className="text-white/60 hover:text-white transition-colors">
                   Terms of Service
                 </Link>
               </li>

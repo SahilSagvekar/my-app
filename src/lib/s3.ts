@@ -256,8 +256,6 @@ export async function generateSignedUrl(
   key: string,
   expiresIn: number = 7200
 ): Promise<string> {
-  console.log('🔍 Generating signed URL for key:', key);
-  console.log('🔍 Bucket:', BUCKET);
   
   const command = new GetObjectCommand({
     Bucket: BUCKET,
@@ -266,7 +264,6 @@ export async function generateSignedUrl(
 
   try {
     const signedUrl = await getSignedUrl(s3, command, { expiresIn });
-    console.log('✅ Signed URL generated successfully');
     return signedUrl;
   } catch (error) {
     console.error('❌ Failed to generate signed URL:', error);

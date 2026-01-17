@@ -118,7 +118,19 @@ function generatePostingDatesForMonth(opts: {
   }
 
   const targetWeekdays = postingDays.map((d) => WEEKDAY_MAP[d]).filter((v) => v !== undefined);
-  if (targetWeekdays.length === 0) return [];
+
+  // 🔥 FALLBACK: If no valid posting days, use ALL days of the month
+  if (targetWeekdays.length === 0) {
+    console.warn("⚠️ No valid posting days found - using all days of the month as fallback");
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      for (let i = 0; i < videosPerDay; i++) {
+        result.push(parseTimeToDate(date, times[i]));
+        if (result.length >= quantity) return result;
+      }
+    }
+    return result.slice(0, quantity);
+  }
 
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month, day);

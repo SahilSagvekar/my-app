@@ -4,43 +4,60 @@ module.exports = {
             name: 'e8-app',
             script: 'node_modules/next/dist/bin/next',
             args: 'start',
-            instances: 1, // Single instance to avoid connection pool conflicts
-            exec_mode: 'fork', // Use fork mode for Next.js
+            instances: 1,
+            exec_mode: 'fork',
 
-            // ✅ Auto-restart settings
-            max_memory_restart: '1G', // Restart if memory exceeds 1GB
-            restart_delay: 5000, // Wait 5s before restart
-            max_restarts: 10, // Max restarts in exp_backoff_restart_delay window
+            max_memory_restart: '1G',
+            restart_delay: 5000,
+            max_restarts: 10,
 
-            // ✅ Cron-based restart to prevent memory leaks
+            cron_restart: '*/15 * * * *',
 
-            cron_restart: '*/15 * * * *',  // Every 15 minutes
-
-            // ✅ Environment
             env: {
                 NODE_ENV: 'production',
                 PORT: 3000,
             },
 
-            // ✅ Logging
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
             error_file: './logs/error.log',
             out_file: './logs/out.log',
             merge_logs: true,
 
-            // ✅ Watch settings (disabled for production)
             watch: false,
             ignore_watch: ['node_modules', '.git', 'logs'],
 
-            // ✅ Graceful shutdown
-            kill_timeout: 10000, // Give 10s for graceful shutdown
+            kill_timeout: 10000,
             wait_ready: true,
             listen_timeout: 10000,
 
-            // ✅ Node.js args for better memory handling
             node_args: [
-                '--max-old-space-size=1024', // Limit heap size
+                '--max-old-space-size=1024',
             ],
+        },
+        {
+            name: 'ai-title-api',
+            cwd: '/home/ubuntu/AI_Powered_Video_Title_Generator',
+            script: '/home/ubuntu/AI_Powered_Video_Title_Generator/venv/bin/uvicorn',
+            args: 'app.main:app --host 127.0.0.1 --port 8000 --workers 1',
+            interpreter: 'none',
+            instances: 1,
+            exec_mode: 'fork',
+
+            max_memory_restart: '2G',
+            restart_delay: 5000,
+            max_restarts: 10,
+
+            env: {
+                PATH: '/home/ubuntu/AI_Powered_Video_Title_Generator/venv/bin:/usr/bin:/bin',
+            },
+
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+            error_file: '/home/ubuntu/AI_Powered_Video_Title_Generator/logs/error.log',
+            out_file: '/home/ubuntu/AI_Powered_Video_Title_Generator/logs/out.log',
+            merge_logs: true,
+
+            watch: false,
+            kill_timeout: 300000,  // 5 min for long video processing
         },
     ],
 };
