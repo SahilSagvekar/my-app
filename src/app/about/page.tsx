@@ -45,9 +45,10 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
-      <div className="pt-20 sm:pt-24 pb-16 sm:pb-20 px-5 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8 sm:mb-12">
+      <div className="pt-12 sm:pt-14">
+        <section className="pt-12 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-6 sm:mb-10">
           <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
             About E8 Productions
           </h1>
@@ -73,7 +74,7 @@ export default function AboutPage() {
             ))}
           </div>
 
-          <div className="bg-black/[0.02] rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center px-5 sm:px-6 border border-black/5">
+          <div className="bg-black/[0.02] rounded-2xl sm:rounded-3xl p-8 sm:p-12 text-center px-4 sm:px-6 border border-black/5">
             <h2 className="text-xl sm:text-2xl lg:text-3xl text-black mb-3 sm:mb-4">
               Built for Modern Businesses
             </h2>
@@ -86,7 +87,7 @@ export default function AboutPage() {
 
           {/* Careers Section */}
           <div className="mt-12 sm:mt-20">
-            <div className="text-center mb-8 sm:mb-12">
+            <div className="text-center mb-6 sm:mb-10">
               <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-black rounded-xl sm:rounded-2xl mb-4 sm:mb-6">
                 <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
               </div>
@@ -99,7 +100,7 @@ export default function AboutPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12 px-4 sm:px-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-10 px-4 sm:px-0">
               {positions.map((position, index) => (
                 <div
                   key={index}
@@ -142,7 +143,8 @@ export default function AboutPage() {
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </section>
       </div>
       <Footer />
     </div>

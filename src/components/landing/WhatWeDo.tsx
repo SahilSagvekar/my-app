@@ -46,10 +46,10 @@ const services = [
 
 export function WhatWeDo() {
   return (
-    <section id="services" className="pt-14 sm:pt-16 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-gray-50">
+    <section id="services" className="pt-12 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-gray-50">
       <div className="max-w-6xl mx-auto">
         {/* Section Header */}
-        <div className="text-center mb-8 sm:mb-12">
+        <div className="text-center mb-6 sm:mb-10">
           <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
             What We Do
           </h1>

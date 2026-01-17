@@ -33,7 +33,7 @@ export default function LandingPage() {
       <Hero />
 
       {/* Services Preview */}
-      <section className="pt-8 pb-8 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
+      <section className="pt-6 pb-6 sm:py-12 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 lg:gap-12">
             <div className="flex-1 order-2 md:order-1 w-full">
@@ -123,7 +123,7 @@ export default function LandingPage() {
       </section>
 
       {/* Results Preview */}
-      <section className="pt-8 pb-8 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
+      <section className="pt-6 pb-6 sm:py-12 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 lg:gap-12">
             <div className="flex-1 w-full md:w-auto px-4 sm:px-0">
@@ -169,7 +169,7 @@ export default function LandingPage() {
       </section>
 
       {/* Original Shows Preview */}
-      <section className="pt-8 pb-8 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
+      <section className="pt-6 pb-6 sm:py-12 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-6 sm:gap-10 lg:gap-12">
             <div className="flex-1 order-2 md:order-1 w-full md:w-auto">
@@ -209,7 +209,7 @@ export default function LandingPage() {
       </section>
 
       {/* About Preview */}
-      <section className="pt-8 pb-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
+      <section className="pt-6 pb-12 sm:py-12 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl lg:text-3xl text-black mb-3 sm:mb-4">
             Why E8 Productions?

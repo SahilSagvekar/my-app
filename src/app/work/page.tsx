@@ -244,22 +244,23 @@ export default function WorkPage() {
     <div className="min-h-screen bg-white">
       <Navigation />
 
-      {/* Hero Section */}
-      <div className="pt-20 sm:pt-24 pb-2 sm:pb-8 px-5 sm:px-6 lg:px-8 bg-white">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4 px-4 sm:px-0">
-            Results That Speak for Themselves
-          </h1>
-          <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
-            Real businesses. Real growth. See how our content strategies and
-            production services have helped small businesses achieve remarkable
-            results.
-          </p>
-        </div>
-      </div>
+      <div className="pt-12 sm:pt-14">
+        {/* Hero Section */}
+        <section className="pt-12 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8 bg-white">
+          <div className="max-w-7xl mx-auto text-center">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4 px-4 sm:px-0">
+              Results That Speak for Themselves
+            </h1>
+            <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+              Real businesses. Real growth. See how our content strategies and
+              production services have helped small businesses achieve remarkable
+              results.
+            </p>
+          </div>
+        </section>
 
-      {/* Clients Section */}
-      <section className="pt-2 sm:pt-8 pb-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
+        {/* Clients Section */}
+        <section className="pt-14 pb-20 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
           {/* <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
@@ -318,10 +319,10 @@ export default function WorkPage() {
         </div>
       </section>
 
-      {/* Who We Work With - Infinite Scroll Carousel */}
-      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
+        {/* Who We Work With - Infinite Scroll Carousel */}
+        <section className="pt-14 pb-20 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8 sm:mb-12">
+          <div className="text-center mb-6 sm:mb-10">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Who We Work With
             </h2>
@@ -395,58 +396,58 @@ export default function WorkPage() {
         </div>
       </section> */}
 
-      {/* Impact By Numbers */}
-      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
-              Impact by the Numbers
-            </h2>
-            <p className="text-base sm:text-base text-black/60">
-              Aggregate results across our client portfolio
-            </p>
+        {/* Impact By Numbers */}
+        <section className="pt-14 pb-20 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-6 sm:mb-10">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
+                Impact by the Numbers
+              </h2>
+              <p className="text-base sm:text-base text-black/60">
+                Aggregate results across our client portfolio
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 max-w-4xl mx-auto">
+              <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
+                <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                  <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                </div>
+                <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
+                  285%
+                </div>
+                <div className="text-sm sm:text-sm text-black/60">
+                  Average Growth
+                </div>
+              </div>
+
+              <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
+                <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                  <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                </div>
+                <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
+                  12.5M+
+                </div>
+                <div className="text-sm sm:text-sm text-black/60">
+                  Total Video Views
+                </div>
+              </div>
+
+              <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
+                <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                </div>
+                <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
+                  50+
+                </div>
+                <div className="text-sm sm:text-sm text-black/60">
+                  Happy Clients
+                </div>
+              </div>
+            </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 max-w-4xl mx-auto">
-            <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
-              <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
-                285%
-              </div>
-              <div className="text-sm sm:text-sm text-black/60">
-                Average Growth
-              </div>
-            </div>
-
-            <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
-              <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
-                <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
-                12.5M+
-              </div>
-              <div className="text-sm sm:text-sm text-black/60">
-                Total Video Views
-              </div>
-            </div>
-
-            <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
-              <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
-                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
-                50+
-              </div>
-              <div className="text-sm sm:text-sm text-black/60">
-                Happy Clients
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
+        </section>
+      </div>
       <Footer />
     </div>
   );
