@@ -14,17 +14,17 @@ model User {
   password            String?
   image               String?
   role                Role?
-  phone               String?             @unique
+  hourlyRate          Decimal?            @db.Decimal(10, 2)
+  monthlyBaseHours    Int?
+  employeeStatus      EmployeeStatus?     @default(ACTIVE)
+  joinedAt            DateTime?
+  worksOnSaturday     Boolean             @default(false)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
-  employeeStatus      EmployeeStatus?     @default(ACTIVE)
-  hourlyRate          Decimal?            @db.Decimal(10, 2)
-  hoursPerWeek        Decimal?            @default(0) @db.Decimal(5, 2)
-  joinedAt            DateTime?
-  monthlyBaseHours    Int?
-  worksOnSaturday     Boolean             @default(false)
   resetOTP            String?
   resetOTPExpiry      DateTime?
+  hoursPerWeek        Decimal?            @default(0) @db.Decimal(5, 2)
+  phone               String?             @unique
   monthlyRate         Int?
   accounts            Account[]
   auditLogs           AuditLog[]
@@ -45,9 +45,8 @@ model User {
   updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
   assignedTasks       Task[]              @relation("AssignedTasks")
   clientTasks         Task[]              @relation("ClientUserTasks")
-  TimeLog             TimeLog[]
+  taskFeedback        TaskFeedback[]      @relation("TaskFeedbackAuthor")
   securityPin         UserSecurityPin?
-  WeeklySummary       WeeklySummary[]
 
   @@index([email])
   @@index([role])
@@ -95,7 +94,12 @@ model Task {
   taskType             String?
   status               TaskStatus?         @default(PENDING)
   dueDate              DateTime?
+  clientUserId         Int?
+  folderType           String?
   assignedTo           Int
+  qc_specialist        Int?
+  scheduler            Int?
+  videographer         Int?
   createdBy            Int?
   clientId             String?
   monthlyDeliverableId String?
@@ -104,21 +108,16 @@ model Task {
   driveLinks           String[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
-  qc_specialist        Int?
-  scheduler            Int?
-  videographer         Int?
-  nextDestination      String?
   priority             String?
-  requiresClientReview Boolean?            @default(false)
   taskCategory         String?
+  nextDestination      String?
+  clientReview         Boolean?            @default(false)
+  requiresClientReview Boolean?            @default(false)
   workflowStep         String?
   feedback             String?
   qcNotes              String?
   qcResult             String?
   route                String?
-  clientReview         Boolean?            @default(false)
-  clientUserId         Int?
-  folderType           String?
   monthFolder          String?
   outputFolderId       String?
   deliverableType      String?
@@ -128,17 +127,13 @@ model Task {
   hasThumbnails        Boolean             @default(false)
   hasTiles             Boolean             @default(false)
   socialMediaLinks     Json                @default("[]")
-  actualHours          Decimal?            @db.Decimal(5, 2)
-  completedAt          DateTime?
-  estimatedHours       Decimal?            @db.Decimal(5, 2)
-  startedAt            DateTime?
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   user                 User                @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client               Client?             @relation(fields: [clientId], references: [id])
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
-  TimeLog              TimeLog[]
+  taskFeedback         TaskFeedback[]
 
   @@index([assignedTo])
   @@index([clientId])
@@ -153,23 +148,28 @@ model Task {
   @@index([dueDate, status])
 }
 
+model TaskFeedback {
+  id         String    @id @default(cuid())
+  taskId     String
+  fileId     String?
+  folderType String
+  feedback   String
+  status     String    @default("needs_revision")
+  timestamp  String?
+  category   String?
+  createdBy  Int
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation("TaskFeedbackAuthor", fields: [createdBy], references: [id])
+  file       File?     @relation(fields: [fileId], references: [id])
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([fileId])
+  @@index([taskId, folderType])
+}
+
 model RecurringTask {
-  id                  String             @id @default(cuid())
-  clientId            String
-  deliverableId       String
-  templateTaskId      String?
-  nextRunDate         DateTime
-  lastRunDate         DateTime?
-  scheduleType        String
-  active              Boolean            @default(true)
-  createdAt           DateTime           @default(now())
-  defaultAssignedTo   Int?
-  defaultQcSpecialist Int?
-  defaultScheduler    Int?
-  defaultVideographer Int?
-  client              Client             @relation(fields: [clientId], references: [id])
-  deliverable         MonthlyDeliverable @relation(fields: [deliverableId], references: [id])
-  templateTask        Task?              @relation("TemplateTask", fields: [templateTaskId], references: [id])
   id                  String             @id @default(cuid())
   clientId            String
   deliverableId       String
@@ -190,18 +190,19 @@ model RecurringTask {
 
 model Client {
   id                   String               @id @default(cuid())
+  userId               Int?                 @unique
   name                 String
   email                String
-  emails               String[]             @default([])
   companyName          String?
   phone                String
-  phones               String[]             @default([])
   createdBy            String?
   status               String               @default("active")
   accountManagerId     String?
   startDate            DateTime?
   renewalDate          DateTime?
   lastActivity         DateTime?
+  requiresClientReview Boolean              @default(false)
+  requiresVideographer Boolean              @default(false)
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   uploadedFiles        Json?
@@ -213,9 +214,8 @@ model Client {
   driveFolderId        String?
   rawFootageFolderId   String?
   essentialsFolderId   String?
-  userId               Int?                 @unique
-  requiresClientReview Boolean              @default(false)
-  requiresVideographer Boolean              @default(false)
+  emails               String[]             @default([])
+  phones               String[]             @default([])
   outputsFolderId      String?
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
@@ -223,7 +223,6 @@ model Client {
   monthlyRuns          MonthlyRun[]
   recurringTasks       RecurringTask[]
   socialLogins         SocialLogin[]
-  tasks                Task[]
   tasks                Task[]
 
   @@index([status])
@@ -271,13 +270,14 @@ model File {
   uploadedBy   Int?
   createdAt    DateTime       @default(now())
   folderType   String?
-  s3Key        String?
-  isActive     Boolean   @default(true)
+  isActive     Boolean        @default(true)
   replacedAt   DateTime?
   replacedBy   String?
   revisionNote String?
-  version      Int       @default(1)
-  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  s3Key        String?
+  version      Int            @default(1)
+  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  feedback     TaskFeedback[]
 
   @@index([taskId, folderType])
   @@index([taskId, isActive])
@@ -285,16 +285,16 @@ model File {
 
 model Notification {
   id        String   @id @default(cuid())
+  userId    Int?
   type      String
   title     String
   body      String?
+  payload   Json?
+  channel   String[] @default([])
   delivered Boolean  @default(false)
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
-  payload   Json?
   updatedAt DateTime @updatedAt
-  channel   String[] @default([])
-  userId    Int?
 
   @@index([userId, read])
   @@index([createdAt])
@@ -303,10 +303,10 @@ model Notification {
 
 model NotificationPreference {
   id        String   @id @default(cuid())
+  userId    Int
   channel   String
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
-  userId    Int
 
   @@unique([userId, channel])
 }
@@ -421,11 +421,7 @@ model FeedbackResponse {
 
 model SocialLogin {
   id                String          @id @default(cuid())
-  id                String          @id @default(cuid())
   clientId          String
-  platform          String
-  username          String
-  encryptedPassword String
   platform          String
   username          String
   encryptedPassword String
@@ -434,15 +430,8 @@ model SocialLogin {
   notes             String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
-  notes             String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
   updatedById       Int
   auditLogs         LoginAuditLog[]
-  client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  updatedByUser     User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
-
-  @@unique([clientId, platform])
   client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedByUser     User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
 
@@ -455,7 +444,6 @@ model UserSecurityPin {
   id             String    @id @default(cuid())
   userId         Int       @unique
   pinHash        String
-  pinHash        String
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   lastVerifiedAt DateTime?
@@ -466,19 +454,12 @@ model LoginAuditLog {
   id        String       @id @default(cuid())
   action    String
   loginId   String?
-  id        String       @id @default(cuid())
-  action    String
-  loginId   String?
   userId    Int
-  details   String?
   details   String?
   ipAddress String?
   createdAt DateTime     @default(now())
   login     SocialLogin? @relation(fields: [loginId], references: [id])
-  createdAt DateTime     @default(now())
-  login     SocialLogin? @relation(fields: [loginId], references: [id])
   user      User         @relation(fields: [userId], references: [id])
-
 
   @@index([loginId])
   @@index([userId])
@@ -574,45 +555,6 @@ model QCCategoryMetrics {
   @@index([category])
 }
 
-model TimeLog {
-  id             String   @id
-  userId         Int
-  taskId         String?
-  date           DateTime @default(now())
-  estimatedHours Decimal  @db.Decimal(5, 2)
-  taskType       String?
-  taskTitle      String?
-  status         String   @default("completed")
-  notes          String?
-  createdAt      DateTime @default(now())
-  Task           Task?    @relation(fields: [taskId], references: [id])
-  User           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([date])
-  @@index([taskId])
-  @@index([userId, date])
-  @@index([userId])
-}
-
-model WeeklySummary {
-  id             String   @id
-  userId         Int
-  weekStart      DateTime
-  weekEnd        DateTime
-  totalHours     Decimal  @default(0) @db.Decimal(6, 2)
-  tasksCompleted Int      @default(0)
-  overtimeHours  Decimal? @db.Decimal(5, 2)
-  status         String   @default("in_progress")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime
-  User           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, weekStart])
-  @@index([status])
-  @@index([userId])
-  @@index([weekStart])
-}
-
 enum Role {
   admin
   manager
@@ -646,9 +588,9 @@ enum TaskStatus {
   READY_FOR_QC
   QC_IN_PROGRESS
   COMPLETED
+  SCHEDULED
   ON_HOLD
   REJECTED
-  SCHEDULED
   CLIENT_REVIEW
   VIDEOGRAPHER_ASSIGNED
 }
