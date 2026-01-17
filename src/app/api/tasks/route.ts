@@ -524,13 +524,27 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
-    const statusFilter = searchParams.get("status") as string | null; // 👈 GET STATUS FILTER
+    const statusFilter = searchParams.get("status") as string | null;
+    const clientIdFilter = searchParams.get("clientId") as string | null; // 🔥 NEW: Client filter
 
     // Build role-based where query
     let where: any = buildRoleWhereQuery(role, Number(userId));
 
+    // 🔥 ADD CLIENT FILTER - For filtering tasks by client
+    if (clientIdFilter) {
+      if (where.AND) {
+        where.AND.push({ clientId: clientIdFilter });
+      } else if (Object.keys(where).length > 0) {
+        where = {
+          AND: [where, { clientId: clientIdFilter }],
+        };
+      } else {
+        where = { clientId: clientIdFilter };
+      }
+    }
+
     // 🔥 ADD STATUS FILTER - ALLOW COMMA SEPARATED STATUSES
-    const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED"];
+    const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED", "PENDING", "IN_PROGRESS", "CLIENT_REVIEW", "SCHEDULED", "VIDEOGRAPHER_ASSIGNED"];
 
     if (statusFilter) {
       const statuses = statusFilter.split(",").map((s) => s.trim().toUpperCase());
@@ -608,6 +622,7 @@ export async function GET(req: Request) {
         qcNotes: true,
         feedback: true,
         // files: true,
+        monthlyDeliverableId: true,
         monthlyDeliverable: true,
         socialMediaLinks: true,
         // 🔥 Include task feedback with file info for version tracking
