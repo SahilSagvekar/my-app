@@ -28,7 +28,7 @@ export function OriginalShows() {
   return (
     <section
       id="shows"
-      className="pt-14 sm:pt-16 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 bg-white"
+      className="pt-14 sm:pt-16 pb-16 sm:pb-24 px-5 sm:px-6 lg:px-8 bg-white"
     >
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
@@ -36,7 +36,7 @@ export function OriginalShows() {
           <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4 px-4 sm:px-0">
             Original Shows
           </h1>
-          <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+          <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
             Premium entertainment produced by E8 Productions. Watch what happens
             when creativity meets innovation.
           </p>
@@ -47,7 +47,7 @@ export function OriginalShows() {
           {shows.map((show, index) => (
             <div
               key={index}
-              className="group bg-white border border-black/5 rounded-2xl sm:rounded-3xl overflow-hidden transition-all hover:border-black/20 hover:shadow-2xl hover:-translate-y-2"
+              className="group bg-white border border-black/5 rounded-2xl sm:rounded-3xl overflow-hidden transition-all hover:border-black/20 hover:shadow-2xl hover:-translate-y-2 active:scale-[0.98]"
             >
               {/* Show Image */}
               <div className="relative aspect-video overflow-hidden bg-black/5">
@@ -68,18 +68,18 @@ export function OriginalShows() {
               </div>
 
               {/* Show Info */}
-              <div className="p-5 sm:p-6 lg:p-8">
-                <h3 className="text-lg sm:text-xl text-black mb-2 sm:mb-3 font-semibold">
+              <div className="p-6 sm:p-6 lg:p-8">
+                <h3 className="text-xl sm:text-xl text-black mb-2 sm:mb-3 font-semibold">
                   {show.title}
                 </h3>
-                <p className="text-sm sm:text-base text-black/60 mb-4 sm:mb-6 leading-relaxed">
+                <p className="text-base sm:text-base text-black/60 mb-4 sm:mb-6 leading-relaxed">
                   {show.description}
                 </p>
                 <button
                   onClick={() =>
                     window.open(show.videoUrl, "_blank", "noopener,noreferrer")
                   }
-                  className="group/btn inline-flex items-center gap-2 text-sm sm:text-base text-black transition-all hover:gap-3 font-medium"
+                  className="group/btn inline-flex items-center gap-2 text-base sm:text-base text-black transition-all hover:gap-3 font-medium"
                 >
                   <span>Watch Now</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
@@ -91,12 +91,12 @@ export function OriginalShows() {
 
         {/* Bottom CTA */}
         <div className="mt-10 sm:mt-16 text-center px-4 sm:px-0">
-          <p className="text-sm sm:text-base text-black/60 mb-4 sm:mb-6">
+          <p className="text-base sm:text-base text-black/60 mb-4 sm:mb-6">
             Want to produce your own original content with us?
           </p>
           <Link
             href="/contact"
-            className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 text-sm sm:text-base bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105 w-full sm:w-auto justify-center"
+            className="inline-flex items-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-base bg-black text-white rounded-full transition-all hover:bg-black/90 active:scale-95 w-full sm:w-auto justify-center font-medium shadow-lg shadow-black/10"
           >
             Pitch Your Show
             <ArrowRight className="w-4 h-4" />

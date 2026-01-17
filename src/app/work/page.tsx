@@ -208,7 +208,7 @@ function InfiniteScrollCarousel() {
                   <div className="w-12 h-12 sm:w-14 sm:h-14 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4">
                     <IconComponent className="w-6 h-6 sm:w-7 sm:h-7 text-black" />
                   </div>
-                  <p className="text-black/70 text-xs sm:text-sm font-medium text-center">
+                  <p className="text-black/70 text-sm sm:text-sm font-medium text-center">
                     {brand.name}
                   </p>
                 </>
@@ -237,7 +237,7 @@ function InfiniteScrollCarousel() {
                   <div className="w-12 h-12 sm:w-14 sm:h-14 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4">
                     <IconComponent className="w-6 h-6 sm:w-7 sm:h-7 text-black" />
                   </div>
-                  <p className="text-black/70 text-xs sm:text-sm font-medium text-center">
+                  <p className="text-black/70 text-sm sm:text-sm font-medium text-center">
                     {brand.name}
                   </p>
                 </>
@@ -273,12 +273,12 @@ export default function WorkPage() {
       <Navigation />
 
       {/* Hero Section */}
-      <div className="pt-20 sm:pt-24 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8 bg-white">
+      <div className="pt-20 sm:pt-24 pb-16 sm:pb-16 px-5 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4 px-4 sm:px-0">
             Results That Speak for Themselves
           </h1>
-          <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+          <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
             Real businesses. Real growth. See how our content strategies and
             production services have helped small businesses achieve remarkable
             results.
@@ -287,13 +287,13 @@ export default function WorkPage() {
       </div>
 
       {/* Clients Section */}
-      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-white">
+      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Clients
             </h2>
-            <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto">
+            <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto">
               Trusted partners who&apos;ve achieved remarkable growth with our
               content solutions.
             </p>
@@ -303,7 +303,7 @@ export default function WorkPage() {
             {clients.map((client) => (
               <div
                 key={client.id}
-                className="group bg-white border border-black/5 rounded-2xl sm:rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300"
+                className="group bg-white border border-black/5 rounded-2xl sm:rounded-3xl overflow-hidden hover:shadow-2xl hover:border-black/10 active:scale-[0.98] transition-all duration-300"
               >
                 {/* Image */}
                 <div className="relative aspect-video overflow-hidden bg-black/5">
@@ -319,14 +319,14 @@ export default function WorkPage() {
                         return <IconComponent className="w-4 h-4 text-black" />;
                       })()}
                     </div>
-                    <span className="px-3 py-1 bg-white/90 backdrop-blur-sm text-black text-xs sm:text-sm rounded-full font-medium">
+                    <span className="px-3 py-1 bg-white/90 backdrop-blur-sm text-black text-sm sm:text-sm rounded-full font-medium">
                       {client.category}
                     </span>
                   </div>
                 </div>
 
                 {/* Content */}
-                <div className="p-5 sm:p-6 lg:p-8">
+                <div className="p-6 sm:p-6 lg:p-8">
                   <div className="flex items-center gap-3 mb-2 sm:mb-3">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center">
                       {(() => {
@@ -336,12 +336,12 @@ export default function WorkPage() {
                         );
                       })()}
                     </div>
-                    <h3 className="text-lg sm:text-xl text-black font-semibold">
+                    <h3 className="text-xl sm:text-xl text-black font-semibold">
                       {client.name}
                     </h3>
                   </div>
                   {client.description && (
-                    <p className="text-sm sm:text-base text-black/60 leading-relaxed">
+                    <p className="text-base sm:text-base text-black/60 leading-relaxed">
                       {client.description}
                     </p>
                   )}
@@ -353,13 +353,13 @@ export default function WorkPage() {
       </section>
 
       {/* Who We Work With - Infinite Scroll Carousel */}
-      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
+      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Who We Work With
             </h2>
-            <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+            <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
               Small businesses and growing brands that want to make a big
               impact.
             </p>
@@ -369,7 +369,7 @@ export default function WorkPage() {
 
           {/* Trust Badge */}
           <div className="mt-10 sm:mt-12 text-center">
-            <p className="text-black/40 text-xs sm:text-sm">
+            <p className="text-black/40 text-sm sm:text-sm">
               Helping small businesses compete and win in their markets.
             </p>
           </div>
@@ -377,13 +377,13 @@ export default function WorkPage() {
       </section>
 
       {/* Featured Projects */}
-      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-white">
+      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-12 lg:mb-16">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Featured Projects
             </h2>
-            <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+            <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
               A selection of our video production work across different
               industries
             </p>
@@ -393,7 +393,7 @@ export default function WorkPage() {
             {videoShowcase.map((video, index) => (
               <div
                 key={index}
-                className="group bg-white border border-black/5 rounded-2xl sm:rounded-3xl overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                className="group bg-white border border-black/5 rounded-2xl sm:rounded-3xl overflow-hidden hover:shadow-2xl hover:border-black/10 active:scale-[0.98] transition-all duration-300 cursor-pointer"
               >
                 <div className="relative aspect-video overflow-hidden bg-black/5">
                   <ImageWithFallback
@@ -410,16 +410,16 @@ export default function WorkPage() {
                     </div>
                   </div>
                   <div className="absolute bottom-4 right-4">
-                    <span className="px-3 py-1 bg-black/80 backdrop-blur-sm text-white text-xs sm:text-sm rounded-full">
+                    <span className="px-3 py-1 bg-black/80 backdrop-blur-sm text-white text-sm sm:text-sm rounded-full">
                       {video.duration}
                     </span>
                   </div>
                 </div>
-                <div className="p-5 sm:p-6">
-                  <h3 className="text-base sm:text-lg text-black mb-1.5 sm:mb-2 font-semibold">
+                <div className="p-6 sm:p-6">
+                  <h3 className="text-lg sm:text-lg text-black mb-1.5 sm:mb-2 font-semibold">
                     {video.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-black/60">
+                  <p className="text-sm sm:text-sm text-black/60">
                     {video.description}
                   </p>
                 </div>
@@ -430,50 +430,50 @@ export default function WorkPage() {
       </section>
 
       {/* Impact By Numbers */}
-      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
+      <section className="py-16 sm:py-16 px-5 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Impact by the Numbers
             </h2>
-            <p className="text-sm sm:text-base text-black/60">
+            <p className="text-base sm:text-base text-black/60">
               Aggregate results across our client portfolio
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 max-w-4xl mx-auto">
-            <div className="text-center p-5 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5">
+            <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
               <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
                 <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
                 285%
               </div>
-              <div className="text-xs sm:text-sm text-black/60">
+              <div className="text-sm sm:text-sm text-black/60">
                 Average Growth
               </div>
             </div>
 
-            <div className="text-center p-5 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5">
+            <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
               <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
                 <Eye className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
                 12.5M+
               </div>
-              <div className="text-xs sm:text-sm text-black/60">
+              <div className="text-sm sm:text-sm text-black/60">
                 Total Video Views
               </div>
             </div>
 
-            <div className="text-center p-5 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5">
+            <div className="text-center p-6 sm:p-6 bg-white rounded-2xl sm:rounded-3xl border border-black/5 hover:border-black/10 hover:shadow-lg transition-all">
               <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-xl sm:rounded-2xl mb-3 sm:mb-4">
                 <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div className="text-lg sm:text-xl text-black mb-1.5 sm:mb-2 font-semibold">
                 50+
               </div>
-              <div className="text-xs sm:text-sm text-black/60">
+              <div className="text-sm sm:text-sm text-black/60">
                 Happy Clients
               </div>
             </div>

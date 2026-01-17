@@ -610,27 +610,27 @@ export async function GET(req: Request) {
         // files: true,
         monthlyDeliverable: true,
         socialMediaLinks: true,
-        // 🔥 Include task feedback with file info for version tracking
-        taskFeedback: {
-          select: {
-            id: true,
-            fileId: true,
-            folderType: true,
-            feedback: true,
-            status: true,
-            timestamp: true,
-            category: true,
-            createdAt: true,
-            resolvedAt: true,
-            file: {
-              select: {
-                version: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' as const },
-        },
+        // 🔥 Task feedback temporarily removed - will be re-enabled after Prisma client regeneration
+        // taskFeedback: {
+        //   select: {
+        //     id: true,
+        //     fileId: true,
+        //     folderType: true,
+        //     feedback: true,
+        //     status: true,
+        //     timestamp: true,
+        //     category: true,
+        //     createdAt: true,
+        //     resolvedAt: true,
+        //     file: {
+        //       select: {
+        //         version: true,
+        //         name: true,
+        //       },
+        //     },
+        //   },
+        //   orderBy: { createdAt: 'desc' as const },
+        // },
       },
     });
 

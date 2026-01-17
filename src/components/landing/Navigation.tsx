@@ -75,45 +75,45 @@ export function Navigation() {
 
           {/* Mobile Menu */}
           {mobileMenuOpen && (
-            <div className="md:hidden py-4 space-y-2">
+            <div className="md:hidden py-6 space-y-1 border-t border-black/5 mt-2">
               <Link 
                 href="/services" 
-                className="block px-4 py-2 text-black/70 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
+                className="block px-5 py-3.5 text-base text-black/70 hover:text-black hover:bg-black/5 rounded-xl transition-all active:bg-black/10"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Our Services
               </Link>
               <Link 
                 href="/shows" 
-                className="block px-4 py-2 text-black/70 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
+                className="block px-5 py-3.5 text-base text-black/70 hover:text-black hover:bg-black/5 rounded-xl transition-all active:bg-black/10"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Original Shows
               </Link>
               <Link 
                 href="/work" 
-                className="block px-4 py-2 text-black/70 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
+                className="block px-5 py-3.5 text-base text-black/70 hover:text-black hover:bg-black/5 rounded-xl transition-all active:bg-black/10"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Results
               </Link>
               <Link 
                 href="/about" 
-                className="block px-4 py-2 text-black/70 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
+                className="block px-5 py-3.5 text-base text-black/70 hover:text-black hover:bg-black/5 rounded-xl transition-all active:bg-black/10"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About Us
               </Link>
               <Link 
                 href="/contact" 
-                className="block px-4 py-2 text-black/70 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
+                className="block px-5 py-3.5 text-base text-black/70 hover:text-black hover:bg-black/5 rounded-xl transition-all active:bg-black/10"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Contact
               </Link>
               <Link 
                 href="/dashboard"
-                className="block w-full mt-4 px-4 py-2 bg-black text-white text-center rounded-full hover:bg-black/90 transition-all"
+                className="block w-full mt-6 px-5 py-3.5 text-base bg-black text-white text-center rounded-full hover:bg-black/90 active:scale-95 transition-all font-medium"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Sign In

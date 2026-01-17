@@ -26,14 +26,14 @@ const values = [
 
 export function WhyE8() {
   return (
-    <section className="pt-16 pb-24 px-6 lg:px-8 bg-white">
+    <section className="pt-16 pb-24 px-5 sm:px-6 lg:px-8 bg-white">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="max-w-2xl mx-auto text-center mb-10 sm:mb-16">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
             Why E8 Productions
           </h2>
-          <p className="text-sm sm:text-base text-black/60 px-4 sm:px-0">
+          <p className="text-base sm:text-base text-black/60 px-4 sm:px-0">
             Small business pricing. Real results.
           </p>
         </div>
@@ -43,7 +43,7 @@ export function WhyE8() {
           {values.map((value, index) => (
             <div
               key={index}
-              className="flex gap-4 sm:gap-6 group"
+              className="flex gap-5 sm:gap-6 group p-4 sm:p-0 rounded-2xl hover:bg-black/5 transition-all"
             >
               <div className="flex-shrink-0">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-black rounded-xl sm:rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110">
@@ -51,10 +51,10 @@ export function WhyE8() {
                 </div>
               </div>
               <div>
-                <h3 className="text-base sm:text-lg text-black mb-1.5 sm:mb-2">
+                <h3 className="text-lg sm:text-lg text-black mb-1.5 sm:mb-2">
                   {value.title}
                 </h3>
-                <p className="text-sm sm:text-base text-black/60">
+                <p className="text-base sm:text-base text-black/60">
                   {value.description}
                 </p>
               </div>

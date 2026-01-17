@@ -7,20 +7,20 @@ export default function ContactPage() {  // ← Changed: Added "default"
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
-      <div className="pt-20 sm:pt-24 pb-16 sm:pb-20 px-4 sm:px-6 lg:px-8">
+      <div className="pt-20 sm:pt-24 pb-16 sm:pb-20 px-5 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10 sm:mb-16">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
               Get in Touch
             </h1>
-            <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+            <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
               Ready to start your project? Have questions about our services? We'd love to hear from you.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 px-4 sm:px-0">
             {/* Contact Form */}
-            <div className="bg-white border border-black/5 rounded-2xl sm:rounded-3xl p-5 sm:p-8">
+            <div className="bg-white border border-black/5 rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-lg">
               <h3 className="text-lg sm:text-xl text-black mb-4 sm:mb-6">
                 Send us a message
               </h3>
@@ -39,8 +39,8 @@ export default function ContactPage() {  // ← Changed: Added "default"
                       <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-black/70" />
                     </div>
                     <div>
-                      <p className="text-sm sm:text-base text-black mb-1">Email</p>
-                      <a href="mailto:info@e8productions.com" className="text-xs sm:text-sm text-black/60 hover:text-black transition-colors break-all">
+                      <p className="text-base sm:text-base text-black mb-1">Email</p>
+                      <a href="mailto:info@e8productions.com" className="text-sm sm:text-sm text-black/60 hover:text-black transition-colors break-all">
                         info@e8productions.com
                       </a>
                     </div>
@@ -51,8 +51,8 @@ export default function ContactPage() {  // ← Changed: Added "default"
                       <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-black/70" />
                     </div>
                     <div>
-                      <p className="text-sm sm:text-base text-black mb-1">Phone</p>
-                      <a href="tel:+18088590875" className="text-xs sm:text-sm text-black/60 hover:text-black transition-colors">
+                      <p className="text-base sm:text-base text-black mb-1">Phone</p>
+                      <a href="tel:+18088590875" className="text-sm sm:text-sm text-black/60 hover:text-black transition-colors">
                         (808) 859-0875
                       </a>
                     </div>
@@ -63,8 +63,8 @@ export default function ContactPage() {  // ← Changed: Added "default"
                       <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-black/70" />
                     </div>
                     <div>
-                      <p className="text-sm sm:text-base text-black mb-1">Location</p>
-                      <p className="text-xs sm:text-sm text-black/60">
+                      <p className="text-base sm:text-base text-black mb-1">Location</p>
+                      <p className="text-sm sm:text-sm text-black/60">
                         Remote-first team<br />
                         Serving clients globally
                       </p>
@@ -73,11 +73,11 @@ export default function ContactPage() {  // ← Changed: Added "default"
                 </div>
               </div>
 
-              <div className="bg-black rounded-2xl sm:rounded-3xl p-5 sm:p-8 text-white">
+              <div className="bg-black rounded-2xl sm:rounded-3xl p-6 sm:p-8 text-white shadow-xl">
                 <h4 className="text-base sm:text-lg mb-2 sm:mb-3">
                   Quick Response
                 </h4>
-                <p className="text-sm sm:text-base text-white/70">
+                <p className="text-base sm:text-base text-white/70">
                   We typically respond to all inquiries within 24 hours during business days.
                 </p>
               </div>
