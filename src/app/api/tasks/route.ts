@@ -743,15 +743,16 @@ export async function POST(req: Request) {
     const folderType = form.get("folderType") as string;
     const monthlyDeliverableId = form.get("monthlyDeliverableId") as string;
 
-    console.log("Creating task for clientId:", clientId);
-    console.log("Creating task for clientId:", monthlyDeliverableId);
 
-    if (!assignedTo || !clientId || !folderType) {
+    if (!assignedTo || !clientId) {
       return NextResponse.json(
         { message: "Missing required fields" },
         { status: 400 }
       );
     }
+
+    // Default folderType to rawFootage if not provided
+    const effectiveFolderType = folderType || 'rawFootage';
 
     // 📁 GET CLIENT FOLDERS FROM DB
     const client = await prisma.client.findUnique({
@@ -767,7 +768,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log("Fetched client:", JSON.stringify(client));
+
 
     if (!client)
       return NextResponse.json(
@@ -778,7 +779,7 @@ export async function POST(req: Request) {
     // 🔥 Determine folder prefix based on folder type
     let folderPrefix = '';
 
-    if (folderType === "rawFootage") {
+    if (effectiveFolderType === "rawFootage") {
       const companyName = client.companyName || client.name;
       const currentMonth = getCurrentMonthFolder();
       const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
@@ -826,7 +827,7 @@ export async function POST(req: Request) {
         clientUserId: client?.userId,
         monthlyDeliverableId: monthlyDeliverableId,
         driveLinks: uploadedLinks,
-        folderType,
+        folderType: effectiveFolderType,
         requiresClientReview: client.requiresClientReview,
         status: client.requiresVideographer
           ? "VIDEOGRAPHER_ASSIGNED"
