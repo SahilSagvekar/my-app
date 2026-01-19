@@ -1293,7 +1293,7 @@ export default function LeavesComponent() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-sm">
-                      {new Date(employee.joinDate).toLocaleDateString()}
+                      {employee.joinDate ? new Date(employee.joinDate).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="py-3 px-4 text-sm">{employee.lastActive}</td>
                     <td className="py-3 px-4">
