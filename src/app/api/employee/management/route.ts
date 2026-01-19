@@ -6,21 +6,41 @@ export async function GET(req: Request) {
   try {
     await requireAdmin(req);
 
+    // Get all employees (including client role users)
     const employees = await prisma.user.findMany({
-      where: {
-        OR: [
-          { role: null }, // Include users with no role
-          { role: { notIn: ["admin", "client"] } } // Include non-admin/client roles
-        ]
-      },
       include: {
-        assignedTasks: true
+        assignedTasks: true,
+        // 🔥 NEW: Use linkedClient instead of client (for multiple users per client)
+        linkedClient: {
+          select: {
+            id: true,
+            name: true,
+            companyName: true,
+          },
+        },
+        // Keep old relation for backward compatibility
+        client: {
+          select: {
+            id: true,
+            name: true,
+            companyName: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" }
     });
 
-    return NextResponse.json({ ok: true, employees });
+    // Map employees to include linkedClientId for easy access
+    const employeesWithClientId = employees.map((emp) => ({
+      ...emp,
+      // 🔥 Prefer linkedClientId (new), fallback to client.id (old)
+      linkedClientId: emp.linkedClientId || emp.client?.id || null,
+      linkedClientName: emp.linkedClient?.companyName || emp.linkedClient?.name || emp.client?.companyName || emp.client?.name || null,
+    }));
+
+    return NextResponse.json({ ok: true, employees: employeesWithClientId });
   } catch (err: any) {
     return NextResponse.json({ ok: false, message: err?.message }, { status: 400 });
   }
 }
+

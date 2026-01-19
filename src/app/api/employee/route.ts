@@ -26,9 +26,10 @@ const BodySchema = z.object({
   hoursPerWeek: z.number().min(0).optional().nullable().transform(val => val ?? 40),
   monthlyBaseHours: z.number().int().positive().optional().nullable(),
   role: z.string().optional(),
-  phone: z.string().optional(), 
+  phone: z.string().optional(),
   joinedAt: z.string().optional(),
   worksOnSaturday: z.boolean().optional(),
+  clientId: z.string().optional(), // For linking user to client when role is 'client'
 });
 
 function isValidRole(role: string): role is Role {
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
 
     const json = await req.json();
     console.log("📥 Received data:", json);
-    
+
     const data = BodySchema.parse(json);
     console.log("✅ Parsed data:", data);
 
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
     if (existing) {
       // 2️⃣ Update existing employee
       console.log("🔄 Updating existing user:", existing.id);
-      
+
       user = await prisma.user.update({
         where: { id: existing.id },
         data: {
@@ -89,11 +90,11 @@ export async function POST(req: Request) {
     } else {
       // 3️⃣ Create new employee
       console.log("➕ Creating new user");
-      
+
       // Generate temporary password
       tempPassword = generateTempPassword();
       const hashedPassword = await hashPassword(tempPassword);
-      
+
       user = await prisma.user.create({
         data: {
           name: data.name,
@@ -106,6 +107,8 @@ export async function POST(req: Request) {
           monthlyBaseHours: data.monthlyBaseHours,
           worksOnSaturday: data.worksOnSaturday ?? false,
           employeeStatus: 'ACTIVE', // ← Set status
+          // 🔥 NEW: Link to client directly if role is 'client'
+          linkedClientId: data.role === 'client' && json.clientId ? json.clientId : null,
           ...(data.joinedAt && { joinedAt: new Date(data.joinedAt) }),
         },
       });
@@ -122,10 +125,15 @@ export async function POST(req: Request) {
           email: data.email,
           hourlyRate: data.hourlyRate,
           hoursPerWeek: data.hoursPerWeek,
+          linkedClientId: json.clientId || null,
         },
       });
 
       console.log("✅ User created:", user);
+
+      if (data.role === 'client' && json.clientId) {
+        console.log("🔗 User linked to client via linkedClientId:", json.clientId);
+      }
     }
 
     // 4️⃣ Send welcome email (only for new users)
@@ -145,10 +153,10 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ 
-      ok: true, 
+    return NextResponse.json({
+      ok: true,
       user,
-      message: tempPassword 
+      message: tempPassword
         ? 'Employee created successfully. Welcome email sent with login credentials.'
         : 'Employee updated successfully.'
     });

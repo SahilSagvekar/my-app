@@ -8,49 +8,53 @@ datasource db {
 }
 
 model User {
-  id                  Int                 @id @default(autoincrement())
-  name                String?
-  email               String
-  password            String?
-  image               String?
-  role                Role?
-  hourlyRate          Decimal?            @db.Decimal(10, 2)
-  monthlyBaseHours    Int?
-  employeeStatus      EmployeeStatus?     @default(ACTIVE)
-  joinedAt            DateTime?
-  worksOnSaturday     Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  resetOTP            String?
-  resetOTPExpiry      DateTime?
-  hoursPerWeek        Decimal?            @default(0) @db.Decimal(5, 2)
-  phone               String?             @unique
-  monthlyRate         Int?
-  accounts            Account[]
-  auditLogs           AuditLog[]
-  bonuses             Bonus[]
-  client              Client?
-  deductions          Deduction[]
-  feedbackSent        Feedback[]          @relation("FeedbackSender")
-  feedbackResponses   FeedbackResponse[]  @relation("FeedbackResponseSender")
-  leaves              Leave[]
-  loginAuditLogs      LoginAuditLog[]
-  payrolls            Payroll[]
-  achievements        QCAchievement[]
-  qcAnalytics         QCAnalytics[]
-  categoryMetrics     QCCategoryMetrics[]
-  monthlyTrends       QCMonthlyTrend[]
-  rejectionReasons    QCRejectionReason[]
-  sessions            Session[]
-  updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
-  assignedTasks       Task[]              @relation("AssignedTasks")
-  clientTasks         Task[]              @relation("ClientUserTasks")
-  taskFeedback        TaskFeedback[]      @relation("TaskFeedbackAuthor")
-  securityPin         UserSecurityPin?
+  id                Int                @id @default(autoincrement())
+  name              String?
+  email             String    
+  password          String?
+  image             String?
+  role              Role?
+  hourlyRate        Decimal?           @db.Decimal(10, 2)
+  monthlyBaseHours  Int?
+  employeeStatus    EmployeeStatus?    @default(ACTIVE)
+  joinedAt          DateTime?
+  worksOnSaturday   Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  resetOTP          String?
+  resetOTPExpiry    DateTime?
+  hoursPerWeek      Decimal?           @default(0) @db.Decimal(5, 2)
+  phone             String?            @unique
+  monthlyRate       Int?
+  linkedClientId    String?            // For users with 'client' role - which client they belong to
+  accounts          Account[]
+  auditLogs         AuditLog[]
+  bonuses           Bonus[]
+  client            Client?            // Old one-to-one relation (kept for backward compatibility)
+  linkedClient      Client?            @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
+  deductions        Deduction[]
+  feedbackSent      Feedback[]         @relation("FeedbackSender")
+  feedbackResponses FeedbackResponse[] @relation("FeedbackResponseSender")
+  leaves            Leave[]
+  payrolls          Payroll[]
+  sessions          Session[]
+  assignedTasks     Task[]             @relation("AssignedTasks")
+  clientTasks       Task[]             @relation("ClientUserTasks")
+  updatedSocialLogins SocialLogin[] @relation("LoginUpdatedBy")
+  securityPin UserSecurityPin?
+  loginAuditLogs LoginAuditLog[]
+
+  qcAnalytics       QCAnalytics[]
+  rejectionReasons  QCRejectionReason[]
+  achievements      QCAchievement[]
+  monthlyTrends     QCMonthlyTrend[]
+  categoryMetrics   QCCategoryMetrics[]
+  taskFeedback     TaskFeedback[] @relation("TaskFeedbackAuthor")
 
   @@index([email])
   @@index([role])
   @@index([employeeStatus])
+  @@index([linkedClientId])
 }
 
 model Account {
@@ -190,7 +194,7 @@ model RecurringTask {
 
 model Client {
   id                   String               @id @default(cuid())
-  userId               Int?                 @unique
+  userId               Int?                 @unique  // Old field for backward compatibility
   name                 String
   email                String
   companyName          String?
@@ -219,6 +223,7 @@ model Client {
   outputsFolderId      String?
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
+  linkedUsers          User[]               @relation("LinkedClientUsers")  // Multiple users can be linked
   monthlyDeliverables  MonthlyDeliverable[]
   monthlyRuns          MonthlyRun[]
   recurringTasks       RecurringTask[]

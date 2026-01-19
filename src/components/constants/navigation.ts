@@ -1,11 +1,11 @@
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileText, 
-  BarChart3, 
-  Calendar, 
-  CheckSquare, 
-  Clock, 
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  BarChart3,
+  Calendar,
+  CheckSquare,
+  Clock,
   TrendingUp,
   FolderOpen,
   Layout,
@@ -20,7 +20,8 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   HardDrive, // 🔥 NEW ICON FOR DRIVE
-  Briefcase  // 🔥 NEW ICON FOR EMPLOYMENT INFO
+  Briefcase,  // 🔥 NEW ICON FOR EMPLOYMENT INFO
+  LogIn  // 🔥 NEW ICON FOR LOGINS
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -36,7 +37,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'logins', label: 'Logins', icon: MessageSquare },
+    { id: 'logins', label: 'Logins', icon: LogIn },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
@@ -64,7 +65,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'scheduling', label: 'Employment Information', icon: Clock },
-    { id: 'logins', label: 'Logins', icon: MessageSquare },
+    { id: 'logins', label: 'Logins', icon: LogIn },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -73,25 +74,25 @@ export const NAVIGATION_ITEMS = {
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-            { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
+    { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
 
     { id: 'leaves', label: 'Employee Management', icon: Users },
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
-    { id: 'approvals', label: 'Approvals', icon: CheckSquare }, 
+    { id: 'approvals', label: 'Approvals', icon: CheckSquare },
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
     // { id: 'projects', label: 'My Projects', icon: FolderOpen },
-        // { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
+    // { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
 
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'invoices', label: 'Invoices & Billing', icon: Layout },
     { id: 'archive', label: 'Archive', icon: Archive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'logins', label: 'Logins', icon: MessageSquare },
+    { id: 'logins', label: 'Logins', icon: LogIn },
 
   ],
   videographer: [
@@ -100,7 +101,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'uploads', label: 'File Uploads', icon: Upload },
     { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
-            { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
+    { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
 
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
@@ -125,14 +126,14 @@ export const getDefaultPage = (role: string): string => {
 
 
 
-// import { 
-//   LayoutDashboard, 
-//   Users, 
-//   FileText, 
-//   BarChart3, 
-//   Calendar, 
-//   CheckSquare, 
-//   Clock, 
+// import {
+//   LayoutDashboard,
+//   Users,
+//   FileText,
+//   BarChart3,
+//   Calendar,
+//   CheckSquare,
+//   Clock,
 //   TrendingUp,
 //   FolderOpen,
 //   Layout,
@@ -203,7 +204,7 @@ export const getDefaultPage = (role: string): string => {
 //     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
 //   ],
 //   client: [
-//     { id: 'approvals', label: 'Approvals', icon: CheckSquare }, 
+//     { id: 'approvals', label: 'Approvals', icon: CheckSquare },
 //     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
 //     { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
 //     { id: 'training', label: 'Training', icon: Layout },

@@ -26,6 +26,7 @@ const PatchSchema = z.object({
   joinedAt: z.string().optional(),
   monthlyRate: z.number().optional(),
   phone: z.string().optional(),
+  clientId: z.string().optional(), // For linking user to client when role is 'client'
 });
 
 export async function PATCH(
@@ -74,8 +75,19 @@ export async function PATCH(
         monthlyBaseHours: payload.monthlyBaseHours ?? undefined,
         employeeStatus: payload.employeeStatus ?? undefined,
         joinedAt: payload.joinedAt ? new Date(payload.joinedAt) : undefined,
+        // 🔥 Handle client linking directly on User
+        linkedClientId: payload.role === 'client' && body.clientId
+          ? body.clientId
+          : (payload.role && payload.role !== 'client' ? null : undefined),
       },
     });
+
+    // Log the change
+    if (payload.role === 'client' && body.clientId) {
+      console.log("🔗 User linked to client via linkedClientId:", body.clientId);
+    } else if (payload.role && payload.role !== 'client') {
+      console.log("🔓 User unlinked from client (role changed)");
+    }
 
     await createAuditLog({
       userId: user.id,
@@ -85,6 +97,7 @@ export async function PATCH(
       details: `Updated employee: ${user.name}`,
       metadata: {
         changes: payload,
+        linkedClientId: body.clientId || null,
       },
     });
 

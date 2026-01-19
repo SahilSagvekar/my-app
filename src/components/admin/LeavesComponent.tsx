@@ -126,6 +126,11 @@ const roles = [
     name: "Videographer",
     color: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200",
   },
+  {
+    id: "client",
+    name: "Client",
+    color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
+  },
 ];
 
 const statusOptions = [
@@ -341,6 +346,7 @@ export default function LeavesComponent() {
     hireDate: undefined as Date | undefined,
     worksOnSaturday: false,
     status: "active",
+    clientId: "", // For client role - which client to link to
   });
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -371,12 +377,17 @@ export default function LeavesComponent() {
     hoursPerWeek: "",
     hireDate: undefined as Date | undefined,
     status: "active" as "active" | "inactive" | "terminated",
+    clientId: "", // For client role - which client to link to
   });
   const [isSavingEmployee, setIsSavingEmployee] = useState(false);
 
   // Bonus state for edit employee modal
   const [bonusAmount, setBonusAmount] = useState("");
   const [isAddingBonus, setIsAddingBonus] = useState(false);
+
+  // Clients list for client role assignment
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
 
   // FETCH EMPLOYEES FROM YOUR API
   // ------------------------------
@@ -591,6 +602,12 @@ export default function LeavesComponent() {
       return;
     }
 
+    // Validate client selection for client role
+    if (newUser.role === "client" && !newUser.clientId) {
+      toast.error("Please select a client to link this account to.");
+      return;
+    }
+
     if (isAddingEmployee) return;
     setIsAddingEmployee(true);
 
@@ -615,6 +632,7 @@ export default function LeavesComponent() {
           hoursPerWeek,
           joinedAt: newUser.hireDate.toISOString(),
           worksOnSaturday: newUser.worksOnSaturday,
+          clientId: newUser.role === "client" ? newUser.clientId : undefined,
         }),
       });
 
@@ -633,6 +651,7 @@ export default function LeavesComponent() {
         hireDate: undefined,
         worksOnSaturday: false,
         status: "active",
+        clientId: "",
       });
 
       setIsAddUserDialogOpen(false);
@@ -670,6 +689,7 @@ export default function LeavesComponent() {
         hoursPerWeek: String(employee.hoursPerWeek || 40),
         hireDate: employee.joinDate ? new Date(employee.joinDate) : undefined,
         status: employee.status || "active",
+        clientId: employee.linkedClientId || "", // Get linked client if exists
       });
       setEditEmployeeModalOpen(true);
     }, 0);
@@ -682,6 +702,12 @@ export default function LeavesComponent() {
 
   const handleEditEmployee = useCallback(async () => {
     if (!editingEmployee || isSavingEmployee || isUpdatingRef.current) {
+      return;
+    }
+
+    // Validate client selection for client role
+    if (editEmployeeForm.role === "client" && !editEmployeeForm.clientId) {
+      toast.error("Please select a client to link this account to.");
       return;
     }
 
@@ -714,6 +740,7 @@ export default function LeavesComponent() {
           phone: editEmployeeForm.phone,
           employeeStatus: statusMap[editEmployeeForm.status],
           joinedAt: editEmployeeForm.hireDate?.toISOString(),
+          clientId: editEmployeeForm.role === "client" ? editEmployeeForm.clientId : undefined,
         }),
       });
 
@@ -815,6 +842,24 @@ export default function LeavesComponent() {
   useEffect(() => {
     loadEmployees();
   }, []);
+
+  // Load clients when client role is selected (for both add and edit forms)
+  useEffect(() => {
+    const roleIsClient = newUser.role === "client" || editEmployeeForm.role === "client";
+    if (roleIsClient && clientsList.length === 0 && !loadingClients) {
+      setLoadingClients(true);
+      fetch("/api/clients")
+        .then((res) => res.json())
+        .then((data) => {
+          setClientsList(Array.isArray(data.clients) ? data.clients : []);
+        })
+        .catch((err) => {
+          console.error("Failed to load clients:", err);
+          setClientsList([]);
+        })
+        .finally(() => setLoadingClients(false));
+    }
+  }, [newUser.role, editEmployeeForm.role, clientsList.length, loadingClients]);
 
   // ========== COMPUTED VALUES - FIXED FILTER NAMES ==========
   const filteredEmployees = useMemo(() => {
@@ -1003,9 +1048,57 @@ export default function LeavesComponent() {
                         </SelectItem>
                         <SelectItem value="scheduler">Scheduler</SelectItem>
                         <SelectItem value="qc">QC</SelectItem>
+                        <SelectItem value="client">Client</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Client Selection - Only shown when role is 'client' */}
+                  {newUser.role === "client" && (
+                    <div className="p-4 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800">
+                      <label className="text-sm font-medium text-cyan-800 dark:text-cyan-200">
+                        Link to Client Account
+                      </label>
+                      <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-2">
+                        Select which client this user should be linked to. They will see the client dashboard for this client when they log in.
+                      </p>
+                      <Select
+                        value={newUser.clientId}
+                        onValueChange={(value) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            clientId: value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className={!newUser.clientId ? "border-red-300" : ""}>
+                          <SelectValue placeholder={loadingClients ? "Loading clients..." : "Select a client"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {loadingClients ? (
+                            <SelectItem value="__loading__" disabled>
+                              Loading clients...
+                            </SelectItem>
+                          ) : clientsList.length > 0 ? (
+                            clientsList.map((client) => (
+                              <SelectItem key={client.id} value={client.id}>
+                                {client.companyName || client.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__no_clients__" disabled>
+                              No clients available
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {newUser.role === "client" && !newUser.clientId && (
+                        <p className="text-xs text-red-500 mt-1">
+                          Please select a client to link this account to
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-sm font-medium">
@@ -1838,9 +1931,57 @@ export default function LeavesComponent() {
                   <SelectItem value="videographer">Videographer</SelectItem>
                   <SelectItem value="scheduler">Scheduler</SelectItem>
                   <SelectItem value="qc">QC</SelectItem>
+                  <SelectItem value="client">Client</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Client Selection - Only shown when role is 'client' */}
+            {editEmployeeForm.role === "client" && (
+              <div className="p-4 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800">
+                <label className="text-sm font-medium text-cyan-800 dark:text-cyan-200">
+                  Link to Client Account
+                </label>
+                <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-2">
+                  Select which client this user should be linked to. They will see the client dashboard for this client when they log in.
+                </p>
+                <Select
+                  value={editEmployeeForm.clientId}
+                  onValueChange={(value) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      clientId: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className={!editEmployeeForm.clientId ? "border-red-300" : ""}>
+                    <SelectValue placeholder={loadingClients ? "Loading clients..." : "Select a client"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {loadingClients ? (
+                      <SelectItem value="__loading__" disabled>
+                        Loading clients...
+                      </SelectItem>
+                    ) : clientsList.length > 0 ? (
+                      clientsList.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.companyName || client.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="__no_clients__" disabled>
+                        No clients available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                {editEmployeeForm.role === "client" && !editEmployeeForm.clientId && (
+                  <p className="text-xs text-red-500 mt-1">
+                    Please select a client to link this account to
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Hourly Rate and Hours Per Week in grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
