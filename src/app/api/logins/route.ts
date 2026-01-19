@@ -31,49 +31,49 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 export async function GET(req: NextRequest) {
   try {
     const token = getTokenFromCookies(req);
-    
-    if (!token) {
-          return NextResponse.json(
-            { success: false, error: "Unauthorized - No token provided" },
-            { status: 401 }
-          );
-        }
-    
-        const decoded = verifyToken(token);
-    
-        if (!decoded) {
-          return NextResponse.json(
-            { success: false, error: "Unauthorized - Invalid token" },
-            { status: 401 }
-          );
-        }
 
-        const { userId } = decoded;
-        
-            const user = await prisma.user.findUnique({
-              where: { id: userId },
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                phone: true,
-                role: true,
-              },
-            });
-        
-            if (!user) {
-              return NextResponse.json(
-                { success: false, error: "User not found" },
-                { status: 404 }
-              );
-            }
-    
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
+
 
     const userRole = user.role;
     const allowedRoles = ["admin", "client", "scheduler"];
 
-    if(!userRole){
+    if (!userRole) {
       return NextResponse.json({ message: "Role Not Found" }, { status: 403 });
     }
 
@@ -82,9 +82,22 @@ export async function GET(req: NextRequest) {
     }
 
     // For client role, only show their own logins
-    const whereClause = userRole === "client" 
-      ? { client: { userId: userId } }
-      : {};
+    // For non-admin roles, also hide admin-only logins
+    const isAdmin = userRole === "admin";
+
+    let whereClause: any = {};
+
+    if (userRole === "client") {
+      // Clients only see their own logins that aren't admin-only
+      whereClause = {
+        client: { userId: userId },
+        adminOnly: false
+      };
+    } else if (!isAdmin) {
+      // Non-admin roles (scheduler, etc.) can't see admin-only logins
+      whereClause = { adminOnly: false };
+    }
+    // Admins see everything (empty whereClause)
 
     const logins = await prisma.socialLogin.findMany({
       where: whereClause,
@@ -119,6 +132,7 @@ export async function GET(req: NextRequest) {
       email: login.recoveryEmail,
       phone: login.recoveryPhone,
       notes: login.notes,
+      adminOnly: login.adminOnly,
       lastUpdated: login.updatedAt.toISOString(),
       updatedBy: login.updatedByUser?.name || "Unknown",
     }));
@@ -137,51 +151,51 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const token = getTokenFromCookies(req);
-    
-    if (!token) {
-          return NextResponse.json(
-            { success: false, error: "Unauthorized - No token provided" },
-            { status: 401 }
-          );
-        }
-    
-        const decoded = verifyToken(token);
-    
-        if (!decoded) {
-          return NextResponse.json(
-            { success: false, error: "Unauthorized - Invalid token" },
-            { status: 401 }
-          );
-        }
 
-        const { userId } = decoded;
-        
-            const user = await prisma.user.findUnique({
-              where: { id: userId },
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                phone: true,
-                role: true,
-              },
-            });
-        
-            if (!user) {
-              return NextResponse.json(
-                { success: false, error: "User not found" },
-                { status: 404 }
-              );
-            }
-    
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
+
 
     if (user.role !== "admin") {
       return NextResponse.json({ message: "Only admin can add logins" }, { status: 403 });
     }
 
     const body = await req.json();
-    const { clientId, platform, username, password, email, phone, notes } = body;
+    const { clientId, platform, username, password, email, phone, notes, adminOnly } = body;
 
     if (!clientId || !platform || !username || !password) {
       return NextResponse.json(
@@ -212,6 +226,7 @@ export async function POST(req: NextRequest) {
         recoveryEmail: email || null,
         recoveryPhone: phone || null,
         notes: notes || null,
+        adminOnly: adminOnly || false,
         updatedById: userId,
       },
     });
@@ -237,6 +252,7 @@ export async function POST(req: NextRequest) {
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,
+        adminOnly: login.adminOnly,
         lastUpdated: login.updatedAt.toISOString(),
         updatedBy: user.name || "Admin",
       },

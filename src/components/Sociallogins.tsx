@@ -87,6 +87,7 @@ interface SocialLogin {
   email?: string;
   phone?: string;
   notes?: string;
+  adminOnly?: boolean; // If true, only admins can see this login
   lastUpdated: string;
   updatedBy: string;
 }
@@ -459,6 +460,7 @@ function LoginFormDialog({
     email: "",
     phone: "",
     notes: "",
+    adminOnly: false,
   });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -472,6 +474,7 @@ function LoginFormDialog({
         email: login.email || "",
         phone: login.phone || "",
         notes: login.notes || "",
+        adminOnly: login.adminOnly || false,
       });
     } else {
       setFormData({
@@ -482,6 +485,7 @@ function LoginFormDialog({
         email: "",
         phone: "",
         notes: "",
+        adminOnly: false,
       });
     }
     setShowPassword(false);
@@ -642,6 +646,27 @@ function LoginFormDialog({
             />
           </div>
 
+          {/* Admin Only Toggle */}
+          <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+            <input
+              type="checkbox"
+              id="adminOnly"
+              checked={formData.adminOnly}
+              onChange={(e) =>
+                setFormData({ ...formData, adminOnly: e.target.checked })
+              }
+              className="h-4 w-4 rounded border-amber-300"
+            />
+            <div>
+              <label htmlFor="adminOnly" className="text-sm font-medium text-amber-800 dark:text-amber-200 cursor-pointer">
+                Admin Only
+              </label>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Only admins can view this login. Clients and other employees won't see it.
+              </p>
+            </div>
+          </div>
+
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
@@ -740,7 +765,7 @@ export function SocialLogins() {
         // Load clients
         const clientsRes = await fetch("/api/clients");
         const clientsData = await clientsRes.json();
-        
+
         // If user is a client, only show their own client in the list
         const allClients = clientsData.clients || [];
         if (isClient && userClientId) {
@@ -771,12 +796,12 @@ export function SocialLogins() {
     async function loadLogins() {
       try {
         // For clients, fetch only their logins; for others, fetch all
-        const url = isClient && userClientId 
+        const url = isClient && userClientId
           ? `/api/logins?clientId=${userClientId}`
           : "/api/logins";
         const res = await fetch(url);
         const data = await res.json();
-        
+
         // Double-check filtering on client side for extra security
         let fetchedLogins = data.logins || [];
         if (isClient && userClientId) {
@@ -784,7 +809,7 @@ export function SocialLogins() {
             (login: SocialLogin) => login.clientId === userClientId
           );
         }
-        
+
         setLogins(fetchedLogins);
       } catch (err) {
         console.error("Failed to load logins:", err);
@@ -1004,8 +1029,8 @@ export function SocialLogins() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Social Media Logins</h2>
           <p className="text-sm text-gray-600">
-            {isClient 
-              ? "Access your social media credentials securely" 
+            {isClient
+              ? "Access your social media credentials securely"
               : "Secure storage for client social media credentials"}
           </p>
         </div>
@@ -1070,8 +1095,8 @@ export function SocialLogins() {
             </Badge>
           </div>
           <p className="text-sm text-gray-600">
-            {isClient 
-              ? "Your social media credentials" 
+            {isClient
+              ? "Your social media credentials"
               : "Secure storage for client social media credentials"}
           </p>
         </div>
@@ -1199,6 +1224,11 @@ export function SocialLogins() {
                         <Badge variant="outline" className="text-xs">
                           @{login.username}
                         </Badge>
+                        {login.adminOnly && (
+                          <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">
+                            🔒 Admin Only
+                          </Badge>
+                        )}
                       </div>
 
                       <PasswordField
@@ -1269,7 +1299,7 @@ export function SocialLogins() {
               <p className="text-gray-500 mb-4">
                 {searchTerm || clientFilter !== "all" || platformFilter !== "all"
                   ? "No results match your filters"
-                  : isClient 
+                  : isClient
                     ? "No social media credentials have been added for your account yet"
                     : "Add your first social media login credentials"}
               </p>

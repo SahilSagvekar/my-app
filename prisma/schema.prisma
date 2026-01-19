@@ -433,6 +433,7 @@ model SocialLogin {
   recoveryEmail     String?
   recoveryPhone     String?
   notes             String?
+  adminOnly         Boolean         @default(false)  // If true, only admins can view this login
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   updatedById       Int
@@ -443,6 +444,7 @@ model SocialLogin {
   @@unique([clientId, platform])
   @@index([clientId])
   @@index([platform])
+  @@index([adminOnly])
 }
 
 model UserSecurityPin {

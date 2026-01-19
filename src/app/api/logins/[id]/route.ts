@@ -33,45 +33,45 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-     const token = getTokenFromCookies(req);
-        
-        if (!token) {
-              return NextResponse.json(
-                { success: false, error: "Unauthorized - No token provided" },
-                { status: 401 }
-              );
-            }
-        
-            const decoded = verifyToken(token);
-        
-            if (!decoded) {
-              return NextResponse.json(
-                { success: false, error: "Unauthorized - Invalid token" },
-                { status: 401 }
-              );
-            }
-    
-            const { userId } = decoded;
-            
-                const user = await prisma.user.findUnique({
-                  where: { id: userId },
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                    phone: true,
-                    role: true,
-                  },
-                });
-            
-                if (!user) {
-                  return NextResponse.json(
-                    { success: false, error: "User not found" },
-                    { status: 404 }
-                  );
-                }
-        
+    const token = getTokenFromCookies(req);
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
+
 
     const userRole = user.role;
 
@@ -84,7 +84,7 @@ export async function PUT(
 
     const { id } = params;
     const body = await req.json();
-    const { clientId, platform, username, password, email, phone, notes } = body;
+    const { clientId, platform, username, password, email, phone, notes, adminOnly } = body;
 
     // Check if login exists
     const existingLogin = await prisma.socialLogin.findUnique({
@@ -106,8 +106,8 @@ export async function PUT(
     }
 
     // Encrypt password if provided
-    const encryptedPassword = password 
-      ? encrypt(password) 
+    const encryptedPassword = password
+      ? encrypt(password)
       : existingLogin.encryptedPassword;
 
     const login = await prisma.socialLogin.update({
@@ -120,6 +120,7 @@ export async function PUT(
         recoveryEmail: email || null,
         recoveryPhone: phone || null,
         notes: notes || null,
+        adminOnly: adminOnly ?? existingLogin.adminOnly,
         updatedById: userId,
       },
     });
@@ -130,10 +131,10 @@ export async function PUT(
         action: "update",
         loginId: login.id,
         userId: userId,
-        details: JSON.stringify({ 
-          platform, 
+        details: JSON.stringify({
+          platform,
           clientId,
-          passwordChanged: !!password 
+          passwordChanged: !!password
         }),
       },
     });
@@ -149,6 +150,7 @@ export async function PUT(
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,
+        adminOnly: login.adminOnly,
         lastUpdated: login.updatedAt.toISOString(),
         updatedBy: user.name || "Admin",
       },
@@ -168,44 +170,44 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-   const token = getTokenFromCookies(req);
-       
-       if (!token) {
-             return NextResponse.json(
-               { success: false, error: "Unauthorized - No token provided" },
-               { status: 401 }
-             );
-           }
-       
-           const decoded = verifyToken(token);
-       
-           if (!decoded) {
-             return NextResponse.json(
-               { success: false, error: "Unauthorized - Invalid token" },
-               { status: 401 }
-             );
-           }
-   
-           const { userId } = decoded;
-           
-               const user = await prisma.user.findUnique({
-                 where: { id: userId },
-                 select: {
-                   id: true,
-                   name: true,
-                   email: true,
-                   image: true,
-                   phone: true,
-                   role: true,
-                 },
-               });
-           
-               if (!user) {
-                 return NextResponse.json(
-                   { success: false, error: "User not found" },
-                   { status: 404 }
-                 );
-               }
+    const token = getTokenFromCookies(req);
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
 
     const userRole = user.role;
 
@@ -238,8 +240,8 @@ export async function DELETE(
         action: "delete",
         loginId: id,
         userId: userId,
-        details: JSON.stringify({ 
-          platform: existingLogin.platform, 
+        details: JSON.stringify({
+          platform: existingLogin.platform,
           clientName: existingLogin.client.companyName,
           username: existingLogin.username,
         }),
