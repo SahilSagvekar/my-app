@@ -435,6 +435,7 @@ model SocialLogin {
   recoveryEmail       String?
   recoveryPhone       String?
   notes               String?
+  backupCodesLocation String?         // Link or instructions for backup codes
   adminOnly           Boolean         @default(false)  // If true, only admins can view this login
   passwordChangedAt   DateTime        @default(now())  // Last time password was changed
   createdAt           DateTime        @default(now())

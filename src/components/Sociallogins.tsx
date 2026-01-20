@@ -93,6 +93,7 @@ interface SocialLogin {
   email?: string;
   phone?: string;
   notes?: string;
+  backupCodesLocation?: string; // Link or instructions for backup codes
   adminOnly?: boolean; // If true, only admins can see this login
   passwordChangedAt?: string; // When the password was last changed
   lastUpdated: string;
@@ -618,6 +619,7 @@ function LoginFormDialog({
     email: "",
     phone: "",
     notes: "",
+    backupCodesLocation: "",
     adminOnly: false,
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -633,6 +635,7 @@ function LoginFormDialog({
         email: login.email || "",
         phone: login.phone || "",
         notes: login.notes || "",
+        backupCodesLocation: login.backupCodesLocation || "",
         adminOnly: login.adminOnly || false,
       });
     } else {
@@ -647,6 +650,7 @@ function LoginFormDialog({
         email: "",
         phone: "",
         notes: "",
+        backupCodesLocation: "",
         adminOnly: false,
       });
     }
@@ -862,6 +866,17 @@ function LoginFormDialog({
             <p className="text-xs text-gray-500">
               Direct link to the login or account management page
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Backup Codes Location</Label>
+            <Input
+              value={formData.backupCodesLocation}
+              onChange={(e) =>
+                setFormData({ ...formData, backupCodesLocation: e.target.value })
+              }
+              placeholder="e.g. Google Drive link, Vault Note "
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1458,6 +1473,7 @@ export function SocialLogins() {
                             🔒 Admin Only
                           </Badge>
                         )}
+
                       </div>
 
                       <PasswordField
@@ -1493,6 +1509,26 @@ export function SocialLogins() {
                           title={new Date(login.passwordChangedAt).toLocaleString()}
                         >
                           🔑 Password changed: {formatTimeAgo(login.passwordChangedAt)}
+                        </p>
+                      )}
+
+                      {/* Backup Codes Location */}
+                      {login.backupCodesLocation && (
+                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                          <Shield className="h-3 w-3" />
+                          Backup Codes:
+                          {login.backupCodesLocation.startsWith('http') ? (
+                            <a
+                              href={login.backupCodesLocation}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline flex items-center gap-0.5"
+                            >
+                              Open Link <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          ) : (
+                            <span>{login.backupCodesLocation}</span>
+                          )}
                         </p>
                       )}
                     </div>

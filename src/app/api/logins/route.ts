@@ -155,6 +155,7 @@ export async function GET(req: NextRequest) {
       email: login.recoveryEmail,
       phone: login.recoveryPhone,
       notes: login.notes,
+      backupCodesLocation: login.backupCodesLocation,
       adminOnly: login.adminOnly,
       passwordChangedAt: login.passwordChangedAt?.toISOString() || login.createdAt.toISOString(),
       lastUpdated: login.updatedAt.toISOString(),
@@ -221,7 +222,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { clientId, platform, username, password, loginUrl, email, phone, notes, adminOnly } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly } = body;
 
     const isAdminOnlyLogin = adminOnly === true;
 
@@ -301,6 +302,7 @@ export async function POST(req: NextRequest) {
         recoveryEmail: email || null,
         recoveryPhone: phone || null,
         notes: notes || null,
+        backupCodesLocation: backupCodesLocation || null,
         adminOnly: isAdminOnlyLogin,
         updatedById: userId,
       },
@@ -331,6 +333,7 @@ export async function POST(req: NextRequest) {
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,
+        backupCodesLocation: login.backupCodesLocation,
         adminOnly: login.adminOnly,
         passwordChangedAt: login.createdAt.toISOString(), // New login, password just set
         lastUpdated: login.updatedAt.toISOString(),

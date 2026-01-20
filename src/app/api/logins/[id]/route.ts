@@ -85,7 +85,7 @@ export async function PUT(
 
     const { id } = params;
     const body = await req.json();
-    const { clientId, platform, username, password, loginUrl, email, phone, notes, adminOnly } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly } = body;
 
     // Check if login exists
     const existingLogin = await prisma.socialLogin.findUnique({
@@ -151,6 +151,7 @@ export async function PUT(
         recoveryEmail: email || null,
         recoveryPhone: phone || null,
         notes: notes || null,
+        backupCodesLocation: backupCodesLocation || null,
         adminOnly: adminOnly ?? existingLogin.adminOnly,
         updatedById: userId,
         // Update passwordChangedAt only if password is being changed
@@ -184,6 +185,7 @@ export async function PUT(
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,
+        backupCodesLocation: login.backupCodesLocation,
         adminOnly: login.adminOnly,
         passwordChangedAt: passwordIsChanging
           ? new Date().toISOString()
