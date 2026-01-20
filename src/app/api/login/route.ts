@@ -22,10 +22,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    if (!user.password) {
-      console.log("[LOGIN] 5. No password set");
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
+    // if (!user.password) {
+    //   console.log("[LOGIN] 5. No password set");
+    //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+    // }
 
     console.log("[LOGIN] 5. Comparing password...");
     // const isPasswordValid = await bcrypt.compare(password, user.password);

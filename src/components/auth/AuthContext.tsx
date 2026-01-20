@@ -9,6 +9,7 @@ interface User {
   email: string;
   name?: string;
   role: string;
+  linkedClientId?: string; // Client ID for users with client role
 }
 
 interface AuthContextType {

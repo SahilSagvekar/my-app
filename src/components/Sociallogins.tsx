@@ -75,7 +75,8 @@ type SocialPlatform =
   | "Youtube"
   | "Twitter"
   | "Linkedin"
-  | "Snapchat";
+  | "Snapchat"
+  | "Other";
 
 interface SocialLogin {
   id: string;
@@ -445,12 +446,16 @@ function LoginFormDialog({
   login,
   clients,
   onSave,
+  isClient = false,
+  userClientId = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   login: SocialLogin | null;
   clients: Client[];
   onSave: (data: Partial<SocialLogin>) => void;
+  isClient?: boolean;
+  userClientId?: string | null;
 }) {
   const [formData, setFormData] = useState({
     clientId: "",
@@ -477,8 +482,10 @@ function LoginFormDialog({
         adminOnly: login.adminOnly || false,
       });
     } else {
+      // For client users, auto-set their clientId (use userClientId or first client in list)
+      const autoClientId = isClient ? (userClientId || clients[0]?.id || "") : "";
       setFormData({
-        clientId: "",
+        clientId: autoClientId,
         platform: "Instagram",
         username: "",
         password: "",
@@ -489,7 +496,7 @@ function LoginFormDialog({
       });
     }
     setShowPassword(false);
-  }, [login, open]);
+  }, [login, open, isClient, userClientId, clients]);
 
   const handleSubmit = () => {
     if (!formData.clientId) {
@@ -527,23 +534,31 @@ function LoginFormDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Client *</Label>
-              <Select
-                value={formData.clientId}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, clientId: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.companyName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {isClient && clients.length > 0 ? (
+                // Client users see their company name as fixed text
+                <div className="flex items-center h-10 px-3 bg-gray-100 rounded-md border text-sm font-medium">
+                  {clients[0]?.companyName || "Your Company"}
+                </div>
+              ) : (
+                // Admin sees dropdown with all clients
+                <Select
+                  value={formData.clientId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, clientId: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.companyName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -718,9 +733,10 @@ export function SocialLogins() {
   // Role checks
   const userRole = user?.role?.toLowerCase() || "";
   const canView = ["admin", "client", "scheduler"].includes(userRole);
-  const canEdit = userRole === "admin";
+  const canEdit = userRole === "admin" || userRole === "client"; // Both admin and client can add/edit/delete
   const isClient = userRole === "client";
-  const userClientId = user?.clientId || null;
+  // Get user's client ID from linkedClientId
+  const userClientId = user?.linkedClientId || null;
 
   /* ----------------------------- AUTO-LOCK --------------------------------- */
 
@@ -1327,6 +1343,8 @@ export function SocialLogins() {
         login={editingLogin}
         clients={clients}
         onSave={handleSaveLogin}
+        isClient={isClient}
+        userClientId={userClientId}
       />
 
       <AlertDialog

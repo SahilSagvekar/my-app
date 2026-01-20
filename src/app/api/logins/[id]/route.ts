@@ -75,9 +75,10 @@ export async function PUT(
 
     const userRole = user.role;
 
-    if (userRole !== "admin") {
+    // Only admin and client can update logins
+    if (userRole !== "admin" && userRole !== "client") {
       return NextResponse.json(
-        { message: "Only admin can update logins" },
+        { message: "Only admin or client can update logins" },
         { status: 403 }
       );
     }
@@ -93,6 +94,32 @@ export async function PUT(
 
     if (!existingLogin) {
       return NextResponse.json({ message: "Login not found" }, { status: 404 });
+    }
+
+    // If user is a client, verify the login belongs to their client
+    if (userRole === "client") {
+      const userWithClient = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { linkedClientId: true },
+      });
+
+      let userClientId = userWithClient?.linkedClientId;
+
+      // Fallback to Client.userId
+      if (!userClientId) {
+        const clientByUserId = await prisma.client.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+        userClientId = clientByUserId?.id || null;
+      }
+
+      if (existingLogin.clientId !== userClientId) {
+        return NextResponse.json(
+          { message: "You can only edit logins for your own client" },
+          { status: 403 }
+        );
+      }
     }
 
     // Get client info
@@ -211,9 +238,10 @@ export async function DELETE(
 
     const userRole = user.role;
 
-    if (userRole !== "admin") {
+    // Only admin and client can delete logins
+    if (userRole !== "admin" && userRole !== "client") {
       return NextResponse.json(
-        { message: "Only admin can delete logins" },
+        { message: "Only admin or client can delete logins" },
         { status: 403 }
       );
     }
@@ -232,6 +260,32 @@ export async function DELETE(
 
     if (!existingLogin) {
       return NextResponse.json({ message: "Login not found" }, { status: 404 });
+    }
+
+    // If user is a client, verify the login belongs to their client
+    if (userRole === "client") {
+      const userWithClient = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { linkedClientId: true },
+      });
+
+      let userClientId = userWithClient?.linkedClientId;
+
+      // Fallback to Client.userId
+      if (!userClientId) {
+        const clientByUserId = await prisma.client.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+        userClientId = clientByUserId?.id || null;
+      }
+
+      if (existingLogin.clientId !== userClientId) {
+        return NextResponse.json(
+          { message: "You can only delete logins for your own client" },
+          { status: 403 }
+        );
+      }
     }
 
     // Log before deletion

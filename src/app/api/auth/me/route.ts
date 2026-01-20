@@ -1,6 +1,6 @@
 // /app/api/me/route.ts
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken"; 
 import { prisma } from "../../../../lib/prisma"; // adjust path if needed
 
 function getTokenFromCookies(req: Request) {
@@ -37,6 +37,7 @@ export async function GET(req: Request) {
         email: true,
         name: true,
         role: true,
+        linkedClientId: true, // Include linked client ID for client users
       },
     });
 

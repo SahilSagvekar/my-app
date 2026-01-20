@@ -88,9 +88,27 @@ export async function GET(req: NextRequest) {
     let whereClause: any = {};
 
     if (userRole === "client") {
-      // Clients only see their own logins that aren't admin-only
+      // Get the client ID for this user (via linkedClientId or fallback to Client.userId)
+      const userWithClient = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { linkedClientId: true },
+      });
+
+      let clientId = userWithClient?.linkedClientId;
+
+      // Fallback: check if any client has this userId
+      if (!clientId) {
+        const clientByUserId = await prisma.client.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+        clientId = clientByUserId?.id || null;
+      }
+
+      // Clients only see their own client's logins (and NOT admin-only ones)
+      // If no clientId found, return empty results (whereClause will match nothing)
       whereClause = {
-        client: { userId: userId },
+        clientId: clientId || 'NO_CLIENT_FOUND',
         adminOnly: false
       };
     } else if (!isAdmin) {
@@ -189,9 +207,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const userRole = user.role;
 
-    if (user.role !== "admin") {
-      return NextResponse.json({ message: "Only admin can add logins" }, { status: 403 });
+    // Only admin and client can add logins
+    if (userRole !== "admin" && userRole !== "client") {
+      return NextResponse.json({ message: "Only admin or client can add logins" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -202,6 +222,32 @@ export async function POST(req: NextRequest) {
         { message: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    // If user is a client, verify they can only add logins for their own client
+    if (userRole === "client") {
+      const userWithClient = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { linkedClientId: true },
+      });
+
+      let userClientId = userWithClient?.linkedClientId;
+
+      // Fallback to Client.userId
+      if (!userClientId) {
+        const clientByUserId = await prisma.client.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+        userClientId = clientByUserId?.id || null;
+      }
+
+      if (clientId !== userClientId) {
+        return NextResponse.json(
+          { message: "You can only add logins for your own client" },
+          { status: 403 }
+        );
+      }
     }
 
     // Get client info
