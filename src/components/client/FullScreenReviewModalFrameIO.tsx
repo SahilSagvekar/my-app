@@ -96,7 +96,7 @@ interface FullScreenReviewModalProps {
 }
 
 interface RevisionRequest {
-    reason: 'design' | 'content' | 'timing' | 'technical' | 'spelling' | 'other';
+    reason: 'design' | 'content' | 'timing' | 'technical' | 'spelling' | 'other' | 'subtitles';
     notes: string;
     referenceFile?: File;
     dueDate?: string;
@@ -104,7 +104,7 @@ interface RevisionRequest {
     entries: Array<{
         id: string;
         timestamp: string;
-        reason: 'design' | 'content' | 'timing' | 'technical' | 'spelling' | 'other';
+        reason: 'design' | 'content' | 'timing' | 'technical' | 'spelling' | 'other' | 'subtitles';
         notes: string;
         videoTime?: string;
     }>;
@@ -451,7 +451,7 @@ export function FullScreenReviewModalFrameIO({
                 entries: comments.filter(c => !c.resolved).map(c => ({
                     id: c.id,
                     timestamp: new Date().toLocaleTimeString(),
-                    reason: c.category as 'design' | 'content' | 'timing' | 'technical' | 'spelling' | 'other',
+                    reason: c.category as 'design' | 'content' | 'timing' | 'technical' | 'spelling' | 'other' | 'subtitles',
                     notes: c.content,
                     videoTime: c.timestamp
                 }))

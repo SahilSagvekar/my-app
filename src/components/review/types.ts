@@ -42,7 +42,7 @@ export const REVIEW_STATUSES: ReviewStatus[] = [
 ];
 
 export interface CommentCategory {
-    value: 'design' | 'content' | 'timing' | 'technical' | 'other';
+    value: 'design' | 'content' | 'timing' | 'technical' | 'other' | 'subtitles';
     label: string;
     color: string;
 }
@@ -53,6 +53,7 @@ export const COMMENT_CATEGORIES: CommentCategory[] = [
     { value: 'timing', label: 'Timing', color: '#f59e0b' },
     { value: 'technical', label: 'Technical', color: '#ef4444' },
     { value: 'other', label: 'Other', color: '#6b7280' },
+    { value: 'subtitles', label: 'Subtitles', color: '#3b82f2' },
 ];
 
 export type AnnotationTool = 'select' | 'freehand' | 'arrow' | 'rectangle' | 'circle';
