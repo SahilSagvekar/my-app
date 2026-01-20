@@ -61,6 +61,8 @@ import {
   FaLinkedin,
   FaSnapchat,
 } from "react-icons/fa";
+
+import { SlSocialSteam } from "react-icons/sl";  // 👈 Separate import from 'sl'
 import { toast } from "sonner";
 import { useAuth } from "./auth/AuthContext";
 
@@ -123,6 +125,7 @@ const PLATFORMS: SocialPlatform[] = [
   "Twitter",
   "Linkedin",
   "Snapchat",
+  "Other",
 ];
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes of inactivity
@@ -142,6 +145,7 @@ const getPlatformIcon = (platform: SocialPlatform, size = "h-5 w-5") => {
     Twitter: <FaTwitter {...iconProps} className={`${size} text-sky-500`} />,
     Linkedin: <FaLinkedin {...iconProps} className={`${size} text-blue-700`} />,
     Snapchat: <FaSnapchat {...iconProps} className={`${size} text-yellow-400`} />,
+    Other: <SlSocialSteam {...iconProps} className={`${size} text-violet-400`} />,
   };
   return icons[platform];
 };
@@ -155,6 +159,7 @@ const getPlatformBgColor = (platform: SocialPlatform): string => {
     Twitter: "bg-sky-500",
     Linkedin: "bg-blue-700",
     Snapchat: "bg-yellow-400",
+    Other: "bg-violet-400",
   };
   return colors[platform];
 };
