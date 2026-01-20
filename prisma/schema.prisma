@@ -426,21 +426,22 @@ model FeedbackResponse {
 }
 
 model SocialLogin {
-  id                String          @id @default(cuid())
-  clientId          String?
-  platform          String
-  username          String
-  encryptedPassword String
-  recoveryEmail     String?
-  recoveryPhone     String?
-  notes             String?
-  adminOnly         Boolean         @default(false)  // If true, only admins can view this login
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  updatedById       Int
-  auditLogs         LoginAuditLog[]
-  client            Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  updatedByUser     User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
+  id                  String          @id @default(cuid())
+  clientId            String?
+  platform            String
+  username            String
+  encryptedPassword   String
+  recoveryEmail       String?
+  recoveryPhone       String?
+  notes               String?
+  adminOnly           Boolean         @default(false)  // If true, only admins can view this login
+  passwordChangedAt   DateTime        @default(now())  // Last time password was changed
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  updatedById         Int
+  auditLogs           LoginAuditLog[]
+  client              Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  updatedByUser       User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
 
   @@unique([clientId, platform])
   @@index([clientId])

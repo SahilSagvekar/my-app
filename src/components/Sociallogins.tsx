@@ -92,6 +92,7 @@ interface SocialLogin {
   phone?: string;
   notes?: string;
   adminOnly?: boolean; // If true, only admins can see this login
+  passwordChangedAt?: string; // When the password was last changed
   lastUpdated: string;
   updatedBy: string;
 }
@@ -163,6 +164,26 @@ const getPlatformBgColor = (platform: SocialPlatform): string => {
     Other: "bg-violet-400",
   };
   return colors[platform];
+};
+
+// Format a date as relative time (e.g., "2 days ago")
+const formatTimeAgo = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffMonths = Math.floor(diffDays / 30);
+  const diffYears = Math.floor(diffDays / 365);
+
+  if (diffYears > 0) return `${diffYears} year${diffYears > 1 ? "s" : ""} ago`;
+  if (diffMonths > 0) return `${diffMonths} month${diffMonths > 1 ? "s" : ""} ago`;
+  if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  if (diffMins > 0) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+  return "just now";
 };
 
 /* -------------------------------------------------------------------------- */
@@ -1422,6 +1443,21 @@ export function SocialLogins() {
                       {login.notes && (
                         <p className="text-xs text-gray-500 mt-1">
                           📝 {login.notes}
+                        </p>
+                      )}
+
+                      {/* Password Changed Date */}
+                      {login.passwordChangedAt && (
+                        <p
+                          className={`text-xs mt-1 ${
+                            // Highlight if password is older than 90 days
+                            new Date().getTime() - new Date(login.passwordChangedAt).getTime() > 90 * 24 * 60 * 60 * 1000
+                              ? "text-amber-600"
+                              : "text-gray-400"
+                            }`}
+                          title={new Date(login.passwordChangedAt).toLocaleString()}
+                        >
+                          🔑 Password changed: {formatTimeAgo(login.passwordChangedAt)}
                         </p>
                       )}
                     </div>

@@ -155,6 +155,7 @@ export async function GET(req: NextRequest) {
       phone: login.recoveryPhone,
       notes: login.notes,
       adminOnly: login.adminOnly,
+      passwordChangedAt: login.passwordChangedAt?.toISOString() || login.createdAt.toISOString(),
       lastUpdated: login.updatedAt.toISOString(),
       updatedBy: login.updatedByUser?.name || "Unknown",
     }));
@@ -328,6 +329,7 @@ export async function POST(req: NextRequest) {
         phone: login.recoveryPhone,
         notes: login.notes,
         adminOnly: login.adminOnly,
+        passwordChangedAt: login.createdAt.toISOString(), // New login, password just set
         lastUpdated: login.updatedAt.toISOString(),
         updatedBy: user.name || "Admin",
       },

@@ -137,6 +137,9 @@ export async function PUT(
       ? encrypt(password)
       : existingLogin.encryptedPassword;
 
+    // Track if password is being changed
+    const passwordIsChanging = !!password;
+
     const login = await prisma.socialLogin.update({
       where: { id },
       data: {
@@ -149,6 +152,8 @@ export async function PUT(
         notes: notes || null,
         adminOnly: adminOnly ?? existingLogin.adminOnly,
         updatedById: userId,
+        // Update passwordChangedAt only if password is being changed
+        ...(passwordIsChanging ? { passwordChangedAt: new Date() } : {}),
       },
     });
 
@@ -178,6 +183,9 @@ export async function PUT(
         phone: login.recoveryPhone,
         notes: login.notes,
         adminOnly: login.adminOnly,
+        passwordChangedAt: passwordIsChanging
+          ? new Date().toISOString()
+          : (existingLogin.passwordChangedAt?.toISOString() || existingLogin.createdAt.toISOString()),
         lastUpdated: login.updatedAt.toISOString(),
         updatedBy: user.name || "Admin",
       },
