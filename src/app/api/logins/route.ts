@@ -151,6 +151,7 @@ export async function GET(req: NextRequest) {
       platform: login.platform,
       username: login.username,
       password: decrypt(login.encryptedPassword),
+      loginUrl: login.loginUrl,
       email: login.recoveryEmail,
       phone: login.recoveryPhone,
       notes: login.notes,
@@ -220,7 +221,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { clientId, platform, username, password, email, phone, notes, adminOnly } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, adminOnly } = body;
 
     const isAdminOnlyLogin = adminOnly === true;
 
@@ -296,6 +297,7 @@ export async function POST(req: NextRequest) {
         platform,
         username,
         encryptedPassword,
+        loginUrl: loginUrl || null,
         recoveryEmail: email || null,
         recoveryPhone: phone || null,
         notes: notes || null,
@@ -325,6 +327,7 @@ export async function POST(req: NextRequest) {
         platform: login.platform,
         username: login.username,
         password: password, // Return unencrypted for immediate display
+        loginUrl: login.loginUrl,
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,

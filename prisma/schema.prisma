@@ -431,6 +431,7 @@ model SocialLogin {
   platform            String
   username            String
   encryptedPassword   String
+  loginUrl            String?         // Direct URL to login/manage page
   recoveryEmail       String?
   recoveryPhone       String?
   notes               String?

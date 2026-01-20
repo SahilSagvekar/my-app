@@ -85,7 +85,7 @@ export async function PUT(
 
     const { id } = params;
     const body = await req.json();
-    const { clientId, platform, username, password, email, phone, notes, adminOnly } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, adminOnly } = body;
 
     // Check if login exists
     const existingLogin = await prisma.socialLogin.findUnique({
@@ -147,6 +147,7 @@ export async function PUT(
         platform,
         username,
         encryptedPassword,
+        loginUrl: loginUrl || null,
         recoveryEmail: email || null,
         recoveryPhone: phone || null,
         notes: notes || null,
@@ -179,6 +180,7 @@ export async function PUT(
         platform: login.platform,
         username: login.username,
         password: password || decrypt(existingLogin.encryptedPassword),
+        loginUrl: login.loginUrl,
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,

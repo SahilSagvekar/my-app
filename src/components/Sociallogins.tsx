@@ -52,6 +52,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Smartphone,
+  ExternalLink,
 } from "lucide-react";
 import {
   FaInstagram,
@@ -88,6 +89,7 @@ interface SocialLogin {
   platform: SocialPlatform;
   username: string;
   password: string; // Will be encrypted in DB, decrypted on fetch
+  loginUrl?: string; // Direct URL to login/manage page
   email?: string;
   phone?: string;
   notes?: string;
@@ -612,6 +614,7 @@ function LoginFormDialog({
     platform: "Instagram" as SocialPlatform,
     username: "",
     password: "",
+    loginUrl: "",
     email: "",
     phone: "",
     notes: "",
@@ -626,6 +629,7 @@ function LoginFormDialog({
         platform: login.platform,
         username: login.username,
         password: login.password,
+        loginUrl: login.loginUrl || "",
         email: login.email || "",
         phone: login.phone || "",
         notes: login.notes || "",
@@ -639,6 +643,7 @@ function LoginFormDialog({
         platform: "Instagram",
         username: "",
         password: "",
+        loginUrl: "",
         email: "",
         phone: "",
         notes: "",
@@ -827,6 +832,36 @@ function LoginFormDialog({
                 )}
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Login Page URL</Label>
+            <div className="relative">
+              <Input
+                type="url"
+                value={formData.loginUrl}
+                onChange={(e) =>
+                  setFormData({ ...formData, loginUrl: e.target.value })
+                }
+                placeholder="https://instagram.com/accounts/login/"
+                className="pr-10"
+              />
+              {formData.loginUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                  onClick={() => window.open(formData.loginUrl, "_blank")}
+                  title="Open login URL"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              Direct link to the login or account management page
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1462,29 +1497,44 @@ export function SocialLogins() {
                       )}
                     </div>
 
-                    {/* Actions - Admin Only */}
-                    {canEdit && (
-                      <div className="flex items-center gap-1">
+                    {/* Actions */}
+                    <div className="flex items-center gap-1">
+                      {/* Login URL Button */}
+                      {login.loginUrl && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => {
-                            setEditingLogin(login);
-                            setShowLoginDialog(true);
-                          }}
+                          onClick={() => window.open(login.loginUrl, "_blank")}
+                          title="Open login page"
+                          className="text-blue-600 hover:text-blue-700"
                         >
-                          <Edit className="h-4 w-4" />
+                          <ExternalLink className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setDeleteConfirmLogin(login)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
+                      )}
+
+                      {canEdit && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingLogin(login);
+                              setShowLoginDialog(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeleteConfirmLogin(login)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
 
                     {/* Last Updated */}
                     <div className="text-xs text-gray-400 text-right">
@@ -1569,6 +1619,6 @@ export function SocialLogins() {
         onVerify={handleTotpVerify}
         onCancel={() => setShowTotpDialog(false)}
       />
-    </div>
+    </div >
   );
 }
