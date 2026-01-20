@@ -47,6 +47,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const isQC = currentRole?.toLowerCase() === 'qc';
 
   // Fetch user profile on mount
   useEffect(() => {
@@ -208,9 +209,9 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     switch (currentRole) {
       case 'admin':
         return (
-          <Card>
+          <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-bold">
+              <CardTitle className={`flex items-center gap-2 font-bold ${isQC ? 'text-gray-100' : ''}`}>
                 <Shield className="h-5 w-5" />
                 Admin Preferences
               </CardTitle>
@@ -218,8 +219,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <Label>System Maintenance Alerts</Label>
-                  <p className="text-sm text-muted-foreground">Get notified about system updates and maintenance</p>
+                  <Label className={isQC ? 'text-gray-200' : ''}>System Maintenance Alerts</Label>
+                  <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Get notified about system updates and maintenance</p>
                 </div>
                 <Switch
                   disabled={!isEditing}
@@ -229,8 +230,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <Label>Weekly Reports</Label>
-                  <p className="text-sm text-muted-foreground">Receive automated weekly performance reports</p>
+                  <Label className={isQC ? 'text-gray-200' : ''}>Weekly Reports</Label>
+                  <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Receive automated weekly performance reports</p>
                 </div>
                 <Switch
                   disabled={!isEditing}
@@ -243,21 +244,21 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         );
       case 'editor':
         return (
-          <Card>
+          <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-bold">
+              <CardTitle className={`flex items-center gap-2 font-bold ${isQC ? 'text-gray-100' : ''}`}>
                 <User className="h-5 w-5" />
                 Editor Preferences
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Default File Format</Label>
+                <Label className={isQC ? 'text-gray-200' : ''}>Default File Format</Label>
                 <Select disabled={!isEditing} defaultValue="png">
-                  <SelectTrigger>
+                  <SelectTrigger className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200' : ''}>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-200' : ''}>
                     <SelectItem value="png">PNG</SelectItem>
                     <SelectItem value="jpg">JPG</SelectItem>
                     <SelectItem value="svg">SVG</SelectItem>
@@ -276,22 +277,24 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
   // Show loading state on initial load
   if (loading && !formData.email) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
+      <div className={`w-full h-full flex items-center justify-center ${isQC ? 'bg-[#0a0e1a]' : ''}`}>
         <div className="text-center">
-          <Loader className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading profile...</p>
+          <Loader className={`h-8 w-8 animate-spin mx-auto mb-4 ${isQC ? 'text-blue-500' : ''}`} />
+          <p className={isQC ? 'text-gray-400' : 'text-muted-foreground'}>Loading profile...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full flex flex-col max-w-none">
+    <div className={`w-full h-full flex flex-col max-w-none ${isQC ? 'bg-[#0a0e1a]' : ''}`}>
       {/* Fixed Header */}
-      <div className="flex-shrink-0 flex items-center justify-between p-6 border-b">
+      <div className={`flex-shrink-0 flex items-center justify-between p-6 border-b transition-colors ${
+        isQC ? 'border-[#1e2330]' : 'bg-white'
+      }`}>
         <div>
-          <h1 className="text-xl font-semibold">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className={`text-xl font-semibold ${isQC ? 'text-gray-100' : 'text-gray-900'}`}>Settings</h1>
+          <p className={`text-sm mt-1 ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
             Manage your account settings and preferences
           </p>
         </div>
@@ -305,7 +308,11 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
               Edit
             </Button>
           )}
-          <Button onClick={onClose} variant="outline">
+          <Button 
+            onClick={onClose} 
+            variant="outline" 
+            className={isQC ? 'border-[#2a3142] text-gray-300 hover:bg-[#1e2330] hover:text-white' : ''}
+          >
             Close
           </Button>
         </div>
@@ -329,9 +336,9 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
               )}
 
               <section id="profile" className="space-y-6">
-                <Card>
+                <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
                   <CardHeader>
-                    <CardTitle className="font-bold">Profile Information</CardTitle>
+                    <CardTitle className={`font-bold ${isQC ? 'text-gray-100' : ''}`}>Profile Information</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {/* Avatar Section */}
@@ -356,7 +363,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                             />
                           </label>
                         )}
-                        <p className="text-sm text-muted-foreground">
+                        <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
                           JPG, GIF or PNG. 1MB max.
                         </p>
                       </div>
@@ -364,52 +371,54 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
 
                     {/* Name Field */}
                     <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
+                      <Label htmlFor="name" className={isQC ? 'text-gray-200' : ''}>Full Name</Label>
                       <Input
                         id="name"
                         disabled={!isEditing}
                         value={formData.name}
                         onChange={(e) => handleInputChange('name', e.target.value)}
                         placeholder="Enter your full name"
+                        className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200 placeholder-gray-500' : ''}
                       />
                     </div>
 
                     {/* Contact Information */}
                     <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="email">Email Address</Label>
+                        <Label htmlFor="email" className={isQC ? 'text-gray-200' : ''}>Email Address</Label>
                         <Input
                           id="email"
                           type="email"
                           value={formData.email}
                           disabled
-                          className="bg-gray-50"
+                          className={isQC ? 'bg-[#0f1218] border-[#2a3142] text-gray-400' : 'bg-gray-50'}
                         />
-                        <p className="text-sm text-muted-foreground">Email cannot be changed</p>
+                        <p className={`text-sm ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>Email cannot be changed</p>
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="phone">Phone Number</Label>
+                        <Label htmlFor="phone" className={isQC ? 'text-gray-200' : ''}>Phone Number</Label>
                         <Input
                           id="phone"
                           disabled={!isEditing}
                           value={formData.phone}
                           onChange={(e) => handleInputChange('phone', e.target.value)}
                           placeholder="Enter your phone number"
+                          className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200 placeholder-gray-500' : ''}
                         />
                       </div>
                     </div>
 
                     {/* Job Role - Display Only */}
                     <div className="space-y-2">
-                      <Label htmlFor="role">Role</Label>
+                      <Label htmlFor="role" className={isQC ? 'text-gray-200' : ''}>Role</Label>
                       <Input
                         id="role"
                         value={formData.role}
                         disabled
-                        className="bg-gray-50 capitalize"
+                        className={`${isQC ? 'bg-[#0f1218] border-[#2a3142] text-gray-400' : 'bg-gray-50'} capitalize`}
                       />
-                      <p className="text-sm text-muted-foreground">Role is assigned by administrators</p>
+                      <p className={`text-sm ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>Role is assigned by administrators</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -418,15 +427,15 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
               </section>
 
               <section id="notifications" className="space-y-6">
-                <Card>
+                <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
                   <CardHeader>
-                    <CardTitle className="font-bold">Notification Preferences</CardTitle>
+                    <CardTitle className={`font-bold ${isQC ? 'text-gray-100' : ''}`}>Notification Preferences</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <Label>Email Notifications</Label>
-                        <p className="text-sm text-muted-foreground">Receive notifications via email</p>
+                        <Label className={isQC ? 'text-gray-200' : ''}>Email Notifications</Label>
+                        <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Receive notifications via email</p>
                       </div>
                       <Switch
                         disabled={!isEditing}
@@ -437,8 +446,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
 
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <Label>Push Notifications</Label>
-                        <p className="text-sm text-muted-foreground">Receive push notifications in browser</p>
+                        <Label className={isQC ? 'text-gray-200' : ''}>Push Notifications</Label>
+                        <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Receive push notifications in browser</p>
                       </div>
                       <Switch
                         disabled={!isEditing}
@@ -447,12 +456,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                       />
                     </div>
 
-                    <Separator />
+                    <Separator className={isQC ? 'bg-[#2a3142]' : ''} />
 
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <Label>Task Reminders</Label>
-                        <p className="text-sm text-muted-foreground">Get reminded about upcoming tasks</p>
+                        <Label className={isQC ? 'text-gray-200' : ''}>Task Reminders</Label>
+                        <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Get reminded about upcoming tasks</p>
                       </div>
                       <Switch
                         disabled={!isEditing}
@@ -463,8 +472,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
 
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <Label>Deadline Alerts</Label>
-                        <p className="text-sm text-muted-foreground">Urgent notifications for approaching deadlines</p>
+                        <Label className={isQC ? 'text-gray-200' : ''}>Deadline Alerts</Label>
+                        <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Urgent notifications for approaching deadlines</p>
                       </div>
                       <Switch
                         disabled={!isEditing}
@@ -475,8 +484,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
 
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <Label>Team Updates</Label>
-                        <p className="text-sm text-muted-foreground">Notifications about team activity</p>
+                        <Label className={isQC ? 'text-gray-200' : ''}>Team Updates</Label>
+                        <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Notifications about team activity</p>
                       </div>
                       <Switch
                         disabled={!isEditing}
@@ -489,18 +498,18 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
               </section>
 
               <section id="appearance" className="space-y-6">
-                <Card>
+                <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
                   <CardHeader>
-                    <CardTitle className="font-bold">Appearance Settings</CardTitle>
+                    <CardTitle className={`font-bold ${isQC ? 'text-gray-100' : ''}`}>Appearance Settings</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="space-y-2">
-                      <Label>Theme</Label>
+                      <Label className={isQC ? 'text-gray-200' : ''}>Theme</Label>
                       <Select disabled={!isEditing} value={formData.theme} onValueChange={(value) => handleInputChange('theme', value)}>
-                        <SelectTrigger>
+                        <SelectTrigger className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200' : ''}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className={isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-200' : ''}>
                           <SelectItem value="light">Light</SelectItem>
                           <SelectItem value="dark">Dark</SelectItem>
                           <SelectItem value="system">System</SelectItem>
@@ -509,12 +518,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Language</Label>
+                      <Label className={isQC ? 'text-gray-200' : ''}>Language</Label>
                       <Select disabled={!isEditing} value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
-                        <SelectTrigger>
+                        <SelectTrigger className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200' : ''}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className={isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-200' : ''}>
                           <SelectItem value="en">English</SelectItem>
                           <SelectItem value="es">Spanish</SelectItem>
                           <SelectItem value="fr">French</SelectItem>
@@ -524,12 +533,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Timezone</Label>
+                      <Label className={isQC ? 'text-gray-200' : ''}>Timezone</Label>
                       <Select disabled={!isEditing} value={formData.timezone} onValueChange={(value) => handleInputChange('timezone', value)}>
-                        <SelectTrigger>
+                        <SelectTrigger className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200' : ''}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className={isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-200' : ''}>
                           <SelectItem value="America/New_York">Eastern Time</SelectItem>
                           <SelectItem value="America/Chicago">Central Time</SelectItem>
                           <SelectItem value="America/Denver">Mountain Time</SelectItem>
@@ -548,7 +557,9 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
       </div>
 
       {/* Fixed Footer */}
-      <div className="flex-shrink-0 border-t p-6">
+      <div className={`flex-shrink-0 border-t p-6 transition-colors ${
+        isQC ? 'border-[#1e2330] bg-[#1a1f2e]' : 'bg-white'
+      }`}>
         {isEditing ? (
           <div className="flex items-center gap-3">
             <Button 
@@ -567,6 +578,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
               variant="outline" 
               onClick={handleCancel}
               disabled={loading}
+              className={isQC ? 'border-[#2a3142] text-gray-300 hover:bg-[#1e2330]' : ''}
             >
               Cancel
             </Button>

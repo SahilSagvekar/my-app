@@ -427,163 +427,189 @@ export function QCDashboard() {
   const overdueReviews = qcTasks.filter(task => isOverdue(task)).length;
 
   return (
-    <div className="flex flex-col h-full space-y-6">
+    <div className="flex flex-col h-full space-y-6 bg-[#0a0e1a] p-6 rounded-lg">
       <div className="flex items-center justify-between">
         <div>
-          <h1>Review Queue</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-gray-100">Review Queue</h1>
+          <p className="text-gray-400 mt-2">
             Review submitted work and approve or reject with feedback
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
+        <Card className="bg-[#1e2330] border-[#2a3142]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Pending Reviews</p>
-                <h3>{pendingReviews}</h3>
+                <p className="text-sm text-gray-400">Pending Reviews</p>
+                <h3 className="text-gray-100">{pendingReviews}</h3>
               </div>
-              <Clock className="h-8 w-8 text-blue-500" />
+              <Clock className="h-8 w-8 text-blue-400" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-[#1e2330] border-[#2a3142]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Overdue</p>
-                <h3 className="text-red-500">{overdueReviews}</h3>
+                <p className="text-sm text-gray-400">Overdue</p>
+                <h3 className="text-red-400">{overdueReviews}</h3>
               </div>
-              <XCircle className="h-8 w-8 text-red-500" />
+              <XCircle className="h-8 w-8 text-red-400" />
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="flex flex-col flex-1 min-h-0">
-        <Card className="flex flex-col flex-1 min-h-0">
-          <CardHeader>
-            <CardTitle>Review Queue ({pendingReviews})</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Click on any task to view files
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-100">Review Queue</h2>
+            <p className="text-sm text-gray-400 mt-1">
+              {pendingReviews} task{pendingReviews !== 1 ? 's' : ''} pending review
             </p>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 overflow-hidden">
-            <div className="space-y-0 h-full overflow-y-auto">
-              {loading ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
-                  <p>Loading QC tasks...</p>
-                </div>
-              ) : qcTasks.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
-                  <p>No QC tasks available</p>
-                </div>
-              ) : (
-                qcTasks.map((task, index) => (
-                  <div
-                    key={task.id}
-                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${selectedTask?.id === task.id ? "bg-muted" : ""
-                      } ${getPriorityColor(task.priority)} ${isOverdue(task) ? "border-r-4 border-r-red-500" : ""
-                      }`}
-                    onClick={() => handleTaskClick(task)}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {getStatusIcon(task.status)}
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-mono text-muted-foreground">
-                            #{index + 1}
-                          </span>
-                          {getTaskCategoryIcon(task.taskCategory)}
-                        </div>
-                        <h4 className="text-sm font-medium truncate">
-                          {task.title}
-                        </h4>
+          </div>
+          
+          {/* Filtering and View Controls */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1e2330] border border-[#2a3142] rounded-lg text-xs text-gray-400">
+              <span className="text-gray-500">Sorted by</span>
+              <span className="text-gray-300">Date Uploaded</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="p-8 text-center text-gray-400">
+              <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
+              <p>Loading QC tasks...</p>
+            </div>
+          ) : qcTasks.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">
+              <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
+              <p>No QC tasks available</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {qcTasks.map((task, index) => (
+                <div
+                  key={task.id}
+                  className={`group relative bg-[#1e2330] border border-[#2a3142] rounded-lg overflow-hidden cursor-pointer hover:border-blue-500/50 transition-all ${
+                    selectedTask?.id === task.id ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                  onClick={() => handleTaskClick(task)}
+                >
+                  {/* Thumbnail/Preview Area */}
+                  <div className="relative aspect-video bg-gradient-to-br from-blue-900/20 to-purple-900/20 flex items-center justify-center">
+                    {/* Task Type Icon */}
+                    <div className="absolute top-2 left-2 p-1.5 bg-[#1e2330]/80 rounded backdrop-blur-sm">
+                      {getTaskCategoryIcon(task.taskCategory)}
+                    </div>
+                    
+                    {/* File Count Badge */}
+                    {task.files && task.files.length > 0 && (
+                      <div className="absolute top-2 right-2 px-2 py-1 bg-[#1e2330]/80 rounded backdrop-blur-sm text-xs text-gray-300 flex items-center gap-1">
+                        <FileText className="h-3 w-3" />
+                        {task.files.length}
                       </div>
-                      <Badge
-                        variant="default"
-                        className="text-xs ml-2 flex-shrink-0"
-                      >
-                        pending
-                      </Badge>
+                    )}
+
+                    {/* Center Icon */}
+                    <div className="text-gray-600">
+                      {task.taskCategory === 'video' ? (
+                        <Video className="h-12 w-12" />
+                      ) : task.taskCategory === 'design' ? (
+                        <Palette className="h-12 w-12" />
+                      ) : (
+                        <FileText className="h-12 w-12" />
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                      <User className="h-3 w-3" />
-                      <span>From Editor</span>
+                    {/* Duration/Status Overlay */}
+                    <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/60 rounded text-xs text-white">
+                      {getStatusIcon(task.status)}
+                    </div>
+                  </div>
+
+                  {/* Card Content */}
+                  <div className="p-3 space-y-2">
+                    {/* Title */}
+                    <h3 className="text-sm font-medium text-gray-200 truncate group-hover:text-blue-400 transition-colors">
+                      {task.title}
+                    </h3>
+
+                    {/* Metadata Row */}
+                    <div className="flex items-center justify-between text-xs text-gray-400">
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        <span>Editor</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      </div>
+                    </div>
+
+                    {/* Status & Priority Row */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge className="text-xs bg-blue-600/30 text-blue-300 border-blue-500/50">
+                        Pending
+                      </Badge>
+                      
                       {task.priority && (
                         <Badge
                           variant="outline"
-                          className={`text-xs px-1 py-0 ${task.priority === "urgent"
-                            ? "border-red-500 text-red-700"
-                            : task.priority === "high"
-                              ? "border-orange-500 text-orange-700"
-                              : "border-gray-500 text-gray-700"
-                            }`}
+                          className={`text-xs px-1.5 py-0 ${
+                            task.priority === 'urgent'
+                              ? 'border-red-400 text-red-300 bg-red-500/10'
+                              : task.priority === 'high'
+                              ? 'border-orange-400 text-orange-300 bg-orange-500/10'
+                              : 'border-gray-500 text-gray-400 bg-gray-500/10'
+                          }`}
                         >
                           {task.priority}
                         </Badge>
                       )}
-                    </div>
 
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span
-                          className={
-                            isOverdue(task) ? "text-red-500 font-medium" : ""
-                          }
-                        >
-                          Due {new Date(task.dueDate).toLocaleDateString()}
-                          {isOverdue(task) && " (Overdue)"}
-                        </span>
-                      </div>
-
-                      {task.files && (
-                        <Badge variant="outline" className="text-xs">
-                          <FileText className="h-3 w-3 mr-1" />
-                          {task.files.length} file{task.files.length !== 1 ? 's' : ''}
+                      {isOverdue(task) && (
+                        <Badge variant="outline" className="text-xs border-red-400 text-red-300 bg-red-500/10">
+                          Overdue
                         </Badge>
                       )}
                     </div>
 
+                    {/* Next Destination */}
                     {task.nextDestination && (
-                      <div className="flex items-center gap-2 mt-2 pt-2 border-t">
-                        <div
-                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${getDestinationColor(
-                            task.nextDestination
-                          )}`}
-                        >
+                      <div className="pt-2 border-t border-[#2a3142]">
+                        <div className="flex items-center gap-1 text-xs text-gray-400">
                           {getDestinationIcon(task.nextDestination)}
-                          <ArrowRight className="h-2 w-2" />
-                          <span className="capitalize">
-                            {task.nextDestination}
-                          </span>
+                          <span>→ {task.nextDestination}</span>
                         </div>
                       </div>
                     )}
                   </div>
-                ))
-              )}
+
+                  {/* Hover Overlay */}
+                  <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors pointer-events-none" />
+                </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       </div>
 
       {selectedTask && (
         <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-          <DialogContent className="max-w-4xl max-h-[85vh]">
+          <DialogContent className="max-w-4xl max-h-[85vh] bg-[#1e2330] border-[#2a3142]">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 text-gray-100">
                 <Eye className="h-5 w-5" />
                 Review Files by Section
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-gray-400">
                 {selectedTask.title} - Select a file to review. Files are organized by folder type.
               </DialogDescription>
             </DialogHeader>
@@ -592,60 +618,61 @@ export function QCDashboard() {
               {selectedTask.files && selectedTask.files.length > 0 ? (
                 <div className="space-y-4">
                   {groupFilesByFolderType(selectedTask.files).map((group) => (
-                    <div key={group.folderType} className="border rounded-lg overflow-hidden">
+                    <div key={group.folderType} className="border border-[#2a3142] rounded-lg overflow-hidden bg-[#141824]">
                       {/* Section Header */}
-                      <div className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}>
+                      <div className={`px-4 py-3 border-b border-[#2a3142] flex items-center justify-between bg-[#1a2030]`}>
                         <div className="flex items-center gap-2">
                           <span className="text-lg">{group.info.icon}</span>
-                          <h4 className="font-semibold text-sm">{group.info.label}</h4>
-                          <Badge variant="secondary" className="text-xs">
+                          <h4 className="font-semibold text-sm text-gray-200">{group.info.label}</h4>
+                          <Badge variant="secondary" className="text-xs bg-gray-700/50 text-gray-300">
                             {group.files.length} file{group.files.length !== 1 ? 's' : ''}
                           </Badge>
                         </div>
                         {/* Show if there are multiple versions */}
                         {group.files.some(f => (f.version || 1) > 1) && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs border-gray-600 text-gray-400">
                             Multiple versions
                           </Badge>
                         )}
                       </div>
 
                       {/* Files in this section */}
-                      <div className="divide-y">
+                      <div className="divide-y divide-[#2a3142]">
                         {group.files.map((file, index) => (
                           <div
                             key={file.id}
-                            className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false ? 'opacity-60 bg-muted/20' : ''
+                            className={`p-4 cursor-pointer hover:bg-[#252b3d] transition-colors ${file.isActive === false ? 'opacity-60 bg-[#1a2030]/50' : ''
                               }`}
                             onClick={() => handleFileSelect(file)}
                           >
                             <div className="flex items-center gap-4">
                               {/* File Icon */}
-                              <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
-                                file.mimeType?.startsWith('image/') ? 'bg-green-100' :
-                                  'bg-gray-100'
-                                }`}>
+                              <div className={`p-3 rounded-lg flex-shrink-0 ${
+                                file.mimeType?.startsWith('video/') ? 'bg-blue-900/30' :
+                                file.mimeType?.startsWith('image/') ? 'bg-green-900/30' :
+                                'bg-gray-700/30'
+                              }`}>
                                 {getFileIcon(file.mimeType)}
                               </div>
 
                               {/* File Info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <p className="font-medium text-sm truncate max-w-[300px]">
+                                  <p className="font-medium text-sm truncate max-w-[300px] text-gray-200">
                                     {file.name}
                                   </p>
 
                                   {/* Version Badge */}
                                   <Badge
                                     variant={file.isActive !== false ? "default" : "secondary"}
-                                    className="text-xs"
+                                    className="text-xs bg-blue-600/30 text-blue-300"
                                   >
                                     V{file.version || 1}
                                   </Badge>
 
                                   {/* Active/Latest indicator */}
                                   {file.isActive !== false && index === 0 && (
-                                    <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                    <Badge variant="outline" className="text-xs text-green-400 border-green-500/50 bg-green-500/10">
                                       <CheckCircle className="h-3 w-3 mr-1" />
                                       Latest
                                     </Badge>
@@ -653,25 +680,25 @@ export function QCDashboard() {
 
                                   {/* Inactive indicator */}
                                   {file.isActive === false && (
-                                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                                    <Badge variant="outline" className="text-xs text-gray-500 border-gray-600">
                                       Replaced
                                     </Badge>
                                   )}
 
                                   {/* File type */}
-                                  <Badge variant="secondary" className="text-xs">
+                                  <Badge variant="secondary" className="text-xs bg-gray-700/50 text-gray-300">
                                     {getFileTypeLabel(file.mimeType)}
                                   </Badge>
                                 </div>
 
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
                                   <span>{formatFileSize(file.size)}</span>
                                   <span>•</span>
                                   <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
                                   {file.revisionNote && (
                                     <>
                                       <span>•</span>
-                                      <span className="text-orange-600" title={file.revisionNote}>
+                                      <span className="text-orange-400" title={file.revisionNote}>
                                         📝 Has revision note
                                       </span>
                                     </>

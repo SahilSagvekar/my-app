@@ -27,6 +27,7 @@ interface EmploymentInfoProps {
 }
 
 export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
+  const isQC = currentRole?.toLowerCase() === 'qc';
   const [employee, setEmployee] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -89,20 +90,20 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
   const showRequestLeave = currentRole !== "admin";
 
   return (
-    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+    <div className={`space-y-4 sm:space-y-6 p-4 sm:p-6 rounded-lg ${isQC ? 'bg-[#0a0e1a]' : 'bg-transparent'}`}>
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold">
+        <h1 className={`text-xl sm:text-2xl font-semibold ${isQC ? 'text-gray-100' : ''}`}>
           Employment Information
         </h1>
-        <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
+        <p className={`${isQC ? 'text-gray-400' : 'text-muted-foreground'} mt-1 sm:mt-2 text-sm sm:text-base`}>
           View your employment details and manage leave requests
         </p>
       </div>
 
       {/* Employee Profile Card */}
-      <Card>
+      <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className={`flex items-center gap-2 ${isQC ? 'text-gray-100' : ''}`}>
             <User className="h-5 w-5" />
             Employee Profile
           </CardTitle>
@@ -116,10 +117,10 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
               </AvatarFallback>
             </Avatar>
             <div>
-              <h3 className="text-lg sm:text-xl font-semibold">
+              <h3 className={`text-lg sm:text-xl font-semibold ${isQC ? 'text-gray-200' : ''}`}>
                 {employee.name || "N/A"}
               </h3>
-              <p className="text-sm sm:text-base text-muted-foreground">
+              <p className={`text-sm sm:text-base ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
                 {employee.role || "N/A"}
               </p>
             </div>
@@ -127,11 +128,11 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className={`flex items-center gap-2 text-sm ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>
                 <Mail className="h-4 w-4" />
                 Email
               </div>
-              <p className="font-medium">{employee.email || "N/A"}</p>
+              <p className={`font-medium ${isQC ? 'text-gray-200' : ''}`}>{employee.email || "N/A"}</p>
             </div>
 
             {employee.phone && (
@@ -172,9 +173,9 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
       </Card>
 
       {/* Employment Details Card */}
-      <Card>
+      <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className={`flex items-center gap-2 ${isQC ? 'text-gray-100' : ''}`}>
             <Briefcase className="h-5 w-5" />
             Employment Details
           </CardTitle>
@@ -234,15 +235,15 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
 
       {/* Request Leave Card - Only for non-admin roles */}
       {showRequestLeave && (
-        <Card>
+        <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className={`flex items-center gap-2 ${isQC ? 'text-gray-100' : ''}`}>
               <Calendar className="h-5 w-5" />
               Leave Management
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground mb-4">
+            <p className={`mb-4 ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
               Submit a leave request for approval. You can select dates and
               provide a reason for your absence.
             </p>
@@ -259,15 +260,15 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
 
       {/* Leave Requests List - Only for non-admin roles */}
       {showRequestLeave && (
-        <Card>
+        <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className={`flex items-center gap-2 ${isQC ? 'text-gray-100' : ''}`}>
               <FileText className="h-5 w-5" />
               Leave Requests
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground mb-4">
+            <p className={`mb-4 ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
               View all your leave requests and their approval status. Track
               pending, approved, and rejected requests.
             </p>

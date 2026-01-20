@@ -476,13 +476,13 @@ export function QCCompletedPage() {
   const getDestinationColor = (destination?: TaskDestination) => {
     switch (destination) {
       case 'client':
-        return 'text-purple-600 bg-purple-100';
+        return 'text-purple-300 bg-purple-900/30 border border-purple-700/50';
       case 'scheduler':
-        return 'text-green-600 bg-green-100';
+        return 'text-green-300 bg-green-900/30 border border-green-700/50';
       case 'editor':
-        return 'text-blue-600 bg-blue-100';
+        return 'text-blue-300 bg-blue-900/30 border border-blue-700/50';
       default:
-        return 'text-gray-600 bg-gray-100';
+        return 'text-gray-300 bg-gray-800/30 border border-gray-700/50';
     }
   };
 
@@ -495,87 +495,87 @@ export function QCCompletedPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-[#0a0e1a] p-6 rounded-lg">
       {/* Page Header */}
       <div>
-        <h1>Completed Reviews</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-gray-100">Completed Reviews</h1>
+        <p className="text-gray-400 mt-2">
           Review history and performance tracking
         </p>
       </div>
 
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="bg-[#1e2330] border-[#2a3142]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Reviewed</p>
-                <h3>{totalCompleted}</h3>
+                <p className="text-sm text-gray-400">Total Reviewed</p>
+                <h3 className="text-gray-100">{totalCompleted}</h3>
               </div>
-              <FileCheck className="h-8 w-8 text-blue-500" />
+              <FileCheck className="h-8 w-8 text-blue-400" />
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-[#1e2330] border-[#2a3142]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Approved</p>
-                <h3 className="text-green-600">{approvedCount}</h3>
+                <p className="text-sm text-gray-400">Approved</p>
+                <h3 className="text-green-400">{approvedCount}</h3>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
+              <CheckCircle className="h-8 w-8 text-green-400" />
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-[#1e2330] border-[#2a3142]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Rejected</p>
-                <h3 className="text-red-600">{rejectedCount}</h3>
+                <p className="text-sm text-gray-400">Rejected</p>
+                <h3 className="text-red-400">{rejectedCount}</h3>
               </div>
-              <XCircle className="h-8 w-8 text-red-500" />
+              <XCircle className="h-8 w-8 text-red-400" />
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-[#1e2330] border-[#2a3142]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Approval Rate</p>
-                <h3>{approvalRate}%</h3>
+                <p className="text-sm text-gray-400">Approval Rate</p>
+                <h3 className="text-gray-100">{approvalRate}%</h3>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
+              <CheckCircle className="h-8 w-8 text-green-400" />
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card className="bg-[#1e2330] border-[#2a3142]">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                 <Input
                   placeholder="Search by title or project ID..."
                   value={completedSearchTerm}
                   onChange={(e) => setCompletedSearchTerm(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 bg-[#141824] border-[#2a3142] text-gray-300 placeholder-gray-500"
                 />
               </div>
             </div>
             <Select value={completedFilter} onValueChange={(value: any) => setCompletedFilter(value)}>
-              <SelectTrigger className="w-full sm:w-48">
+              <SelectTrigger className="w-full sm:w-48 bg-[#141824] border-[#2a3142] text-gray-300">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Reviews</SelectItem>
-                <SelectItem value="COMPLETED">Approved Only</SelectItem>
-                <SelectItem value="REJECTED">Rejected Only</SelectItem>
+              <SelectContent className="bg-[#1e2330] border-[#2a3142]">
+                <SelectItem value="all" className="text-gray-300">All Reviews</SelectItem>
+                <SelectItem value="COMPLETED" className="text-gray-300">Approved Only</SelectItem>
+                <SelectItem value="REJECTED" className="text-gray-300">Rejected Only</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -583,37 +583,37 @@ export function QCCompletedPage() {
       </Card>
 
       {/* Completed Tasks List */}
-      <Card>
+      <Card className="bg-[#1e2330] border-[#2a3142]">
         <CardHeader>
-          <CardTitle>Review History ({filteredCompletedTasks.length})</CardTitle>
-          <CardDescription>Recent review outcomes and feedback</CardDescription>
+          <CardTitle className="text-gray-100">Review History ({filteredCompletedTasks.length})</CardTitle>
+          <CardDescription className="text-gray-400">Recent review outcomes and feedback</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-12 text-muted-foreground">
+            <div className="text-center py-12 text-gray-400">
               <Loader className="h-8 w-8 mx-auto mb-4 animate-spin" />
               <p>Loading completed reviews...</p>
             </div>
           ) : filteredCompletedTasks.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
+            <div className="text-center py-12 text-gray-400">
               <FileCheck className="h-16 w-16 mx-auto mb-4 opacity-40" />
-              <h3 className="mb-2">No Completed Reviews</h3>
+              <h3 className="mb-2 text-gray-200">No Completed Reviews</h3>
               <p>Completed reviews will appear here</p>
             </div>
           ) : (
             <div className="space-y-4">
               {filteredCompletedTasks.map((task) => (
-                <div key={task.id} className="border rounded-lg p-4 hover:bg-accent/50 transition-colors">
+                <div key={task.id} className="border border-[#2a3142] rounded-lg p-4 hover:bg-[#252b3d] transition-colors bg-[#141824]">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         {getStatusIcon(task.status)}
-                        <h4 className="font-medium">{task.title}</h4>
+                        <h4 className="font-medium text-gray-200">{task.title}</h4>
                         <Badge variant={getStatusBadgeVariant(task.status)}>
                           {getStatusLabel(task.status)}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-4 text-sm text-gray-400 flex-wrap">
                         <div className="flex items-center gap-1">
                           <Badge variant="outline" className="text-xs">{task.id}</Badge>
                         </div>
@@ -641,11 +641,11 @@ export function QCCompletedPage() {
                     )}
                   </div>
                   {(task.feedback || task.qcNotes) && (
-                    <div className="mt-3 p-3 bg-accent/50 rounded">
-                      <p className="text-sm font-medium mb-1">
+                    <div className="mt-3 p-3 bg-[#252b3d] border border-[#2a3142] rounded">
+                      <p className="text-sm font-medium mb-1 text-gray-200">
                         {task.status === 'COMPLETED' ? 'Feedback Provided:' : 'Rejection Reason:'}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-gray-400">
                         {task.feedback || task.qcNotes}
                       </p>
                     </div>

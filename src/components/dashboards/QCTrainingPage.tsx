@@ -296,6 +296,7 @@ interface QCTrainingPageProps {
 }
 
 export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
+  const isQC = currentRole?.toLowerCase() === 'qc';
   // Admin has direct access, no password needed
   const [isUnlocked, setIsUnlocked] = useState(currentRole === "admin");
   const [passwordInput, setPasswordInput] = useState("");
@@ -423,28 +424,28 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
   // Password Gate
   if (!isUnlocked) {
     return (
-      <div className="space-y-6">
+      <div className={`space-y-6 p-6 rounded-lg ${isQC ? 'bg-[#0a0e1a]' : 'bg-transparent'}`}>
         <div>
-          <h1>Training & Certification</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className={isQC ? 'text-gray-100' : ''}>Training & Certification</h1>
+          <p className={`${isQC ? 'text-gray-400' : 'text-muted-foreground'} mt-2`}>
             Complete the comprehensive QC training course to become certified
           </p>
         </div>
 
-        <Card className="max-w-md mx-auto mt-12">
+        <Card className={`max-w-md mx-auto mt-12 ${isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}`}>
           <CardHeader className="text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock className="h-8 w-8 text-blue-600" />
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isQC ? 'bg-blue-900/30' : 'bg-blue-100'}`}>
+              <Lock className={`h-8 w-8 ${isQC ? 'text-blue-400' : 'text-blue-600'}`} />
             </div>
-            <CardTitle>Training Access Required</CardTitle>
-            <CardDescription>
+            <CardTitle className={isQC ? 'text-gray-100' : ''}>Training Access Required</CardTitle>
+            <CardDescription className={isQC ? 'text-gray-400' : ''}>
               Enter the training password provided by your manager to begin the
               QC certification course
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="password">Training Password</Label>
+              <Label htmlFor="password" className={isQC ? 'text-gray-300' : ''}>Training Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -452,13 +453,14 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handlePasswordSubmit()}
+                className={isQC ? "bg-[#141824] border-[#2a3142] text-gray-300 placeholder-gray-500" : ""}
               />
             </div>
             <Button onClick={handlePasswordSubmit} className="w-full">
               <Lock className="h-4 w-4 mr-2" />
               Unlock Training
             </Button>
-            <p className="text-xs text-muted-foreground text-center">
+            <p className={`text-xs text-center ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>
               Contact your manager if you don't have the password
             </p>
           </CardContent>
@@ -474,7 +476,7 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
 
     if (showModuleQuiz && currentModule.quiz) {
       return (
-        <div className="space-y-6">
+        <div className={`space-y-6 p-6 rounded-lg ${isQC ? 'bg-[#0a0e1a]' : 'bg-transparent'}`}>
           <div>
             <Button
               variant="ghost"
@@ -483,26 +485,27 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                 setQuizSubmitted(false);
                 setQuizAnswers({});
               }}
+              className={isQC ? "text-gray-300 hover:text-gray-100" : ""}
             >
               ← Back to Module
             </Button>
-            <h1 className="mt-4">Module {currentModule.id} Quiz</h1>
-            <p className="text-muted-foreground mt-2">
+            <h1 className={`mt-4 ${isQC ? 'text-gray-100' : ''}`}>Module {currentModule.id} Quiz</h1>
+            <p className={`${isQC ? 'text-gray-400' : 'text-muted-foreground'} mt-2`}>
               Answer all questions correctly to complete this module (70%
               required to pass)
             </p>
           </div>
 
-          <Card>
+          <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
             <CardContent className="p-6 space-y-6">
               {currentModule.quiz.map((question, idx) => (
                 <div key={question.id} className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isQC ? 'bg-blue-900/30 text-blue-400' : 'bg-primary text-primary-foreground'}`}>
                       {idx + 1}
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-medium mb-3">{question.question}</h4>
+                      <h4 className={`font-medium mb-3 ${isQC ? 'text-gray-100' : ''}`}>{question.question}</h4>
                       <RadioGroup
                         value={quizAnswers[question.id]?.toString()}
                         onValueChange={(value) =>
@@ -549,15 +552,15 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                         ))}
                       </RadioGroup>
                       {quizSubmitted && (
-                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                          <p className="text-sm text-blue-900">
+                        <div className={`mt-3 p-3 rounded border ${isQC ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
+                          <p className={`text-sm ${isQC ? 'text-blue-300' : 'text-blue-900'}`}>
                             <strong>Explanation:</strong> {question.explanation}
                           </p>
                         </div>
                       )}
                     </div>
                   </div>
-                  {idx < currentModule.quiz.length - 1 && <Separator />}
+                  {idx < currentModule.quiz.length - 1 && <Separator className={isQC ? 'bg-[#2a3142]' : ''} />}
                 </div>
               ))}
 
@@ -624,23 +627,23 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
     }
 
     return (
-      <div className="space-y-6">
+      <div className={`space-y-6 p-6 rounded-lg ${isQC ? 'bg-[#0a0e1a]' : 'bg-transparent'}`}>
         <div>
-          <Button variant="ghost" onClick={() => setCurrentModuleId(null)}>
+          <Button variant="ghost" onClick={() => setCurrentModuleId(null)} className={isQC ? "text-gray-300 hover:text-gray-100" : ""}>
             ← Back to Course Overview
           </Button>
-          <h1 className="mt-4">
+          <h1 className={`mt-4 ${isQC ? 'text-gray-100' : ''}`}>
             Module {currentModule.id}: {currentModule.title}
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className={`${isQC ? 'text-gray-400' : 'text-muted-foreground'} mt-2`}>
             {currentModule.description}
           </p>
         </div>
 
-        <Card>
+        <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
           <CardContent className="p-6 space-y-6">
-            <div className="aspect-video bg-gradient-to-br from-blue-100 to-purple-200 rounded-lg flex items-center justify-center">
-              <PlayCircle className="h-16 w-16 text-blue-600" />
+            <div className={`aspect-video rounded-lg flex items-center justify-center ${isQC ? 'bg-gradient-to-br from-[#1a1f2e] to-[#2a3142]' : 'bg-gradient-to-br from-blue-100 to-purple-200'}`}>
+              <PlayCircle className={`h-16 w-16 ${isQC ? 'text-blue-400' : 'text-blue-600'}`} />
             </div>
 
             <div>
@@ -723,11 +726,11 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
               {finalQuiz.map((question, idx) => (
                 <div key={question.id} className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isQC ? 'bg-blue-900/30 text-blue-400' : 'bg-primary text-primary-foreground'}`}>
                       {idx + 1}
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-medium mb-3">{question.question}</h4>
+                      <h4 className={`font-medium mb-3 ${isQC ? 'text-gray-100' : ''}`}>{question.question}</h4>
                       <RadioGroup
                         value={finalQuizAnswers[question.id]?.toString()}
                         onValueChange={(value) =>
@@ -774,15 +777,15 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                         ))}
                       </RadioGroup>
                       {finalQuizSubmitted && (
-                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                          <p className="text-sm text-blue-900">
+                        <div className={`mt-3 p-3 rounded border ${isQC ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'}`}>
+                          <p className={`text-sm ${isQC ? 'text-blue-300' : 'text-blue-900'}`}>
                             <strong>Explanation:</strong> {question.explanation}
                           </p>
                         </div>
                       )}
                     </div>
                   </div>
-                  {idx < finalQuiz.length - 1 && <Separator />}
+                  {idx < finalQuiz.length - 1 && <Separator className={isQC ? 'bg-[#2a3142]' : ''} />}
                 </div>
               ))}
 
@@ -829,23 +832,23 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
 
   // Course Overview
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 p-6 rounded-lg ${isQC ? 'bg-[#0a0e1a]' : 'bg-transparent'}`}>
       {/* Page Header */}
       <div>
-        <h1>Training & Certification</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className={isQC ? 'text-gray-100' : ''}>Training & Certification</h1>
+        <p className={`${isQC ? 'text-gray-400' : 'text-muted-foreground'} mt-2`}>
           Complete all modules and pass the final exam to become a Certified QC
           Reviewer
         </p>
       </div>
 
       {/* Progress Overview */}
-      <Card>
+      <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-medium">Course Progress</h3>
-              <p className="text-sm text-muted-foreground">
+              <h3 className={`font-medium ${isQC ? 'text-gray-100' : ''}`}>Course Progress</h3>
+              <p className={`text-sm ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>
                 {completedCount} of {modules.length} modules completed
               </p>
             </div>
@@ -856,18 +859,18 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
               </Badge>
             )}
           </div>
-          <Progress value={progressPercentage} className="h-3 mb-2" />
-          <p className="text-xs text-muted-foreground">
+          <Progress value={progressPercentage} className={`h-3 mb-2 ${isQC ? 'bg-[#0a0e1a]' : ''}`} />
+          <p className={`text-xs ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>
             {Math.round(progressPercentage)}% Complete
           </p>
         </CardContent>
       </Card>
 
       {/* Training Modules */}
-      <Card>
+      <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
         <CardHeader>
-          <CardTitle>Training Modules</CardTitle>
-          <CardDescription>
+          <CardTitle className={isQC ? 'text-gray-100' : ''}>Training Modules</CardTitle>
+          <CardDescription className={isQC ? 'text-gray-400' : ''}>
             Complete each module in order to unlock the next one
           </CardDescription>
         </CardHeader>
@@ -875,12 +878,12 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
           {modules.map((module) => (
             <div
               key={module.id}
-              className={`p-4 border rounded-lg ${
+              className={`p-4 border rounded-lg transition-colors ${
                 module.completed
-                  ? "bg-green-50 border-green-200"
+                  ? isQC ? "bg-green-900/20 border-green-800/50" : "bg-green-50 border-green-200"
                   : module.unlocked
-                  ? "bg-white hover:bg-accent/50 cursor-pointer"
-                  : "bg-gray-50 border-gray-200 opacity-60"
+                  ? isQC ? "bg-[#1a1f2e] border-[#2a3142] hover:bg-[#252b3d] cursor-pointer" : "bg-white hover:bg-accent/50 cursor-pointer"
+                  : isQC ? "bg-[#0a0e1a]/50 border-[#1e2330] opacity-40" : "bg-gray-50 border-gray-200 opacity-60"
               }`}
               onClick={() =>
                 module.unlocked &&
@@ -894,8 +897,8 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                     module.completed
                       ? "bg-green-600 text-white"
                       : module.unlocked
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-300 text-gray-500"
+                      ? isQC ? "bg-blue-600/80" : "bg-blue-600 text-white"
+                      : isQC ? "bg-gray-800 text-gray-600" : "bg-gray-300 text-gray-500"
                   }`}
                 >
                   {module.completed ? (
@@ -909,28 +912,28 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
 
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-medium">
+                    <h4 className={`font-medium ${isQC ? 'text-gray-200' : ''}`}>
                       Module {module.id}: {module.title}
                     </h4>
                     {module.completed && (
                       <Badge
                         variant="secondary"
-                        className="bg-green-100 text-green-700"
+                        className={isQC ? "bg-green-900/40 text-green-300 border-green-800/50" : "bg-green-100 text-green-700"}
                       >
                         Completed
                       </Badge>
                     )}
                     {!module.unlocked && (
-                      <Badge variant="secondary">
+                      <Badge variant="secondary" className={isQC ? "bg-gray-800 text-gray-400" : ""}>
                         <Lock className="h-3 w-3 mr-1" />
                         Locked
                       </Badge>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">
+                  <p className={`text-sm mb-2 ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
                     {module.description}
                   </p>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className={`flex items-center gap-4 text-xs ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>
                     <span>⏱️ {module.duration}</span>
                     {module.quiz && (
                       <span>📝 {module.quiz.length} quiz questions</span>
@@ -939,7 +942,7 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                 </div>
 
                 {module.unlocked && !module.completed && (
-                  <Button onClick={() => handleStartModule(module.id)}>
+                  <Button onClick={() => handleStartModule(module.id)} className={isQC ? "bg-blue-600 hover:bg-blue-700" : ""}>
                     Start Module
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
@@ -955,27 +958,27 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
         <Card
           className={
             certified
-              ? "bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-300"
-              : "border-2 border-primary"
+              ? isQC ? "bg-gradient-to-br from-yellow-900/20 to-yellow-800/10 border-yellow-700/50" : "bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-300"
+              : isQC ? "bg-[#1e2330] border-2 border-blue-600/50" : "border-2 border-primary"
           }
         >
           <CardHeader>
             <div className="flex items-center gap-3">
               {certified ? (
-                <Trophy className="h-8 w-8 text-yellow-600" />
+                <Trophy className={`h-8 w-8 ${isQC ? 'text-yellow-500' : 'text-yellow-600'}`} />
               ) : (
-                <Target className="h-8 w-8 text-primary" />
+                <Target className={`h-8 w-8 ${isQC ? 'text-blue-400' : 'text-primary'}`} />
               )}
               <div>
-                <CardTitle>
+                <CardTitle className={isQC ? 'text-gray-100' : ''}>
                   {certified
                     ? "Certification Complete!"
                     : "Final Certification Exam"}
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className={isQC ? 'text-gray-400' : ''}>
                   {certified
                     ? "You have successfully completed the Training & Certification"
-                    : "Complete the final exam to earn your QC Reviewer Certification (80% required to pass)"}
+                    : `Complete the final exam to earn your ${isQC ? 'QC Reviewer' : 'Portal'} Certification (80% required to pass)`}
                 </CardDescription>
               </div>
             </div>
@@ -983,12 +986,12 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
           <CardContent>
             {certified ? (
               <div className="text-center py-6">
-                <Award className="h-16 w-16 text-yellow-600 mx-auto mb-4" />
-                <h3 className="font-medium text-yellow-900 mb-2">
-                  Certified QC Reviewer
+                <Award className={`h-16 w-16 mx-auto mb-4 ${isQC ? 'text-yellow-500' : 'text-yellow-600'}`} />
+                <h3 className={`font-medium mb-2 ${isQC ? 'text-yellow-500' : 'text-yellow-900'}`}>
+                  Certified {isQC ? 'QC Reviewer' : 'Professional'}
                 </h3>
-                <p className="text-sm text-yellow-800 mb-4">
-                  E8 Productions Quality Control Team
+                <p className={`text-sm mb-4 ${isQC ? 'text-yellow-600/80' : 'text-yellow-800'}`}>
+                  E8 Productions {isQC ? 'Quality Control' : 'Portal'} Team
                 </p>
                 <Badge className="bg-yellow-600 text-white px-4 py-2">
                   Certification Earned: {new Date().toLocaleDateString()}
@@ -996,15 +999,15 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
               </div>
             ) : (
               <div className="flex items-center justify-between">
-                <div>
+                <div className={isQC ? 'text-gray-300' : ''}>
                   <p className="text-sm mb-1">
                     📋 {finalQuiz.length} Questions
                   </p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className={`text-sm ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>
                     Passing Score: 80%
                   </p>
                 </div>
-                <Button onClick={handleStartFinalQuiz} size="lg">
+                <Button onClick={handleStartFinalQuiz} size="lg" className={isQC ? "bg-blue-600 hover:bg-blue-700" : ""}>
                   <Target className="h-4 w-4 mr-2" />
                   Take Final Exam
                 </Button>
@@ -1015,13 +1018,13 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
       )}
 
       {/* Info Card */}
-      <Card>
+      <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+            <AlertCircle className={`h-5 w-5 mt-0.5 ${isQC ? 'text-blue-400' : 'text-blue-600'}`} />
             <div className="text-sm">
-              <p className="font-medium mb-1">Training Requirements</p>
-              <ul className="text-muted-foreground space-y-1">
+              <p className={`font-medium mb-1 ${isQC ? 'text-gray-100' : ''}`}>Training Requirements</p>
+              <ul className={`${isQC ? 'text-gray-400' : 'text-muted-foreground'} space-y-1`}>
                 <li>
                   • Complete all {modules.length} training modules in sequence
                 </li>

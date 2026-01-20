@@ -97,20 +97,30 @@ const statuses = [
   { value: "resolved", label: "Resolved" },
 ];
 
-const getCategoryColor = (category: string) => {
+const getCategoryColor = (category: string, isQC: boolean) => {
+  if (!isQC) {
+    switch (category) {
+      case "general": return "bg-blue-100 text-blue-700";
+      case "technical": return "bg-red-100 text-red-700";
+      case "workflow": return "bg-green-100 text-green-700";
+      case "suggestion": return "bg-purple-100 text-purple-700";
+      case "bug-report": return "bg-orange-100 text-orange-700";
+      default: return "bg-gray-100 text-gray-700";
+    }
+  }
   switch (category) {
     case "general":
-      return "bg-blue-100 text-blue-800";
+      return "bg-blue-900/30 text-blue-300 border border-blue-700/50";
     case "technical":
-      return "bg-red-100 text-red-800";
+      return "bg-red-900/30 text-red-300 border border-red-700/50";
     case "workflow":
-      return "bg-green-100 text-green-800";
+      return "bg-green-900/30 text-green-300 border border-green-700/50";
     case "suggestion":
-      return "bg-purple-100 text-purple-800";
+      return "bg-purple-900/30 text-purple-300 border border-purple-700/50";
     case "bug-report":
-      return "bg-orange-100 text-orange-800";
+      return "bg-orange-900/30 text-orange-300 border border-orange-700/50";
     default:
-      return "bg-gray-100 text-gray-800";
+      return "bg-gray-800/30 text-gray-300 border border-gray-700/50";
   }
 };
 
@@ -168,6 +178,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
     useState<FeedbackMessage | null>(null);
   const [showFeedbackDetail, setShowFeedbackDetail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const isQC = currentRole?.toLowerCase() === 'qc';
 
   // New feedback form state
   const [newFeedback, setNewFeedback] = useState({
@@ -449,20 +460,20 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className={`flex items-center justify-center h-64 ${isQC ? 'bg-[#0a0e1a]' : ''}`}>
+        <Loader2 className={`h-8 w-8 animate-spin ${isQC ? 'text-blue-500' : 'text-muted-foreground'}`} />
       </div>
     );
   }
 
   return (
     <>
-      <div className="space-y-4 sm:space-y-6">
+      <div className={`space-y-4 sm:space-y-6 p-6 rounded-lg ${isQC ? 'bg-[#0a0e1a]' : ''}`}>
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl">Feedback</h1>
-            <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
+            <h1 className={`text-xl sm:text-2xl ${isQC ? 'text-gray-100' : ''}`}>Feedback</h1>
+            <p className={`mt-1 sm:mt-2 text-sm sm:text-base ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
               {currentRole === "admin" || currentRole === "manager"
                 ? "View and respond to feedback from team members"
                 : "Send feedback to admin and managers, or view responses"}
@@ -478,7 +489,9 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                 New Feedback
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className={`max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto ${
+              isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-100' : ''
+            }`}>
               <DialogHeader>
                 <DialogTitle>Submit Feedback</DialogTitle>
                 <DialogDescription>
@@ -501,6 +514,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                       }))
                     }
                     disabled={submitting}
+                    className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200 placeholder-gray-500 focus:ring-blue-500/50' : ''}
                   />
                 </div>
 
@@ -516,12 +530,12 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                       }
                       disabled={submitting}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200' : ''}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className={isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-200' : ''}>
                         {categories.map((cat) => (
-                          <SelectItem key={cat.value} value={cat.value}>
+                          <SelectItem key={cat.value} value={cat.value} className={isQC ? 'focus:bg-[#252b3d] focus:text-gray-100' : ''}>
                             {cat.label}
                           </SelectItem>
                         ))}
@@ -540,14 +554,15 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                       }
                       disabled={submitting}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200' : ''}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className={isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-200' : ''}>
                         {priorities.map((priority) => (
                           <SelectItem
                             key={priority.value}
                             value={priority.value}
+                            className={isQC ? 'focus:bg-[#252b3d] focus:text-gray-100' : ''}
                           >
                             {priority.label}
                           </SelectItem>
@@ -570,7 +585,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                         message: e.target.value,
                       }))
                     }
-                    className="min-h-[120px]"
+                    className={`min-h-[120px] ${isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200 placeholder-gray-500 focus:ring-blue-500/50' : ''}`}
                     disabled={submitting}
                   />
                 </div>
@@ -605,12 +620,12 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
         {/* Search and Filters */}
         <div className="flex flex-col gap-3 sm:gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`} />
             <Input
               placeholder="Search feedback..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 text-sm sm:text-base"
+              className={`pl-10 text-sm sm:text-base ${isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200 placeholder-gray-500 focus:ring-blue-500/50' : ''}`}
             />
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -620,7 +635,11 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                 variant={statusFilter === status.value ? "default" : "outline"}
                 size="sm"
                 onClick={() => setStatusFilter(status.value)}
-                className="text-xs sm:text-sm"
+                className={`text-xs sm:text-sm ${
+                  statusFilter === status.value
+                    ? isQC ? "bg-blue-600 text-white" : "bg-primary text-primary-foreground"
+                    : isQC ? "bg-[#1a1f2e] border-[#2a3142] text-gray-400 hover:bg-[#252b3d] hover:text-gray-100" : ""
+                }`}
               >
                 {status.label}
               </Button>
@@ -630,45 +649,45 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-          <Card>
+          <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
             <CardContent className="p-4 sm:p-6 text-center">
-              <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2 text-blue-600" />
-              <h3 className="text-xl sm:text-2xl font-medium">
+              <MessageSquare className={`h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2 ${isQC ? 'text-blue-400' : 'text-blue-500'}`} />
+              <h3 className={`text-xl sm:text-2xl font-medium ${isQC ? 'text-gray-100' : ''}`}>
                 {filteredFeedback.length}
               </h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
+              <p className={`text-xs sm:text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
                 Total Feedback
               </p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
             <CardContent className="p-6 text-center">
-              <Clock className="h-8 w-8 mx-auto mb-2 text-yellow-600" />
-              <h3 className="text-2xl font-medium">
+              <Clock className={`h-8 w-8 mx-auto mb-2 ${isQC ? 'text-yellow-400' : 'text-yellow-500'}`} />
+              <h3 className={`text-2xl font-medium ${isQC ? 'text-gray-100' : ''}`}>
                 {filteredFeedback.filter((f) => f.status === "pending").length}
               </h3>
-              <p className="text-sm text-muted-foreground">Pending</p>
+              <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Pending</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
             <CardContent className="p-6 text-center">
-              <AlertCircle className="h-8 w-8 mx-auto mb-2 text-purple-600" />
-              <h3 className="text-2xl font-medium">
+              <AlertCircle className={`h-8 w-8 mx-auto mb-2 ${isQC ? 'text-purple-400' : 'text-purple-500'}`} />
+              <h3 className={`text-2xl font-medium ${isQC ? 'text-gray-100' : ''}`}>
                 {
                   filteredFeedback.filter((f) => f.status === "in-progress")
                     .length
                 }
               </h3>
-              <p className="text-sm text-muted-foreground">In Progress</p>
+              <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>In Progress</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={isQC ? 'bg-[#1e2330] border-[#2a3142]' : ''}>
             <CardContent className="p-6 text-center">
-              <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-600" />
-              <h3 className="text-2xl font-medium">
+              <CheckCircle className={`h-8 w-8 mx-auto mb-2 ${isQC ? 'text-green-400' : 'text-green-500'}`} />
+              <h3 className={`text-2xl font-medium ${isQC ? 'text-gray-100' : ''}`}>
                 {filteredFeedback.filter((f) => f.status === "resolved").length}
               </h3>
-              <p className="text-sm text-muted-foreground">Resolved</p>
+              <p className={`text-sm ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>Resolved</p>
             </CardContent>
           </Card>
         </div>
@@ -678,7 +697,9 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
           {filteredFeedback.map((item) => (
             <Card
               key={item.id}
-              className="hover:shadow-md transition-shadow cursor-pointer"
+              className={`hover:shadow-md transition-shadow cursor-pointer ${
+                isQC ? 'bg-[#1e2330] border-[#2a3142] hover:border-blue-500/50' : ''
+              }`}
               onClick={() => {
                 setSelectedFeedback(item);
                 setShowFeedbackDetail(true);
@@ -688,7 +709,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-0 mb-3 sm:mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
-                      <h3 className="font-medium text-sm sm:text-base">
+                      <h3 className={`font-medium text-sm sm:text-base ${isQC ? 'text-gray-100' : ''}`}>
                         {item.subject}
                       </h3>
                       <div
@@ -696,7 +717,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                           item.status
                         )}`}
                       />
-                      <Badge className={getCategoryColor(item.category)}>
+                      <Badge className={getCategoryColor(item.category, isQC)}>
                         {
                           categories.find((c) => c.value === item.category)
                             ?.label
@@ -706,18 +727,18 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                         {item.priority}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                    <p className={`text-sm line-clamp-2 mb-3 ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
                       {item.message}
                     </p>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                    <div className={`flex items-center gap-4 text-xs flex-wrap ${isQC ? 'text-gray-500' : 'text-muted-foreground'}`}>
                       <div className="flex items-center gap-1">
                         <Avatar className="h-4 w-4">
-                          <AvatarFallback className="text-[8px]">
+                          <AvatarFallback className={`text-[8px] ${isQC ? 'bg-[#252b3d] text-gray-300' : ''}`}>
                             {item.sender.avatar}
                           </AvatarFallback>
                         </Avatar>
-                        <span>{item.sender.name}</span>
-                        <span>({item.sender.role})</span>
+                        <span className={isQC ? 'text-gray-400' : 'text-foreground'}>{item.sender.name}</span>
+                        <span className={isQC ? 'text-gray-500' : 'text-muted-foreground'}>({item.sender.role})</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
@@ -734,9 +755,9 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className={`flex items-center gap-2 ${isQC ? 'text-gray-400' : 'text-muted-foreground'}`}>
                     {getStatusIcon(item.status)}
-                    <span className="text-xs text-muted-foreground capitalize">
+                    <span className="text-xs capitalize">
                       {item.status.replace("-", " ")}
                     </span>
                   </div>
@@ -760,7 +781,9 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
 
         {/* Feedback Detail Dialog */}
         <Dialog open={showFeedbackDetail} onOpenChange={setShowFeedbackDetail}>
-          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto p-4 sm:p-6">
+          <DialogContent className={`max-w-[95vw] sm:max-w-4xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto p-4 sm:p-6 transition-colors ${
+            isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-100' : ''
+          }`}>
             <DialogHeader>
               <DialogTitle>{selectedFeedback?.subject}</DialogTitle>
               <DialogDescription>
@@ -782,14 +805,14 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                       handleUpdateStatus(selectedFeedback.id, value)
                     }
                   >
-                    <SelectTrigger className="w-full sm:w-40">
+                    <SelectTrigger className={`w-full sm:w-40 transition-colors ${isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200' : ''}`}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="acknowledged">Acknowledged</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectContent className={isQC ? 'bg-[#1e2330] border-[#2a3142] text-gray-200' : ''}>
+                      <SelectItem value="pending" className={isQC ? 'focus:bg-[#252b3d] focus:text-gray-100' : ''}>Pending</SelectItem>
+                      <SelectItem value="acknowledged" className={isQC ? 'focus:bg-[#252b3d] focus:text-gray-100' : ''}>Acknowledged</SelectItem>
+                      <SelectItem value="in-progress" className={isQC ? 'focus:bg-[#252b3d] focus:text-gray-100' : ''}>In Progress</SelectItem>
+                      <SelectItem value="resolved" className={isQC ? 'focus:bg-[#252b3d] focus:text-gray-100' : ''}>Resolved</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -817,7 +840,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                     </div>
                     <div className="flex gap-2 ml-auto flex-wrap">
                       <Badge
-                        className={getCategoryColor(selectedFeedback.category)}
+                        className={getCategoryColor(selectedFeedback.category, isQC)}
                       >
                         {
                           categories.find(
@@ -866,7 +889,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                                   </div>
                                 </div>
                               </div>
-                              <div className="bg-blue-50 p-3 rounded-lg ml-9">
+                              <div className={`p-3 rounded-lg ml-9 ${isQC ? 'bg-[#141824] text-gray-300' : 'bg-blue-50'}`}>
                                 <p className="text-sm whitespace-pre-wrap">
                                   {response.message}
                                 </p>
@@ -886,7 +909,9 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
                       placeholder="Type your response..."
                       value={responseMessage}
                       onChange={(e) => setResponseMessage(e.target.value)}
-                      className="min-h-[80px]"
+                      className={`min-h-[80px] transition-colors ${
+                        isQC ? 'bg-[#141824] border-[#2a3142] text-gray-200 placeholder-gray-500' : ''
+                      }`}
                       disabled={submitting}
                     />
                     <div className="flex justify-end">
