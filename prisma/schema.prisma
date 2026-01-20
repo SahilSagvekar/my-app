@@ -426,7 +426,7 @@ model FeedbackResponse {
 
 model SocialLogin {
   id                String          @id @default(cuid())
-  clientId          String
+  clientId          String?
   platform          String
   username          String
   encryptedPassword String
@@ -438,7 +438,7 @@ model SocialLogin {
   updatedAt         DateTime        @updatedAt
   updatedById       Int
   auditLogs         LoginAuditLog[]
-  client            Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client            Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedByUser     User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
 
   @@unique([clientId, platform])

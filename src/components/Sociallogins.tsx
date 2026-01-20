@@ -503,8 +503,19 @@ function LoginFormDialog({
     setShowPassword(false);
   }, [login, open, isClient, userClientId, clients]);
 
+  // Clear clientId when adminOnly is toggled on
+  const handleAdminOnlyChange = (checked: boolean) => {
+    setFormData({
+      ...formData,
+      adminOnly: checked,
+      // Clear clientId when admin only is checked
+      clientId: checked ? "" : formData.clientId,
+    });
+  };
+
   const handleSubmit = () => {
-    if (!formData.clientId) {
+    // Only require clientId if NOT admin only
+    if (!formData.adminOnly && !formData.clientId) {
       toast.error("Please select a client");
       return;
     }
@@ -536,9 +547,38 @@ function LoginFormDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Admin Only Toggle - Moved to top for better UX */}
+          {!isClient && (
+            <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <input
+                type="checkbox"
+                id="adminOnly"
+                checked={formData.adminOnly}
+                onChange={(e) => handleAdminOnlyChange(e.target.checked)}
+                className="h-4 w-4 rounded border-amber-300"
+              />
+              <div>
+                <label
+                  htmlFor="adminOnly"
+                  className="text-sm font-medium text-amber-800 dark:text-amber-200 cursor-pointer"
+                >
+                  Admin Only
+                </label>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Only admins can view this login. Clients and other employees won't see it.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Client *</Label>
+              <Label className={formData.adminOnly ? "text-gray-400" : ""}>
+                Client {!formData.adminOnly && "*"}
+                {formData.adminOnly && (
+                  <span className="text-xs text-gray-400 ml-1">(Optional)</span>
+                )}
+              </Label>
               {isClient && clients.length > 0 ? (
                 // Client users see their company name as fixed text
                 <div className="flex items-center h-10 px-3 bg-gray-100 rounded-md border text-sm font-medium">
@@ -551,9 +591,18 @@ function LoginFormDialog({
                   onValueChange={(value) =>
                     setFormData({ ...formData, clientId: value })
                   }
+                  disabled={formData.adminOnly}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select client" />
+                  <SelectTrigger
+                    className={formData.adminOnly ? "opacity-50 cursor-not-allowed bg-gray-100" : ""}
+                  >
+                    <SelectValue
+                      placeholder={
+                        formData.adminOnly
+                          ? "Not required for admin-only"
+                          : "Select client"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {clients.map((client) => (
@@ -563,6 +612,11 @@ function LoginFormDialog({
                     ))}
                   </SelectContent>
                 </Select>
+              )}
+              {formData.adminOnly && (
+                <p className="text-xs text-gray-500">
+                  Admin-only logins don't require a client association
+                </p>
               )}
             </div>
 
@@ -665,34 +719,6 @@ function LoginFormDialog({
               placeholder="2FA enabled, backup codes in drive, etc."
             />
           </div>
-
-          {/* Admin Only Toggle */}
-          <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-            <input
-              type="checkbox"
-              id="adminOnly"
-              checked={formData.adminOnly}
-              onChange={(e) =>
-                setFormData({ ...formData, adminOnly: e.target.checked })
-              }
-              className="h-4 w-4 rounded border-amber-300"
-            />
-            <div>
-              <label htmlFor="adminOnly" className="text-sm font-medium text-amber-800 dark:text-amber-200 cursor-pointer">
-                Admin Only
-              </label>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Only admins can view this login. Clients and other employees won't see it.
-              </p>
-            </div>
-          </div>
-
-          {/* <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              This information will be encrypted and stored securely. Only authorized personnel can access it.
-            </AlertDescription>
-          </Alert> */}
         </div>
 
         <DialogFooter>
