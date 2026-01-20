@@ -632,7 +632,7 @@ function LoginFormDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Recovery Email</Label>
+              <Label>Email</Label>
               <Input
                 type="email"
                 value={formData.email}
@@ -644,7 +644,7 @@ function LoginFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Recovery Phone</Label>
+              <Label>Phone</Label>
               <Input
                 value={formData.phone}
                 onChange={(e) =>
@@ -687,12 +687,12 @@ function LoginFormDialog({
             </div>
           </div>
 
-          <Alert variant="destructive">
+          {/* <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
               This information will be encrypted and stored securely. Only authorized personnel can access it.
             </AlertDescription>
-          </Alert>
+          </Alert> */}
         </div>
 
         <DialogFooter>
