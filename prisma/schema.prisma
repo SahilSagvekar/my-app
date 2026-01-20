@@ -42,6 +42,7 @@ model User {
   clientTasks       Task[]             @relation("ClientUserTasks")
   updatedSocialLogins SocialLogin[] @relation("LoginUpdatedBy")
   securityPin UserSecurityPin?
+  twoFactorAuth UserTwoFactorAuth?
   loginAuditLogs LoginAuditLog[]
 
   qcAnalytics       QCAnalytics[]
@@ -455,6 +456,20 @@ model UserSecurityPin {
   updatedAt      DateTime  @updatedAt
   lastVerifiedAt DateTime?
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserTwoFactorAuth {
+  id               String    @id @default(cuid())
+  userId           Int       @unique
+  totpSecret       String    // Encrypted TOTP secret
+  isEnabled        Boolean   @default(false)
+  backupCodes      String[]  @default([]) // Hashed backup codes
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  lastVerifiedAt   DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model LoginAuditLog {

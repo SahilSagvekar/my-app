@@ -51,6 +51,7 @@ import {
   User,
   AlertTriangle,
   RefreshCw,
+  Smartphone,
 } from "lucide-react";
 import {
   FaInstagram,
@@ -165,28 +166,29 @@ const getPlatformBgColor = (platform: SocialPlatform): string => {
 };
 
 /* -------------------------------------------------------------------------- */
-/* PIN VERIFICATION DIALOG                                                    */
+/* TOTP VERIFICATION DIALOG                                                   */
 /* -------------------------------------------------------------------------- */
 
-function PinVerificationDialog({
+function TotpVerificationDialog({
   open,
   onVerify,
   onCancel,
 }: {
   open: boolean;
-  onVerify: (pin: string) => void;
+  onVerify: (code: string) => void;
   onCancel: () => void;
 }) {
-  const [pin, setPin] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = () => {
-    if (pin.length !== PIN_LENGTH) {
-      setError(`PIN must be ${PIN_LENGTH} digits`);
+    const cleanCode = code.replace(/\s/g, "");
+    if (cleanCode.length !== 6) {
+      setError("Enter the 6-digit code from your authenticator app");
       return;
     }
-    onVerify(pin);
-    setPin("");
+    onVerify(cleanCode);
+    setCode("");
     setError("");
   };
 
@@ -201,30 +203,30 @@ function PinVerificationDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" />
-            Security Verification Required
+            <Smartphone className="h-5 w-5 text-blue-600" />
+            Two-Factor Authentication
           </DialogTitle>
           <DialogDescription>
-            Enter your {PIN_LENGTH}-digit security PIN to access sensitive login information.
+            Enter the 6-digit code from your authenticator app (Google Authenticator, Authy, etc.)
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="pin">Security PIN</Label>
+            <Label htmlFor="totp-code">Verification Code</Label>
             <Input
-              id="pin"
-              type="password"
+              id="totp-code"
+              type="text"
               inputMode="numeric"
-              maxLength={PIN_LENGTH}
-              value={pin}
+              maxLength={6}
+              value={code}
               onChange={(e) => {
                 const value = e.target.value.replace(/\D/g, "");
-                setPin(value);
+                setCode(value);
                 setError("");
               }}
               onKeyDown={handleKeyDown}
-              placeholder="••••••"
+              placeholder="000000"
               className="text-center text-2xl tracking-[0.5em] font-mono"
               autoFocus
             />
@@ -243,7 +245,7 @@ function PinVerificationDialog({
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={pin.length !== PIN_LENGTH}>
+          <Button onClick={handleSubmit} disabled={code.length !== 6}>
             <Unlock className="h-4 w-4 mr-2" />
             Verify & Access
           </Button>
@@ -254,105 +256,227 @@ function PinVerificationDialog({
 }
 
 /* -------------------------------------------------------------------------- */
-/* SET PIN DIALOG (First time setup)                                          */
+/* 2FA SETUP DIALOG (First time setup with QR code)                           */
 /* -------------------------------------------------------------------------- */
 
-function SetPinDialog({
+function TotpSetupDialog({
   open,
-  onSetPin,
+  onSetup,
   onCancel,
 }: {
   open: boolean;
-  onSetPin: (pin: string) => void;
+  onSetup: (code: string) => void;
   onCancel: () => void;
 }) {
-  const [pin, setPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
+  const [step, setStep] = useState<"loading" | "scan" | "verify">("loading");
+  const [qrCode, setQrCode] = useState("");
+  const [secret, setSecret] = useState("");
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [verifyCode, setVerifyCode] = useState("");
   const [error, setError] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [copiedBackup, setCopiedBackup] = useState(false);
 
-  const handleSubmit = () => {
-    if (pin.length !== PIN_LENGTH) {
-      setError(`PIN must be ${PIN_LENGTH} digits`);
+  // Fetch QR code and secret on open
+  useEffect(() => {
+    if (open && step === "loading") {
+      fetchSetupData();
+    }
+  }, [open, step]);
+
+  const fetchSetupData = async () => {
+    try {
+      const res = await fetch("/api/logins/2fa/setup", {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setQrCode(data.qrCode);
+        setSecret(data.secret);
+        setBackupCodes(data.backupCodes);
+        setStep("scan");
+      } else {
+        setError(data.error || "Failed to generate 2FA setup");
+      }
+    } catch (err) {
+      setError("Failed to connect to server");
+    }
+  };
+
+  const handleVerify = () => {
+    if (verifyCode.length !== 6) {
+      setError("Enter the 6-digit code");
       return;
     }
-    if (pin !== confirmPin) {
-      setError("PINs do not match");
-      return;
-    }
-    onSetPin(pin);
-    setPin("");
-    setConfirmPin("");
+    onSetup(verifyCode);
+    setVerifyCode("");
     setError("");
   };
 
+  const copyBackupCodes = async () => {
+    await navigator.clipboard.writeText(backupCodes.join("\n"));
+    setCopiedBackup(true);
+    setTimeout(() => setCopiedBackup(false), 2000);
+  };
+
+  const handleClose = () => {
+    setStep("loading");
+    setQrCode("");
+    setSecret("");
+    setBackupCodes([]);
+    setVerifyCode("");
+    setError("");
+    onCancel();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5 text-blue-600" />
-            Set Security PIN
+            <Smartphone className="h-5 w-5 text-blue-600" />
+            Set Up Two-Factor Authentication
           </DialogTitle>
           <DialogDescription>
-            Create a {PIN_LENGTH}-digit PIN to protect access to client login credentials.
+            Secure your account with an authenticator app like Google Authenticator or Authy
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="new-pin">New PIN</Label>
-            <Input
-              id="new-pin"
-              type="password"
-              inputMode="numeric"
-              maxLength={PIN_LENGTH}
-              value={pin}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                setPin(value);
-                setError("");
-              }}
-              placeholder="••••••"
-              className="text-center text-2xl tracking-[0.5em] font-mono"
-            />
-          </div>
+          {step === "loading" && (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="confirm-pin">Confirm PIN</Label>
-            <Input
-              id="confirm-pin"
-              type="password"
-              inputMode="numeric"
-              maxLength={PIN_LENGTH}
-              value={confirmPin}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                setConfirmPin(value);
-                setError("");
-              }}
-              placeholder="••••••"
-              className="text-center text-2xl tracking-[0.5em] font-mono"
-            />
-          </div>
+          {step === "scan" && (
+            <>
+              {/* QR Code */}
+              <div className="flex flex-col items-center space-y-3">
+                <p className="text-sm text-gray-600">
+                  1. Scan this QR code with your authenticator app:
+                </p>
+                {qrCode && (
+                  <div className="p-3 bg-white rounded-lg border">
+                    <img src={qrCode} alt="QR Code" className="w-48 h-48" />
+                  </div>
+                )}
+              </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+              {/* Manual Entry */}
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  Or enter this code manually:
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-3 py-2 bg-gray-100 rounded font-mono text-sm break-all">
+                    {showSecret ? secret : "••••••••••••••••••••"}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowSecret(!showSecret)}
+                  >
+                    {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => navigator.clipboard.writeText(secret)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
 
-          <Alert>
-            <ShieldCheck className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Remember this PIN! You'll need it every time you access login credentials.
-            </AlertDescription>
-          </Alert>
+              {/* Backup Codes */}
+              <div className="space-y-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-amber-800">
+                    ⚠️ Save these backup codes:
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={copyBackupCodes}
+                    className="text-amber-700"
+                  >
+                    {copiedBackup ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    <span className="ml-1">{copiedBackup ? "Copied!" : "Copy"}</span>
+                  </Button>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {backupCodes.map((code, i) => (
+                    <code key={i} className="px-2 py-1 bg-white rounded text-xs font-mono text-center">
+                      {code}
+                    </code>
+                  ))}
+                </div>
+                <p className="text-xs text-amber-600">
+                  Store these safely! You'll need them if you lose access to your authenticator.
+                </p>
+              </div>
+
+              <Button onClick={() => setStep("verify")} className="w-full">
+                Continue to Verification
+              </Button>
+            </>
+          )}
+
+          {step === "verify" && (
+            <>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  2. Enter the 6-digit code from your authenticator app:
+                </p>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={verifyCode}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setVerifyCode(value);
+                    setError("");
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                  placeholder="000000"
+                  className="text-center text-2xl tracking-[0.5em] font-mono"
+                  autoFocus
+                />
+                {error && <p className="text-sm text-red-500">{error}</p>}
+              </div>
+
+              <Alert>
+                <ShieldCheck className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  After verification, you'll need this code every time you access login credentials.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+
+          {error && step === "loading" && (
+            <p className="text-sm text-red-500 text-center">{error}</p>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          {step === "verify" && (
+            <Button variant="outline" onClick={() => setStep("scan")}>
+              Back
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={pin.length !== PIN_LENGTH || confirmPin.length !== PIN_LENGTH}>
-            <Lock className="h-4 w-4 mr-2" />
-            Set PIN
-          </Button>
+          {step === "verify" && (
+            <Button onClick={handleVerify} disabled={verifyCode.length !== 6}>
+              <Lock className="h-4 w-4 mr-2" />
+              Enable 2FA
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -746,11 +870,11 @@ export function SocialLogins() {
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
 
-  // Security state
+  // Security state (2FA)
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [showPinDialog, setShowPinDialog] = useState(false);
-  const [showSetPinDialog, setShowSetPinDialog] = useState(false);
-  const [hasPin, setHasPin] = useState(false);
+  const [showTotpDialog, setShowTotpDialog] = useState(false);
+  const [showTotpSetupDialog, setShowTotpSetupDialog] = useState(false);
+  const [has2FA, setHas2FA] = useState(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
 
   // Dialog state
@@ -821,10 +945,10 @@ export function SocialLogins() {
           setClients(allClients);
         }
 
-        // Check if user has PIN set
-        const pinRes = await fetch("/api/logins/check-pin");
-        const pinData = await pinRes.json();
-        setHasPin(pinData.hasPin);
+        // Check if user has 2FA enabled
+        const twoFactorRes = await fetch("/api/logins/2fa/check");
+        const twoFactorData = await twoFactorRes.json();
+        setHas2FA(twoFactorData.isEnabled || false);
 
         setLoading(false);
       } catch (err) {
@@ -868,29 +992,29 @@ export function SocialLogins() {
     }
   }, [isUnlocked, isClient, userClientId]);
 
-  /* ----------------------------- PIN HANDLERS ------------------------------ */
+  /* ----------------------------- 2FA HANDLERS ------------------------------ */
 
   const handleUnlockAttempt = () => {
-    if (hasPin) {
-      setShowPinDialog(true);
+    if (has2FA) {
+      setShowTotpDialog(true);
     } else {
-      setShowSetPinDialog(true);
+      setShowTotpSetupDialog(true);
     }
   };
 
-  const handlePinVerify = async (pin: string) => {
+  const handleTotpVerify = async (code: string) => {
     try {
-      const res = await fetch("/api/logins/verify-pin", {
+      const res = await fetch("/api/logins/2fa/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ code }),
       });
 
       const data = await res.json();
 
-      if (data.valid) {
+      if (data.verified) {
         setIsUnlocked(true);
-        setShowPinDialog(false);
+        setShowTotpDialog(false);
         setLastActivity(Date.now());
         toast.success("Access granted", {
           icon: <ShieldCheck className="h-4 w-4" />,
@@ -903,32 +1027,34 @@ export function SocialLogins() {
           body: JSON.stringify({ action: "unlock" }),
         });
       } else {
-        toast.error("Invalid PIN");
+        toast.error(data.error || "Invalid code");
       }
     } catch (err) {
       toast.error("Verification failed");
     }
   };
 
-  const handleSetPin = async (pin: string) => {
+  const handleTotpSetup = async (code: string) => {
     try {
-      const res = await fetch("/api/logins/set-pin", {
+      const res = await fetch("/api/logins/2fa/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ code, enableAfterVerify: true }),
       });
 
-      if (res.ok) {
-        setHasPin(true);
+      const data = await res.json();
+
+      if (data.enabled) {
+        setHas2FA(true);
         setIsUnlocked(true);
-        setShowSetPinDialog(false);
+        setShowTotpSetupDialog(false);
         setLastActivity(Date.now());
-        toast.success("Security PIN set successfully");
+        toast.success("Two-Factor Authentication enabled successfully!");
       } else {
-        toast.error("Failed to set PIN");
+        toast.error(data.error || "Failed to enable 2FA");
       }
     } catch (err) {
-      toast.error("Failed to set PIN");
+      toast.error("Failed to enable 2FA");
     }
   };
 
@@ -1091,13 +1217,13 @@ export function SocialLogins() {
               <h3 className="text-xl font-semibold mb-2">Section Locked</h3>
               <p className="text-gray-600 mb-6">
                 This section contains sensitive {isClient ? "account" : "client"} credentials.
-                {hasPin
-                  ? " Enter your security PIN to access."
-                  : " Set up a security PIN to continue."}
+                {has2FA
+                  ? " Verify your identity with your authenticator app."
+                  : " Set up two-factor authentication to continue."}
               </p>
               <Button onClick={handleUnlockAttempt} size="lg" className="gap-2">
-                <Key className="h-4 w-4" />
-                {hasPin ? "Unlock with PIN" : "Set Up Security PIN"}
+                <Smartphone className="h-4 w-4" />
+                {has2FA ? "Verify with 2FA" : "Set Up Two-Factor Auth"}
               </Button>
 
               <div className="mt-6 pt-6 border-t">
@@ -1110,16 +1236,16 @@ export function SocialLogins() {
           </Card>
         </div>
 
-        <PinVerificationDialog
-          open={showPinDialog}
-          onVerify={handlePinVerify}
-          onCancel={() => setShowPinDialog(false)}
+        <TotpVerificationDialog
+          open={showTotpDialog}
+          onVerify={handleTotpVerify}
+          onCancel={() => setShowTotpDialog(false)}
         />
 
-        <SetPinDialog
-          open={showSetPinDialog}
-          onSetPin={handleSetPin}
-          onCancel={() => setShowSetPinDialog(false)}
+        <TotpSetupDialog
+          open={showTotpSetupDialog}
+          onSetup={handleTotpSetup}
+          onCancel={() => setShowTotpSetupDialog(false)}
         />
       </div>
     );
@@ -1402,10 +1528,10 @@ export function SocialLogins() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <PinVerificationDialog
-        open={showPinDialog}
-        onVerify={handlePinVerify}
-        onCancel={() => setShowPinDialog(false)}
+      <TotpVerificationDialog
+        open={showTotpDialog}
+        onVerify={handleTotpVerify}
+        onCancel={() => setShowTotpDialog(false)}
       />
     </div>
   );
