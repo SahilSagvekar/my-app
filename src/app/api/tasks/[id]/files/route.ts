@@ -27,7 +27,7 @@ async function generateSignedUrl(s3Key: string): Promise<string> {
     Key: decodedKey,
   });
   
-  const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 7200 });
+  const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 86400 });
   console.log("✅ Signed URL generated:", signedUrl.substring(0, 100) + "...");
   
   return signedUrl;
