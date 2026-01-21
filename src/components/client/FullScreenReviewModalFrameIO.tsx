@@ -492,7 +492,7 @@ export function FullScreenReviewModalFrameIO({
 
                 <div
                     ref={containerRef}
-                    className="relative w-full h-full flex flex-col"
+                    className="relative w-full h-full flex flex-col overflow-hidden"
                     style={{ background: 'var(--review-bg-primary)' }}
                 >
                     {/* Success States */}
@@ -646,9 +646,9 @@ export function FullScreenReviewModalFrameIO({
                     {/* Main Content */}
                     <div className="flex-1 flex overflow-hidden min-h-0">
                         {/* Video Area */}
-                        <div className="flex-1 flex flex-col p-6 pr-0">
+                        <div className="flex-1 flex flex-col p-6 pr-0 pb-6 overflow-y-auto">
                             {/* Video Container */}
-                            <div className="flex-1 flex items-center justify-center">
+                            <div className="flex items-center justify-center mb-4">
                                 <div className="relative w-full max-w-5xl aspect-video review-video-container">
                                     {videoError ? (
                                         <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white">
@@ -745,78 +745,80 @@ export function FullScreenReviewModalFrameIO({
                                     />
                                 )}
 
-                                {/* Control Bar */}
-                                <div className="flex items-center justify-between mt-4">
-                                    {/* Left Controls */}
-                                    <div className="flex items-center gap-2">
-                                        {videoSource.type === 'video' && (
-                                            <>
+                                {/* Control Bar - White Background */}
+                                <div className="bg-white rounded-lg p-3 shadow-lg mt-3">
+                                    <div className="flex items-center justify-between">
+                                        {/* Left Controls */}
+                                        <div className="flex items-center gap-2">
+                                            {videoSource.type === 'video' && (
+                                                <>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={seekBackward}
+                                                        className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                                                    >
+                                                        <SkipBack className="h-4 w-4" />
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={togglePlay}
+                                                        className="text-gray-900 hover:bg-gray-100"
+                                                    >
+                                                        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={seekForward}
+                                                        className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                                                    >
+                                                        <SkipForward className="h-4 w-4" />
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={toggleMute}
+                                                        className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                                                    >
+                                                        {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                                                    </Button>
+
+                                                    <Select value={playbackSpeed.toString()} onValueChange={handlePlaybackSpeedChange}>
+                                                        <SelectTrigger className="w-16 h-8 bg-white border-gray-300 text-gray-700 text-xs">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-white border-gray-300">
+                                                            <SelectItem value="0.5">0.5x</SelectItem>
+                                                            <SelectItem value="0.75">0.75x</SelectItem>
+                                                            <SelectItem value="1">1x</SelectItem>
+                                                            <SelectItem value="1.25">1.25x</SelectItem>
+                                                            <SelectItem value="1.5">1.5x</SelectItem>
+                                                            <SelectItem value="2">2x</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Right Controls */}
+                                        <div className="flex items-center gap-2">
+                                            {onNextAsset && (
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={seekBackward}
-                                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                                    onClick={onNextAsset}
+                                                    className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
                                                 >
-                                                    <SkipBack className="h-4 w-4" />
+                                                    Next Asset
+                                                    <ChevronRight className="h-4 w-4 ml-1" />
                                                 </Button>
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={togglePlay}
-                                                    className="text-white hover:bg-[var(--review-bg-tertiary)]"
-                                                >
-                                                    {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                                                </Button>
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={seekForward}
-                                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                                >
-                                                    <SkipForward className="h-4 w-4" />
-                                                </Button>
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={toggleMute}
-                                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                                >
-                                                    {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                                                </Button>
-
-                                                <Select value={playbackSpeed.toString()} onValueChange={handlePlaybackSpeedChange}>
-                                                    <SelectTrigger className="w-16 h-8 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] text-xs">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
-                                                        <SelectItem value="0.5">0.5x</SelectItem>
-                                                        <SelectItem value="0.75">0.75x</SelectItem>
-                                                        <SelectItem value="1">1x</SelectItem>
-                                                        <SelectItem value="1.25">1.25x</SelectItem>
-                                                        <SelectItem value="1.5">1.5x</SelectItem>
-                                                        <SelectItem value="2">2x</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    {/* Right Controls */}
-                                    <div className="flex items-center gap-2">
-                                        {onNextAsset && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={onNextAsset}
-                                                className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                            >
-                                                Next Asset
-                                                <ChevronRight className="h-4 w-4 ml-1" />
-                                            </Button>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

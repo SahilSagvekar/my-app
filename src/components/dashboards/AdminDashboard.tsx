@@ -1997,7 +1997,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                   <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                   Refresh
                 </Button>
-                <CreateTaskDialog
+                {/* <CreateTaskDialog
                   onTaskCreated={handleTaskCreated}
                   trigger={
                     <Button>
@@ -2005,7 +2005,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                       Create Task
                     </Button>
                   }
-                />
+                /> */}
               </div>
             </div>
             <DashboardOverview />

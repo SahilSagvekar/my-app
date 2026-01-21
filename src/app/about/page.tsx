@@ -1,6 +1,7 @@
 import { Navigation } from '@/components/landing/Navigation';
 import { Footer } from '@/components/landing/Footer';
-import { Target, Users, Zap, Briefcase, ArrowRight } from 'lucide-react';
+import { Target, Users, Zap, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 const values = [
   {
@@ -88,9 +89,6 @@ export default function AboutPage() {
           {/* Careers Section */}
           <div className="mt-12 sm:mt-20">
             <div className="text-center mb-6 sm:mb-10">
-              <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-black rounded-xl sm:rounded-2xl mb-4 sm:mb-6">
-                <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-              </div>
               <h2 className="text-xl sm:text-2xl lg:text-3xl text-black mb-3 sm:mb-4">
                 Join Our Team
               </h2>
@@ -122,10 +120,10 @@ export default function AboutPage() {
                   <p className="text-black/60 text-sm sm:text-sm mb-4 sm:mb-6">
                     {position.description}
                   </p>
-                  <button className="group inline-flex items-center gap-2 text-black text-sm sm:text-sm transition-all hover:gap-3">
+                  <Link href="/contact" className="group inline-flex items-center gap-2 text-black text-sm sm:text-sm transition-all hover:gap-3">
                     Learn More
                     <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                  </button>
+                  </Link>
                 </div>
               ))}
             </div>
@@ -138,9 +136,9 @@ export default function AboutPage() {
                 We're always interested in meeting talented people. Send us your resume and tell us 
                 how you'd like to contribute to E8 Productions.
               </p>
-              <button className="px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-base bg-white text-black rounded-full transition-all hover:bg-white/90 active:scale-95 w-full sm:w-auto font-medium">
+              <Link href="/contact" className="inline-block px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-base bg-white text-black rounded-full transition-all hover:bg-white/90 active:scale-95 w-full sm:w-auto font-medium">
                 Send Your Resume
-              </button>
+              </Link>
             </div>
           </div>
           </div>
