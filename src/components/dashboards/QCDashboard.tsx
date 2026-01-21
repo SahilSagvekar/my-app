@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn } from 'lucide-react';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
@@ -109,6 +109,7 @@ export function QCDashboard() {
   const [selectedFile, setSelectedFile] = useState<TaskFile | null>(null);
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
+  const [showFilePreview, setShowFilePreview] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -222,8 +223,8 @@ export function QCDashboard() {
     if (file.mimeType?.startsWith('video/')) {
       setShowVideoReview(true);
     } else {
-      window.open(file.url, '_blank');
-      setSelectedFile(null);
+      // Open images and other files in the in-app preview modal
+      setShowFilePreview(true);
     }
   };
 
@@ -733,6 +734,155 @@ export function QCDashboard() {
             version: selectedFile.version || 1,
           }}
         />
+      )}
+
+      {/* In-App File Preview Modal - Full Screen Overlay */}
+      {selectedTask && selectedFile && !selectedFile.mimeType?.startsWith('video/') && showFilePreview && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/80 to-transparent">
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${selectedFile.mimeType?.startsWith('image/') ? 'bg-green-500/20' : 'bg-blue-500/20'}`}>
+                {getFileIcon(selectedFile.mimeType)}
+              </div>
+              <div>
+                <h3 className="text-white font-semibold text-lg truncate max-w-[300px] md:max-w-[500px]">
+                  {selectedFile.name}
+                </h3>
+                <p className="text-white/50 text-sm">
+                  {getFileTypeLabel(selectedFile.mimeType)} • {formatFileSize(selectedFile.size)} • Uploaded {new Date(selectedFile.uploadedAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/40"
+                onClick={() => window.open(selectedFile.url, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Open in New Tab</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/40"
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = selectedFile.url;
+                  link.download = selectedFile.name;
+                  link.click();
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Download</span>
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-white hover:bg-white/20 h-10 w-10"
+                onClick={() => {
+                  setShowFilePreview(false);
+                  setSelectedFile(null);
+                }}
+              >
+                <X className="h-6 w-6" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Content Area - Full screen image/file view */}
+          <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
+            {selectedFile.mimeType?.startsWith('image/') ? (
+              <div className="relative">
+                <img
+                  src={selectedFile.url}
+                  alt={selectedFile.name}
+                  className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                />
+              </div>
+            ) : selectedFile.mimeType?.includes('pdf') ? (
+              <div className="text-center">
+                <div className="p-10 bg-white/5 rounded-3xl backdrop-blur-sm border border-white/10 max-w-lg mx-auto">
+                  <div className="p-8 bg-red-500/20 rounded-2xl inline-block mb-6">
+                    <FileText className="h-16 w-16 text-red-400" />
+                  </div>
+                  <h3 className="text-white text-2xl font-semibold mb-3">{selectedFile.name}</h3>
+                  <p className="text-white/60 text-base mb-2">
+                    PDF Document • {formatFileSize(selectedFile.size)}
+                  </p>
+                  <p className="text-white/40 text-sm mb-8">
+                    Click below to view or download this PDF
+                  </p>
+                  <div className="flex gap-4 justify-center">
+                    <Button
+                      size="lg"
+                      onClick={() => window.open(selectedFile.url, '_blank')}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      <Eye className="h-5 w-5 mr-2" />
+                      View PDF
+                    </Button>
+                    <Button
+                      size="lg"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = selectedFile.url;
+                        link.download = selectedFile.name;
+                        link.click();
+                      }}
+                      variant="outline"
+                      className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                    >
+                      <Download className="h-5 w-5 mr-2" />
+                      Download
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className="p-8 bg-white/5 rounded-3xl backdrop-blur-sm border border-white/10 max-w-lg mx-auto">
+                  <div className="p-6 bg-white/10 rounded-2xl inline-block mb-6">
+                    {getFileIcon(selectedFile.mimeType)}
+                  </div>
+                  <h3 className="text-white text-xl font-semibold mb-3">{selectedFile.name}</h3>
+                  <p className="text-white/60 text-base mb-2">
+                    {getFileTypeLabel(selectedFile.mimeType)} • {formatFileSize(selectedFile.size)}
+                  </p>
+                  <p className="text-white/40 text-sm mb-8">
+                    Preview not available for this file type.
+                  </p>
+                  <div className="flex gap-4 justify-center">
+                    <Button
+                      size="lg"
+                      onClick={() => window.open(selectedFile.url, '_blank')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <ExternalLink className="h-5 w-5 mr-2" />
+                      Open File
+                    </Button>
+                    <Button
+                      size="lg"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = selectedFile.url;
+                        link.download = selectedFile.name;
+                        link.click();
+                      }}
+                      variant="outline"
+                      className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                    >
+                      <Download className="h-5 w-5 mr-2" />
+                      Download
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
