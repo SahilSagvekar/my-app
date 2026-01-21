@@ -65,7 +65,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'scheduling', label: 'Employment Information', icon: Clock },
+    // { id: 'scheduling', label: 'Employment Information', icon: Clock },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -88,7 +88,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
     // { id: 'projects', label: 'My Projects', icon: FolderOpen },
     // { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    { id: 'training', label: 'Training', icon: Layout },
+    // { id: 'training', label: 'Training', icon: Layout },
     { id: 'invoices', label: 'Invoices & Billing', icon: Layout },
     { id: 'archive', label: 'Archive', icon: Archive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },

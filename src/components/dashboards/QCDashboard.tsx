@@ -286,17 +286,17 @@ export function QCDashboard() {
   const getFolderTypeInfo = (folderType?: string) => {
     switch (folderType) {
       case 'main':
-        return { label: '📁 Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { label: 'Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
       case 'thumbnails':
-        return { label: '🖼️ Thumbnails', icon: '🖼️', color: 'bg-green-100 text-green-800 border-green-200' };
+        return { label: 'Thumbnails', icon: '🖼️', color: 'bg-green-100 text-green-800 border-green-200' };
       case 'tiles':
-        return { label: '🎨 Tiles (Snapchat)', icon: '🎨', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+        return { label: 'Tiles (Snapchat)', icon: '🎨', color: 'bg-purple-100 text-purple-800 border-purple-200' };
       case 'music-license':
-        return { label: '🎵 Music License', icon: '🎵', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+        return { label: 'Music License', icon: '🎵', color: 'bg-orange-100 text-orange-800 border-orange-200' };
       case 'covers':
-        return { label: '📔 Covers', icon: '📔', color: 'bg-pink-100 text-pink-800 border-pink-200' };
+        return { label: 'Covers', icon: '📔', color: 'bg-pink-100 text-pink-800 border-pink-200' };
       default:
-        return { label: '📁 Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { label: 'Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
     }
   };
 
@@ -583,9 +583,6 @@ export function QCDashboard() {
                 <Eye className="h-5 w-5" />
                 Review Files by Section
               </DialogTitle>
-              <DialogDescription>
-                {selectedTask.title} - Select a file to review. Files are organized by folder type.
-              </DialogDescription>
             </DialogHeader>
 
             <div className="overflow-y-auto max-h-[65vh] pr-2">

@@ -899,7 +899,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                   ))
                 ) : (
                   <SelectItem value="__no_deliverables__" disabled>
-                    No deliverables found for selected client
+                    All deliverable assigned for selected client
                   </SelectItem>
                 )}
               </SelectContent>
