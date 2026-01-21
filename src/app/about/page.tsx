@@ -1,6 +1,10 @@
 import { Navigation } from '@/components/landing/Navigation';
 import { Footer } from '@/components/landing/Footer';
+<<<<<<< HEAD
 import { Target, Users, Zap, ArrowRight } from 'lucide-react';
+=======
+import { Target, Users, Zap, Briefcase, ArrowRight } from 'lucide-react';
+>>>>>>> 06d6e5ab36dd88f4569c7946b5805a5edcc09a15
 import Link from 'next/link';
 
 const values = [
@@ -54,8 +58,7 @@ export default function AboutPage() {
             About E8 Productions
           </h1>
           <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
-            We're democratizing access to world-class media production, helping small businesses 
-              tell their stories with the same quality and impact as the biggest brands.
+            We don’t just make videos — we build media that works.E8 Productions creates original shows, brand content, and social systems designed to earn attention, build trust, and turn audiences into real value.
           </p>
         </div>
 
@@ -136,7 +139,11 @@ export default function AboutPage() {
                 We're always interested in meeting talented people. Send us your resume and tell us 
                 how you'd like to contribute to E8 Productions.
               </p>
+<<<<<<< HEAD
               <Link href="/contact" className="inline-block px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-base bg-white text-black rounded-full transition-all hover:bg-white/90 active:scale-95 w-full sm:w-auto font-medium">
+=======
+              <Link href="/contact" className="px-6 sm:px-8 py-3.5 sm:py-4 text-base sm:text-base bg-white text-black rounded-full transition-all hover:bg-white/90 active:scale-95 w-full sm:w-auto font-medium">
+>>>>>>> 06d6e5ab36dd88f4569c7946b5805a5edcc09a15
                 Send Your Resume
               </Link>
             </div>

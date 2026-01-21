@@ -33,58 +33,59 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-     const token = getTokenFromCookies(req);
-        
-        if (!token) {
-              return NextResponse.json(
-                { success: false, error: "Unauthorized - No token provided" },
-                { status: 401 }
-              );
-            }
-        
-            const decoded = verifyToken(token);
-        
-            if (!decoded) {
-              return NextResponse.json(
-                { success: false, error: "Unauthorized - Invalid token" },
-                { status: 401 }
-              );
-            }
-    
-            const { userId } = decoded;
-            
-                const user = await prisma.user.findUnique({
-                  where: { id: userId },
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                    phone: true,
-                    role: true,
-                  },
-                });
-            
-                if (!user) {
-                  return NextResponse.json(
-                    { success: false, error: "User not found" },
-                    { status: 404 }
-                  );
-                }
-        
+    const token = getTokenFromCookies(req);
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
+
 
     const userRole = user.role;
 
-    if (userRole !== "admin") {
+    // Only admin and client can update logins
+    if (userRole !== "admin" && userRole !== "client") {
       return NextResponse.json(
-        { message: "Only admin can update logins" },
+        { message: "Only admin or client can update logins" },
         { status: 403 }
       );
     }
 
     const { id } = params;
     const body = await req.json();
-    const { clientId, platform, username, password, email, phone, notes } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly } = body;
 
     // Check if login exists
     const existingLogin = await prisma.socialLogin.findUnique({
@@ -93,6 +94,32 @@ export async function PUT(
 
     if (!existingLogin) {
       return NextResponse.json({ message: "Login not found" }, { status: 404 });
+    }
+
+    // If user is a client, verify the login belongs to their client
+    if (userRole === "client") {
+      const userWithClient = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { linkedClientId: true },
+      });
+
+      let userClientId = userWithClient?.linkedClientId;
+
+      // Fallback to Client.userId
+      if (!userClientId) {
+        const clientByUserId = await prisma.client.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+        userClientId = clientByUserId?.id || null;
+      }
+
+      if (existingLogin.clientId !== userClientId) {
+        return NextResponse.json(
+          { message: "You can only edit logins for your own client" },
+          { status: 403 }
+        );
+      }
     }
 
     // Get client info
@@ -106,9 +133,12 @@ export async function PUT(
     }
 
     // Encrypt password if provided
-    const encryptedPassword = password 
-      ? encrypt(password) 
+    const encryptedPassword = password
+      ? encrypt(password)
       : existingLogin.encryptedPassword;
+
+    // Track if password is being changed
+    const passwordIsChanging = !!password;
 
     const login = await prisma.socialLogin.update({
       where: { id },
@@ -117,10 +147,15 @@ export async function PUT(
         platform,
         username,
         encryptedPassword,
+        loginUrl: loginUrl || null,
         recoveryEmail: email || null,
         recoveryPhone: phone || null,
         notes: notes || null,
+        backupCodesLocation: backupCodesLocation || null,
+        adminOnly: adminOnly ?? existingLogin.adminOnly,
         updatedById: userId,
+        // Update passwordChangedAt only if password is being changed
+        ...(passwordIsChanging ? { passwordChangedAt: new Date() } : {}),
       },
     });
 
@@ -130,10 +165,10 @@ export async function PUT(
         action: "update",
         loginId: login.id,
         userId: userId,
-        details: JSON.stringify({ 
-          platform, 
+        details: JSON.stringify({
+          platform,
           clientId,
-          passwordChanged: !!password 
+          passwordChanged: !!password
         }),
       },
     });
@@ -146,9 +181,15 @@ export async function PUT(
         platform: login.platform,
         username: login.username,
         password: password || decrypt(existingLogin.encryptedPassword),
+        loginUrl: login.loginUrl,
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,
+        backupCodesLocation: login.backupCodesLocation,
+        adminOnly: login.adminOnly,
+        passwordChangedAt: passwordIsChanging
+          ? new Date().toISOString()
+          : (existingLogin.passwordChangedAt?.toISOString() || existingLogin.createdAt.toISOString()),
         lastUpdated: login.updatedAt.toISOString(),
         updatedBy: user.name || "Admin",
       },
@@ -168,50 +209,51 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-   const token = getTokenFromCookies(req);
-       
-       if (!token) {
-             return NextResponse.json(
-               { success: false, error: "Unauthorized - No token provided" },
-               { status: 401 }
-             );
-           }
-       
-           const decoded = verifyToken(token);
-       
-           if (!decoded) {
-             return NextResponse.json(
-               { success: false, error: "Unauthorized - Invalid token" },
-               { status: 401 }
-             );
-           }
-   
-           const { userId } = decoded;
-           
-               const user = await prisma.user.findUnique({
-                 where: { id: userId },
-                 select: {
-                   id: true,
-                   name: true,
-                   email: true,
-                   image: true,
-                   phone: true,
-                   role: true,
-                 },
-               });
-           
-               if (!user) {
-                 return NextResponse.json(
-                   { success: false, error: "User not found" },
-                   { status: 404 }
-                 );
-               }
+    const token = getTokenFromCookies(req);
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
 
     const userRole = user.role;
 
-    if (userRole !== "admin") {
+    // Only admin and client can delete logins
+    if (userRole !== "admin" && userRole !== "client") {
       return NextResponse.json(
-        { message: "Only admin can delete logins" },
+        { message: "Only admin or client can delete logins" },
         { status: 403 }
       );
     }
@@ -232,14 +274,40 @@ export async function DELETE(
       return NextResponse.json({ message: "Login not found" }, { status: 404 });
     }
 
+    // If user is a client, verify the login belongs to their client
+    if (userRole === "client") {
+      const userWithClient = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { linkedClientId: true },
+      });
+
+      let userClientId = userWithClient?.linkedClientId;
+
+      // Fallback to Client.userId
+      if (!userClientId) {
+        const clientByUserId = await prisma.client.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+        userClientId = clientByUserId?.id || null;
+      }
+
+      if (existingLogin.clientId !== userClientId) {
+        return NextResponse.json(
+          { message: "You can only delete logins for your own client" },
+          { status: 403 }
+        );
+      }
+    }
+
     // Log before deletion
     await prisma.loginAuditLog.create({
       data: {
         action: "delete",
         loginId: id,
         userId: userId,
-        details: JSON.stringify({ 
-          platform: existingLogin.platform, 
+        details: JSON.stringify({
+          platform: existingLogin.platform,
           clientName: existingLogin.client.companyName,
           username: existingLogin.username,
         }),

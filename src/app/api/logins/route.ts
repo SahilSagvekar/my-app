@@ -31,49 +31,49 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 export async function GET(req: NextRequest) {
   try {
     const token = getTokenFromCookies(req);
-    
-    if (!token) {
-          return NextResponse.json(
-            { success: false, error: "Unauthorized - No token provided" },
-            { status: 401 }
-          );
-        }
-    
-        const decoded = verifyToken(token);
-    
-        if (!decoded) {
-          return NextResponse.json(
-            { success: false, error: "Unauthorized - Invalid token" },
-            { status: 401 }
-          );
-        }
 
-        const { userId } = decoded;
-        
-            const user = await prisma.user.findUnique({
-              where: { id: userId },
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                phone: true,
-                role: true,
-              },
-            });
-        
-            if (!user) {
-              return NextResponse.json(
-                { success: false, error: "User not found" },
-                { status: 404 }
-              );
-            }
-    
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - No token provided" },
+        { status: 401 }
+      );
+    }
+
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
+
 
     const userRole = user.role;
     const allowedRoles = ["admin", "client", "scheduler"];
 
-    if(!userRole){
+    if (!userRole) {
       return NextResponse.json({ message: "Role Not Found" }, { status: 403 });
     }
 
@@ -82,9 +82,40 @@ export async function GET(req: NextRequest) {
     }
 
     // For client role, only show their own logins
-    const whereClause = userRole === "client" 
-      ? { client: { userId: userId } }
-      : {};
+    // For non-admin roles, also hide admin-only logins
+    const isAdmin = userRole === "admin";
+
+    let whereClause: any = {};
+
+    if (userRole === "client") {
+      // Get the client ID for this user (via linkedClientId or fallback to Client.userId)
+      const userWithClient = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { linkedClientId: true },
+      });
+
+      let clientId = userWithClient?.linkedClientId;
+
+      // Fallback: check if any client has this userId
+      if (!clientId) {
+        const clientByUserId = await prisma.client.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+        clientId = clientByUserId?.id || null;
+      }
+
+      // Clients only see their own client's logins (and NOT admin-only ones)
+      // If no clientId found, return empty results (whereClause will match nothing)
+      whereClause = {
+        clientId: clientId || 'NO_CLIENT_FOUND',
+        adminOnly: false
+      };
+    } else if (!isAdmin) {
+      // Non-admin roles (scheduler, etc.) can't see admin-only logins
+      whereClause = { adminOnly: false };
+    }
+    // Admins see everything (empty whereClause)
 
     const logins = await prisma.socialLogin.findMany({
       where: whereClause,
@@ -109,16 +140,24 @@ export async function GET(req: NextRequest) {
     });
 
     // Decrypt passwords before sending
+    // Hide client data for admin-only logins
     const decryptedLogins = logins.map((login) => ({
       id: login.id,
-      clientId: login.clientId,
-      clientName: login.client.companyName,
+      // Only include client info if NOT adminOnly
+      ...(login.adminOnly ? {} : {
+        clientId: login.clientId,
+        clientName: login.client.companyName,
+      }),
       platform: login.platform,
       username: login.username,
       password: decrypt(login.encryptedPassword),
+      loginUrl: login.loginUrl,
       email: login.recoveryEmail,
       phone: login.recoveryPhone,
       notes: login.notes,
+      backupCodesLocation: login.backupCodesLocation,
+      adminOnly: login.adminOnly,
+      passwordChangedAt: login.passwordChangedAt?.toISOString() || login.createdAt.toISOString(),
       lastUpdated: login.updatedAt.toISOString(),
       updatedBy: login.updatedByUser?.name || "Unknown",
     }));
@@ -137,67 +176,117 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const token = getTokenFromCookies(req);
-    
+
     if (!token) {
-          return NextResponse.json(
-            { success: false, error: "Unauthorized - No token provided" },
-            { status: 401 }
-          );
-        }
-    
-        const decoded = verifyToken(token);
-    
-        if (!decoded) {
-          return NextResponse.json(
-            { success: false, error: "Unauthorized - Invalid token" },
-            { status: 401 }
-          );
-        }
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - No token provided" },
+        { status: 401 }
+      );
+    }
 
-        const { userId } = decoded;
-        
-            const user = await prisma.user.findUnique({
-              where: { id: userId },
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                phone: true,
-                role: true,
-              },
-            });
-        
-            if (!user) {
-              return NextResponse.json(
-                { success: false, error: "User not found" },
-                { status: 404 }
-              );
-            }
-    
+    const decoded = verifyToken(token);
 
-    if (user.role !== "admin") {
-      return NextResponse.json({ message: "Only admin can add logins" }, { status: 403 });
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        phone: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    const userRole = user.role;
+
+    // Only admin and client can add logins
+    if (userRole !== "admin" && userRole !== "client") {
+      return NextResponse.json({ message: "Only admin or client can add logins" }, { status: 403 });
     }
 
     const body = await req.json();
-    const { clientId, platform, username, password, email, phone, notes } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly } = body;
 
-    if (!clientId || !platform || !username || !password) {
+    const isAdminOnlyLogin = adminOnly === true;
+
+    // clientId is required ONLY if adminOnly is false
+    if (!platform || !username || !password) {
       return NextResponse.json(
         { message: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Get client info
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { companyName: true },
-    });
+    // If NOT adminOnly, clientId is required
+    if (!isAdminOnlyLogin && !clientId) {
+      return NextResponse.json(
+        { message: "Client is required when not admin-only" },
+        { status: 400 }
+      );
+    }
 
-    if (!client) {
-      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+    // Only admins can create admin-only logins
+    if (isAdminOnlyLogin && userRole !== "admin") {
+      return NextResponse.json(
+        { message: "Only admins can create admin-only logins" },
+        { status: 403 }
+      );
+    }
+
+    // If user is a client, verify they can only add logins for their own client
+    if (userRole === "client" && clientId) {
+      const userWithClient = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { linkedClientId: true },
+      });
+
+      let userClientId = userWithClient?.linkedClientId;
+
+      // Fallback to Client.userId
+      if (!userClientId) {
+        const clientByUserId = await prisma.client.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+        userClientId = clientByUserId?.id || null;
+      }
+
+      if (clientId !== userClientId) {
+        return NextResponse.json(
+          { message: "You can only add logins for your own client" },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Get client info (only if clientId is provided)
+    let client = null;
+    if (clientId) {
+      client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { companyName: true },
+      });
+
+      if (!client) {
+        return NextResponse.json({ message: "Client not found" }, { status: 404 });
+      }
     }
 
     // Encrypt password before storing
@@ -205,38 +294,48 @@ export async function POST(req: NextRequest) {
 
     const login = await prisma.socialLogin.create({
       data: {
-        clientId,
+        clientId: isAdminOnlyLogin ? null : clientId,
         platform,
         username,
         encryptedPassword,
+        loginUrl: loginUrl || null,
         recoveryEmail: email || null,
         recoveryPhone: phone || null,
         notes: notes || null,
+        backupCodesLocation: backupCodesLocation || null,
+        adminOnly: isAdminOnlyLogin,
         updatedById: userId,
       },
     });
 
-    // Log the creation
+    // Log the creation (exclude client info for admin-only logins)
     await prisma.loginAuditLog.create({
       data: {
         action: "create",
         loginId: login.id,
         userId: userId,
-        details: JSON.stringify({ platform, clientId }),
+        details: JSON.stringify(isAdminOnlyLogin ? { platform } : { platform, clientId }),
       },
     });
 
     return NextResponse.json({
       login: {
         id: login.id,
-        clientId: login.clientId,
-        clientName: client.companyName,
+        // Only include client info if NOT adminOnly
+        ...(isAdminOnlyLogin ? {} : {
+          clientId: login.clientId,
+          clientName: client!.companyName,
+        }),
         platform: login.platform,
         username: login.username,
         password: password, // Return unencrypted for immediate display
+        loginUrl: login.loginUrl,
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,
+        backupCodesLocation: login.backupCodesLocation,
+        adminOnly: login.adminOnly,
+        passwordChangedAt: login.createdAt.toISOString(), // New login, password just set
         lastUpdated: login.updatedAt.toISOString(),
         updatedBy: user.name || "Admin",
       },

@@ -51,6 +51,8 @@ import {
   User,
   AlertTriangle,
   RefreshCw,
+  Smartphone,
+  ExternalLink,
 } from "lucide-react";
 import {
   FaInstagram,
@@ -61,6 +63,8 @@ import {
   FaLinkedin,
   FaSnapchat,
 } from "react-icons/fa";
+
+import { SlSocialSteam } from "react-icons/sl";  // 👈 Separate import from 'sl'
 import { toast } from "sonner";
 import { useAuth } from "./auth/AuthContext";
 
@@ -75,7 +79,8 @@ type SocialPlatform =
   | "Youtube"
   | "Twitter"
   | "Linkedin"
-  | "Snapchat";
+  | "Snapchat"
+  | "Other";
 
 interface SocialLogin {
   id: string;
@@ -84,9 +89,13 @@ interface SocialLogin {
   platform: SocialPlatform;
   username: string;
   password: string; // Will be encrypted in DB, decrypted on fetch
+  loginUrl?: string; // Direct URL to login/manage page
   email?: string;
   phone?: string;
   notes?: string;
+  backupCodesLocation?: string; // Link or instructions for backup codes
+  adminOnly?: boolean; // If true, only admins can see this login
+  passwordChangedAt?: string; // When the password was last changed
   lastUpdated: string;
   updatedBy: string;
 }
@@ -121,6 +130,7 @@ const PLATFORMS: SocialPlatform[] = [
   "Twitter",
   "Linkedin",
   "Snapchat",
+  "Other",
 ];
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes of inactivity
@@ -140,6 +150,7 @@ const getPlatformIcon = (platform: SocialPlatform, size = "h-5 w-5") => {
     Twitter: <FaTwitter {...iconProps} className={`${size} text-sky-500`} />,
     Linkedin: <FaLinkedin {...iconProps} className={`${size} text-blue-700`} />,
     Snapchat: <FaSnapchat {...iconProps} className={`${size} text-yellow-400`} />,
+    Other: <SlSocialSteam {...iconProps} className={`${size} text-violet-400`} />,
   };
   return icons[platform];
 };
@@ -153,33 +164,55 @@ const getPlatformBgColor = (platform: SocialPlatform): string => {
     Twitter: "bg-sky-500",
     Linkedin: "bg-blue-700",
     Snapchat: "bg-yellow-400",
+    Other: "bg-violet-400",
   };
   return colors[platform];
 };
 
+// Format a date as relative time (e.g., "2 days ago")
+const formatTimeAgo = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffMonths = Math.floor(diffDays / 30);
+  const diffYears = Math.floor(diffDays / 365);
+
+  if (diffYears > 0) return `${diffYears} year${diffYears > 1 ? "s" : ""} ago`;
+  if (diffMonths > 0) return `${diffMonths} month${diffMonths > 1 ? "s" : ""} ago`;
+  if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  if (diffMins > 0) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+  return "just now";
+};
+
 /* -------------------------------------------------------------------------- */
-/* PIN VERIFICATION DIALOG                                                    */
+/* TOTP VERIFICATION DIALOG                                                   */
 /* -------------------------------------------------------------------------- */
 
-function PinVerificationDialog({
+function TotpVerificationDialog({
   open,
   onVerify,
   onCancel,
 }: {
   open: boolean;
-  onVerify: (pin: string) => void;
+  onVerify: (code: string) => void;
   onCancel: () => void;
 }) {
-  const [pin, setPin] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = () => {
-    if (pin.length !== PIN_LENGTH) {
-      setError(`PIN must be ${PIN_LENGTH} digits`);
+    const cleanCode = code.replace(/\s/g, "");
+    if (cleanCode.length !== 6) {
+      setError("Enter the 6-digit code from your authenticator app");
       return;
     }
-    onVerify(pin);
-    setPin("");
+    onVerify(cleanCode);
+    setCode("");
     setError("");
   };
 
@@ -194,30 +227,30 @@ function PinVerificationDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" />
-            Security Verification Required
+            <Smartphone className="h-5 w-5 text-blue-600" />
+            Two-Factor Authentication
           </DialogTitle>
           <DialogDescription>
-            Enter your {PIN_LENGTH}-digit security PIN to access sensitive login information.
+            Enter the 6-digit code from your authenticator app (Google Authenticator, Authy, etc.)
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="pin">Security PIN</Label>
+            <Label htmlFor="totp-code">Verification Code</Label>
             <Input
-              id="pin"
-              type="password"
+              id="totp-code"
+              type="text"
               inputMode="numeric"
-              maxLength={PIN_LENGTH}
-              value={pin}
+              maxLength={6}
+              value={code}
               onChange={(e) => {
                 const value = e.target.value.replace(/\D/g, "");
-                setPin(value);
+                setCode(value);
                 setError("");
               }}
               onKeyDown={handleKeyDown}
-              placeholder="••••••"
+              placeholder="000000"
               className="text-center text-2xl tracking-[0.5em] font-mono"
               autoFocus
             />
@@ -236,7 +269,7 @@ function PinVerificationDialog({
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={pin.length !== PIN_LENGTH}>
+          <Button onClick={handleSubmit} disabled={code.length !== 6}>
             <Unlock className="h-4 w-4 mr-2" />
             Verify & Access
           </Button>
@@ -247,105 +280,227 @@ function PinVerificationDialog({
 }
 
 /* -------------------------------------------------------------------------- */
-/* SET PIN DIALOG (First time setup)                                          */
+/* 2FA SETUP DIALOG (First time setup with QR code)                           */
 /* -------------------------------------------------------------------------- */
 
-function SetPinDialog({
+function TotpSetupDialog({
   open,
-  onSetPin,
+  onSetup,
   onCancel,
 }: {
   open: boolean;
-  onSetPin: (pin: string) => void;
+  onSetup: (code: string) => void;
   onCancel: () => void;
 }) {
-  const [pin, setPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
+  const [step, setStep] = useState<"loading" | "scan" | "verify">("loading");
+  const [qrCode, setQrCode] = useState("");
+  const [secret, setSecret] = useState("");
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [verifyCode, setVerifyCode] = useState("");
   const [error, setError] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [copiedBackup, setCopiedBackup] = useState(false);
 
-  const handleSubmit = () => {
-    if (pin.length !== PIN_LENGTH) {
-      setError(`PIN must be ${PIN_LENGTH} digits`);
+  // Fetch QR code and secret on open
+  useEffect(() => {
+    if (open && step === "loading") {
+      fetchSetupData();
+    }
+  }, [open, step]);
+
+  const fetchSetupData = async () => {
+    try {
+      const res = await fetch("/api/logins/2fa/setup", {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setQrCode(data.qrCode);
+        setSecret(data.secret);
+        setBackupCodes(data.backupCodes);
+        setStep("scan");
+      } else {
+        setError(data.error || "Failed to generate 2FA setup");
+      }
+    } catch (err) {
+      setError("Failed to connect to server");
+    }
+  };
+
+  const handleVerify = () => {
+    if (verifyCode.length !== 6) {
+      setError("Enter the 6-digit code");
       return;
     }
-    if (pin !== confirmPin) {
-      setError("PINs do not match");
-      return;
-    }
-    onSetPin(pin);
-    setPin("");
-    setConfirmPin("");
+    onSetup(verifyCode);
+    setVerifyCode("");
     setError("");
   };
 
+  const copyBackupCodes = async () => {
+    await navigator.clipboard.writeText(backupCodes.join("\n"));
+    setCopiedBackup(true);
+    setTimeout(() => setCopiedBackup(false), 2000);
+  };
+
+  const handleClose = () => {
+    setStep("loading");
+    setQrCode("");
+    setSecret("");
+    setBackupCodes([]);
+    setVerifyCode("");
+    setError("");
+    onCancel();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5 text-blue-600" />
-            Set Security PIN
+            <Smartphone className="h-5 w-5 text-blue-600" />
+            Set Up Two-Factor Authentication
           </DialogTitle>
           <DialogDescription>
-            Create a {PIN_LENGTH}-digit PIN to protect access to client login credentials.
+            Secure your account with an authenticator app like Google Authenticator or Authy
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="new-pin">New PIN</Label>
-            <Input
-              id="new-pin"
-              type="password"
-              inputMode="numeric"
-              maxLength={PIN_LENGTH}
-              value={pin}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                setPin(value);
-                setError("");
-              }}
-              placeholder="••••••"
-              className="text-center text-2xl tracking-[0.5em] font-mono"
-            />
-          </div>
+          {step === "loading" && (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="confirm-pin">Confirm PIN</Label>
-            <Input
-              id="confirm-pin"
-              type="password"
-              inputMode="numeric"
-              maxLength={PIN_LENGTH}
-              value={confirmPin}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                setConfirmPin(value);
-                setError("");
-              }}
-              placeholder="••••••"
-              className="text-center text-2xl tracking-[0.5em] font-mono"
-            />
-          </div>
+          {step === "scan" && (
+            <>
+              {/* QR Code */}
+              <div className="flex flex-col items-center space-y-3">
+                <p className="text-sm text-gray-600">
+                  1. Scan this QR code with your authenticator app:
+                </p>
+                {qrCode && (
+                  <div className="p-3 bg-white rounded-lg border">
+                    <img src={qrCode} alt="QR Code" className="w-48 h-48" />
+                  </div>
+                )}
+              </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+              {/* Manual Entry */}
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  Or enter this code manually:
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-3 py-2 bg-gray-100 rounded font-mono text-sm break-all">
+                    {showSecret ? secret : "••••••••••••••••••••"}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowSecret(!showSecret)}
+                  >
+                    {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => navigator.clipboard.writeText(secret)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
 
-          <Alert>
-            <ShieldCheck className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Remember this PIN! You'll need it every time you access login credentials.
-            </AlertDescription>
-          </Alert>
+              {/* Backup Codes */}
+              <div className="space-y-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-amber-800">
+                    ⚠️ Save these backup codes:
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={copyBackupCodes}
+                    className="text-amber-700"
+                  >
+                    {copiedBackup ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    <span className="ml-1">{copiedBackup ? "Copied!" : "Copy"}</span>
+                  </Button>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {backupCodes.map((code, i) => (
+                    <code key={i} className="px-2 py-1 bg-white rounded text-xs font-mono text-center">
+                      {code}
+                    </code>
+                  ))}
+                </div>
+                <p className="text-xs text-amber-600">
+                  Store these safely! You'll need them if you lose access to your authenticator.
+                </p>
+              </div>
+
+              <Button onClick={() => setStep("verify")} className="w-full">
+                Continue to Verification
+              </Button>
+            </>
+          )}
+
+          {step === "verify" && (
+            <>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  2. Enter the 6-digit code from your authenticator app:
+                </p>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={verifyCode}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setVerifyCode(value);
+                    setError("");
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                  placeholder="000000"
+                  className="text-center text-2xl tracking-[0.5em] font-mono"
+                  autoFocus
+                />
+                {error && <p className="text-sm text-red-500">{error}</p>}
+              </div>
+
+              <Alert>
+                <ShieldCheck className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  After verification, you'll need this code every time you access login credentials.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+
+          {error && step === "loading" && (
+            <p className="text-sm text-red-500 text-center">{error}</p>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          {step === "verify" && (
+            <Button variant="outline" onClick={() => setStep("scan")}>
+              Back
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={pin.length !== PIN_LENGTH || confirmPin.length !== PIN_LENGTH}>
-            <Lock className="h-4 w-4 mr-2" />
-            Set PIN
-          </Button>
+          {step === "verify" && (
+            <Button onClick={handleVerify} disabled={verifyCode.length !== 6}>
+              <Lock className="h-4 w-4 mr-2" />
+              Enable 2FA
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -444,21 +599,28 @@ function LoginFormDialog({
   login,
   clients,
   onSave,
+  isClient = false,
+  userClientId = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   login: SocialLogin | null;
   clients: Client[];
   onSave: (data: Partial<SocialLogin>) => void;
+  isClient?: boolean;
+  userClientId?: string | null;
 }) {
   const [formData, setFormData] = useState({
     clientId: "",
     platform: "Instagram" as SocialPlatform,
     username: "",
     password: "",
+    loginUrl: "",
     email: "",
     phone: "",
     notes: "",
+    backupCodesLocation: "",
+    adminOnly: false,
   });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -469,26 +631,45 @@ function LoginFormDialog({
         platform: login.platform,
         username: login.username,
         password: login.password,
+        loginUrl: login.loginUrl || "",
         email: login.email || "",
         phone: login.phone || "",
         notes: login.notes || "",
+        backupCodesLocation: login.backupCodesLocation || "",
+        adminOnly: login.adminOnly || false,
       });
     } else {
+      // For client users, auto-set their clientId (use userClientId or first client in list)
+      const autoClientId = isClient ? (userClientId || clients[0]?.id || "") : "";
       setFormData({
-        clientId: "",
+        clientId: autoClientId,
         platform: "Instagram",
         username: "",
         password: "",
+        loginUrl: "",
         email: "",
         phone: "",
         notes: "",
+        backupCodesLocation: "",
+        adminOnly: false,
       });
     }
     setShowPassword(false);
-  }, [login, open]);
+  }, [login, open, isClient, userClientId, clients]);
+
+  // Clear clientId when adminOnly is toggled on
+  const handleAdminOnlyChange = (checked: boolean) => {
+    setFormData({
+      ...formData,
+      adminOnly: checked,
+      // Clear clientId when admin only is checked
+      clientId: checked ? "" : formData.clientId,
+    });
+  };
 
   const handleSubmit = () => {
-    if (!formData.clientId) {
+    // Only require clientId if NOT admin only
+    if (!formData.adminOnly && !formData.clientId) {
       toast.error("Please select a client");
       return;
     }
@@ -520,26 +701,77 @@ function LoginFormDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Admin Only Toggle - Moved to top for better UX */}
+          {!isClient && (
+            <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <input
+                type="checkbox"
+                id="adminOnly"
+                checked={formData.adminOnly}
+                onChange={(e) => handleAdminOnlyChange(e.target.checked)}
+                className="h-4 w-4 rounded border-amber-300"
+              />
+              <div>
+                <label
+                  htmlFor="adminOnly"
+                  className="text-sm font-medium text-amber-800 dark:text-amber-200 cursor-pointer"
+                >
+                  Admin Only
+                </label>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Only admins can view this login. Clients and other employees won't see it.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Client *</Label>
-              <Select
-                value={formData.clientId}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, clientId: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.companyName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className={formData.adminOnly ? "text-gray-400" : ""}>
+                Client {!formData.adminOnly && "*"}
+                {formData.adminOnly && (
+                  <span className="text-xs text-gray-400 ml-1">(Optional)</span>
+                )}
+              </Label>
+              {isClient && clients.length > 0 ? (
+                // Client users see their company name as fixed text
+                <div className="flex items-center h-10 px-3 bg-gray-100 rounded-md border text-sm font-medium">
+                  {clients[0]?.companyName || "Your Company"}
+                </div>
+              ) : (
+                // Admin sees dropdown with all clients
+                <Select
+                  value={formData.clientId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, clientId: value })
+                  }
+                  disabled={formData.adminOnly}
+                >
+                  <SelectTrigger
+                    className={formData.adminOnly ? "opacity-50 cursor-not-allowed bg-gray-100" : ""}
+                  >
+                    <SelectValue
+                      placeholder={
+                        formData.adminOnly
+                          ? "Not required for admin-only"
+                          : "Select client"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.companyName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {formData.adminOnly && (
+                <p className="text-xs text-gray-500">
+                  Admin-only logins don't require a client association
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -606,9 +838,50 @@ function LoginFormDialog({
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label>Login Page URL</Label>
+            <div className="relative">
+              <Input
+                type="url"
+                value={formData.loginUrl}
+                onChange={(e) =>
+                  setFormData({ ...formData, loginUrl: e.target.value })
+                }
+                placeholder="https://instagram.com/accounts/login/"
+                className="pr-10"
+              />
+              {formData.loginUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                  onClick={() => window.open(formData.loginUrl, "_blank")}
+                  title="Open login URL"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              Direct link to the login or account management page
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Backup Codes Location</Label>
+            <Input
+              value={formData.backupCodesLocation}
+              onChange={(e) =>
+                setFormData({ ...formData, backupCodesLocation: e.target.value })
+              }
+              placeholder="e.g. Google Drive link, Vault Note "
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Recovery Email</Label>
+              <Label>Email</Label>
               <Input
                 type="email"
                 value={formData.email}
@@ -620,7 +893,7 @@ function LoginFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Recovery Phone</Label>
+              <Label>Phone</Label>
               <Input
                 value={formData.phone}
                 onChange={(e) =>
@@ -641,13 +914,6 @@ function LoginFormDialog({
               placeholder="2FA enabled, backup codes in drive, etc."
             />
           </div>
-
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              This information will be encrypted and stored securely. Only authorized personnel can access it.
-            </AlertDescription>
-          </Alert>
         </div>
 
         <DialogFooter>
@@ -675,11 +941,11 @@ export function SocialLogins() {
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
 
-  // Security state
+  // Security state (2FA)
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [showPinDialog, setShowPinDialog] = useState(false);
-  const [showSetPinDialog, setShowSetPinDialog] = useState(false);
-  const [hasPin, setHasPin] = useState(false);
+  const [showTotpDialog, setShowTotpDialog] = useState(false);
+  const [showTotpSetupDialog, setShowTotpSetupDialog] = useState(false);
+  const [has2FA, setHas2FA] = useState(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
 
   // Dialog state
@@ -693,9 +959,10 @@ export function SocialLogins() {
   // Role checks
   const userRole = user?.role?.toLowerCase() || "";
   const canView = ["admin", "client", "scheduler"].includes(userRole);
-  const canEdit = userRole === "admin";
+  const canEdit = userRole === "admin" || userRole === "client"; // Both admin and client can add/edit/delete
   const isClient = userRole === "client";
-  const userClientId = user?.clientId || null;
+  // Get user's client ID from linkedClientId
+  const userClientId = user?.linkedClientId || null;
 
   /* ----------------------------- AUTO-LOCK --------------------------------- */
 
@@ -740,7 +1007,7 @@ export function SocialLogins() {
         // Load clients
         const clientsRes = await fetch("/api/clients");
         const clientsData = await clientsRes.json();
-        
+
         // If user is a client, only show their own client in the list
         const allClients = clientsData.clients || [];
         if (isClient && userClientId) {
@@ -749,10 +1016,10 @@ export function SocialLogins() {
           setClients(allClients);
         }
 
-        // Check if user has PIN set
-        const pinRes = await fetch("/api/logins/check-pin");
-        const pinData = await pinRes.json();
-        setHasPin(pinData.hasPin);
+        // Check if user has 2FA enabled
+        const twoFactorRes = await fetch("/api/logins/2fa/check");
+        const twoFactorData = await twoFactorRes.json();
+        setHas2FA(twoFactorData.isEnabled || false);
 
         setLoading(false);
       } catch (err) {
@@ -771,12 +1038,12 @@ export function SocialLogins() {
     async function loadLogins() {
       try {
         // For clients, fetch only their logins; for others, fetch all
-        const url = isClient && userClientId 
+        const url = isClient && userClientId
           ? `/api/logins?clientId=${userClientId}`
           : "/api/logins";
         const res = await fetch(url);
         const data = await res.json();
-        
+
         // Double-check filtering on client side for extra security
         let fetchedLogins = data.logins || [];
         if (isClient && userClientId) {
@@ -784,7 +1051,7 @@ export function SocialLogins() {
             (login: SocialLogin) => login.clientId === userClientId
           );
         }
-        
+
         setLogins(fetchedLogins);
       } catch (err) {
         console.error("Failed to load logins:", err);
@@ -796,29 +1063,29 @@ export function SocialLogins() {
     }
   }, [isUnlocked, isClient, userClientId]);
 
-  /* ----------------------------- PIN HANDLERS ------------------------------ */
+  /* ----------------------------- 2FA HANDLERS ------------------------------ */
 
   const handleUnlockAttempt = () => {
-    if (hasPin) {
-      setShowPinDialog(true);
+    if (has2FA) {
+      setShowTotpDialog(true);
     } else {
-      setShowSetPinDialog(true);
+      setShowTotpSetupDialog(true);
     }
   };
 
-  const handlePinVerify = async (pin: string) => {
+  const handleTotpVerify = async (code: string) => {
     try {
-      const res = await fetch("/api/logins/verify-pin", {
+      const res = await fetch("/api/logins/2fa/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ code }),
       });
 
       const data = await res.json();
 
-      if (data.valid) {
+      if (data.verified) {
         setIsUnlocked(true);
-        setShowPinDialog(false);
+        setShowTotpDialog(false);
         setLastActivity(Date.now());
         toast.success("Access granted", {
           icon: <ShieldCheck className="h-4 w-4" />,
@@ -831,32 +1098,34 @@ export function SocialLogins() {
           body: JSON.stringify({ action: "unlock" }),
         });
       } else {
-        toast.error("Invalid PIN");
+        toast.error(data.error || "Invalid code");
       }
     } catch (err) {
       toast.error("Verification failed");
     }
   };
 
-  const handleSetPin = async (pin: string) => {
+  const handleTotpSetup = async (code: string) => {
     try {
-      const res = await fetch("/api/logins/set-pin", {
+      const res = await fetch("/api/logins/2fa/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ code, enableAfterVerify: true }),
       });
 
-      if (res.ok) {
-        setHasPin(true);
+      const data = await res.json();
+
+      if (data.enabled) {
+        setHas2FA(true);
         setIsUnlocked(true);
-        setShowSetPinDialog(false);
+        setShowTotpSetupDialog(false);
         setLastActivity(Date.now());
-        toast.success("Security PIN set successfully");
+        toast.success("Two-Factor Authentication enabled successfully!");
       } else {
-        toast.error("Failed to set PIN");
+        toast.error(data.error || "Failed to enable 2FA");
       }
     } catch (err) {
-      toast.error("Failed to set PIN");
+      toast.error("Failed to enable 2FA");
     }
   };
 
@@ -1004,8 +1273,8 @@ export function SocialLogins() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Social Media Logins</h2>
           <p className="text-sm text-gray-600">
-            {isClient 
-              ? "Access your social media credentials securely" 
+            {isClient
+              ? "Access your social media credentials securely"
               : "Secure storage for client social media credentials"}
           </p>
         </div>
@@ -1019,13 +1288,13 @@ export function SocialLogins() {
               <h3 className="text-xl font-semibold mb-2">Section Locked</h3>
               <p className="text-gray-600 mb-6">
                 This section contains sensitive {isClient ? "account" : "client"} credentials.
-                {hasPin
-                  ? " Enter your security PIN to access."
-                  : " Set up a security PIN to continue."}
+                {has2FA
+                  ? " Verify your identity with your authenticator app."
+                  : " Set up two-factor authentication to continue."}
               </p>
               <Button onClick={handleUnlockAttempt} size="lg" className="gap-2">
-                <Key className="h-4 w-4" />
-                {hasPin ? "Unlock with PIN" : "Set Up Security PIN"}
+                <Smartphone className="h-4 w-4" />
+                {has2FA ? "Verify with 2FA" : "Set Up Two-Factor Auth"}
               </Button>
 
               <div className="mt-6 pt-6 border-t">
@@ -1038,16 +1307,16 @@ export function SocialLogins() {
           </Card>
         </div>
 
-        <PinVerificationDialog
-          open={showPinDialog}
-          onVerify={handlePinVerify}
-          onCancel={() => setShowPinDialog(false)}
+        <TotpVerificationDialog
+          open={showTotpDialog}
+          onVerify={handleTotpVerify}
+          onCancel={() => setShowTotpDialog(false)}
         />
 
-        <SetPinDialog
-          open={showSetPinDialog}
-          onSetPin={handleSetPin}
-          onCancel={() => setShowSetPinDialog(false)}
+        <TotpSetupDialog
+          open={showTotpSetupDialog}
+          onSetup={handleTotpSetup}
+          onCancel={() => setShowTotpSetupDialog(false)}
         />
       </div>
     );
@@ -1070,8 +1339,8 @@ export function SocialLogins() {
             </Badge>
           </div>
           <p className="text-sm text-gray-600">
-            {isClient 
-              ? "Your social media credentials" 
+            {isClient
+              ? "Your social media credentials"
               : "Secure storage for client social media credentials"}
           </p>
         </div>
@@ -1199,6 +1468,12 @@ export function SocialLogins() {
                         <Badge variant="outline" className="text-xs">
                           @{login.username}
                         </Badge>
+                        {login.adminOnly && (
+                          <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">
+                            🔒 Admin Only
+                          </Badge>
+                        )}
+
                       </div>
 
                       <PasswordField
@@ -1221,31 +1496,81 @@ export function SocialLogins() {
                           📝 {login.notes}
                         </p>
                       )}
+
+                      {/* Password Changed Date */}
+                      {login.passwordChangedAt && (
+                        <p
+                          className={`text-xs mt-1 ${
+                            // Highlight if password is older than 90 days
+                            new Date().getTime() - new Date(login.passwordChangedAt).getTime() > 90 * 24 * 60 * 60 * 1000
+                              ? "text-amber-600"
+                              : "text-gray-400"
+                            }`}
+                          title={new Date(login.passwordChangedAt).toLocaleString()}
+                        >
+                          🔑 Password changed: {formatTimeAgo(login.passwordChangedAt)}
+                        </p>
+                      )}
+
+                      {/* Backup Codes Location */}
+                      {login.backupCodesLocation && (
+                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                          <Shield className="h-3 w-3" />
+                          Backup Codes:
+                          {login.backupCodesLocation.startsWith('http') ? (
+                            <a
+                              href={login.backupCodesLocation}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline flex items-center gap-0.5"
+                            >
+                              Open Link <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          ) : (
+                            <span>{login.backupCodesLocation}</span>
+                          )}
+                        </p>
+                      )}
                     </div>
 
-                    {/* Actions - Admin Only */}
-                    {canEdit && (
-                      <div className="flex items-center gap-1">
+                    {/* Actions */}
+                    <div className="flex items-center gap-1">
+                      {/* Login URL Button */}
+                      {login.loginUrl && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => {
-                            setEditingLogin(login);
-                            setShowLoginDialog(true);
-                          }}
+                          onClick={() => window.open(login.loginUrl, "_blank")}
+                          title="Open login page"
+                          className="text-blue-600 hover:text-blue-700"
                         >
-                          <Edit className="h-4 w-4" />
+                          <ExternalLink className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setDeleteConfirmLogin(login)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
+                      )}
+
+                      {canEdit && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingLogin(login);
+                              setShowLoginDialog(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeleteConfirmLogin(login)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
 
                     {/* Last Updated */}
                     <div className="text-xs text-gray-400 text-right">
@@ -1269,7 +1594,7 @@ export function SocialLogins() {
               <p className="text-gray-500 mb-4">
                 {searchTerm || clientFilter !== "all" || platformFilter !== "all"
                   ? "No results match your filters"
-                  : isClient 
+                  : isClient
                     ? "No social media credentials have been added for your account yet"
                     : "Add your first social media login credentials"}
               </p>
@@ -1297,6 +1622,8 @@ export function SocialLogins() {
         login={editingLogin}
         clients={clients}
         onSave={handleSaveLogin}
+        isClient={isClient}
+        userClientId={userClientId}
       />
 
       <AlertDialog
@@ -1323,11 +1650,11 @@ export function SocialLogins() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <PinVerificationDialog
-        open={showPinDialog}
-        onVerify={handlePinVerify}
-        onCancel={() => setShowPinDialog(false)}
+      <TotpVerificationDialog
+        open={showTotpDialog}
+        onVerify={handleTotpVerify}
+        onCancel={() => setShowTotpDialog(false)}
       />
-    </div>
+    </div >
   );
 }

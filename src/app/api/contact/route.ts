@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     recent.push(now);
     ipSubmissions.set(ip, recent);
 
-    const recipient = 'mitaligadge24@gmail.com';
+    const recipient = 'i@needediting.com';
 
     // If SMTP isn't configured we log the submission (development mode)
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {

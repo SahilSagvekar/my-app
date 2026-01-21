@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     // }
 
-    // console.log("[LOGIN] 5. Comparing password...");
+    console.log("[LOGIN] 5. Comparing password...");
     // const isPasswordValid = await bcrypt.compare(password, user.password);
     // console.log("[LOGIN] 6. Password valid:", isPasswordValid);
 
@@ -35,9 +35,9 @@ export async function POST(req: Request) {
     //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     // }
 
-    if (!process.env.JWT_SECRET) {
-      throw new Error("JWT_SECRET not configured");
-    }
+    // if (!process.env.JWT_SECRET) {
+    //   throw new Error("JWT_SECRET not configured");
+    // }
 
     console.log("[LOGIN] 7. Signing token...");
     const token = jwt.sign(
