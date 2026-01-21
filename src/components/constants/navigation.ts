@@ -29,6 +29,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'leaves', label: 'Employee Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
@@ -37,7 +38,6 @@ export const NAVIGATION_ITEMS = {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'logins', label: 'Logins', icon: LogIn },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
@@ -60,12 +60,12 @@ export const NAVIGATION_ITEMS = {
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
+    { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'reports', label: 'Analytics', icon: FileSpreadsheet },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'scheduling', label: 'Employment Information', icon: Clock },
-    { id: 'logins', label: 'Logins', icon: LogIn },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -84,15 +84,14 @@ export const NAVIGATION_ITEMS = {
     { id: 'approvals', label: 'Approvals', icon: CheckSquare },
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
     // { id: 'projects', label: 'My Projects', icon: FolderOpen },
     // { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'invoices', label: 'Invoices & Billing', icon: Layout },
     { id: 'archive', label: 'Archive', icon: Archive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'logins', label: 'Logins', icon: LogIn },
 
   ],
   videographer: [
