@@ -862,7 +862,7 @@ export function FullScreenReviewModalFrameIO({
                                     currentTime={currentTime}
                                     currentTimestamp={formatTime(currentTime)}
                                     authorId="current-user"
-                                    authorName={userRole === 'qc' ? 'QC Reviewer' : 'You'}
+                                    authorName={user?.name || 'User'}
                                     onSubmit={handleCommentSubmit}
                                     onCancel={() => setShowCommentInput(false)}
                                     isExpanded={showCommentInput}

@@ -33,7 +33,7 @@ const nextConfig = {
   //   ];
   // },
 
-   async headers() {
+  async headers() {
     return [
       {
         source: '/(.*)',
@@ -44,7 +44,7 @@ const nextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://*.s3.us-east-1.amazonaws.com https://*.amazonaws.com",
+              "img-src 'self' data: blob: https://*.s3.us-east-1.amazonaws.com https://*.amazonaws.com https://ui-avatars.com https://res.cloudinary.com",
               "media-src 'self' blob: https://*.s3.us-east-1.amazonaws.com https://*.amazonaws.com", // 🔥 This allows S3 videos
               "connect-src 'self' https://*.s3.us-east-1.amazonaws.com https://*.amazonaws.com", // 🔥 This allows S3 API calls
               "font-src 'self' data:",
