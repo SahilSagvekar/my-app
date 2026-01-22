@@ -96,6 +96,8 @@ export function LayoutShell({
         },
       });
 
+      console.log('Profile response status:', response);
+
       const data = await response.json();
       
       if (data.success) {
