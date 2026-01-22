@@ -440,25 +440,25 @@ export function QCDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Reviews</p>
-                <h3>{pendingReviews}</h3>
+              <div className="flex-1 text-center mt-0 pt-0 mb-0 pb-0">
+                <p className="text-sm text-muted-foreground mt-0 pt-0 mb-0 pb-0">Pending Reviews</p>
+                <h3 className="text-2xl  mt-1">{pendingReviews}</h3>
               </div>
-              <Clock className="h-8 w-8 text-blue-500" />
+              <Clock className="h-10 w-10 text-blue-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex-1 text-center">
                 <p className="text-sm text-muted-foreground">Overdue</p>
-                <h3 className="text-red-500">{overdueReviews}</h3>
+                <h3 className="text-2xl font-bold mt-1 text-red-500">{overdueReviews}</h3>
               </div>
-              <XCircle className="h-8 w-8 text-red-500" />
+              <XCircle className="h-10 w-10 text-red-500" />
             </div>
           </CardContent>
         </Card>
