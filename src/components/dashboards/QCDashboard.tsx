@@ -417,7 +417,18 @@ export function QCDashboard() {
     }
   };
 
-  const isOverdue = (task: EnhancedWorkflowTask) => new Date(task.dueDate) < new Date();
+  const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
+    if (!task.files || task.files.length === 0) return null;
+    // 1. Try to find an active thumbnail
+    const thumbFile = task.files.find(f => f.folderType === 'thumbnails' && f.mimeType?.startsWith('image/') && f.isActive !== false);
+    if (thumbFile) return thumbFile.url;
+    // 2. Try to find any active image
+    const activeImage = task.files.find(f => f.mimeType?.startsWith('image/') && f.isActive !== false);
+    if (activeImage) return activeImage.url;
+    // 3. Fallback to any image
+    const anyImage = task.files.find(f => f.mimeType?.startsWith('image/'));
+    return anyImage?.url || null;
+  };
 
   const handleTaskClick = (task: EnhancedWorkflowTask) => {
     setSelectedTask(task);
@@ -425,7 +436,6 @@ export function QCDashboard() {
   };
 
   const pendingReviews = qcTasks.length;
-  const overdueReviews = qcTasks.filter(task => isOverdue(task)).length;
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -437,142 +447,141 @@ export function QCDashboard() {
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 max-w-sm">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex-1 text-center mt-0 pt-0 mb-0 pb-0">
                 <p className="text-sm text-muted-foreground mt-0 pt-0 mb-0 pb-0">Pending Reviews</p>
-                <h3 className="text-2xl  mt-1">{pendingReviews}</h3>
+                <h3 className="text-2xl mt-1 font-bold">{pendingReviews}</h3>
               </div>
-              <Clock className="h-10 w-10 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 text-center">
-                <p className="text-sm text-muted-foreground">Overdue</p>
-                <h3 className="text-2xl font-bold mt-1 text-red-500">{overdueReviews}</h3>
-              </div>
-              <XCircle className="h-10 w-10 text-red-500" />
+              <Clock className="h-10 w-10 text-primary" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex flex-col flex-1 min-h-0">
-        <Card className="flex flex-col flex-1 min-h-0">
-          <CardHeader>
-            <CardTitle>Review Queue ({pendingReviews})</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Click on any task to view files
-            </p>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 overflow-hidden">
-            <div className="space-y-0 h-full overflow-y-auto">
-              {loading ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
-                  <p>Loading QC tasks...</p>
-                </div>
-              ) : qcTasks.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
-                  <p>No QC tasks available</p>
-                </div>
-              ) : (
-                qcTasks.map((task, index) => (
-                  <div
-                    key={task.id}
-                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${selectedTask?.id === task.id ? "bg-muted" : ""
-                      } ${getPriorityColor(task.priority)} ${isOverdue(task) ? "border-r-4 border-r-red-500" : ""
-                      }`}
-                    onClick={() => handleTaskClick(task)}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {getStatusIcon(task.status)}
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-mono text-muted-foreground">
-                            #{index + 1}
-                          </span>
-                          {getTaskCategoryIcon(task.taskCategory)}
-                        </div>
-                        <h4 className="text-sm font-medium truncate">
-                          {task.title}
-                        </h4>
+      <div className="flex-1">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              Review Queue
+              <Badge variant="secondary" className="font-mono">
+                {pendingReviews}
+              </Badge>
+            </h2>
+            <p className="text-xs text-muted-foreground">Click on any card to review its files</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
+            <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
+            <p className="font-medium">Loading QC tasks...</p>
+          </div>
+        ) : qcTasks.length === 0 ? (
+          <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
+            <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
+            <p className="font-medium">No QC tasks available</p>
+            <p className="text-sm mt-1">Check back later for new submissions</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+            {qcTasks.map((task, index) => {
+              const thumbnail = getTaskThumbnail(task);
+              return (
+                <Card
+                  key={task.id}
+                  className={`group cursor-pointer border-none shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full bg-[#f9fafb] hover:shadow-md hover:ring-1 hover:ring-zinc-200 ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""}`}
+                  onClick={() => handleTaskClick(task)}
+                >
+                  {/* Visual Header / Thumbnail Area */}
+                  <div className={`h-44 relative flex items-center justify-center bg-[#f3f4f6] transition-colors overflow-hidden font-bold`}>
+                    {thumbnail ? (
+                      <img
+                        src={thumbnail}
+                        alt={task.title}
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                    ) : (
+                      /* Large Icon per category (fallback) */
+                      <div className="opacity-20 transform group-hover:scale-110 transition-transform duration-500">
+                        {task.taskCategory === 'video' ? (
+                          <Video className="h-16 w-16 text-zinc-900" />
+                        ) : task.taskCategory === 'design' ? (
+                          <Palette className="h-16 w-16 text-zinc-900" />
+                        ) : (
+                          <FileText className="h-16 w-16 text-zinc-900" />
+                        )}
                       </div>
-                      <Badge
-                        variant="default"
-                        className="text-xs ml-2 flex-shrink-0"
-                      >
-                        pending
+                    )}
+
+                    {/* Darker overlay if thumbnail exists for better icon readability */}
+                    {thumbnail && <div className="absolute inset-0 bg-black/5" />}
+
+                    {/* Status Overlay - Top Left */}
+                    <div className="absolute top-3 left-3">
+                      <div className="p-1 rounded bg-zinc-200/50 text-zinc-500">
+                        <Clock className="h-3 w-3" />
+                      </div>
+                    </div>
+
+                    {/* File Count - Top Right */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm">
+                      <FileText className="h-3 w-3" />
+                      {task.files?.length || 0}
+                    </div>
+
+                    {/* Bottom Right Clock Icon in Circle */}
+                    <div className="absolute bottom-3 right-3">
+                      <div className="h-7 w-7 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
+                        <Clock className="h-4 w-4 text-blue-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="p-4 flex flex-col gap-3">
+                    {/* Title */}
+                    <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">
+                      {task.title}
+                    </h4>
+
+                    {/* Editor & Date Row */}
+                    <div className="flex items-center justify-between text-zinc-500 text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5" />
+                        <span>Editor</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{new Date(task.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                      </div>
+                    </div>
+
+                    {/* Badges Row */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                        Pending
+                      </Badge>
+                      <Badge variant="outline" className="text-zinc-500 border-zinc-200 rounded-full px-3 py-0.5 text-[10px] font-medium bg-transparent">
+                        {task.priority || 'medium'}
                       </Badge>
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                      <User className="h-3 w-3" />
-                      <span>From Editor</span>
-                      {task.priority && (
-                        <Badge
-                          variant="outline"
-                          className={`text-xs px-1 py-0 ${task.priority === "urgent"
-                            ? "border-red-500 text-red-700"
-                            : task.priority === "high"
-                              ? "border-orange-500 text-orange-700"
-                              : "border-gray-500 text-gray-700"
-                            }`}
-                        >
-                          {task.priority}
-                        </Badge>
-                      )}
+                    {/* Destination Footer */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-zinc-100 mt-1 text-zinc-400 text-[11px]">
+                      <UserCheck className="h-3.5 w-3.5" />
+                      <span className="flex items-center gap-1">
+                        → <span className="capitalize">{task.nextDestination || 'client'}</span>
+                      </span>
                     </div>
-
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span
-                          className={
-                            isOverdue(task) ? "text-red-500 font-medium" : ""
-                          }
-                        >
-                          Due {new Date(task.dueDate).toLocaleDateString()}
-                          {isOverdue(task) && " (Overdue)"}
-                        </span>
-                      </div>
-
-                      {task.files && (
-                        <Badge variant="outline" className="text-xs">
-                          <FileText className="h-3 w-3 mr-1" />
-                          {task.files.length} file{task.files.length !== 1 ? 's' : ''}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {task.nextDestination && (
-                      <div className="flex items-center gap-2 mt-2 pt-2 border-t">
-                        <div
-                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${getDestinationColor(
-                            task.nextDestination
-                          )}`}
-                        >
-                          {getDestinationIcon(task.nextDestination)}
-                          <ArrowRight className="h-2 w-2" />
-                          <span className="capitalize">
-                            {task.nextDestination}
-                          </span>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {selectedTask && (
