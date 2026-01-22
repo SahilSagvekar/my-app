@@ -828,11 +828,11 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
           <DialogTitle>Create Task</DialogTitle>
           <DialogDescription>Assign the task and upload files.</DialogDescription>
 
-          {user && (
+          {/* {user && (
             <div className="text-xs text-muted-foreground">
               Creating as: {user.name} ({user.role})
             </div>
-          )}
+          )} */}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">

@@ -48,10 +48,11 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
         return;
       }
 
-      const response = await fetch("/api/auth/me", {
+      const response = await fetch("/api/profile", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
       });
 
       const data = await response.json();
