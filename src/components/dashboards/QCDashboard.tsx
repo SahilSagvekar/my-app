@@ -771,10 +771,10 @@ export function QCDashboard() {
                             <Badge
                               variant="outline"
                               className={`text-xs px-1 py-0 ${task.priority === "urgent"
-                                  ? "border-red-500 text-red-700"
-                                  : task.priority === "high"
-                                    ? "border-orange-500 text-orange-700"
-                                    : "border-gray-500 text-gray-700"
+                                ? "border-red-500 text-red-700"
+                                : task.priority === "high"
+                                  ? "border-orange-500 text-orange-700"
+                                  : "border-gray-500 text-gray-700"
                                 }`}
                             >
                               {task.priority}
