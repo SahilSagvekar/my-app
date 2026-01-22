@@ -88,9 +88,9 @@ export default function AboutPage() {
           {/* Careers Section */}
           <div className="mt-12 sm:mt-20">
             <div className="text-center mb-6 sm:mb-10">
-              <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-black rounded-xl sm:rounded-2xl mb-4 sm:mb-6">
+              {/* <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-black rounded-xl sm:rounded-2xl mb-4 sm:mb-6">
                 <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-              </div>
+              </div> */}
               <h2 className="text-xl sm:text-2xl lg:text-3xl text-black mb-3 sm:mb-4">
                 Join Our Team
               </h2>

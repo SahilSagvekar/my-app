@@ -197,11 +197,11 @@ export function LayoutShell({
                     <div className="text-sm font-medium">
                       {userData.name || getUserDisplayName(currentRole as UserRole)}
                     </div>
-                    <Badge
+                    {/* <Badge
                       className={`text-xs ${ROLE_COLORS[currentRole as UserRole]}`}
                     >
                       {roleDisplay}
-                    </Badge>
+                    </Badge> */}
                   </div>
                 </Button>
               </DropdownMenuTrigger>

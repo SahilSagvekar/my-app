@@ -4,38 +4,75 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { uploadOnCloudinary } from "../../config/cloudinary";
 import jwt from "jsonwebtoken";
-import sharp from "sharp";
 
-// Helper function to get token from cookies
-function getTokenFromCookies(req: NextRequest): string | null {
+export const dynamic = "force-dynamic";
+
+import { cookies } from "next/headers";
+
+// Helper function to get token - refined for Next.js 15
+async function getToken(req: NextRequest): Promise<string | null> {
+  // Try getting from cookies first (standard Next.js approach)
+  const cookieStore = await cookies();
+  const token = cookieStore.get("authToken")?.value;
+  if (token) return token;
+
+  // Fallback to manual header parsing if needed (sometimes useful in certain proxy setups)
   const cookieHeader = req.headers.get("cookie");
-  if (!cookieHeader) return null;
+  if (cookieHeader) {
+    const match = cookieHeader.match(/authToken=([^;]+)/);
+    if (match) return match[1];
+  }
 
-  const match = cookieHeader.match(/authToken=([^;]+)/);
-  return match ? match[1] : null;
+  // Fallback to Authorization header
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.substring(7);
+  }
+
+  return null;
 }
 
 // Helper function to verify token and get user data
 function verifyToken(token: string): { userId: number; role: string } | null {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
-      userId: number;
-      role: string;
+    if (!process.env.JWT_SECRET) {
+      console.error("[PROFILE API] JWT_SECRET is not configured in environment");
+      return null;
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
+
+    // Convert userId to number if it's a string, ensuring Prisma compatibility
+    const userId = typeof decoded.userId === 'string'
+      ? parseInt(decoded.userId, 10)
+      : (typeof decoded.userId === 'number' ? decoded.userId : NaN);
+
+    if (isNaN(userId)) {
+      console.error("[PROFILE API] Invalid userId in token:", decoded.userId);
+      return null;
+    }
+
+    return {
+      userId,
+      role: decoded.role
     };
-    return decoded;
   } catch (error) {
-    console.error("Token verification failed:", error);
+    console.error("[PROFILE API] Token verification failed:", error);
     return null;
   }
 }
 
 // GET - Fetch user profile
 export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  console.log(`[PROFILE API] GET ${url.pathname} - Start`);
   try {
-    const token = getTokenFromCookies(req);
+    const token = await getToken(req);
+    console.log(`[PROFILE API] Token found: ${!!token}`);
 
     // No cookie = not logged in
     if (!token) {
+      console.warn("[PROFILE API] No token found in request");
       return NextResponse.json(
         { success: false, error: "Unauthorized - No token provided" },
         { status: 401 }
@@ -90,10 +127,12 @@ export async function GET(req: NextRequest) {
 
 // PUT - Update user profile with image upload
 export async function PUT(req: NextRequest) {
+  console.log("[PROFILE API] PUT request received");
   try {
-    const token = getTokenFromCookies(req);
+    const token = await getToken(req);
 
     if (!token) {
+      console.warn("[PROFILE API] No token found in PUT request");
       return NextResponse.json(
         { success: false, error: "Unauthorized - No token provided" },
         { status: 401 }
@@ -151,17 +190,18 @@ export async function PUT(req: NextRequest) {
         const buffer = await imageFile.arrayBuffer();
         let fileBuffer = Buffer.from(buffer);
 
-        // Compress image with sharp before uploading
+        // Compress image with sharp before uploading - Dynamic import to avoid module load failure if sharp is missing
         try {
+          const sharp = (await import("sharp")).default;
           fileBuffer = await sharp(fileBuffer)
             .resize(500, 500, { fit: "cover" })
             .jpeg({ quality: 80 })
             .toBuffer();
-          console.log("Image compressed successfully");
-        } catch (compressError) {
+          console.log("Image compressed successfully with sharp");
+        } catch (sharpError) {
           console.warn(
-            "Image compression failed, uploading original:",
-            compressError
+            "Sharp compression failed or not available, uploading original:",
+            sharpError
           );
         }
 
