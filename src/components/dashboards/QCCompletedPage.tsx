@@ -341,7 +341,8 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { CheckCircle, XCircle, FileCheck, Calendar, FileText, Video, Palette, User, ArrowRight, Search, Filter, UserCheck, Loader } from 'lucide-react';
+import { Checkbox } from '../ui/checkbox';
+import { CheckCircle, XCircle, FileCheck, Calendar, FileText, Video, Palette, User, ArrowRight, Search, Filter, UserCheck, Loader, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 type TaskStatus = 'COMPLETED' | 'REJECTED';
@@ -369,6 +370,9 @@ export function QCCompletedPage() {
   const [completedFilter, setCompletedFilter] = useState<'all' | 'COMPLETED' | 'REJECTED'>('all');
   const [completedSearchTerm, setCompletedSearchTerm] = useState('');
 
+  // Multi-select state
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     loadCompletedTasks();
   }, []);
@@ -376,9 +380,9 @@ export function QCCompletedPage() {
   const loadCompletedTasks = async () => {
     try {
       setLoading(true);
-      
+
       // 🔥 Fetch COMPLETED and REJECTED tasks
-      const res = await fetch("/api/tasks?status=COMPLETED,REJECTED", {
+      const res = await fetch("/api/tasks?status=COMPLETED,REJECTED,CLIENT_REVIEW", {
         method: "GET",
         credentials: "include",
       });
@@ -423,6 +427,58 @@ export function QCCompletedPage() {
     }
   };
 
+  // Toggle individual task selection
+  const toggleTaskSelection = (taskId: string) => {
+    const newSelection = new Set(selectedTaskIds);
+    if (newSelection.has(taskId)) {
+      newSelection.delete(taskId);
+    } else {
+      newSelection.add(taskId);
+    }
+    setSelectedTaskIds(newSelection);
+  };
+
+  // Select all/none
+  const toggleSelectAll = () => {
+    if (selectedTaskIds.size === filteredCompletedTasks.length && filteredCompletedTasks.length > 0) {
+      setSelectedTaskIds(new Set());
+    } else {
+      setSelectedTaskIds(new Set(filteredCompletedTasks.map(t => t.id)));
+    }
+  };
+
+  // Bulk revert selected tasks back to QC review
+  const handleBulkRevert = async () => {
+    if (selectedTaskIds.size === 0) {
+      toast.error('No tasks selected');
+      return;
+    }
+
+    try {
+      const taskIds = Array.from(selectedTaskIds);
+
+      const response = await fetch('/api/tasks/bulk-revert-to-qc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ taskIds }),
+      });
+
+      if (!response.ok) throw new Error('Failed to revert tasks');
+
+      toast.success(`✅ ${taskIds.length} task(s) reverted to QC Review`);
+
+      // Reload completed tasks
+      await loadCompletedTasks();
+
+      // Clear selection
+      setSelectedTaskIds(new Set());
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to revert tasks');
+    }
+  };
+
   const totalCompleted = completedTasks.length;
   const approvedCount = completedTasks.filter(t => t.status === 'COMPLETED').length;
   const rejectedCount = completedTasks.filter(t => t.status === 'REJECTED').length;
@@ -432,7 +488,7 @@ export function QCCompletedPage() {
   const filteredCompletedTasks = completedTasks.filter(task => {
     const matchesFilter = completedFilter === 'all' || task.status === completedFilter;
     const matchesSearch = task.title.toLowerCase().includes(completedSearchTerm.toLowerCase()) ||
-                         task.clientId?.toLowerCase().includes(completedSearchTerm.toLowerCase());
+      task.clientId?.toLowerCase().includes(completedSearchTerm.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
@@ -585,8 +641,32 @@ export function QCCompletedPage() {
       {/* Completed Tasks List */}
       <Card>
         <CardHeader>
-          <CardTitle>Review History ({filteredCompletedTasks.length})</CardTitle>
-          <CardDescription>Recent review outcomes and feedback</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Review History ({filteredCompletedTasks.length})</CardTitle>
+              <CardDescription>Recent review outcomes and feedback</CardDescription>
+            </div>
+            {filteredCompletedTasks.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleSelectAll}
+                >
+                  {selectedTaskIds.size === filteredCompletedTasks.length && filteredCompletedTasks.length > 0 ? 'Deselect All' : 'Select All'}
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkRevert}
+                  disabled={selectedTaskIds.size === 0}
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Revert Selected ({selectedTaskIds.size})
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -603,53 +683,66 @@ export function QCCompletedPage() {
           ) : (
             <div className="space-y-4">
               {filteredCompletedTasks.map((task) => (
-                <div key={task.id} className="border rounded-lg p-4 hover:bg-accent/50 transition-colors">
-                  <div className="flex items-start justify-between mb-3">
+                <div
+                  key={task.id}
+                  className={`border rounded-lg p-4 hover:bg-accent/50 transition-colors ${selectedTaskIds.has(task.id) ? 'bg-accent border-primary' : ''
+                    }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selectedTaskIds.has(task.id)}
+                      onCheckedChange={() => toggleTaskSelection(task.id)}
+                      className="mt-1"
+                    />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        {getStatusIcon(task.status)}
-                        <h4 className="font-medium">{task.title}</h4>
-                        <Badge variant={getStatusBadgeVariant(task.status)}>
-                          {getStatusLabel(task.status)}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                        <div className="flex items-center gap-1">
-                          <Badge variant="outline" className="text-xs">{task.id}</Badge>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            {getStatusIcon(task.status)}
+                            <h4 className="font-medium">{task.title}</h4>
+                            <Badge variant={getStatusBadgeVariant(task.status)}>
+                              {getStatusLabel(task.status)}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-xs">{task.id}</Badge>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {getTaskCategoryIcon(task.taskCategory)}
+                              <span className="capitalize">{task.taskCategory}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              <span>{new Date(task.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            {task.clientId && (
+                              <div className="flex items-center gap-1">
+                                <FileText className="h-3 w-3" />
+                                <span>Project: {task.clientId}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          {getTaskCategoryIcon(task.taskCategory)}
-                          <span className="capitalize">{task.taskCategory}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          <span>{new Date(task.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        {task.clientId && (
-                          <div className="flex items-center gap-1">
-                            <FileText className="h-3 w-3" />
-                            <span>Project: {task.clientId}</span>
+                        {task.nextDestination && (
+                          <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs flex-shrink-0 ${getDestinationColor(task.nextDestination)}`}>
+                            {getDestinationIcon(task.nextDestination)}
+                            <span className="capitalize">→ {task.nextDestination}</span>
                           </div>
                         )}
                       </div>
+                      {(task.feedback || task.qcNotes) && (
+                        <div className="mt-3 p-3 bg-accent/50 rounded">
+                          <p className="text-sm font-medium mb-1">
+                            {task.status === 'COMPLETED' ? 'Feedback Provided:' : 'Rejection Reason:'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {task.feedback || task.qcNotes}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    {task.nextDestination && (
-                      <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs flex-shrink-0 ${getDestinationColor(task.nextDestination)}`}>
-                        {getDestinationIcon(task.nextDestination)}
-                        <span className="capitalize">→ {task.nextDestination}</span>
-                      </div>
-                    )}
                   </div>
-                  {(task.feedback || task.qcNotes) && (
-                    <div className="mt-3 p-3 bg-accent/50 rounded">
-                      <p className="text-sm font-medium mb-1">
-                        {task.status === 'COMPLETED' ? 'Feedback Provided:' : 'Rejection Reason:'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {task.feedback || task.qcNotes}
-                      </p>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
