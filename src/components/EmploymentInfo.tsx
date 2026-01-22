@@ -39,26 +39,17 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
   const fetchEmployeeInfo = async () => {
     try {
       setLoading(true);
-      const token =
-        localStorage.getItem("authToken") ||
-        sessionStorage.getItem("authToken");
-
-      if (!token) {
-        setLoading(false);
-        return;
-      }
 
       const response = await fetch("/api/profile", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         credentials: "include",
       });
 
       const data = await response.json();
 
-      if (data.user) {
-        setEmployee(data.user);
+      if (data.success && data.data) {
+        setEmployee(data.data);
+      } else {
+        console.error("Failed to fetch employee info:", data.error);
       }
     } catch (err) {
       console.error("Failed to fetch employee info:", err);

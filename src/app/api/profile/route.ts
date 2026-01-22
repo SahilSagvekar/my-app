@@ -62,6 +62,12 @@ export async function GET(req: NextRequest) {
         image: true,
         phone: true,
         role: true,
+        joinedAt: true,
+        employeeStatus: true,
+        hourlyRate: true,
+        monthlyRate: true,
+        hoursPerWeek: true,
+        monthlyBaseHours: true,
       },
     });
 
@@ -225,12 +231,12 @@ export async function PUT(req: NextRequest) {
     });
   } catch (error) {
     console.error("Error updating profile:", error);
-    
+
     // Check for Prisma errors
     if (error instanceof Error) {
       console.error("Error name:", error.name);
       console.error("Error message:", error.message);
-      
+
       if (error.message.includes("Unknown argument")) {
         return NextResponse.json(
           { success: false, error: "Invalid field in update" },
@@ -238,7 +244,7 @@ export async function PUT(req: NextRequest) {
         );
       }
     }
-    
+
     return NextResponse.json(
       {
         success: false,
