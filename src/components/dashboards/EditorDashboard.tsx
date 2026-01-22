@@ -77,7 +77,8 @@ function mapTaskTypeToWorkflow(type: string) {
 /* -------------------------------------------------------------------------- */
 
 function extractTaskNumber(title: string): number | null {
-  const match = title?.match(/(\d+)/);
+  // 🔥 Match the LAST number in the string (e.g. "Project_01-12-2024_SF21" -> 21)
+  const match = title?.match(/(\d+)$/);
   return match ? parseInt(match[1]) : null;
 }
 
@@ -424,11 +425,10 @@ function TaskCard({
       <Card
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
-        className={`transition-all ${
-          isDraggable
+        className={`transition-all ${isDraggable
             ? "cursor-grab active:cursor-grabbing hover:shadow-md"
             : "cursor-not-allowed opacity-75"
-        } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}
+          } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}
       >
         <CardContent className="p-3">
           {/* Drag Handle + Title */}
@@ -468,18 +468,16 @@ function TaskCard({
                   Upload Progress:
                 </span>
                 <span
-                  className={`text-[10px] ${
-                    uploadValidation.isComplete
+                  className={`text-[10px] ${uploadValidation.isComplete
                       ? "text-green-600"
                       : "text-amber-600"
-                  }`}
+                    }`}
                 >
                   {uploadValidation.isComplete
                     ? "✓ Ready"
-                    : `${uploadValidation.uploadedSections.length}/${
-                        uploadValidation.uploadedSections.length +
-                        uploadValidation.missingUploads.length
-                      }`}
+                    : `${uploadValidation.uploadedSections.length}/${uploadValidation.uploadedSections.length +
+                    uploadValidation.missingUploads.length
+                    }`}
                 </span>
               </div>
             </div>
@@ -548,9 +546,8 @@ function TaskCard({
           {/* Compact Due Date + Files */}
           <div className="flex items-center justify-between mb-2 text-xs">
             <span
-              className={`text-[10px] ${
-                isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
-              }`}
+              className={`text-[10px] ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
+                }`}
             >
               Due {new Date(task.dueDate).toLocaleDateString()}
               {isOverdue && " ⚠"}
@@ -704,20 +701,19 @@ function DroppableColumn({
 
         {tasks.length === 0 && (
           <div
-            className={`text-center py-8 rounded-lg ${
-              isDragOver && isValidTarget
+            className={`text-center py-8 rounded-lg ${isDragOver && isValidTarget
                 ? "text-green-600"
                 : isDragOver && !isValidTarget
-                ? "text-red-500"
-                : "text-muted-foreground"
-            }`}
+                  ? "text-red-500"
+                  : "text-muted-foreground"
+              }`}
           >
             <p className="text-sm">
               {isDragOver && isValidTarget
                 ? "✓ Drop task here"
                 : isDragOver && !isValidTarget
-                ? "✗ Cannot drop here"
-                : "No tasks"}
+                  ? "✗ Cannot drop here"
+                  : "No tasks"}
             </p>
           </div>
         )}
@@ -753,6 +749,8 @@ export function EditorDashboard() {
       try {
         const res = await fetch("/api/tasks");
         const data = await res.json();
+
+        console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
 
         console.log("📋 Raw task data from API:", data.tasks?.[0]);
 
@@ -838,9 +836,8 @@ export function EditorDashboard() {
 
     tasks.forEach((task) => {
       // Create a unique key for each deliverable per client
-      const deliverableKey = `${task.clientId}-${
-        task.monthlyDeliverableId || task.deliverableType || "default"
-      }`;
+      const deliverableKey = `${task.clientId}-${task.monthlyDeliverableId || task.deliverableType || "default"
+        }`;
 
       if (!tasksByDeliverable[deliverableKey]) {
         tasksByDeliverable[deliverableKey] = [];
@@ -1294,7 +1291,7 @@ export function EditorDashboard() {
             </div>
 
             {/* Show filter info */}
-            {deliverableTypeFilter !== "all" && (
+            {/* {deliverableTypeFilter !== "all" && (
               <div className="mt-3 pt-3 border-t">
                 <p className="text-sm text-muted-foreground">
                   Showing{" "}
@@ -1311,7 +1308,7 @@ export function EditorDashboard() {
                   </Badge>
                 </p>
               </div>
-            )}
+            )} */}
           </div>
         </CardContent>
       </Card>
