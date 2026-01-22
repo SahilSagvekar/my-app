@@ -625,27 +625,26 @@ export async function GET(req: Request) {
         monthlyDeliverableId: true,
         monthlyDeliverable: true,
         socialMediaLinks: true,
-        // 🔥 Task feedback temporarily removed - will be re-enabled after Prisma client regeneration
-        // taskFeedback: {
-        //   select: {
-        //     id: true,
-        //     fileId: true,
-        //     folderType: true,
-        //     feedback: true,
-        //     status: true,
-        //     timestamp: true,
-        //     category: true,
-        //     createdAt: true,
-        //     resolvedAt: true,
-        //     file: {
-        //       select: {
-        //         version: true,
-        //         name: true,
-        //       },
-        //     },
-        //   },
-        //   orderBy: { createdAt: 'desc' as const },
-        // },
+        taskFeedback: {
+          select: {
+            id: true,
+            fileId: true,
+            folderType: true,
+            feedback: true,
+            status: true,
+            timestamp: true,
+            category: true,
+            createdAt: true,
+            resolvedAt: true,
+            file: {
+              select: {
+                version: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' as const },
+        },
       },
     });
 

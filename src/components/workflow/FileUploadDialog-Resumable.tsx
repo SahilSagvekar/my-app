@@ -12,11 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Upload, 
-  X, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Upload,
+  X,
+  CheckCircle,
+  AlertCircle,
   File as FileIcon,
   Zap,
   Play,
@@ -112,37 +112,51 @@ export function FileUploadDialog({
     uploadId: string,
     fileType: string
   ) => {
-    const partUrlResponse = await fetch("/api/upload/part-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, uploadId, partNumber }),
-    });
+    // 1. Get Presigned URL
+    let presignedUrl: string;
+    try {
+      const partUrlResponse = await fetch("/api/upload/part-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, uploadId, partNumber }),
+      });
 
-    if (!partUrlResponse.ok) {
-      throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+      if (!partUrlResponse.ok) {
+        const errorText = await partUrlResponse.text();
+        throw new Error(`API Error (${partUrlResponse.status}): ${errorText}`);
+      }
+      const data = await partUrlResponse.json();
+      presignedUrl = data.presignedUrl;
+    } catch (err: any) {
+      console.error(`❌ Failed to get presigned URL for part ${partNumber}:`, err);
+      throw new Error(`Connection failed while getting upload URL: ${err.message}`);
     }
 
-    const { presignedUrl } = await partUrlResponse.json();
+    // 2. Upload to S3
+    try {
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT",
+        body: chunk,
+        headers: { "Content-Type": fileType },
+      });
 
-    const uploadResponse = await fetch(presignedUrl, {
-      method: "PUT",
-      body: chunk,
-      headers: { "Content-Type": fileType },
-    });
+      if (!uploadResponse.ok) {
+        throw new Error(`S3 Error (${uploadResponse.status}): ${uploadResponse.statusText}`);
+      }
 
-    if (!uploadResponse.ok) {
-      throw new Error(`Failed to upload part ${partNumber}`);
+      const etag = uploadResponse.headers.get("ETag");
+      if (!etag) {
+        throw new Error("S3 did not return an ETag");
+      }
+
+      return {
+        ETag: etag.replace(/"/g, ""),
+        PartNumber: partNumber,
+      };
+    } catch (err: any) {
+      console.error(`❌ Failed to upload part ${partNumber} to S3:`, err);
+      throw new Error(`Upload failed for part ${partNumber}. Check your internet connection or S3 CORS settings. (${err.message})`);
     }
-
-    const etag = uploadResponse.headers.get("ETag");
-    if (!etag) {
-      throw new Error("Failed to get ETag");
-    }
-
-    return {
-      ETag: etag.replace(/"/g, ""),
-      PartNumber: partNumber,
-    };
   };
 
   const startUpload = async (file: File, resumeState?: UploadState) => {
@@ -150,7 +164,7 @@ export function FileUploadDialog({
     setError(null);
     setPaused(false);
 
-    let uploadId: string;
+    let uploadId: string = "";
     let key: string;
     let s3UploadId: string;
     let uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
@@ -166,7 +180,7 @@ export function FileUploadDialog({
         uploadedParts = resumeState.uploadedParts;
         completedChunks = resumeState.completedChunks;
         uploadedBytes = resumeState.uploadedBytes;
-        
+
         console.log("📥 Resuming upload:", { uploadId, progress: Math.round((uploadedBytes / file.size) * 100) + '%' });
         await uploadStateManager.resumeUpload(uploadId);
       } else {
@@ -225,7 +239,7 @@ export function FileUploadDialog({
 
       for (let i = 0; i < numChunks; i++) {
         const partNumber = i + 1;
-        
+
         // Skip already uploaded chunks
         if (completedChunks.includes(partNumber)) {
           console.log(`⏭️ Skipping already uploaded chunk ${partNumber}`);
@@ -332,11 +346,11 @@ export function FileUploadDialog({
       }, 1500);
     } catch (error: any) {
       console.error("❌ Upload failed:", error);
-      
+
       if (uploadId) {
         await uploadStateManager.markAsFailed(uploadId, error.message);
       }
-      
+
       setError(error.message || "Upload failed");
       setUploading(false);
     }
@@ -356,7 +370,7 @@ export function FileUploadDialog({
       setError("Please select the original file to resume");
       return;
     }
-    
+
     await startUpload(selectedFile, uploadState);
   };
 
@@ -370,7 +384,7 @@ export function FileUploadDialog({
           body: JSON.stringify({ key: state.key, uploadId: state.uploadId }),
         });
       }
-      
+
       await uploadStateManager.deleteUploadState(currentUploadId);
       setUploading(false);
       setPaused(false);
