@@ -728,6 +728,7 @@ export function QCDashboard() {
           onSendBackToEditor={handleSendBackToEditor}
           // 🔥 Pass file info for version-tracked feedback
           taskId={selectedTask.id}
+          requiresClientReview={selectedTask.requiresClientReview}
           currentFileSection={{
             folderType: selectedFile.folderType || 'main',
             fileId: selectedFile.id,

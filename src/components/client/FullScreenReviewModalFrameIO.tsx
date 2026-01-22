@@ -37,7 +37,8 @@ import {
     SkipForward,
     ArrowLeft,
     Info,
-    Plus
+    Plus,
+    UserCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getVideoSource } from '../workflow/VideoUrlHelper';
@@ -93,6 +94,8 @@ interface FullScreenReviewModalProps {
     };
     // 🔥 NEW: Task ID for saving feedback
     taskId?: string;
+    // 🔥 NEW: Conditional routing based on client review requirement
+    requiresClientReview?: boolean;
 }
 
 interface RevisionRequest {
@@ -121,7 +124,8 @@ export function FullScreenReviewModalFrameIO({
     onSendToClient,
     onSendBackToEditor,
     currentFileSection,
-    taskId
+    taskId,
+    requiresClientReview = false
 }: FullScreenReviewModalProps) {
     // Auth context
     const { user } = useAuth();
@@ -906,8 +910,17 @@ export function FullScreenReviewModalFrameIO({
                                             onClick={() => handleStatusChange('approved')}
                                             disabled={asset.approvalLocked || savingFeedback}
                                         >
-                                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                                            Approve & Send to Client
+                                            {requiresClientReview ? (
+                                                <>
+                                                    <UserCheck className="h-4 w-4 mr-2" />
+                                                    Approve & Send to Client
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Calendar className="h-4 w-4 mr-2" />
+                                                    Approve & Send to Scheduler
+                                                </>
+                                            )}
                                         </Button>
                                         <Button
                                             size="sm"

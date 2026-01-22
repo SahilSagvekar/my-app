@@ -342,7 +342,7 @@ export default function LeaveRequestForm() {
       </Card>
 
       {/* Footer Note */}
-      <Card>
+      {/* <Card>
         <CardHeader className="p-4 sm:p-6">
           <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
             <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -356,7 +356,7 @@ export default function LeaveRequestForm() {
             <li>Submit at least 3 days before the leave date</li>
           </ul>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }
