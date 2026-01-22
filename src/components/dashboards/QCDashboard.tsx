@@ -3,8 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { Checkbox } from '../ui/checkbox';
-import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, RotateCcw } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn } from 'lucide-react';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
@@ -113,12 +112,6 @@ export function QCDashboard() {
   const [showFilePreview, setShowFilePreview] = useState(false);
   const { user } = useAuth();
 
-  // Completed tasks state for revert functionality
-  const [completedTasks, setCompletedTasks] = useState<EnhancedWorkflowTask[]>([]);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
-  const [loadingCompleted, setLoadingCompleted] = useState(false);
-
   useEffect(() => {
     loadQCTasks();
   }, []);
@@ -164,88 +157,6 @@ export function QCDashboard() {
       toast.error("Failed to load QC tasks");
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Load completed/processed tasks for revert functionality
-  const loadCompletedTasks = async () => {
-    try {
-      setLoadingCompleted(true);
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-      const response = await fetch('/api/tasks?status=COMPLETED,REJECTED,CLIENT_REVIEW', {
-        headers: { 'Authorization': `Bearer ${token}` },
-        credentials: 'include',
-      });
-
-      if (!response.ok) throw new Error('Failed to load completed tasks');
-
-      const data = await response.json();
-      setCompletedTasks(data.tasks || []);
-    } catch (err) {
-      console.error('Failed to load completed tasks:', err);
-      toast.error('Failed to load completed tasks');
-    } finally {
-      setLoadingCompleted(false);
-    }
-  };
-
-  // Load completed tasks when tab changes
-  useEffect(() => {
-    if (activeTab === 'completed') {
-      loadCompletedTasks();
-    }
-  }, [activeTab]);
-
-  // Toggle individual task selection
-  const toggleTaskSelection = (taskId: string) => {
-    const newSelection = new Set(selectedTaskIds);
-    if (newSelection.has(taskId)) {
-      newSelection.delete(taskId);
-    } else {
-      newSelection.add(taskId);
-    }
-    setSelectedTaskIds(newSelection);
-  };
-
-  // Select all/none
-  const toggleSelectAll = () => {
-    if (selectedTaskIds.size === completedTasks.length) {
-      setSelectedTaskIds(new Set());
-    } else {
-      setSelectedTaskIds(new Set(completedTasks.map(t => t.id)));
-    }
-  };
-
-  // Bulk revert selected tasks back to QC review
-  const handleBulkRevert = async () => {
-    if (selectedTaskIds.size === 0) {
-      toast.error('No tasks selected');
-      return;
-    }
-
-    try {
-      const taskIds = Array.from(selectedTaskIds);
-
-      const response = await fetch('/api/tasks/bulk-revert-to-qc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ taskIds }),
-      });
-
-      if (!response.ok) throw new Error('Failed to revert tasks');
-
-      toast.success(`✅ ${taskIds.length} task(s) reverted to QC Review`);
-
-      // Reload both lists
-      await loadCompletedTasks();
-      await loadQCTasks();
-
-      // Clear selection
-      setSelectedTaskIds(new Set());
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to revert tasks');
     }
   };
 
@@ -526,8 +437,7 @@ export function QCDashboard() {
           </p>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -553,258 +463,116 @@ export function QCDashboard() {
         </Card>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex items-center gap-4 border-b">
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'pending'
-            ? 'border-primary text-primary'
-            : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-        >
-          Pending Reviews ({pendingReviews})
-        </button>
-        <button
-          onClick={() => setActiveTab('completed')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'completed'
-            ? 'border-primary text-primary'
-            : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-        >
-          Completed ({completedTasks.length})
-        </button>
-      </div>
-
       <div className="flex flex-col flex-1 min-h-0">
-        {activeTab === 'pending' ? (
-          <Card className="flex flex-col flex-1 min-h-0">
-            <CardHeader>
-              <CardTitle>Review Queue ({pendingReviews})</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Click on any task to view files
-              </p>
-            </CardHeader>
-            <CardContent className="p-0 flex-1 overflow-hidden">
-              <div className="space-y-0 h-full overflow-y-auto">
-                {loading ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
-                    <p>Loading QC tasks...</p>
-                  </div>
-                ) : qcTasks.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
-                    <p>No QC tasks available</p>
-                  </div>
-                ) : (
-                  qcTasks.map((task, index) => (
-                    <div
-                      key={task.id}
-                      className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${selectedTask?.id === task.id ? "bg-muted" : ""
-                        } ${getPriorityColor(task.priority)} ${isOverdue(task) ? "border-r-4 border-r-red-500" : ""
-                        }`}
-                      onClick={() => handleTaskClick(task)}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {getStatusIcon(task.status)}
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs font-mono text-muted-foreground">
-                              #{index + 1}
-                            </span>
-                            {getTaskCategoryIcon(task.taskCategory)}
-                          </div>
-                          <h4 className="text-sm font-medium truncate">
-                            {task.title}
-                          </h4>
-                        </div>
-                        <Badge
-                          variant="default"
-                          className="text-xs ml-2 flex-shrink-0"
-                        >
-                          pending
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                        <User className="h-3 w-3" />
-                        <span>From Editor</span>
-                        {task.priority && (
-                          <Badge
-                            variant="outline"
-                            className={`text-xs px-1 py-0 ${task.priority === "urgent"
-                              ? "border-red-500 text-red-700"
-                              : task.priority === "high"
-                                ? "border-orange-500 text-orange-700"
-                                : "border-gray-500 text-gray-700"
-                              }`}
-                          >
-                            {task.priority}
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          <span
-                            className={
-                              isOverdue(task) ? "text-red-500 font-medium" : ""
-                            }
-                          >
-                            Due {new Date(task.dueDate).toLocaleDateString()}
-                            {isOverdue(task) && " (Overdue)"}
+        <Card className="flex flex-col flex-1 min-h-0">
+          <CardHeader>
+            <CardTitle>Review Queue ({pendingReviews})</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Click on any task to view files
+            </p>
+          </CardHeader>
+          <CardContent className="p-0 flex-1 overflow-hidden">
+            <div className="space-y-0 h-full overflow-y-auto">
+              {loading ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
+                  <p>Loading QC tasks...</p>
+                </div>
+              ) : qcTasks.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p>No QC tasks available</p>
+                </div>
+              ) : (
+                qcTasks.map((task, index) => (
+                  <div
+                    key={task.id}
+                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${selectedTask?.id === task.id ? "bg-muted" : ""
+                      } ${getPriorityColor(task.priority)} ${isOverdue(task) ? "border-r-4 border-r-red-500" : ""
+                      }`}
+                    onClick={() => handleTaskClick(task)}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {getStatusIcon(task.status)}
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-mono text-muted-foreground">
+                            #{index + 1}
                           </span>
+                          {getTaskCategoryIcon(task.taskCategory)}
                         </div>
-
-                        {task.files && (
-                          <Badge variant="outline" className="text-xs">
-                            <FileText className="h-3 w-3 mr-1" />
-                            {task.files.length} file{task.files.length !== 1 ? 's' : ''}
-                          </Badge>
-                        )}
+                        <h4 className="text-sm font-medium truncate">
+                          {task.title}
+                        </h4>
                       </div>
+                      <Badge
+                        variant="default"
+                        className="text-xs ml-2 flex-shrink-0"
+                      >
+                        pending
+                      </Badge>
+                    </div>
 
-                      {task.nextDestination && (
-                        <div className="flex items-center gap-2 mt-2 pt-2 border-t">
-                          <div
-                            className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${getDestinationColor(
-                              task.nextDestination
-                            )}`}
-                          >
-                            {getDestinationIcon(task.nextDestination)}
-                            <ArrowRight className="h-2 w-2" />
-                            <span className="capitalize">
-                              {task.nextDestination}
-                            </span>
-                          </div>
-                        </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                      <User className="h-3 w-3" />
+                      <span>From Editor</span>
+                      {task.priority && (
+                        <Badge
+                          variant="outline"
+                          className={`text-xs px-1 py-0 ${task.priority === "urgent"
+                            ? "border-red-500 text-red-700"
+                            : task.priority === "high"
+                              ? "border-orange-500 text-orange-700"
+                              : "border-gray-500 text-gray-700"
+                            }`}
+                        >
+                          {task.priority}
+                        </Badge>
                       )}
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="flex flex-col flex-1 min-h-0">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Completed Tasks ({completedTasks.length})</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Select tasks to revert back to QC review
-                  </p>
-                </div>
-                {completedTasks.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={toggleSelectAll}
-                    >
-                      {selectedTaskIds.size === completedTasks.length ? 'Deselect All' : 'Select All'}
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={handleBulkRevert}
-                      disabled={selectedTaskIds.size === 0}
-                    >
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Revert Selected ({selectedTaskIds.size})
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 flex-1 overflow-hidden">
-              <div className="space-y-0 h-full overflow-y-auto">
-                {loadingCompleted ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
-                    <p>Loading completed tasks...</p>
-                  </div>
-                ) : completedTasks.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-40" />
-                    <p>No completed tasks</p>
-                  </div>
-                ) : (
-                  completedTasks.map((task, index) => (
-                    <div
-                      key={task.id}
-                      className={`p-4 border-b hover:bg-muted/50 transition-colors border-l-4 ${selectedTaskIds.has(task.id) ? 'bg-muted border-l-primary' : getPriorityColor(task.priority)
-                        }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <Checkbox
-                          checked={selectedTaskIds.has(task.id)}
-                          onCheckedChange={() => toggleTaskSelection(task.id)}
-                          className="mt-1"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-mono text-muted-foreground">
-                                #{index + 1}
-                              </span>
-                              {getTaskCategoryIcon(task.taskCategory)}
-                            </div>
-                            <h4 className="text-sm font-medium truncate">
-                              {task.title}
-                            </h4>
-                          </div>
-                          <Badge
-                            variant="default"
-                            className={`text-xs ml-2 flex-shrink-0 ${task.status === 'COMPLETED' ? 'bg-green-500' : 'bg-red-500'
-                              }`}
-                          >
-                            {task.status === 'COMPLETED' ? 'Approved' : 'Rejected'}
-                          </Badge>
-                        </div>
 
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                          <User className="h-3 w-3" />
-                          <span>Processed</span>
-                          {task.priority && (
-                            <Badge
-                              variant="outline"
-                              className={`text-xs px-1 py-0 ${task.priority === "urgent"
-                                ? "border-red-500 text-red-700"
-                                : task.priority === "high"
-                                  ? "border-orange-500 text-orange-700"
-                                  : "border-gray-500 text-gray-700"
-                                }`}
-                            >
-                              {task.priority}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {task.nextDestination && (
-                          <div className="flex items-center gap-2 mt-2 pt-2 border-t">
-                            <div
-                              className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${getDestinationColor(
-                                task.nextDestination
-                              )}`}
-                            >
-                              {getDestinationIcon(task.nextDestination)}
-                              <ArrowRight className="h-2 w-2" />
-                              <span className="capitalize">
-                                {task.nextDestination}
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span
+                          className={
+                            isOverdue(task) ? "text-red-500 font-medium" : ""
+                          }
+                        >
+                          Due {new Date(task.dueDate).toLocaleDateString()}
+                          {isOverdue(task) && " (Overdue)"}
+                        </span>
                       </div>
+
+                      {task.files && (
+                        <Badge variant="outline" className="text-xs">
+                          <FileText className="h-3 w-3 mr-1" />
+                          {task.files.length} file{task.files.length !== 1 ? 's' : ''}
+                        </Badge>
+                      )}
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+
+                    {task.nextDestination && (
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                        <div
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${getDestinationColor(
+                            task.nextDestination
+                          )}`}
+                        >
+                          {getDestinationIcon(task.nextDestination)}
+                          <ArrowRight className="h-2 w-2" />
+                          <span className="capitalize">
+                            {task.nextDestination}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {selectedTask && (
