@@ -345,7 +345,7 @@ import { Checkbox } from '../ui/checkbox';
 import { CheckCircle, XCircle, FileCheck, Calendar, FileText, Video, Palette, User, ArrowRight, Search, Filter, UserCheck, Loader, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
-type TaskStatus = 'COMPLETED' | 'REJECTED';
+type TaskStatus = 'COMPLETED' | 'REJECTED' | 'CLIENT_REVIEW';
 type TaskCategory = 'design' | 'video' | 'copywriting' | 'review';
 type TaskDestination = 'editor' | 'client' | 'scheduler';
 
@@ -367,7 +367,7 @@ interface CompletedTask {
 export function QCCompletedPage() {
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [completedFilter, setCompletedFilter] = useState<'all' | 'COMPLETED' | 'REJECTED'>('all');
+  const [completedFilter, setCompletedFilter] = useState<'all' | 'COMPLETED' | 'REJECTED' | 'CLIENT_REVIEW'>('all');
   const [completedSearchTerm, setCompletedSearchTerm] = useState('');
 
   // Multi-select state
@@ -498,6 +498,8 @@ export function QCCompletedPage() {
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'REJECTED':
         return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'CLIENT_REVIEW':
+        return <UserCheck className="h-4 w-4 text-purple-500" />;
       default:
         return null;
     }
@@ -543,11 +545,15 @@ export function QCCompletedPage() {
   };
 
   const getStatusBadgeVariant = (status: TaskStatus) => {
-    return status === 'COMPLETED' ? 'default' : 'destructive';
+    if (status === 'COMPLETED') return 'default';
+    if (status === 'CLIENT_REVIEW') return 'secondary';
+    return 'destructive';
   };
 
   const getStatusLabel = (status: TaskStatus) => {
-    return status === 'COMPLETED' ? 'Approved' : 'Rejected';
+    if (status === 'COMPLETED') return 'Approved';
+    if (status === 'CLIENT_REVIEW') return 'Client Review';
+    return 'Rejected';
   };
 
   return (
@@ -631,6 +637,7 @@ export function QCCompletedPage() {
               <SelectContent>
                 <SelectItem value="all">All Reviews</SelectItem>
                 <SelectItem value="COMPLETED">Approved Only</SelectItem>
+                <SelectItem value="CLIENT_REVIEW">Client Review</SelectItem>
                 <SelectItem value="REJECTED">Rejected Only</SelectItem>
               </SelectContent>
             </Select>
@@ -734,7 +741,8 @@ export function QCCompletedPage() {
                       {(task.feedback || task.qcNotes) && (
                         <div className="mt-3 p-3 bg-accent/50 rounded">
                           <p className="text-sm font-medium mb-1">
-                            {task.status === 'COMPLETED' ? 'Feedback Provided:' : 'Rejection Reason:'}
+                            {task.status === 'COMPLETED' ? 'Feedback Provided:' :
+                              task.status === 'CLIENT_REVIEW' ? 'Review Notes:' : 'Rejection Reason:'}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             {task.feedback || task.qcNotes}
