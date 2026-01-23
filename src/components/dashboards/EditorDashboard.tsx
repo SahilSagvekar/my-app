@@ -426,8 +426,8 @@ function TaskCard({
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
         className={`transition-all ${isDraggable
-            ? "cursor-grab active:cursor-grabbing hover:shadow-md"
-            : "cursor-not-allowed opacity-75"
+          ? "cursor-grab active:cursor-grabbing hover:shadow-md"
+          : "cursor-not-allowed opacity-75"
           } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}
       >
         <CardContent className="p-3">
@@ -435,7 +435,7 @@ function TaskCard({
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <h4 className="font-medium text-xs truncate">{task.title}</h4>
+              <h4 className="font-medium text-xs whitespace-normal break-words">{task.title}</h4>
             </div>
             <Badge
               variant={task.status === "completed" ? "default" : "secondary"}
@@ -469,8 +469,8 @@ function TaskCard({
                 </span>
                 <span
                   className={`text-[10px] ${uploadValidation.isComplete
-                      ? "text-green-600"
-                      : "text-amber-600"
+                    ? "text-green-600"
+                    : "text-amber-600"
                     }`}
                 >
                   {uploadValidation.isComplete
@@ -553,10 +553,10 @@ function TaskCard({
               {isOverdue && " ⚠"}
             </span>
 
-            {task.files?.length > 0 && (
+            {(task.files?.length ?? 0) > 0 && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
                 <FileText className="h-2.5 w-2.5 mr-0.5" />
-                {task.files.length}
+                {task.files?.length}
               </Badge>
             )}
           </div>
@@ -702,10 +702,10 @@ function DroppableColumn({
         {tasks.length === 0 && (
           <div
             className={`text-center py-8 rounded-lg ${isDragOver && isValidTarget
-                ? "text-green-600"
-                : isDragOver && !isValidTarget
-                  ? "text-red-500"
-                  : "text-muted-foreground"
+              ? "text-green-600"
+              : isDragOver && !isValidTarget
+                ? "text-red-500"
+                : "text-muted-foreground"
               }`}
           >
             <p className="text-sm">
