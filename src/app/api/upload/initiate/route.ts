@@ -37,17 +37,17 @@ async function createTaskFolderStructure(
   // Main task folder: CompanyName/outputs/TaskTitle/
   const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
 
-  console.log("📁 Creating task folder structure:", taskFolderPath);
+  console.log("📁 Creating task folder structure in parallel:", taskFolderPath);
 
-  // Create main task folder
-  await ensureS3FolderExists(taskFolderPath);
+  // 🔥 Create main folder and subfolders in parallel to save time
+  await Promise.all([
+    ensureS3FolderExists(taskFolderPath),
+    ensureS3FolderExists(`${taskFolderPath}thumbnails/`),
+    ensureS3FolderExists(`${taskFolderPath}tiles/`),
+    ensureS3FolderExists(`${taskFolderPath}music-license/`),
+  ]);
 
-  // 🔥 Create only the special subfolders (NO "task" folder!)
-  await ensureS3FolderExists(`${taskFolderPath}thumbnails/`);
-  await ensureS3FolderExists(`${taskFolderPath}tiles/`);
-  await ensureS3FolderExists(`${taskFolderPath}music-license/`);
-
-  console.log("✅ Task folder structure created");
+  console.log("✅ Task folder structure created/verified");
 
   return taskFolderPath;
 }
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
       // Raw footage - with monthly folders
       const currentMonth = getCurrentMonthFolder();
       const monthFolderPath = `${companyName}/raw-footage/${currentMonth}/`;
-      
+
       await ensureS3FolderExists(monthFolderPath);
       s3Key = `${monthFolderPath}${Date.now()}-${fileName}`;
     } else if (folderType === "essentials") {

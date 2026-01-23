@@ -27,8 +27,8 @@ import {
 import { useAuth } from "@/components/auth/AuthContext";
 import { uploadStateManager, UploadState } from "@/lib/upload-state-manager";
 
-const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks
-const PARALLEL_UPLOADS = 5;
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks (better for parallelism on smaller files)
+const PARALLEL_UPLOADS = 6; // Optimal concurrency for most browsers
 
 interface FileUploadDialogProps {
   task: any;
@@ -253,44 +253,67 @@ export function FileUploadDialog({
       }
 
       const startTime = Date.now();
+      let partsUploadedInSession = 0;
 
-      // Upload remaining chunks in parallel
-      for (let i = 0; i < chunks.length; i += PARALLEL_UPLOADS) {
-        // Check if paused
-        const state = await uploadStateManager.getUploadState(uploadId);
-        if (state?.status === 'paused') {
-          console.log("⏸️ Upload paused");
-          setUploading(false);
-          return;
-        }
+      // 🔥 WORKER QUEUE PATTERN: Keeps the upload pipe full
+      // As soon as one chunk finishes, the next one starts immediately.
+      const queue = [...chunks];
+      const uploadWorkers = Array(Math.min(PARALLEL_UPLOADS, chunks.length))
+        .fill(null)
+        .map(async () => {
+          while (queue.length > 0) {
+            // Check if paused
+            const state = await uploadStateManager.getUploadState(uploadId);
+            if (state?.status === 'paused') {
+              console.log("⏸️ Worker stopping: Upload paused");
+              return;
+            }
 
-        const batch = chunks.slice(i, i + PARALLEL_UPLOADS);
-        console.log(`⚡ Uploading batch with ${batch.length} chunks`);
+            const item = queue.shift();
+            if (!item) break;
 
-        const batchResults = await Promise.all(
-          batch.map(({ chunk, partNumber }) =>
-            uploadChunk(chunk, partNumber, key, s3UploadId, file.type)
-          )
-        );
+            const { chunk, partNumber } = item;
+            console.log(`⚡ Uploading part ${partNumber}/${numChunks}...`);
 
-        uploadedParts.push(...batchResults);
-        completedChunks.push(...batch.map(b => b.partNumber));
+            try {
+              const result = await uploadChunk(chunk, partNumber, key, s3UploadId, file.type);
 
-        uploadedBytes += batch.reduce((sum, { chunk }) => sum + chunk.size, 0);
-        const progressPercent = Math.round((uploadedBytes / file.size) * 100);
-        setProgress(progressPercent);
+              uploadedParts.push(result);
+              completedChunks.push(partNumber);
+              uploadedBytes += chunk.size;
+              partsUploadedInSession++;
 
-        const elapsedSeconds = (Date.now() - startTime) / 1000;
-        const speedMBps = uploadedBytes / (1024 * 1024) / elapsedSeconds;
-        setUploadSpeed(speedMBps);
+              // Update Progress & Speed
+              const progressPercent = Math.round((uploadedBytes / file.size) * 100);
+              setProgress(progressPercent);
 
-        // Save progress
-        await uploadStateManager.updateProgress(
-          uploadId,
-          uploadedBytes,
-          completedChunks,
-          uploadedParts
-        );
+              const elapsedSeconds = (Date.now() - startTime) / 1000;
+              if (elapsedSeconds > 0) {
+                const speedMBps = (uploadedBytes - (resumeState?.uploadedBytes || 0)) / (1024 * 1024) / elapsedSeconds;
+                setUploadSpeed(speedMBps);
+              }
+
+              // Save progress incrementally
+              await uploadStateManager.updateProgress(
+                uploadId,
+                uploadedBytes,
+                completedChunks,
+                uploadedParts
+              );
+            } catch (err: any) {
+              console.error(`❌ Worker failed on part ${partNumber}:`, err);
+              throw err; // This will trigger the catch block in startUpload
+            }
+          }
+        });
+
+      await Promise.all(uploadWorkers);
+
+      // Final check if we were paused
+      const finalState = await uploadStateManager.getUploadState(uploadId);
+      if (finalState?.status === 'paused') {
+        setUploading(false);
+        return;
       }
 
       // Sort and complete
