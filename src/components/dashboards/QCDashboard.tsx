@@ -52,6 +52,10 @@ interface EnhancedWorkflowTask {
   files?: TaskFile[];
   monthlyDeliverable?: any;
   socialMediaLinks?: string[];
+  user?: {
+    name: string;
+    role: string;
+  };
 }
 
 const persistQCResult = async ({
@@ -551,7 +555,7 @@ export function QCDashboard() {
                     <div className="flex items-center justify-between text-zinc-500 text-[11px]">
                       <div className="flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5" />
-                        <span>Editor</span>
+                        <span>Editor: {task.user?.name || ''}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5" />

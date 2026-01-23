@@ -625,6 +625,12 @@ export async function GET(req: Request) {
         monthlyDeliverableId: true,
         monthlyDeliverable: true,
         socialMediaLinks: true,
+        user: {
+          select: {
+            name: true,
+            role: true,
+          },
+        },
         taskFeedback: {
           select: {
             id: true,
