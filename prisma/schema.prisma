@@ -8,49 +8,48 @@ datasource db {
 }
 
 model User {
-  id                Int                @id @default(autoincrement())
-  name              String?
-  email             String    
-  password          String?
-  image             String?
-  role              Role?
-  hourlyRate        Decimal?           @db.Decimal(10, 2)
-  monthlyBaseHours  Int?
-  employeeStatus    EmployeeStatus?    @default(ACTIVE)
-  joinedAt          DateTime?
-  worksOnSaturday   Boolean            @default(false)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  resetOTP          String?
-  resetOTPExpiry    DateTime?
-  hoursPerWeek      Decimal?           @default(0) @db.Decimal(5, 2)
-  phone             String?            @unique
-  monthlyRate       Int?
-  linkedClientId    String?            // For users with 'client' role - which client they belong to
-  accounts          Account[]
-  auditLogs         AuditLog[]
-  bonuses           Bonus[]
-  client            Client?            // Old one-to-one relation (kept for backward compatibility)
-  linkedClient      Client?            @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
-  deductions        Deduction[]
-  feedbackSent      Feedback[]         @relation("FeedbackSender")
-  feedbackResponses FeedbackResponse[] @relation("FeedbackResponseSender")
-  leaves            Leave[]
-  payrolls          Payroll[]
-  sessions          Session[]
-  assignedTasks     Task[]             @relation("AssignedTasks")
-  clientTasks       Task[]             @relation("ClientUserTasks")
-  updatedSocialLogins SocialLogin[] @relation("LoginUpdatedBy")
-  securityPin UserSecurityPin?
-  twoFactorAuth UserTwoFactorAuth?
-  loginAuditLogs LoginAuditLog[]
-
-  qcAnalytics       QCAnalytics[]
-  rejectionReasons  QCRejectionReason[]
-  achievements      QCAchievement[]
-  monthlyTrends     QCMonthlyTrend[]
-  categoryMetrics   QCCategoryMetrics[]
-  taskFeedback     TaskFeedback[] @relation("TaskFeedbackAuthor")
+  id                  Int                 @id @default(autoincrement())
+  name                String?
+  email               String
+  password            String?
+  image               String?
+  role                Role?
+  hourlyRate          Decimal?            @db.Decimal(10, 2)
+  monthlyBaseHours    Int?
+  employeeStatus      EmployeeStatus?     @default(ACTIVE)
+  joinedAt            DateTime?
+  worksOnSaturday     Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  resetOTP            String?
+  resetOTPExpiry      DateTime?
+  hoursPerWeek        Decimal?            @default(0) @db.Decimal(5, 2)
+  phone               String?             @unique
+  monthlyRate         Int?
+  linkedClientId      String?
+  accounts            Account[]
+  auditLogs           AuditLog[]
+  bonuses             Bonus[]
+  client              Client?
+  deductions          Deduction[]
+  feedbackSent        Feedback[]          @relation("FeedbackSender")
+  feedbackResponses   FeedbackResponse[]  @relation("FeedbackResponseSender")
+  leaves              Leave[]
+  loginAuditLogs      LoginAuditLog[]
+  payrolls            Payroll[]
+  achievements        QCAchievement[]
+  qcAnalytics         QCAnalytics[]
+  categoryMetrics     QCCategoryMetrics[]
+  monthlyTrends       QCMonthlyTrend[]
+  rejectionReasons    QCRejectionReason[]
+  sessions            Session[]
+  updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
+  assignedTasks       Task[]              @relation("AssignedTasks")
+  clientTasks         Task[]              @relation("ClientUserTasks")
+  taskFeedback        TaskFeedback[]      @relation("TaskFeedbackAuthor")
+  linkedClient        Client?             @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
+  securityPin         UserSecurityPin?
+  twoFactorAuth       UserTwoFactorAuth?
 
   @@index([email])
   @@index([role])
@@ -195,7 +194,7 @@ model RecurringTask {
 
 model Client {
   id                   String               @id @default(cuid())
-  userId               Int?                 @unique  // Old field for backward compatibility
+  userId               Int?                 @unique
   name                 String
   email                String
   companyName          String?
@@ -224,12 +223,12 @@ model Client {
   outputsFolderId      String?
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
-  linkedUsers          User[]               @relation("LinkedClientUsers")  // Multiple users can be linked
   monthlyDeliverables  MonthlyDeliverable[]
   monthlyRuns          MonthlyRun[]
   recurringTasks       RecurringTask[]
   socialLogins         SocialLogin[]
   tasks                Task[]
+  linkedUsers          User[]               @relation("LinkedClientUsers")
 
   @@index([status])
 }
@@ -431,16 +430,16 @@ model SocialLogin {
   platform            String
   username            String
   encryptedPassword   String
-  loginUrl            String?         // Direct URL to login/manage page
   recoveryEmail       String?
   recoveryPhone       String?
   notes               String?
-  backupCodesLocation String?         // Link or instructions for backup codes
-  adminOnly           Boolean         @default(false)  // If true, only admins can view this login
-  passwordChangedAt   DateTime        @default(now())  // Last time password was changed
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   updatedById         Int
+  adminOnly           Boolean         @default(false)
+  passwordChangedAt   DateTime        @default(now())
+  loginUrl            String?
+  backupCodesLocation String?
   auditLogs           LoginAuditLog[]
   client              Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedByUser       User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
@@ -462,15 +461,15 @@ model UserSecurityPin {
 }
 
 model UserTwoFactorAuth {
-  id               String    @id @default(cuid())
-  userId           Int       @unique
-  totpSecret       String    // Encrypted TOTP secret
-  isEnabled        Boolean   @default(false)
-  backupCodes      String[]  @default([]) // Hashed backup codes
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  lastVerifiedAt   DateTime?
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  userId         Int       @unique
+  totpSecret     String
+  isEnabled      Boolean   @default(false)
+  backupCodes    String[]  @default([])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastVerifiedAt DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -581,17 +580,17 @@ model QCCategoryMetrics {
 }
 
 model ShareableReview {
-  id          String   @id @default(cuid())
-  taskId      String
-  shareToken  String   @unique
-  createdBy   Int
-  expiresAt   DateTime?
-  viewCount   Int      @default(0)
+  id           String    @id @default(cuid())
+  taskId       String
+  shareToken   String    @unique
+  createdBy    Int
+  expiresAt    DateTime?
+  viewCount    Int       @default(0)
   lastViewedAt DateTime?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
   @@index([taskId])
   @@index([shareToken])
   @@index([createdBy])
