@@ -223,13 +223,13 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
 
     const url = new URL(s3Url);
     let pathname = url.pathname;
-    
+
     // Remove leading slash
     pathname = pathname.startsWith("/") ? pathname.substring(1) : pathname;
-    
+
     // 🔥 Decode URL encoding (critical for files with spaces, #, etc.)
     pathname = decodeURIComponent(pathname);
-    
+
     return pathname;
   } catch (error) {
     console.error("Error extracting S3 key:", error);
@@ -256,7 +256,7 @@ export async function generateSignedUrl(
   key: string,
   expiresIn: number = 7200
 ): Promise<string> {
-  
+
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -278,6 +278,12 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
   return Promise.all(
     files.map(async (file) => {
       try {
+        // Skip if there's no URL or if it's already signed or if it's not an S3 URL
+        if (!file.url || file.url.includes('?X-Amz-Signature=') ||
+          (!file.url.includes('amazonaws.com') && !file.s3Key)) {
+          return file;
+        }
+
         // 🔥 Use s3Key directly if available, otherwise extract from URL
         const s3Key = file.s3Key || extractS3KeyFromUrl(file.url);
         if (!s3Key) return file;

@@ -16,15 +16,43 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const token = getTokenFromCookies(req);
-    if (!token)
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    const { role, userId } = decoded;
-
     const body = await req.json();
-    const { status, feedback, qcNotes, route } = body;
+    const { status, feedback, qcNotes, route, shareToken } = body;
+
+    let userId: any;
+    let role: string | undefined;
+
+    // 1. Check for standard auth cookie first
+    const authToken = getTokenFromCookies(req);
+    if (authToken) {
+      try {
+        const decoded: any = jwt.verify(authToken, process.env.JWT_SECRET!);
+        userId = decoded.userId;
+        role = decoded.role;
+      } catch (err) {
+        console.error("JWT verify failed, checking share token...");
+      }
+    }
+
+    // 2. If no user, check for shareToken
+    if (!userId && shareToken) {
+      const shareableReview = await (prisma as any).shareableReview.findUnique({
+        where: { shareToken },
+      });
+
+      if (shareableReview && shareableReview.isActive && (!shareableReview.expiresAt || shareableReview.expiresAt > new Date())) {
+        if (shareableReview.taskId !== id) {
+          return NextResponse.json({ message: "Invalid share token for this task" }, { status: 403 });
+        }
+        // Valid share token! Treat as a "client" role
+        userId = shareableReview.createdBy; // Use the creator's ID for accountability
+        role = "client";
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
     let finalStatus = status;
 
@@ -82,14 +110,14 @@ export async function PATCH(
     // }
 
     if (
-      role.toLowerCase() === "qc" &&
+      role?.toLowerCase() === "qc" &&
       status === "COMPLETED" &&
       task.client?.requiresClientReview === true
     ) {
       finalStatus = "CLIENT_REVIEW";
     }
 
-    if (role.toLowerCase() === "client") {
+    if (role?.toLowerCase() === "client") {
       if (status === "COMPLETED") {
         finalStatus = "COMPLETED";
       } else if (status === "REJECTED") {
@@ -106,22 +134,26 @@ export async function PATCH(
       },
     });
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    // 3. Create audit log ONLY if we have a real user (not a guest)
+    const currentToken = getTokenFromCookies(req);
+    if (currentToken && role && userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
 
-    await createAuditLog({
-      userId: userId,
-      action: AuditAction.USER_UPDATED,
-      entity: "User",
-      entityId: userId.toString(),
-      details: `Updated employee: ${user?.name} (${user?.email})`,
-      metadata: {
-        employeeId: userId,
-        role: role,
-        email: user?.email,
-      },
-    });
+      await createAuditLog({
+        userId: userId,
+        action: AuditAction.USER_UPDATED,
+        entity: "User",
+        entityId: userId.toString(),
+        details: `Updated task status via review: ${user?.name} (${user?.email})`,
+        metadata: {
+          employeeId: userId,
+          role: role,
+          email: user?.email,
+        },
+      });
+    }
 
     return NextResponse.json(updatedTask, { status: 200 });
   } catch (err: any) {

@@ -97,6 +97,8 @@ export async function POST(req: Request) {
         url: uploaded.url, // S3 public URL
         mimeType: file.type,
         size: buffer.length,
+        folderType: folderType === "rawFootage" ? "raw" : folderType, // Save the folder type
+        s3Key: uploaded.key,
       },
     });
 

@@ -61,7 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (url.includes('s3.amazonaws.com') ||
         url.includes('amazonaws.com') ||
         url.includes('X-Amz-') ||
-        url.includes('.s3.')) {
+        url.includes('.s3.') ||
+        url.includes('/api/shared/') || // 🔥 Public shared link API
+        (url.includes('/api/tasks/') && (url.includes('/feedback') || url.includes('/status'))) // 🔥 Guest actions
+      ) {
         return response;
       }
 

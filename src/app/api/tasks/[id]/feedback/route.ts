@@ -33,9 +33,9 @@ export async function GET(
       groupedFeedback[key].push(fb);
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       feedback,
-      groupedFeedback 
+      groupedFeedback
     });
   } catch (error: any) {
     console.error("Error fetching feedback:", error);
@@ -51,12 +51,12 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await req.json();
-    
-    const { 
-      folderType, 
-      fileId, 
-      feedback, 
-      timestamp, 
+
+    const {
+      folderType,
+      fileId,
+      feedback,
+      timestamp,
       category,
       createdBy,
       status = "needs_revision"
@@ -104,9 +104,32 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const { feedbackItems, createdBy } = await req.json();
+    const body = await req.json();
+    const { feedbackItems, createdBy, shareToken } = body;
 
-    if (!Array.isArray(feedbackItems) || !createdBy) {
+    let finalCreatedBy = createdBy;
+
+    // Verify guest if using shareToken
+    if (!createdBy || createdBy === 0) {
+      if (shareToken) {
+        const shareableReview = await (prisma as any).shareableReview.findUnique({
+          where: { shareToken },
+        });
+
+        if (shareableReview && shareableReview.isActive && (!shareableReview.expiresAt || shareableReview.expiresAt > new Date())) {
+          if (shareableReview.taskId !== id) {
+            return NextResponse.json({ error: "Invalid share token for this task" }, { status: 403 });
+          }
+          finalCreatedBy = shareableReview.createdBy; // Attribute to person who shared it
+        } else {
+          return NextResponse.json({ error: "Invalid or expired share token" }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
+
+    if (!Array.isArray(feedbackItems) || !finalCreatedBy) {
       return NextResponse.json(
         { error: "Missing feedbackItems array or createdBy" },
         { status: 400 }
@@ -115,15 +138,6 @@ export async function PATCH(
 
     // Start a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Delete old unresolved feedback for this task (optional - or keep history)
-      // Uncomment if you want to replace old feedback instead of appending
-      // await tx.taskFeedback.deleteMany({
-      //   where: {
-      //     taskId: id,
-      //     resolvedAt: null
-      //   }
-      // });
-
       // Create new feedback items
       const created = await tx.taskFeedback.createMany({
         data: feedbackItems.map((item: any) => ({
@@ -134,7 +148,7 @@ export async function PATCH(
           timestamp: item.timestamp || null,
           category: item.category || null,
           status: "needs_revision",
-          createdBy,
+          createdBy: finalCreatedBy,
         }))
       });
 
@@ -143,9 +157,9 @@ export async function PATCH(
 
     console.log(`✅ Created ${result.count} feedback items for task ${id}`);
 
-    return NextResponse.json({ 
-      success: true, 
-      count: result.count 
+    return NextResponse.json({
+      success: true,
+      count: result.count
     });
   } catch (error: any) {
     console.error("Error saving feedback:", error);
@@ -175,15 +189,15 @@ export async function DELETE(
       // Mark feedback as resolved
       const updated = await prisma.taskFeedback.update({
         where: { id: feedbackId },
-        data: { 
+        data: {
           resolvedAt: new Date(),
           status: 'resolved'
         }
       });
 
-      return NextResponse.json({ 
-        success: true, 
-        feedback: updated 
+      return NextResponse.json({
+        success: true,
+        feedback: updated
       });
     } else {
       // Delete feedback
@@ -191,9 +205,9 @@ export async function DELETE(
         where: { id: feedbackId }
       });
 
-      return NextResponse.json({ 
-        success: true, 
-        deleted: feedbackId 
+      return NextResponse.json({
+        success: true,
+        deleted: feedbackId
       });
     }
   } catch (error: any) {

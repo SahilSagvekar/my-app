@@ -10,12 +10,12 @@ export const verifyToken = (token: string) => {
   try {
     // const verified = jwt.verify(token, process.env.JWT_SECRET || "");
     if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET not configured");
-}
-const verified = jwt.verify(token, process.env.JWT_SECRET);
+      throw new Error("JWT_SECRET not configured");
+    }
+    const verified = jwt.verify(token, process.env.JWT_SECRET);
     // console.log("Verified Token:", verified);
     return verified as { userId: number; email: string; iat: number; exp: number };
-  } catch { 
+  } catch {
     return null;
   }
 };
@@ -110,21 +110,21 @@ export async function getCurrentUser2(req?: NextRequest) {
     // Prefer cookie; allow Authorization header for Postman
     const cookieToken = req
       ? req.cookies.get("authToken")?.value
-      : cookies().get("authToken")?.value;
+      : (await cookies()).get("authToken")?.value;
 
-      // console.log(req.cookies.getAll());
-      // console.log(req.headers.get("cookie"))
+    // console.log(req.cookies.getAll());
+    // console.log(req.headers.get("cookie"))
 
     const headerToken = req?.headers.get("authorization")?.split(" ")[1];
 
     const token = cookieToken || headerToken;
-   
+
     if (!token) return null;
 
     // const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as Decoded;
     if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET not configured");
-}
+      throw new Error("JWT_SECRET not configured");
+    }
     const decoded = jwt.verify(token, process.env.JWT_SECRET) as Decoded;
     // console.log("getCurrentUser2 decoded:", decoded);
     if (!decoded?.userId) return null;
@@ -155,8 +155,8 @@ export function getUserFromRequest(req: Request) {
     // const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret");
 
     if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET not configured");
-}
+      throw new Error("JWT_SECRET not configured");
+    }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     return decoded; // must contain userId inside it
   } catch (e) {

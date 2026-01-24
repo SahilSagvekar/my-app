@@ -580,6 +580,24 @@ model QCCategoryMetrics {
   @@index([category])
 }
 
+model ShareableReview {
+  id          String   @id @default(cuid())
+  taskId      String
+  shareToken  String   @unique
+  createdBy   Int
+  expiresAt   DateTime?
+  viewCount   Int      @default(0)
+  lastViewedAt DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([taskId])
+  @@index([shareToken])
+  @@index([createdBy])
+  @@index([expiresAt])
+}
+
 enum Role {
   admin
   manager

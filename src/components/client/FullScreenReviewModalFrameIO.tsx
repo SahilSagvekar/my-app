@@ -38,12 +38,15 @@ import {
     ArrowLeft,
     Info,
     Plus,
+    Copy,
+    Check,
     UserCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getVideoSource } from '../workflow/VideoUrlHelper';
 import { ReviewCommentCard, CommentInput, ReviewTimeline, StatusDropdown } from '../review';
 import { ReviewComment, ReviewStatus, REVIEW_STATUSES } from '../review/types';
+import { ShareDialog } from '../review/ShareDialog';
 import { useAuth } from '../auth/AuthContext';
 
 interface Version {
@@ -74,6 +77,7 @@ interface ReviewAsset {
     currentVersion: string;
     downloadEnabled: boolean;
     approvalLocked: boolean;
+    taskFeedback?: any[];
 }
 
 interface FullScreenReviewModalProps {
@@ -96,6 +100,8 @@ interface FullScreenReviewModalProps {
     taskId?: string;
     // 🔥 NEW: Conditional routing based on client review requirement
     requiresClientReview?: boolean;
+    // 🔥 NEW: Share token for guest access
+    shareToken?: string;
 }
 
 interface RevisionRequest {
@@ -125,7 +131,8 @@ export function FullScreenReviewModalFrameIO({
     onSendBackToEditor,
     currentFileSection,
     taskId,
-    requiresClientReview = false
+    requiresClientReview = false,
+    shareToken
 }: FullScreenReviewModalProps) {
     // Auth context
     const { user } = useAuth();
@@ -154,6 +161,10 @@ export function FullScreenReviewModalFrameIO({
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
     const [showInfoPanel, setShowInfoPanel] = useState(false);
+    const [showShareDialog, setShowShareDialog] = useState(false);
+    const [shareLink, setShareLink] = useState<string>('');
+    const [generatingLink, setGeneratingLink] = useState(false);
+    const [linkCopied, setLinkCopied] = useState(false);
 
     // Refs
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -188,10 +199,41 @@ export function FullScreenReviewModalFrameIO({
                 setReviewStatus('needs_review');
             }
 
-            // Clear comments when asset changes
-            setComments([]);
+            // Clear and then load comments when asset changes
+            if (asset && (asset as any).taskFeedback) {
+                const initialComments = (asset as any).taskFeedback.map((fb: any) => ({
+                    id: fb.id,
+                    content: fb.feedback,
+                    timestamp: fb.timestamp || '0:00',
+                    category: fb.category || 'other',
+                    createdAt: fb.createdAt,
+                    resolved: false, // shared view usually only sees active feedback
+                }));
+                setComments(initialComments);
+            } else {
+                setComments([]);
+            }
+
+            // 🔥 Only fetch existing share links if we are logged in
+            if (user) {
+                fetchExistingShareLinks(taskId || asset.id);
+            }
         }
-    }, [asset]);
+    }, [asset, taskId, user]);
+
+    // Fetch existing share links for the task
+    const fetchExistingShareLinks = async (id: string) => {
+        try {
+            const response = await fetch(`/api/tasks/${id}/share`);
+            const data = await response.json();
+            if (response.ok && data.links && data.links.length > 0) {
+                // Set the most recent active share link
+                setShareLink(data.links[0].shareUrl);
+            }
+        } catch (error) {
+            console.error('Error fetching existing share links:', error);
+        }
+    };
 
     // Lock body scroll when modal is open
     useEffect(() => {
@@ -370,8 +412,14 @@ export function FullScreenReviewModalFrameIO({
     // 🔥 NEW: Save feedback to database
     const saveFeedbackToDatabase = async (feedbackComments: ReviewComment[]) => {
         const actualTaskId = taskId || asset?.id;
-        if (!actualTaskId || !user?.id) {
-            console.error('Missing taskId or user for saving feedback');
+        if (!actualTaskId) {
+            console.error('Missing taskId for saving feedback');
+            return false;
+        }
+
+        // Must have either a logged in user OR a shareToken
+        if (!user?.id && !shareToken) {
+            console.error('Missing user and shareToken for saving feedback');
             return false;
         }
 
@@ -393,7 +441,8 @@ export function FullScreenReviewModalFrameIO({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     feedbackItems,
-                    createdBy: user.id,
+                    createdBy: user?.id || 0, // Fallback to 0 for guest (backend will handle shareToken)
+                    shareToken, // Pass shareToken along
                 }),
             });
 
@@ -472,6 +521,68 @@ export function FullScreenReviewModalFrameIO({
                 setShowRevisionSuccess(false);
                 onOpenChange(false);
             }, 2000);
+        }
+    };
+
+    // Handle share link generation
+    const handleGenerateShareLink = async () => {
+        const actualTaskId = taskId || asset?.id;
+        if (!actualTaskId) {
+            toast.error('Unable to generate share link');
+            return;
+        }
+
+        try {
+            setGeneratingLink(true);
+            setLinkCopied(false);
+
+            const response = await fetch(`/api/tasks/${actualTaskId}/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    expiresInDays: 30 // Link expires in 30 days
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to generate share link');
+            }
+
+            setShareLink(data.shareUrl);
+            setShowShareDialog(true);
+            setShowInfoPanel(true); // Auto-open info panel to show the link
+
+            // 🔥 Auto-copy to clipboard
+            try {
+                await navigator.clipboard.writeText(data.shareUrl);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 3000);
+                toast.success('Share link generated and copied to clipboard!');
+            } catch (copyErr) {
+                toast.success('Share link generated successfully!');
+            }
+        } catch (error: any) {
+            console.error('Error generating share link:', error);
+            toast.error(error.message || 'Failed to generate share link');
+        } finally {
+            setGeneratingLink(false);
+        }
+    };
+
+    // Copy link to clipboard
+    const handleCopyLink = async () => {
+        try {
+            await navigator.clipboard.writeText(shareLink);
+            setLinkCopied(true);
+            toast.success('Link copied to clipboard!');
+
+            // Reset copied state after 3 seconds
+            setTimeout(() => setLinkCopied(false), 3000);
+        } catch (error) {
+            console.error('Failed to copy link:', error);
+            toast.error('Failed to copy link');
         }
     };
 
@@ -592,6 +703,24 @@ export function FullScreenReviewModalFrameIO({
                                 </div>
                             </div>
 
+                            {/* 🔥 NEW: In-Header Share Link (Very Visible) */}
+                            {shareLink && (
+                                <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-full animate-in fade-in slide-in-from-top-4 duration-500 mx-4">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                    <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider whitespace-nowrap">Shared Review:</span>
+                                    <span className="text-[11px] text-blue-200 uppercase tracking-wider font-mono truncate max-w-[150px]">{shareLink}</span>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleCopyLink}
+                                        className="h-5 px-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20"
+                                    >
+                                        {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                    </Button>
+                                    <Badge variant="outline" className="h-4 text-[9px] border-blue-500/30 text-blue-400">ACTIVE</Badge>
+                                </div>
+                            )}
+
                             {/* Right: Status + Actions */}
                             <div className="flex items-center gap-3">
                                 {/* Version Selector */}
@@ -630,9 +759,15 @@ export function FullScreenReviewModalFrameIO({
                                 <Button
                                     variant="ghost"
                                     size="sm"
+                                    onClick={handleGenerateShareLink}
+                                    disabled={generatingLink}
                                     className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
                                 >
-                                    <Share className="h-4 w-4" />
+                                    {generatingLink ? (
+                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                    ) : (
+                                        <Share className="h-4 w-4" />
+                                    )}
                                 </Button>
 
                                 <Button
@@ -1031,11 +1166,48 @@ export function FullScreenReviewModalFrameIO({
                                         <div className="text-[var(--review-text-muted)] mb-1">Uploader</div>
                                         <div className="text-white">{asset.uploader}</div>
                                     </div>
+
+                                    {/* 🔥 Show Share Link if it exists */}
+                                    {shareLink && (
+                                        <div className="pt-4 mt-4 border-t border-[var(--review-border)]">
+                                            <div className="text-[var(--review-text-muted)] mb-2 flex items-center justify-between">
+                                                <span>Active Share Link</span>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 p-1 text-blue-400 hover:text-blue-300"
+                                                    onClick={handleCopyLink}
+                                                >
+                                                    {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                                </Button>
+                                            </div>
+                                            <div className="bg-[var(--review-bg-tertiary)] p-2 rounded text-[10px] break-all font-mono text-blue-300 border border-blue-500/20">
+                                                {shareLink}
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full mt-2 h-7 text-xs bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
+                                                onClick={() => setShowShareDialog(true)}
+                                            >
+                                                Manage Share
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
+
+                {/* Share Dialog */}
+                <ShareDialog
+                    open={showShareDialog}
+                    onOpenChange={setShowShareDialog}
+                    shareLink={shareLink}
+                    onCopy={handleCopyLink}
+                    copied={linkCopied}
+                />
             </DialogContent>
         </Dialog>
     );
