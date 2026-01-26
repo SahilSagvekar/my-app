@@ -139,6 +139,15 @@ model Task {
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
   taskFeedback         TaskFeedback[]
 
+  transcript        String?   @db.Text
+  transcriptSummary String?   @db.Text
+  suggestedTitles   Json?
+  titlingStatus     String    @default("NONE")
+  titlingError      String?
+  platform          String?
+  
+  titlingJob        TitlingJob?
+
   @@index([assignedTo])
   @@index([clientId])
   @@index([status])
@@ -150,6 +159,28 @@ model Task {
   @@index([assignedTo, status])
   @@index([clientId, status])
   @@index([dueDate, status])
+}
+
+model TitlingJob {
+  id              String    @id @default(cuid())
+  taskId          String    @unique
+  status          String    @default("PENDING")
+  assemblyId      String?
+  error           String?
+  attempts        Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  startedAt       DateTime?
+  completedAt     DateTime?
+  videoFileId     String?
+  videoFileName   String?
+  videoDuration   Int?
+  
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  @@index([status])
+  @@index([assemblyId])
+  @@index([createdAt])
 }
 
 model TaskFeedback {

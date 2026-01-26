@@ -1,6 +1,12 @@
+// src/app/api/tasks/[id]/status/route.ts
+// 
+// UPDATED VERSION - Add titling trigger on QC approval
+// Replace your existing route.ts with this
+
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
-import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
+import { createAuditLog, AuditAction } from '@/lib/audit-logger';
+import { startTitlingJob } from '@/lib/titling-service';
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -16,43 +22,15 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const body = await req.json();
-    const { status, feedback, qcNotes, route, shareToken } = body;
-
-    let userId: any;
-    let role: string | undefined;
-
-    // 1. Check for standard auth cookie first
-    const authToken = getTokenFromCookies(req);
-    if (authToken) {
-      try {
-        const decoded: any = jwt.verify(authToken, process.env.JWT_SECRET!);
-        userId = decoded.userId;
-        role = decoded.role;
-      } catch (err) {
-        console.error("JWT verify failed, checking share token...");
-      }
-    }
-
-    // 2. If no user, check for shareToken
-    if (!userId && shareToken) {
-      const shareableReview = await (prisma as any).shareableReview.findUnique({
-        where: { shareToken },
-      });
-
-      if (shareableReview && shareableReview.isActive && (!shareableReview.expiresAt || shareableReview.expiresAt > new Date())) {
-        if (shareableReview.taskId !== id) {
-          return NextResponse.json({ message: "Invalid share token for this task" }, { status: 403 });
-        }
-        // Valid share token! Treat as a "client" role
-        userId = shareableReview.createdBy; // Use the creator's ID for accountability
-        role = "client";
-      }
-    }
-
-    if (!userId) {
+    const token = getTokenFromCookies(req);
+    if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    const { role, userId } = decoded;
+
+    const body = await req.json();
+    const { status, feedback, qcNotes, route } = body;
 
     let finalStatus = status;
 
@@ -69,55 +47,25 @@ export async function PATCH(
       where: { id },
       include: {
         client: true,
+        files: {
+          where: { isActive: true },
+        },
       },
     });
 
     if (!task)
       return NextResponse.json({ message: "Task not found" }, { status: 404 });
 
-    // const allowedTransitions: Record<string, string[]> = {
-    //   editor: ["IN_PROGRESS", "READY_FOR_QC", "ON_HOLD"],
-    //   qc: ["QC_IN_PROGRESS", "COMPLETED", "REJECTED"],
-    //   client: ["CLIENT_REVIEW", "COMPLETED", "REJECTED"],
-    //   scheduler: [],
-    //   manager: [
-    //     "PENDING",
-    //     "IN_PROGRESS",
-    //     "READY_FOR_QC",
-    //     "QC_IN_PROGRESS",
-    //     "COMPLETED",
-    //     "ON_HOLD",
-    //     "REJECTED",
-    //   ],
-    //   admin: [
-    //     "PENDING",
-    //     "IN_PROGRESS",
-    //     "READY_FOR_QC",
-    //     "QC_IN_PROGRESS",
-    //     "COMPLETED",
-    //     "ON_HOLD",
-    //     "REJECTED",
-    //   ],
-    // };
-
-    // const allowed = allowedTransitions[role.toLowerCase()] || [];
-
-    // if (!allowed.includes(status)) {
-    //   return NextResponse.json(
-    //     { message: `Role '${role}' cannot set status to '${status}'` },
-    //     { status: 403 }
-    //   );
-    // }
-
+    // Handle client review requirement
     if (
-      role?.toLowerCase() === "qc" &&
+      role.toLowerCase() === "qc" &&
       status === "COMPLETED" &&
       task.client?.requiresClientReview === true
     ) {
       finalStatus = "CLIENT_REVIEW";
     }
 
-    if (role?.toLowerCase() === "client") {
+    if (role.toLowerCase() === "client") {
       if (status === "COMPLETED") {
         finalStatus = "COMPLETED";
       } else if (status === "REJECTED") {
@@ -125,6 +73,7 @@ export async function PATCH(
       }
     }
 
+    // Update task
     const updatedTask = await prisma.task.update({
       where: { id },
       data: {
@@ -134,28 +83,69 @@ export async function PATCH(
       },
     });
 
-    // 3. Create audit log ONLY if we have a real user (not a guest)
-    const currentToken = getTokenFromCookies(req);
-    if (currentToken && role && userId) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
+    // ============================================
+    // NEW: Trigger AI titling on QC approval
+    // ============================================
+    const shouldTriggerTitling = 
+      role.toLowerCase() === "qc" && 
+      (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW") &&
+      task.titlingStatus !== 'COMPLETED' && // Don't re-trigger if already done
+      task.titlingStatus !== 'PROCESSING'; // Don't re-trigger if in progress
 
-      await createAuditLog({
-        userId: userId,
-        action: AuditAction.USER_UPDATED,
-        entity: "User",
-        entityId: userId.toString(),
-        details: `Updated task status via review: ${user?.name} (${user?.email})`,
-        metadata: {
-          employeeId: userId,
-          role: role,
-          email: user?.email,
-        },
-      });
+    if (shouldTriggerTitling) {
+      // Check if task has a video file
+      const hasVideoFile = task.files.some(f => f.mimeType?.startsWith('video/'));
+      
+      if (hasVideoFile) {
+        console.log(`\n🎬 QC approved task ${id} - triggering AI titling`);
+        
+        // Start titling in background (don't await - let it run async)
+        startTitlingJob(id)
+          .then(({ jobId, transcriptId }) => {
+            console.log(`   ✅ Titling job started: ${jobId}`);
+          })
+          .catch((err) => {
+            console.error(`   ❌ Failed to start titling job:`, err.message);
+            // Update task to show titling failed
+            prisma.task.update({
+              where: { id },
+              data: {
+                titlingStatus: 'FAILED',
+                titlingError: err.message,
+              },
+            }).catch(console.error);
+          });
+      } else {
+        console.log(`   ℹ️ Task ${id} has no video file - skipping titling`);
+      }
     }
+    // ============================================
 
-    return NextResponse.json(updatedTask, { status: 200 });
+    // Audit log
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    await createAuditLog({
+      userId: userId,
+      action: AuditAction.TASK_STATUS_UPDATED,
+      entity: "Task",
+      entityId: id,
+      details: `Task status updated to: ${finalStatus}`,
+      metadata: {
+        taskId: id,
+        previousStatus: task.status,
+        newStatus: finalStatus,
+        updatedBy: user?.name,
+        role: role,
+      },
+    });
+
+    return NextResponse.json({
+      ...updatedTask,
+      titlingTriggered: shouldTriggerTitling,
+    }, { status: 200 });
+
   } catch (err: any) {
     console.error("❌ Task status update error:", err.message);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
