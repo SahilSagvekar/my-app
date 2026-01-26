@@ -128,7 +128,7 @@ export async function PATCH(
 
     await createAuditLog({
       userId: userId,
-      action: AuditAction.TASK_STATUS_UPDATED,
+      action: AuditAction.TASK_UPDATED,
       entity: "Task",
       entityId: id,
       details: `Task status updated to: ${finalStatus}`,
