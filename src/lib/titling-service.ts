@@ -59,9 +59,11 @@ export async function startTitlingJob(taskId: string): Promise<{ jobId: string; 
   console.log(`   Video source: ${videoSource}`);
 
   // 3. Determine platform from deliverable or default
-  const platform = task.platform || 
-    (task.monthlyDeliverable?.platforms?.[0] as any) || 
-    'youtube';
+  // const platform = task.platform || 
+  //   (task.monthlyDeliverable?.platforms?.[0] as any) || 
+  //   'youtube';
+
+  const platform = 'general';
 
   // 4. Check for existing job
   const existingJob = await prisma.titlingJob.findUnique({
