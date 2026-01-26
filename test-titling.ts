@@ -156,7 +156,7 @@ async function generateTitles(transcript: string, platform: string = 'youtube'):
   const data = await response.json();
   return {
     summary: data.transcript_summary,
-    titles: data.generated_titles,
+    titles: data.titles,
   };
 }
 
