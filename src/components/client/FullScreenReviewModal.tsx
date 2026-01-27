@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
@@ -8,15 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../ui/sheet';
-import { 
-  X, 
-  Download, 
-  Share, 
-  Play, 
-  Pause, 
-  Volume2, 
-  VolumeX, 
-  Settings, 
+import {
+  X,
+  Download,
+  Share,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Settings,
   CheckCircle2,
   MessageSquare,
   Upload,
@@ -104,11 +104,11 @@ const statusLabels = {
   approved: 'Approved'
 };
 
-export function FullScreenReviewModal({ 
-  open, 
-  onOpenChange, 
-  asset, 
-  onApprove, 
+export function FullScreenReviewModal({
+  open,
+  onOpenChange,
+  asset,
+  onApprove,
   onRequestRevisions,
   onNextAsset,
   userRole = 'client',
@@ -128,7 +128,7 @@ export function FullScreenReviewModal({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
-  
+
   // Revision form state
   const [revisionReason, setRevisionReason] = useState<'design' | 'content' | 'timing' | 'technical' | 'spelling' | 'other'>('design');
   const [revisionNotes, setRevisionNotes] = useState('');
@@ -139,7 +139,7 @@ export function FullScreenReviewModal({
   const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  
+
   // Revision logging system
   const [revisionEntries, setRevisionEntries] = useState<Array<{
     id: string;
@@ -154,9 +154,10 @@ export function FullScreenReviewModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
-  
+  const lastTimeUpdateRef = useRef<number>(0);
+
   // Determine video source type
-  const videoSource = asset ? getVideoSource(asset.videoUrl) : { type: 'video' as const, src: '' };
+  const videoSource = useMemo(() => asset ? getVideoSource(asset.videoUrl) : { type: 'video' as const, src: '' }, [asset]);
 
   useEffect(() => {
     if (asset) {
@@ -180,7 +181,7 @@ export function FullScreenReviewModal({
     } else {
       document.body.style.overflow = 'unset';
     }
-    
+
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -249,8 +250,8 @@ export function FullScreenReviewModal({
 
   const addRevisionEntry = () => {
     if (!revisionNotes.trim()) {
-      toast('❌ Notes Required', { 
-        description: 'Please provide specific notes for this revision entry.' 
+      toast('❌ Notes Required', {
+        description: 'Please provide specific notes for this revision entry.'
       });
       return;
     }
@@ -266,8 +267,8 @@ export function FullScreenReviewModal({
 
     setRevisionEntries(prev => [...prev, newEntry]);
     setRevisionNotes('');
-    toast('✅ Revision Entry Added', { 
-      description: `Added ${revisionReason} note${currentVideoTime ? ` at ${currentVideoTime}` : ''}` 
+    toast('✅ Revision Entry Added', {
+      description: `Added ${revisionReason} note${currentVideoTime ? ` at ${currentVideoTime}` : ''}`
     });
   };
 
@@ -275,7 +276,7 @@ export function FullScreenReviewModal({
     setRevisionEntries(prev => prev.filter(entry => entry.id !== entryId));
   };
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
@@ -284,24 +285,32 @@ export function FullScreenReviewModal({
       }
       setIsPlaying(!isPlaying);
     }
-  };
+  }, [isPlaying]);
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
     }
-  };
+  }, [isMuted]);
 
-  const seekBackward = () => {
+  const seekBackward = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.currentTime = Math.max(0, currentTime - 10);
     }
-  };
+  }, [currentTime]);
 
-  const seekForward = () => {
+  const seekForward = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.currentTime = Math.min(duration, currentTime + 10);
+    }
+  }, [duration, currentTime]);
+
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const time = e.currentTarget.currentTime;
+    if (Math.abs(time - lastTimeUpdateRef.current) >= 0.1 || time === 0 || time === duration) {
+      setCurrentTime(time);
+      lastTimeUpdateRef.current = time;
     }
   };
 
@@ -321,17 +330,17 @@ export function FullScreenReviewModal({
 
   const handleApprove = () => {
     if (!asset) return;
-    
+
     if (!confirmFinal) {
-      toast('⚠️ Confirmation Required', { 
-        description: 'Please confirm this is the final version for publishing.' 
+      toast('⚠️ Confirmation Required', {
+        description: 'Please confirm this is the final version for publishing.'
       });
       return;
     }
 
     onApprove(asset, confirmFinal);
     setShowApprovalSuccess(true);
-    
+
     setTimeout(() => {
       setShowApprovalSuccess(false);
       onOpenChange(false);
@@ -340,17 +349,17 @@ export function FullScreenReviewModal({
 
   const handleSubmitRevisions = () => {
     if (!asset) return;
-    
+
     if (revisionEntries.length === 0) {
-      toast('❌ No Revision Entries', { 
-        description: 'Please add at least one revision entry before submitting.' 
+      toast('❌ No Revision Entries', {
+        description: 'Please add at least one revision entry before submitting.'
       });
       return;
     }
 
     const revisionData: RevisionRequest = {
       reason: revisionEntries[0].reason, // Keep for compatibility
-      notes: revisionEntries.map(entry => 
+      notes: revisionEntries.map(entry =>
         `[${entry.reason.toUpperCase()}${entry.videoTime ? ` @ ${entry.videoTime}` : ''}] ${entry.notes}`
       ).join('\n\n'),
       referenceFile: referenceFile || undefined,
@@ -364,9 +373,9 @@ export function FullScreenReviewModal({
     } else {
       onRequestRevisions(asset, revisionData);
     }
-    
+
     setShowRevisionSuccess(true);
-    
+
     setTimeout(() => {
       setShowRevisionSuccess(false);
       setShowRevisions(false);
@@ -376,10 +385,10 @@ export function FullScreenReviewModal({
 
   const handleQCApproveToClient = () => {
     if (!asset || !onSendToClient) return;
-    
+
     onSendToClient(asset);
     setShowApprovalSuccess(true);
-    
+
     setTimeout(() => {
       setShowApprovalSuccess(false);
       onOpenChange(false);
@@ -401,24 +410,24 @@ export function FullScreenReviewModal({
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current || !videoRef.current || duration === 0) return;
-    
+
     const rect = timelineRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, clickX / rect.width));
     const newTime = percentage * duration;
-    
+
     videoRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   };
 
   const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current || duration === 0) return;
-    
+
     const rect = timelineRef.current.getBoundingClientRect();
     const hoverX = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, hoverX / rect.width));
     const newHoverTime = percentage * duration;
-    
+
     setHoverTime(newHoverTime);
   };
 
@@ -429,25 +438,25 @@ export function FullScreenReviewModal({
   const handleTimelineDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsDragging(true);
     handleTimelineClick(e);
-    
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!timelineRef.current || !videoRef.current || duration === 0) return;
-      
+
       const rect = timelineRef.current.getBoundingClientRect();
       const dragX = e.clientX - rect.left;
       const percentage = Math.max(0, Math.min(1, dragX / rect.width));
       const newTime = percentage * duration;
-      
+
       videoRef.current.currentTime = newTime;
       setCurrentTime(newTime);
     };
-    
+
     const handleMouseUp = () => {
       setIsDragging(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   };
@@ -458,7 +467,7 @@ export function FullScreenReviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
+      <DialogContent
         className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !bg-black/95 !backdrop-blur-sm !overflow-hidden !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog"
       >
         {/* Accessibility: Hidden title and description for screen readers */}
@@ -470,10 +479,10 @@ export function FullScreenReviewModal({
             Review and provide feedback on this video asset. Use the controls to watch the video, then either approve the final version or request revisions with specific notes. The approval section is located in the right panel.
           </DialogDescription>
         </div>
-          <div 
-            ref={containerRef}
-            className="relative w-full h-full flex flex-col bg-black text-white"
-          >
+        <div
+          ref={containerRef}
+          className="relative w-full h-full flex flex-col bg-black text-white"
+        >
           {/* Success States */}
           {showApprovalSuccess && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80">
@@ -484,8 +493,8 @@ export function FullScreenReviewModal({
                     {userRole === 'qc' ? 'Sent to Client!' : 'Version Approved!'}
                   </h3>
                   <p className="text-green-700">
-                    {userRole === 'qc' 
-                      ? 'Asset has been sent to client for review' 
+                    {userRole === 'qc'
+                      ? 'Asset has been sent to client for review'
                       : 'Asset has been approved for publishing'
                     }
                   </p>
@@ -522,7 +531,7 @@ export function FullScreenReviewModal({
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm text-gray-400">{asset.runtime}</span>
                     <span className="text-gray-600">•</span>
-                    <Badge 
+                    <Badge
                       className={`text-xs ${statusColors[currentVersionData?.status || asset.status]} text-white`}
                     >
                       {statusLabels[currentVersionData?.status || asset.status]}
@@ -556,9 +565,9 @@ export function FullScreenReviewModal({
                   Share Link
                 </Button>
 
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onOpenChange(false)}
                   className="text-white hover:bg-white/20"
                 >
@@ -579,8 +588,8 @@ export function FullScreenReviewModal({
                       <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
                       <h3 className="text-xl mb-2">Video Failed to Load</h3>
                       <p className="text-sm text-gray-400 mb-4">
-                        {videoSource.type === 'iframe' 
-                          ? 'The video may be private or require special permissions. Please ensure the Google Drive file sharing settings are set to "Anyone with the link can view".' 
+                        {videoSource.type === 'iframe'
+                          ? 'The video may be private or require special permissions. Please ensure the Google Drive file sharing settings are set to "Anyone with the link can view".'
                           : 'Please ensure the video file is accessible and in a supported format.'}
                       </p>
                       <div className="bg-gray-800 p-4 rounded-lg mb-4">
@@ -598,8 +607,8 @@ export function FullScreenReviewModal({
                         )}
                       </div>
                       <div className="flex gap-2 justify-center">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setVideoError(false);
@@ -607,8 +616,8 @@ export function FullScreenReviewModal({
                         >
                           Retry Loading
                         </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => window.open(asset.videoUrl, '_blank')}
                         >
@@ -651,7 +660,7 @@ export function FullScreenReviewModal({
                     ref={videoRef}
                     className="w-full h-full object-contain bg-black"
                     src={videoSource.src}
-                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                    onTimeUpdate={handleTimeUpdate}
                     onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
@@ -660,6 +669,7 @@ export function FullScreenReviewModal({
                       setVideoError(true);
                     }}
                     playsInline
+                    preload="auto"
                   >
                     Your browser does not support the video tag.
                   </video>
@@ -668,7 +678,7 @@ export function FullScreenReviewModal({
                 {/* Video Overlay Controls - Only for direct video files */}
                 {videoSource.type === 'video' && (
                   <>
-                    <div 
+                    <div
                       className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
                       onClick={togglePlay}
                     >
@@ -680,65 +690,67 @@ export function FullScreenReviewModal({
                     </div>
 
                     {/* Interactive Timeline */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                  <div className="relative">
-                    {/* Time tooltip */}
-                    {hoverTime !== null && (
-                      <div 
-                        className="absolute -top-8 bg-black/80 text-white text-xs px-2 py-1 rounded pointer-events-none z-10"
-                        style={{ 
-                          left: `${(hoverTime / duration) * 100}%`,
-                          transform: 'translateX(-50%)'
-                        }}
-                      >
-                        {formatTime(hoverTime)}
+                    <div className="absolute bottom-0 left-0 right-0 px-0 pb-4">
+                      <div className="relative bg-white/5 h-12 rounded-lg px-6 flex items-center">
+                        {/* Time display at the top */}
+                        <div className="flex justify-between w-full absolute top-1 left-0 px-4 pointer-events-none">
+                          <span className="text-[10px] text-white/50 font-mono">{formatTime(currentTime)}</span>
+                          <span className="text-[10px] text-white/50 font-mono">{formatTime(duration)}</span>
+                        </div>
+
+                        <div className="relative flex-1 h-2">
+                          {/* Time tooltip */}
+                          {hoverTime !== null && (
+                            <div
+                              className="absolute -top-10 bg-black/80 text-white text-xs px-2 py-1 rounded pointer-events-none z-10"
+                              style={{
+                                left: `${(hoverTime / duration) * 100}%`,
+                                transform: 'translateX(-50%)'
+                              }}
+                            >
+                              {formatTime(hoverTime)}
+                            </div>
+                          )}
+
+                          {/* Timeline track */}
+                          <div
+                            ref={timelineRef}
+                            className="relative bg-white/20 h-2 rounded-full cursor-pointer group"
+                            onClick={handleTimelineClick}
+                            onMouseMove={handleTimelineMouseMove}
+                            onMouseLeave={handleTimelineMouseLeave}
+                            onMouseDown={handleTimelineDragStart}
+                          >
+                            {/* Progress fill */}
+                            <div
+                              className="bg-white h-2 rounded-full transition-all duration-150"
+                              style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                            />
+
+                            {/* Hover indicator */}
+                            {hoverTime !== null && (
+                              <div
+                                className="absolute top-0 w-0.5 h-2 bg-white/60"
+                                style={{ left: `${(hoverTime / duration) * 100}%` }}
+                              />
+                            )}
+
+                            {/* Playhead */}
+                            <div
+                              className="absolute top-1/2 w-4 h-4 bg-white rounded-full shadow-lg transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-grab active:cursor-grabbing"
+                              style={{
+                                left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                                transform: 'translate(-50%, -50%)'
+                              }}
+                              onMouseDown={handleTimelineDragStart}
+                            />
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    
-                    {/* Timeline track */}
-                    <div 
-                      ref={timelineRef}
-                      className="relative bg-white/20 h-2 rounded-full cursor-pointer group"
-                      onClick={handleTimelineClick}
-                      onMouseMove={handleTimelineMouseMove}
-                      onMouseLeave={handleTimelineMouseLeave}
-                      onMouseDown={handleTimelineDragStart}
-                    >
-                      {/* Progress fill */}
-                      <div 
-                        className="bg-white h-2 rounded-full transition-all duration-150"
-                        style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-                      />
-                      
-                      {/* Hover indicator */}
-                      {hoverTime !== null && (
-                        <div 
-                          className="absolute top-0 w-0.5 h-2 bg-white/60"
-                          style={{ left: `${(hoverTime / duration) * 100}%` }}
-                        />
-                      )}
-                      
-                      {/* Playhead */}
-                      <div 
-                        className="absolute top-1/2 w-4 h-4 bg-white rounded-full shadow-lg transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-grab active:cursor-grabbing"
-                        style={{ 
-                          left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                          transform: 'translate(-50%, -50%)'
-                        }}
-                        onMouseDown={handleTimelineDragStart}
-                      />
                     </div>
-                    
-                    {/* Time display */}
-                    <div className="flex justify-between text-xs text-white/70 mt-2">
-                      <span>{formatTime(currentTime)}</span>
-                      <span>{formatTime(duration)}</span>
-                    </div>
-                  </div>
-                </div>
                   </>
                 )}
-                
+
                 {/* Info for iframe videos */}
                 {videoSource.type === 'iframe' && !videoError && iframeLoaded && (
                   <div className="absolute bottom-4 left-4 bg-black/80 text-white text-xs px-3 py-2 rounded max-w-sm">
@@ -752,7 +764,7 @@ export function FullScreenReviewModal({
             {/* Right Rail - Metadata */}
             <div className="w-80 flex-shrink-0 bg-black/60 border-l border-white/10 p-6 overflow-y-auto hidden lg:block">
               <h3 className="font-medium mb-4">Asset Details</h3>
-              
+
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-sm">
                   <Settings className="h-4 w-4 text-gray-400" />
@@ -785,17 +797,16 @@ export function FullScreenReviewModal({
                   <h4 className="font-medium mb-4">Version History</h4>
                   <div className="space-y-3">
                     {asset.versions.map((version) => (
-                      <div 
+                      <div
                         key={version.id}
-                        className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
-                          version.id === currentVersion 
-                            ? 'bg-white/10' 
-                            : 'hover:bg-white/5'
-                        }`}
+                        className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${version.id === currentVersion
+                          ? 'bg-white/10'
+                          : 'hover:bg-white/5'
+                          }`}
                         onClick={() => handleVersionChange(version.id)}
                       >
-                        <img 
-                          src={version.thumbnail} 
+                        <img
+                          src={version.thumbnail}
                           alt={`Version ${version.number}`}
                           className="w-12 h-8 object-cover rounded"
                         />
@@ -803,7 +814,7 @@ export function FullScreenReviewModal({
                           <div className="font-medium">V{version.number}</div>
                           <div className="text-gray-400 text-xs">{version.uploadDate}</div>
                         </div>
-                        <Badge 
+                        <Badge
                           className={`text-xs ${statusColors[version.status]} text-white`}
                         >
                           {statusLabels[version.status]}
@@ -815,250 +826,250 @@ export function FullScreenReviewModal({
               )}
 
               {/* Review Actions */}
-              {((userRole === 'client' && asset.status === 'client_review') || 
-                (userRole === 'qc' && asset.status === 'in_qc')) && 
+              {((userRole === 'client' && asset.status === 'client_review') ||
+                (userRole === 'qc' && asset.status === 'in_qc')) &&
                 !asset.approvalLocked && (
-                <div className="mt-8 space-y-4">
-                  <h4 className="font-medium mb-4">
-                    {userRole === 'qc' ? 'QC Review Actions' : 'Review Actions'}
-                  </h4>
-                  
-                  {/* QC Approval Section */}
-                  {userRole === 'qc' && (
-                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                      <div className="space-y-3">
-                        <p className="text-sm text-white/80">
-                          QC approved - ready for client review
-                        </p>
-                        
-                        <Button 
-                          size="sm" 
-                          onClick={handleQCApproveToClient}
-                          className="w-full bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Send to Client/Schedular
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  <div className="mt-8 space-y-4">
+                    <h4 className="font-medium mb-4">
+                      {userRole === 'qc' ? 'QC Review Actions' : 'Review Actions'}
+                    </h4>
 
-                  {/* Client Approval Section */}
-                  {userRole === 'client' && (
-                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                      <div className="space-y-3">
-                        <div className="flex items-start space-x-3">
-                          <Checkbox
-                            id="confirm-final-rail"
-                            checked={confirmFinal}
-                            onCheckedChange={(checked) => setConfirmFinal(checked as boolean)}
-                            className="mt-1"
-                          />
-                          <label
-                            htmlFor="confirm-final-rail"
-                            className="text-sm text-white cursor-pointer leading-tight"
+                    {/* QC Approval Section */}
+                    {userRole === 'qc' && (
+                      <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                        <div className="space-y-3">
+                          <p className="text-sm text-white/80">
+                            QC approved - ready for client review
+                          </p>
+
+                          <Button
+                            size="sm"
+                            onClick={handleQCApproveToClient}
+                            className="w-full bg-green-600 hover:bg-green-700"
                           >
-                            I confirm this is the final version for publishing
-                          </label>
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Send to Client/Schedular
+                          </Button>
                         </div>
-                        
-                        <Button 
-                          size="sm" 
-                          onClick={handleApprove}
-                          disabled={!confirmFinal}
-                          className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50"
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Approve Version
-                        </Button>
                       </div>
-                    </div>
-                  )}
-                  
-                  {/* Request Revisions Section */}
-                  <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                    <Sheet open={showRevisions} onOpenChange={setShowRevisions}>
-                      <SheetTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
-                        >
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          {userRole === 'qc' ? 'Send Back to Editor' : 'Request Revisions'}
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent className="sm:max-w-2xl w-full">
-                        <div className="h-full flex flex-col">
-                          <SheetHeader className="px-6 py-4 border-b">
-                            <SheetTitle>
-                              {userRole === 'qc' ? 'QC Feedback for Editor' : 'Request Revisions'}
-                            </SheetTitle>
-                            <p className="text-sm text-muted-foreground">
-                              Add revision notes with timestamps. Current video time: {formatTime(currentTime)}
-                            </p>
-                          </SheetHeader>
-                        
-                          <div className="flex-1 overflow-y-auto px-6 py-6">
-                            <div className="space-y-6">
-                              {/* Add New Revision Entry */}
-                              <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-                                <h4 className="font-medium">Add Revision Entry</h4>
-                                
-                                <div>
-                                  <label className="text-sm font-medium mb-2 block">Reason</label>
-                                  <Select value={revisionReason} onValueChange={(value: any) => setRevisionReason(value)}>
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="design">Design</SelectItem>
-                                      <SelectItem value="content">Content</SelectItem>
-                                      <SelectItem value="timing">Timing</SelectItem>
-                                      <SelectItem value="technical">Technical</SelectItem>
-                                      <SelectItem value="spelling">Spelling Errors</SelectItem>
-                                      <SelectItem value="other">Other</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
+                    )}
 
-                                <div>
-                                  <label className="text-sm font-medium mb-2 block">Notes *</label>
-                                  <Textarea
-                                    placeholder="Add specific notes for this revision..."
-                                    value={revisionNotes}
-                                    onChange={(e) => setRevisionNotes(e.target.value)}
-                                    className="min-h-[100px]"
-                                  />
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Current video time ({formatTime(currentTime)}) will be automatically captured
-                                  </p>
-                                </div>
+                    {/* Client Approval Section */}
+                    {userRole === 'client' && (
+                      <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                        <div className="space-y-3">
+                          <div className="flex items-start space-x-3">
+                            <Checkbox
+                              id="confirm-final-rail"
+                              checked={confirmFinal}
+                              onCheckedChange={(checked) => setConfirmFinal(checked as boolean)}
+                              className="mt-1"
+                            />
+                            <label
+                              htmlFor="confirm-final-rail"
+                              className="text-sm text-white cursor-pointer leading-tight"
+                            >
+                              I confirm this is the final version for publishing
+                            </label>
+                          </div>
 
-                                <Button 
-                                  onClick={addRevisionEntry}
-                                  disabled={!revisionNotes.trim()}
-                                  className="w-full"
-                                  size="sm"
-                                >
-                                  Add Revision Entry
-                                </Button>
-                              </div>
+                          <Button
+                            size="sm"
+                            onClick={handleApprove}
+                            disabled={!confirmFinal}
+                            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Approve Version
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
-                              {/* Revision Entries List */}
-                              {revisionEntries.length > 0 && (
-                                <div className="space-y-3">
-                                  <h4 className="font-medium">Revision Entries ({revisionEntries.length})</h4>
-                                  <div className="space-y-3 max-h-60 overflow-y-auto">
-                                    {revisionEntries.map((entry, index) => (
-                                      <div key={entry.id} className="p-3 bg-background border rounded-lg">
-                                        <div className="flex items-start justify-between gap-2">
-                                          <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                              <Badge variant="secondary" className="text-xs">
-                                                {entry.reason.toUpperCase()}
-                                              </Badge>
-                                              {entry.videoTime && (
-                                                <Badge variant="outline" className="text-xs">
-                                                  @ {entry.videoTime}
-                                                </Badge>
-                                              )}
-                                              <span className="text-xs text-muted-foreground">
-                                                {entry.timestamp}
-                                              </span>
-                                            </div>
-                                            <p className="text-sm break-words">{entry.notes}</p>
-                                          </div>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeRevisionEntry(entry.id)}
-                                            className="flex-shrink-0 h-6 w-6 p-0"
-                                          >
-                                            <X className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    ))}
+                    {/* Request Revisions Section */}
+                    <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                      <Sheet open={showRevisions} onOpenChange={setShowRevisions}>
+                        <SheetTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            {userRole === 'qc' ? 'Send Back to Editor' : 'Request Revisions'}
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent className="sm:max-w-2xl w-full">
+                          <div className="h-full flex flex-col">
+                            <SheetHeader className="px-6 py-4 border-b">
+                              <SheetTitle>
+                                {userRole === 'qc' ? 'QC Feedback for Editor' : 'Request Revisions'}
+                              </SheetTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Add revision notes with timestamps. Current video time: {formatTime(currentTime)}
+                              </p>
+                            </SheetHeader>
+
+                            <div className="flex-1 overflow-y-auto px-6 py-6">
+                              <div className="space-y-6">
+                                {/* Add New Revision Entry */}
+                                <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
+                                  <h4 className="font-medium">Add Revision Entry</h4>
+
+                                  <div>
+                                    <label className="text-sm font-medium mb-2 block">Reason</label>
+                                    <Select value={revisionReason} onValueChange={(value: any) => setRevisionReason(value)}>
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="design">Design</SelectItem>
+                                        <SelectItem value="content">Content</SelectItem>
+                                        <SelectItem value="timing">Timing</SelectItem>
+                                        <SelectItem value="technical">Technical</SelectItem>
+                                        <SelectItem value="spelling">Spelling Errors</SelectItem>
+                                        <SelectItem value="other">Other</SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                   </div>
-                                </div>
-                              )}
 
-                              {/* Additional Options */}
-                              <div className="space-y-4">
-                                <div>
-                                  <label className="text-sm font-medium mb-2 block">Attach Reference (optional)</label>
-                                  <div className="flex gap-2">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      onClick={() => fileInputRef.current?.click()}
-                                      className="flex-1"
-                                    >
-                                      <Upload className="h-4 w-4 mr-2" />
-                                      {referenceFile ? referenceFile.name : 'Choose file'}
-                                    </Button>
-                                    {referenceFile && (
+                                  <div>
+                                    <label className="text-sm font-medium mb-2 block">Notes *</label>
+                                    <Textarea
+                                      placeholder="Add specific notes for this revision..."
+                                      value={revisionNotes}
+                                      onChange={(e) => setRevisionNotes(e.target.value)}
+                                      className="min-h-[100px]"
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Current video time ({formatTime(currentTime)}) will be automatically captured
+                                    </p>
+                                  </div>
+
+                                  <Button
+                                    onClick={addRevisionEntry}
+                                    disabled={!revisionNotes.trim()}
+                                    className="w-full"
+                                    size="sm"
+                                  >
+                                    Add Revision Entry
+                                  </Button>
+                                </div>
+
+                                {/* Revision Entries List */}
+                                {revisionEntries.length > 0 && (
+                                  <div className="space-y-3">
+                                    <h4 className="font-medium">Revision Entries ({revisionEntries.length})</h4>
+                                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                                      {revisionEntries.map((entry, index) => (
+                                        <div key={entry.id} className="p-3 bg-background border rounded-lg">
+                                          <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <Badge variant="secondary" className="text-xs">
+                                                  {entry.reason.toUpperCase()}
+                                                </Badge>
+                                                {entry.videoTime && (
+                                                  <Badge variant="outline" className="text-xs">
+                                                    @ {entry.videoTime}
+                                                  </Badge>
+                                                )}
+                                                <span className="text-xs text-muted-foreground">
+                                                  {entry.timestamp}
+                                                </span>
+                                              </div>
+                                              <p className="text-sm break-words">{entry.notes}</p>
+                                            </div>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => removeRevisionEntry(entry.id)}
+                                              className="flex-shrink-0 h-6 w-6 p-0"
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Additional Options */}
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="text-sm font-medium mb-2 block">Attach Reference (optional)</label>
+                                    <div className="flex gap-2">
                                       <Button
                                         type="button"
-                                        variant="ghost"
-                                        onClick={() => setReferenceFile(null)}
+                                        variant="outline"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex-1"
                                       >
-                                        <X className="h-4 w-4" />
+                                        <Upload className="h-4 w-4 mr-2" />
+                                        {referenceFile ? referenceFile.name : 'Choose file'}
                                       </Button>
-                                    )}
+                                      {referenceFile && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          onClick={() => setReferenceFile(null)}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                    <input
+                                      ref={fileInputRef}
+                                      type="file"
+                                      accept="image/*,video/*,.pdf,.doc,.docx"
+                                      onChange={handleFileUpload}
+                                      className="hidden"
+                                    />
                                   </div>
-                                  <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*,video/*,.pdf,.doc,.docx"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                  />
-                                </div>
 
-                                <div>
-                                  <label className="text-sm font-medium mb-2 block">Due Date (optional)</label>
-                                  <Input
-                                    type="date"
-                                    value={dueDate}
-                                    onChange={(e) => setDueDate(e.target.value)}
-                                    placeholder="mm/dd/yyyy"
-                                    className="text-center"
-                                  />
+                                  <div>
+                                    <label className="text-sm font-medium mb-2 block">Due Date (optional)</label>
+                                    <Input
+                                      type="date"
+                                      value={dueDate}
+                                      onChange={(e) => setDueDate(e.target.value)}
+                                      placeholder="mm/dd/yyyy"
+                                      className="text-center"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
 
-                          {/* Fixed Footer */}
-                          <div className="border-t px-6 py-4">
-                            <div className="flex gap-3">
-                              <Button 
-                                variant="outline" 
-                                onClick={() => setShowRevisions(false)}
-                                className="flex-1"
-                              >
-                                Cancel
-                              </Button>
-                              <Button 
-                                onClick={handleSubmitRevisions}
-                                className="flex-1"
-                                disabled={revisionEntries.length === 0}
-                              >
-                                {userRole === 'qc' 
-                                  ? `Send Back ${revisionEntries.length} Issue${revisionEntries.length !== 1 ? 's' : ''}`
-                                  : `Submit ${revisionEntries.length} Revision${revisionEntries.length !== 1 ? 's' : ''}`
-                                }
-                              </Button>
+                            {/* Fixed Footer */}
+                            <div className="border-t px-6 py-4">
+                              <div className="flex gap-3">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setShowRevisions(false)}
+                                  className="flex-1"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={handleSubmitRevisions}
+                                  className="flex-1"
+                                  disabled={revisionEntries.length === 0}
+                                >
+                                  {userRole === 'qc'
+                                    ? `Send Back ${revisionEntries.length} Issue${revisionEntries.length !== 1 ? 's' : ''}`
+                                    : `Submit ${revisionEntries.length} Revision${revisionEntries.length !== 1 ? 's' : ''}`
+                                  }
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </SheetContent>
-                    </Sheet>
+                        </SheetContent>
+                      </Sheet>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Comments Disabled Notice */}
               <div className="mt-8 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
@@ -1119,8 +1130,8 @@ export function FullScreenReviewModal({
               {/* Right - Action Buttons */}
               <div className="flex items-center gap-3">
                 {onNextAsset && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="lg"
                     onClick={onNextAsset}
                     className="bg-white/10 border-white/20 text-white hover:bg-white/20"
@@ -1132,8 +1143,8 @@ export function FullScreenReviewModal({
               </div>
             </div>
           </div>
-          </div>
-        </DialogContent>
+        </div>
+      </DialogContent>
     </Dialog>
   );
 }

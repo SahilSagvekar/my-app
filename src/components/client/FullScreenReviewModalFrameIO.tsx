@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
@@ -171,9 +171,14 @@ export function FullScreenReviewModalFrameIO({
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const commentsRef = useRef<HTMLDivElement>(null);
+    const lastTimeUpdateRef = useRef<number>(0);
 
     // Video source - use currentVideoUrl state for version switching
-    const videoSource = currentVideoUrl ? getVideoSource(currentVideoUrl) : (asset ? getVideoSource(asset.videoUrl) : { type: 'video' as const, src: '' });
+    const videoSource = useMemo(() => {
+        if (currentVideoUrl) return getVideoSource(currentVideoUrl);
+        if (asset) return getVideoSource(asset.videoUrl);
+        return { type: 'video' as const, src: '' };
+    }, [currentVideoUrl, asset]);
 
     // Initialize state when asset changes
     useEffect(() => {
@@ -295,7 +300,7 @@ export function FullScreenReviewModalFrameIO({
     }, [open, showCommentInput, isDragging]);
 
     // Video controls
-    const togglePlay = () => {
+    const togglePlay = useCallback(() => {
         if (videoRef.current) {
             if (isPlaying) {
                 videoRef.current.pause();
@@ -304,24 +309,33 @@ export function FullScreenReviewModalFrameIO({
             }
             setIsPlaying(!isPlaying);
         }
-    };
+    }, [isPlaying]);
 
-    const toggleMute = () => {
+    const toggleMute = useCallback(() => {
         if (videoRef.current) {
             videoRef.current.muted = !isMuted;
             setIsMuted(!isMuted);
         }
-    };
+    }, [isMuted]);
 
-    const seekBackward = () => {
+    const seekBackward = useCallback(() => {
         if (videoRef.current) {
             videoRef.current.currentTime = Math.max(0, currentTime - 10);
         }
-    };
+    }, [currentTime]);
 
-    const seekForward = () => {
+    const seekForward = useCallback(() => {
         if (videoRef.current) {
             videoRef.current.currentTime = Math.min(duration, currentTime + 10);
+        }
+    }, [duration, currentTime]);
+
+    const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+        const time = e.currentTarget.currentTime;
+        // Only update state every 100ms to improve UI performance
+        if (Math.abs(time - lastTimeUpdateRef.current) >= 0.1 || time === 0 || time === duration) {
+            setCurrentTime(time);
+            lastTimeUpdateRef.current = time;
         }
     };
 
@@ -329,6 +343,7 @@ export function FullScreenReviewModalFrameIO({
         if (videoRef.current) {
             videoRef.current.currentTime = time;
             setCurrentTime(time);
+            lastTimeUpdateRef.current = time;
         }
     };
 
@@ -374,26 +389,26 @@ export function FullScreenReviewModalFrameIO({
         toast.success('Comment added');
     };
 
-    const handleCommentResolve = (commentId: string, resolved: boolean) => {
+    const handleCommentResolve = useCallback((commentId: string, resolved: boolean) => {
         setComments(prev =>
             prev.map(c => c.id === commentId ? { ...c, resolved } : c)
         );
-    };
+    }, []);
 
-    const handleCommentDelete = (commentId: string) => {
+    const handleCommentDelete = useCallback((commentId: string) => {
         setComments(prev => prev.filter(c => c.id !== commentId));
         toast.success('Comment deleted');
-    };
+    }, []);
 
-    const handleTimestampClick = (timestampSeconds: number) => {
+    const handleTimestampClick = useCallback((timestampSeconds: number) => {
         handleSeek(timestampSeconds);
         const comment = comments.find(c => c.timestampSeconds === timestampSeconds);
         if (comment) {
             setActiveCommentId(comment.id);
         }
-    };
+    }, [comments, handleSeek]);
 
-    const handleMarkerClick = (comment: ReviewComment) => {
+    const handleMarkerClick = useCallback((comment: ReviewComment) => {
         handleSeek(comment.timestampSeconds);
         setActiveCommentId(comment.id);
 
@@ -407,7 +422,7 @@ export function FullScreenReviewModalFrameIO({
                 });
             }
         }, 100);
-    };
+    }, [handleSeek]);
 
     // 🔥 NEW: Save feedback to database
     const saveFeedbackToDatabase = async (feedbackComments: ReviewComment[]) => {
@@ -844,12 +859,13 @@ export function FullScreenReviewModalFrameIO({
                                                 ref={videoRef}
                                                 className="w-full h-full object-contain bg-black"
                                                 src={videoSource.src}
-                                                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                                                onTimeUpdate={handleTimeUpdate}
                                                 onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
                                                 onPlay={() => setIsPlaying(true)}
                                                 onPause={() => setIsPlaying(false)}
                                                 onError={() => setVideoError(true)}
                                                 playsInline
+                                                preload="auto"
                                             />
 
                                             {/* Play/Pause Overlay */}
@@ -869,7 +885,7 @@ export function FullScreenReviewModalFrameIO({
                             </div>
 
                             {/* Timeline + Controls */}
-                            <div className="mt-4 px-2">
+                            <div className="mt-4 px-0">
                                 {/* Timeline with markers */}
                                 {videoSource.type === 'video' && (
                                     <ReviewTimeline

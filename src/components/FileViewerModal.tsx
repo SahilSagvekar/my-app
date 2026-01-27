@@ -51,6 +51,8 @@ export function FilePreviewModal({
               src={file.url}
               controls
               className="w-full h-full bg-black"
+              preload="auto"
+              playsInline
             />
           )}
 

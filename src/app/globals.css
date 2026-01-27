@@ -341,9 +341,9 @@ html {
 /* Timeline with Markers */
 .review-timeline {
   position: relative;
-  height: 40px;
+  height: 48px;
   background: var(--review-bg-tertiary);
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: visible;
 }
 
