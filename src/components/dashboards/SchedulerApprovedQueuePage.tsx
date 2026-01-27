@@ -83,46 +83,15 @@ export function SchedulerApprovedQueuePage() {
         console.log(`Task ${t.id}: API status = "${t.status}"`);
 
         // Map driveLinks to files format
-        const filesFromDriveLinks = (t.driveLinks || []).map((url: string, index: number) => {
-          const urlParts = url.split('/');
-          const filename = urlParts[urlParts.length - 1];
-
-          let folderType = 'other';
-          if (url.includes('/outputs/')) {
-            if (url.includes('/music-license/')) folderType = 'music';
-            else if (url.includes('/thumbnails/')) folderType = 'thumbnail';
-            else if (url.includes('/broll/')) folderType = 'broll';
-            else if (url.includes('/script/')) folderType = 'script';
-            else if (url.includes('/voiceover/')) folderType = 'voiceover';
-            else if (url.includes('/graphics/')) folderType = 'graphics';
-            else folderType = 'outputs';
-          }
-
-          // Extract S3 key from URL
-          const key = url.split('.amazonaws.com/')[1] || '';
-
-          return {
-            id: `${t.id}-file-${index}`,
-            name: decodeURIComponent(filename),
-            url: url,
-            key: key,
-            size: 0,
-            folderType: folderType,
-          };
-        });
-
-        // Combine with existing files
-        const allFiles = [
-          ...filesFromDriveLinks,
-          ...(t.files || []).map((file: any) => ({
-            id: file.id,
-            name: file.name,
-            url: file.url,
-            key: file.url?.split('.amazonaws.com/')[1] || '',
-            size: file.size || 0,
-            folderType: file.subfolder || 'other',
-          }))
-        ];
+        // Use only the files from the database (which are already filtered for isActive: true by the API)
+        const allFiles = (t.files || []).map((file: any) => ({
+          id: file.id,
+          name: file.name,
+          url: file.url,
+          key: file.s3Key || file.url?.split('.amazonaws.com/')[1] || '',
+          size: file.size || 0,
+          folderType: file.folderType || 'other',
+        }));
 
         // Normalize API status to uppercase for comparison
         const apiStatus = (t.status || 'PENDING').toUpperCase();

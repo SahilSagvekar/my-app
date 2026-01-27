@@ -608,6 +608,7 @@ export async function GET(req: Request) {
             uploadedBy: true,
             folderType: true,
             version: true,
+            isActive: true,
           },
         },
         driveLinks: true,

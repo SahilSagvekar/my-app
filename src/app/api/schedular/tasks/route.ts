@@ -53,6 +53,7 @@ export async function GET(req: Request) {
             mimeType: true,
             size: true,
             s3Key: true,
+            folderType: true,
           },
         },
         monthlyDeliverable: true,

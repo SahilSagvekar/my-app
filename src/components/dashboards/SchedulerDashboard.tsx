@@ -36,66 +36,33 @@ const calendarEvents = {
   ]
 };
 
-async function scheduleTask(task: SchedulerTask) {
-  try {
-    setBusyId(task.id);
-
-    const res = await fetch(`/api/tasks/${task.id}/mark-scheduled`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ postedAt: new Date().toISOString() })
-    });
-
-    if (!res.ok) throw new Error("Failed to schedule");
-
-    const updated = await res.json();
-
-    // Update UI instantly
-    setTasks(prev =>
-      prev.map(t =>
-        t.id === task.id ? { ...t, status: "SCHEDULED" } : t
-      )
-    );
-
-    // Remove selection
-    setSelectedTask(null);
-
-    alert("Task scheduled successfully");
-  } catch (err) {
-    console.error(err);
-    alert("Error scheduling task");
-  } finally {
-    setBusyId(null);
-  }
-}
-
-
-// Mock initial scheduling tasks
+// Initial scheduling tasks
 const initialSchedulingTasks: WorkflowTask[] = [];
 
- function mapStatus(status: string) {
-    if (status === "QC_APPROVED" || status === "READY_FOR_SCHEDULER")
-      return "pending";
-    if (status === "SCHEDULED") return "completed";
+
+function mapStatus(status: string) {
+  if (status === "QC_APPROVED" || status === "READY_FOR_SCHEDULER")
     return "pending";
-  }
+  if (status === "SCHEDULED") return "completed";
+  return "pending";
+}
 
 function CalendarGrid() {
   const [currentMonth, setCurrentMonth] = useState(currentDate);
-  
+
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   };
-  
+
   const getFirstDayOfMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
-  
+
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDay = getFirstDayOfMonth(currentMonth);
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const emptyDays = Array.from({ length: firstDay }, (_, i) => null);
-  
+
   const formatEventDate = (day: number) => {
     const year = currentMonth.getFullYear();
     const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
@@ -103,7 +70,7 @@ function CalendarGrid() {
     return `${year}-${month}-${dayStr}`;
   };
 
- 
+
 
 
   return (
@@ -129,29 +96,28 @@ function CalendarGrid() {
           </Button>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-7 gap-1">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
             {day}
           </div>
         ))}
-        
+
         {emptyDays.map((_, index) => (
           <div key={`empty-${index}`} className="p-2 h-24"></div>
         ))}
-        
+
         {days.map(day => {
           const dateKey = formatEventDate(day);
           const dayEvents = calendarEvents[dateKey] || [];
           const isToday = day === 10; // Current day for demo
-          
+
           return (
             <div
               key={day}
-              className={`p-2 h-24 border border-border rounded-lg hover:bg-muted/50 ${
-                isToday ? 'bg-primary/10 border-primary' : ''
-              }`}
+              className={`p-2 h-24 border border-border rounded-lg hover:bg-muted/50 ${isToday ? 'bg-primary/10 border-primary' : ''
+                }`}
             >
               <div className={`text-sm mb-1 ${isToday ? 'font-medium text-primary' : ''}`}>
                 {day}
@@ -191,14 +157,14 @@ export function SchedulerDashboard() {
   //   const userSchedulingTasks = workflowTasks.filter(task => 
   //     task.assignedTo === currentUser.id && task.type === 'scheduling'
   //   );
-    
+
   //   // Combine with initial tasks
   //   const allSchedulingTasks = [...initialSchedulingTasks, ...userSchedulingTasks.filter(wt => 
   //     !initialSchedulingTasks.some(it => it.id === wt.id)
   //   )];
-    
+
   //   setSchedulingTasks(allSchedulingTasks);
-    
+
   //   // Auto-select first pending task
   //   if (!selectedTask && allSchedulingTasks.length > 0) {
   //     const firstPending = allSchedulingTasks.find(task => task.status === 'pending');
@@ -224,7 +190,7 @@ export function SchedulerDashboard() {
           projectId: t.clientId,
           priority: t.priority,
           feedback: t.feedback,
-          files: t.files || [],
+          files: (t.files || []).filter((f: any) => f.isActive !== false),
         }));
 
         setSchedulingTasks(mapped);
@@ -301,7 +267,7 @@ export function SchedulerDashboard() {
 
   // Stats
   const pendingTasks = schedulingTasks.filter(task => task.status === 'pending').length;
-  const scheduledToday = schedulingTasks.filter(task => 
+  const scheduledToday = schedulingTasks.filter(task =>
     task.status === 'completed' &&
     new Date(task.createdAt).toDateString() === new Date().toDateString()
   ).length;
@@ -421,11 +387,10 @@ export function SchedulerDashboard() {
                 </div>
               ) : (
                 schedulingTasks.map((task) => (
-                  <div 
-                    key={task.id} 
-                    className={`p-4 border-b hover:bg-muted/50 cursor-pointer transition-colors ${
-                      selectedTask?.id === task.id ? 'bg-muted' : ''
-                    }`}
+                  <div
+                    key={task.id}
+                    className={`p-4 border-b hover:bg-muted/50 cursor-pointer transition-colors ${selectedTask?.id === task.id ? 'bg-muted' : ''
+                      }`}
                     onClick={() => setSelectedTask(task)}
                   >
                     <div className="space-y-3">
@@ -440,7 +405,7 @@ export function SchedulerDashboard() {
                           {task.priority}
                         </Badge>
                       </div>
-                      
+
                       <div className="space-y-2 text-xs text-muted-foreground">
                         <div className="flex items-center gap-2">
                           <MapPin className="h-3 w-3" />
@@ -457,7 +422,7 @@ export function SchedulerDashboard() {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="flex items-center justify-between">
                         <Badge variant="outline" className="text-xs">
                           {task.id}
@@ -539,9 +504,9 @@ export function SchedulerDashboard() {
                         <p className="text-xs text-muted-foreground mb-3">
                           {formatFileSize(file.size)}
                         </p>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           className="w-full"
                           onClick={() => window.open(file.url, '_blank')}
                         >
@@ -557,8 +522,8 @@ export function SchedulerDashboard() {
               {/* Action */}
               {selectedTask.status === 'pending' && (
                 <div className="flex justify-center pt-4">
-                  <Button 
-                    size="lg" 
+                  <Button
+                    size="lg"
                     onClick={() => handleScheduleTask(selectedTask)}
                   >
                     <Calendar className="h-4 w-4 mr-2" />

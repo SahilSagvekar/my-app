@@ -13,13 +13,14 @@ export interface WorkflowTask {
   dueDate: string;
   clientId?: string;
   projectId?: string;
-  parentTaskId?: string; // For tracking related tasks in the workflow
+  parentTaskId?: string;
   files?: WorkflowFile[];
   feedback?: string;
   rejectionReason?: string;
   workflowStep: 'editing' | 'qc_review' | 'scheduling' | 'completed';
-  originalTaskId?: string; // Track the original editing task
-  queuePosition?: number; // For FIFO ordering
+  originalTaskId?: string;
+  queuePosition?: number;
+  priority?: string;
 }
 
 export interface WorkflowFile {
@@ -109,7 +110,7 @@ export class TaskWorkflowEngine {
   // Create QC review task when editor uploads files
   async createQCReviewTask(originalTask: WorkflowTask, files: WorkflowFile[]): Promise<WorkflowTask> {
     const qcReviewer = this.getNextQCReviewer();
-    
+
     const qcTask: WorkflowTask = {
       id: `QC-${Date.now()}`,
       title: `QC Review: ${originalTask.title}`,
@@ -146,7 +147,7 @@ export class TaskWorkflowEngine {
 
     // Create scheduling task
     const scheduler = this.getNextScheduler();
-    
+
     const schedulingTask: WorkflowTask = {
       id: `SCH-${Date.now()}`,
       title: `Schedule: ${qcTask.title.replace('QC Review: ', '')}`,
@@ -247,12 +248,12 @@ export class TaskWorkflowEngine {
   // Get next task in queue for a specific role
   getNextTaskForRole(role: string): WorkflowTask | undefined {
     const roleTasks = Array.from(this.tasks.values())
-      .filter(task => 
-        task.assignedToRole === role && 
+      .filter(task =>
+        task.assignedToRole === role &&
         task.status === 'pending'
       )
       .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
-    
+
     return roleTasks[0]; // Return the next task in queue
   }
 
