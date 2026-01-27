@@ -47,7 +47,6 @@ export function SchedulerApprovedQueuePage() {
   const [tasks, setTasks] = useState<SchedulerTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<SchedulerTask | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -262,22 +261,13 @@ export function SchedulerApprovedQueuePage() {
     }));
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "urgent": return "destructive";
-      case "high": return "default";
-      case "medium": return "secondary";
-      default: return "outline";
-    }
-  };
+
 
   const filtered = tasks.filter(t => {
     const matchText = t.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.id?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchPriority = priorityFilter === "all" || t.priority === priorityFilter;
-    return matchText && matchPriority;
+    return matchText;
   });
-
   const pendingTasks = filtered.filter(t => t.status === "PENDING");
   const scheduledTasks = filtered.filter(t => t.status === "SCHEDULED");
 
@@ -336,15 +326,9 @@ export function SchedulerApprovedQueuePage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Urgent</p>
-              <h3 className="text-2xl font-bold">{pendingTasks.filter((t) => t.priority === "urgent").length}</h3>
-            </CardContent>
-          </Card>
+
         </div>
 
-        {/* Filters */}
         <Card>
           <CardContent className="p-4 flex gap-4">
             <div className="flex-1 relative">
@@ -356,19 +340,6 @@ export function SchedulerApprovedQueuePage() {
                 className="pl-9"
               />
             </div>
-
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="urgent">Urgent</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
           </CardContent>
         </Card>
 
@@ -421,9 +392,6 @@ export function SchedulerApprovedQueuePage() {
                           )}
                         </div>
                       </div>
-                      <Badge variant={getPriorityColor(task.priority)} className="flex-shrink-0">
-                        {task.priority}
-                      </Badge>
                     </div>
                   </div>
                 ))

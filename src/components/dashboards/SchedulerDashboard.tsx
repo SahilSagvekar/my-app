@@ -16,7 +16,7 @@ const currentUser = {
 const currentDate = new Date(2024, 7, 10); // August 2024
 
 // Mock scheduled events (in real app would come from API)
-const calendarEvents = {
+const calendarEvents: Record<string, any[]> = {
   '2024-08-12': [
     { id: 1, title: 'Video Shoot - Product Demo', time: '09:00', type: 'production', color: 'bg-blue-500' },
     { id: 2, title: 'Client Meeting - Brand Review', time: '14:00', type: 'meeting', color: 'bg-purple-500' }
@@ -123,7 +123,7 @@ function CalendarGrid() {
                 {day}
               </div>
               <div className="space-y-1">
-                {dayEvents.slice(0, 2).map(event => (
+                {dayEvents.slice(0, 2).map((event: any) => (
                   <div
                     key={event.id}
                     className={`text-xs px-1 py-0.5 rounded text-white truncate ${event.color}`}
@@ -256,14 +256,7 @@ export function SchedulerDashboard() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'destructive';
-      case 'high': return 'default';
-      case 'medium': return 'secondary';
-      default: return 'outline';
-    }
-  };
+
 
   // Stats
   const pendingTasks = schedulingTasks.filter(task => task.status === 'pending').length;
@@ -271,7 +264,7 @@ export function SchedulerDashboard() {
     task.status === 'completed' &&
     new Date(task.createdAt).toDateString() === new Date().toDateString()
   ).length;
-  const urgentTasks = schedulingTasks.filter(task => task.priority === 'urgent' && task.status === 'pending').length;
+  const urgentTasks = 0; // Removed priority logic
 
   return (
     <div className="space-y-6">
@@ -315,17 +308,7 @@ export function SchedulerDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Urgent Tasks</p>
-                <h3>{urgentTasks}</h3>
-              </div>
-              <Calendar className="h-8 w-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
+
 
         <Card>
           <CardContent className="p-4">
@@ -398,12 +381,6 @@ export function SchedulerDashboard() {
                         <h4 className="font-medium text-sm">
                           {task.title.replace('Schedule: ', '')}
                         </h4>
-                        <Badge
-                          variant={getPriorityColor(task.priority)}
-                          className="text-xs"
-                        >
-                          {task.priority}
-                        </Badge>
                       </div>
 
                       <div className="space-y-2 text-xs text-muted-foreground">
@@ -467,12 +444,6 @@ export function SchedulerDashboard() {
                 <div>
                   <p className="text-sm text-muted-foreground">Project ID</p>
                   <p className="font-medium">{selectedTask.projectId || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Priority</p>
-                  <Badge variant={getPriorityColor(selectedTask.priority)}>
-                    {selectedTask.priority}
-                  </Badge>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Due Date</p>
