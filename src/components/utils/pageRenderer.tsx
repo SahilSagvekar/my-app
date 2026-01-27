@@ -27,6 +27,7 @@ import { DriveExplorer } from "../drive/DriveExplorer";
 import { EmploymentInfo } from "../EmploymentInfo";
 import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
+import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="p-8 text-center text-muted-foreground">
@@ -61,8 +62,12 @@ export function renderPage(role: string, page: string): React.ReactElement {
     return <ComingSoonPage title="Scheduling" />;
   }
 
-  if( page === "posted") {
+  if (page === "posted") {
     return <PostedContentSidebar />;
+  }
+
+  if (page === "activity_logs") {
+    return <ActivityLogReportTab />;
   }
 
   if (role === "admin") {
@@ -81,6 +86,8 @@ export function renderPage(role: string, page: string): React.ReactElement {
         return <LeavesComponent />;
       case "training":
         return <QCTrainingPage currentRole={role} />;
+      case "activity_logs":
+        return <ActivityLogReportTab />;
       default:
         return <AdminDashboard currentPage="dashboard" />;
     }
