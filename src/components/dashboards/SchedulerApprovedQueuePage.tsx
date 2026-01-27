@@ -453,20 +453,81 @@ export function SchedulerApprovedQueuePage() {
                   </div>
 
                   {/* Deliverable */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2 flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      Deliverable Info
+                  <div className="p-4 border rounded-lg bg-muted/30">
+                    <h4 className="font-medium mb-3 flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      Deliverable specifications
                     </h4>
                     {selectedTask.deliverable ? (
-                      <div className="text-sm space-y-1">
-                        <p><strong>Type:</strong> {selectedTask.deliverable.type}</p>
-                        <p><strong>Schedule:</strong> {selectedTask.deliverable.postingSchedule}</p>
-                        <p><strong>Days:</strong> {selectedTask.deliverable.postingDays?.join(", ") || 'N/A'}</p>
-                        <p><strong>Times:</strong> {selectedTask.deliverable.postingTimes?.join(", ") || 'N/A'}</p>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Type</p>
+                            <p className="font-medium">{selectedTask.deliverable.type}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Quantity</p>
+                            <p className="font-medium">{selectedTask.deliverable.quantity} total</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Frequency</p>
+                            <p className="font-medium">{selectedTask.deliverable.videosPerDay} video(s)/day</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Schedule</p>
+                            <p className="font-medium">{selectedTask.deliverable.postingSchedule}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Platforms</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedTask.deliverable.platforms?.map((p: string) => (
+                                <Badge key={p} variant="secondary" className="px-2 py-0.5 text-[10px] capitalize">
+                                  {p}
+                                </Badge>
+                              )) || <span className="text-xs italic">N/A</span>}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Posting Days</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedTask.deliverable.postingDays?.map((d: string) => (
+                                <Badge key={d} variant="outline" className="px-2 py-0.5 text-[10px]">
+                                  {d}
+                                </Badge>
+                              )) || <span className="text-xs italic">N/A</span>}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Posting Times</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedTask.deliverable.postingTimes?.map((t: string) => (
+                                <Badge key={t} variant="outline" className="px-2 py-0.5 text-[10px] border-blue-200 text-blue-700 bg-blue-50">
+                                  <Clock className="h-2.5 w-2.5 mr-1" />
+                                  {t}
+                                </Badge>
+                              )) || <span className="text-xs italic">N/A</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {selectedTask.deliverable.description && (
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Additional Notes</p>
+                            <p className="text-sm italic text-muted-foreground line-clamp-3">
+                              "{selectedTask.deliverable.description}"
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No deliverable linked</p>
+                      <div className="text-center py-4 bg-muted/50 rounded-md border border-dashed">
+                        <p className="text-xs text-muted-foreground">No deliverable linked to this task</p>
+                      </div>
                     )}
                   </div>
 

@@ -106,6 +106,7 @@ export async function GET(req: Request) {
             id: t.monthlyDeliverable.id,
             type: t.monthlyDeliverable.type,
             quantity: t.monthlyDeliverable.quantity,
+            videosPerDay: t.monthlyDeliverable.videosPerDay,
             postingSchedule: t.monthlyDeliverable.postingSchedule,
             postingDays: t.monthlyDeliverable.postingDays,
             postingTimes: t.monthlyDeliverable.postingTimes,
