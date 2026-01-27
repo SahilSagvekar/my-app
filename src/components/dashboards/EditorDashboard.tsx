@@ -953,7 +953,7 @@ export function EditorDashboard() {
     // Define valid transitions for editor role
     const validTransitions: Record<string, string[]> = {
       pending: ["in_progress"], // Can only start task
-      in_progress: ["ready_for_qc"], // Can only submit for QC
+      in_progress: ["ready_for_qc", "pending", "rejected"], // Can submit for QC or undo start (move back to pending/rejected)
       rejected: ["in_progress"], // Can only start revision
       ready_for_qc: [], // Editor can't move QC tasks - that's QC's job
     };
@@ -975,18 +975,8 @@ export function EditorDashboard() {
           message: "Cannot move pending tasks to revisions",
         };
       }
-      if (fromStatus === "in_progress" && toStatus === "pending") {
-        return {
-          valid: false,
-          message: "Cannot move task back to pending once started",
-        };
-      }
-      if (fromStatus === "in_progress" && toStatus === "rejected") {
-        return {
-          valid: false,
-          message: "Only QC can reject tasks",
-        };
-      }
+
+
       if (fromStatus === "ready_for_qc") {
         return {
           valid: false,
