@@ -59,6 +59,7 @@ import {
   Filter,
   Gift,
   Loader2,
+  ShieldAlert,
 } from "lucide-react";
 import { SimpleCalendar } from "../ui/simple-calendar";
 // import {
@@ -798,6 +799,30 @@ export default function LeavesComponent() {
     console.log("Updating user status:", userId, newStatus);
   };
 
+  const handleReset2FA = async (employee: any) => {
+    if (!confirm(`Are you sure you want to reset 2FA for ${employee.name}? They will be able to log in without a physical device, but will need to set up 2FA again to access sensitive areas.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${employee.id}/reset-2fa`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success(data.message || "2FA reset successfully");
+        // Log this action locally too if needed
+        console.log(`[ADMIN] Reset 2FA for user ${employee.id}`);
+      } else {
+        toast.error(data.error || "Failed to reset 2FA");
+      }
+    } catch (error) {
+      console.error("Error resetting 2FA:", error);
+      toast.error("An error occurred while resetting 2FA");
+    }
+  };
+
   const handleOpenDetails = (leave: LeaveRow) => {
     setSelectedLeave(leave);
     setDetailOpen(true);
@@ -1334,6 +1359,14 @@ export default function LeavesComponent() {
                                 Activate
                               </>
                             )}
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() => handleReset2FA(employee)}
+                            className="text-amber-600 focus:text-amber-600"
+                          >
+                            <ShieldAlert className="h-4 w-4 mr-2" />
+                            Reset 2FA
                           </DropdownMenuItem>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>

@@ -37,6 +37,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
+    { id: 'activity_logs', label: 'Activity Reports', icon: FileText },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   editor: [

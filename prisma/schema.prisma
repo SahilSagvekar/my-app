@@ -622,10 +622,22 @@ model ShareableReview {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  @@index([taskId])
-  @@index([shareToken])
-  @@index([createdBy])
-  @@index([expiresAt])
+  @@index([ shareToken ])
+  @@index([ createdBy ])
+  @@index([ expiresAt ])
+}
+
+model ActivityReport {
+  id          String   @id @default(cuid())
+  fileName    String
+  fileUrl     String?  // Optional if stored in S3
+  reportDate  DateTime
+  generatedAt DateTime @default(now())
+  metadata    Json?
+  status      String   @default("completed")
+  
+  @@index([reportDate])
+  @@index([generatedAt])
 }
 
 enum Role {

@@ -77,4 +77,16 @@ export const authOptions: any = {
             return session;
         },
     },
+
+    events: {
+        async signIn({ user }: { user: any }) {
+            const { createAuditLog, AuditAction } = await import('./audit-logger');
+            await createAuditLog({
+                userId: parseInt(user.id),
+                action: AuditAction.USER_LOGIN,
+                details: `User logged in: ${user.email}`,
+                metadata: { email: user.email, role: user.role }
+            });
+        }
+    }
 };

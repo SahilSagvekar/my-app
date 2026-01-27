@@ -1467,6 +1467,11 @@ const ClientManagement = dynamic(() => import('../management/ClientManagement').
   ssr: false,
 });
 
+const ActivityLogReportTab = dynamic(() => import('../admin/ActivityLogReportTab').then(mod => ({ default: mod.ActivityLogReportTab })), {
+  loading: () => <DashboardLoadingFallback componentName="Activity Logs" />,
+  ssr: false,
+});
+
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
 // ============================================
@@ -1845,7 +1850,6 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <RecentTasksCard
             title="Recently Assigned Tasks"
-            tasks={recentTasks}
             showCreateButton={true}
           />
 
@@ -2100,6 +2104,22 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
               </div>
             </div>
             <AuditLogTab />
+          </div>
+        );
+
+      case 'activity_logs':
+        console.log('📑 [ADMIN] Switching to Activity Logs tab');
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <p className="text-muted-foreground mt-2">
+                  Access and download daily employee activity reports (generated at 7 PM EST)
+                </p>
+              </div>
+            </div>
+            <ActivityLogReportTab />
           </div>
         );
 

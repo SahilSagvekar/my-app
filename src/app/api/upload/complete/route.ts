@@ -13,13 +13,13 @@ const s3Client = new S3Client({
 
 export async function POST(request: NextRequest) {
   try {
-    const { 
-      key, 
-      uploadId, 
-      parts, 
-      fileName, 
-      fileSize, 
-      fileType, 
+    const {
+      key,
+      uploadId,
+      parts,
+      fileName,
+      fileSize,
+      fileType,
       taskId,
       userId,
       subfolder
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       // 2. If active file exists, mark it as inactive
       if (existingActiveFile) {
         newVersion = existingActiveFile.version + 1;
-        
+
         console.log(`📦 Found existing v${existingActiveFile.version}, creating v${newVersion}`);
 
         // We'll update the old file's replacedBy after creating the new file
@@ -130,6 +130,23 @@ export async function POST(request: NextRequest) {
       });
 
       console.log("🔗 File URL added to task driveLinks");
+
+      // 🔥 LOG ACTIVITY
+      const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+      await createAuditLog({
+        userId: userId,
+        action: AuditAction.FILE_UPLOADED,
+        entity: 'File',
+        entityId: fileRecord.id,
+        details: `Uploaded file: ${fileName} (v${newVersion}) to folder: ${folderType}`,
+        metadata: {
+          taskId,
+          fileName,
+          fileSize,
+          version: newVersion,
+          folderType
+        }
+      });
 
       return NextResponse.json({
         success: true,
@@ -195,8 +212,8 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(
-      { 
-        error: 'Failed to complete upload', 
+      {
+        error: 'Failed to complete upload',
         message: error.message || 'An unexpected error occurred',
         code: error.Code || error.name || 'UNKNOWN_ERROR',
       },
