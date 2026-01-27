@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect  } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from '../components/auth/AuthContext';
 import { NotificationProvider } from '../components/NotificationContext';
 import { SearchProvider } from '../components/SearchContext';
@@ -17,10 +17,10 @@ type AuthScreen = 'login' | 'forgot-password' | 'reset-password' | 'two-factor';
 
 
 function AuthenticatedApp() {
-  const { user, logout, loading  } = useAuth();
+  const { user, logout, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState(() => getDefaultPage(user?.role || 'admin'));
 
-   useEffect(() => {
+  useEffect(() => {
     const savedPage = localStorage.getItem('returnToPage');
     if (savedPage) {
       console.log('Restoring page:', savedPage);
@@ -35,7 +35,7 @@ function AuthenticatedApp() {
 
   if (loading) return <div>Loading...</div>;
   if (!user) return <div>Not logged in</div>;
- 
+
 
   return (
     <NotificationProvider currentRole={user.role}>
@@ -54,14 +54,14 @@ function AuthenticatedApp() {
 }
 
 function AuthenticationFlow() {
-  const { 
-    isAuthenticated, 
-    loading, 
-    login, 
-    forgotPassword, 
-    resetPassword, 
-    verifyTwoFactor, 
-    resendTwoFactorCode 
+  const {
+    isAuthenticated,
+    loading,
+    login,
+    forgotPassword,
+    resetPassword,
+    verifyTwoFactor,
+    resendTwoFactorCode
   } = useAuth();
 
   const [currentScreen, setCurrentScreen] = useState<AuthScreen>('login');
@@ -132,12 +132,12 @@ function AuthenticationFlow() {
   };
 
   if (loading) {
-  return <div>Loading...</div>;
-}
+    return <div>Loading...</div>;
+  }
 
-if (isAuthenticated) {
-  return <AuthenticatedApp />;
-}
+  if (isAuthenticated) {
+    return <AuthenticatedApp />;
+  }
 
 
   if (currentScreen === 'login') {
@@ -201,12 +201,16 @@ if (isAuthenticated) {
   return null;
 }
 
+import { UploadProvider } from '../components/workflow/UploadContext';
+
 export default function App() {
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-background">
-        <AuthenticationFlow />
-      </div>
+      <UploadProvider>
+        <div className="min-h-screen bg-background">
+          <AuthenticationFlow />
+        </div>
+      </UploadProvider>
     </AuthProvider>
   );
 }

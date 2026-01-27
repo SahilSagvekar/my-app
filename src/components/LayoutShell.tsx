@@ -24,6 +24,7 @@ import {
   X,
   Settings as SettingsIcon,
 } from 'lucide-react';
+import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
 import {
   ROLE_COLORS,
@@ -71,10 +72,10 @@ export function LayoutShell({
   //   : 'User';
 
   const roleDisplay = currentRole
-  ? currentRole.toLowerCase() === 'qc'
-    ? 'QC'
-    : currentRole.charAt(0).toUpperCase() + currentRole.slice(1)
-  : 'User';
+    ? currentRole.toLowerCase() === 'qc'
+      ? 'QC'
+      : currentRole.charAt(0).toUpperCase() + currentRole.slice(1)
+    : 'User';
 
   // Fetch user data on mount
   useEffect(() => {
@@ -84,7 +85,7 @@ export function LayoutShell({
   const fetchUserData = async () => {
     try {
       const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-      
+
       if (!token) {
         setLoadingUserData(false);
         return;
@@ -99,7 +100,7 @@ export function LayoutShell({
       console.log('Profile response status:', response);
 
       const data = await response.json();
-      
+
       if (data.success) {
         setUserData({
           name: data.data.name || '',
@@ -184,8 +185,8 @@ export function LayoutShell({
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-gray-100">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage 
-                      src={userData.image} 
+                    <AvatarImage
+                      src={userData.image}
                       alt={userData.name}
                       onError={(e) => {
                         e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || getUserDisplayName(currentRole as UserRole))}&background=random`;
@@ -207,14 +208,14 @@ export function LayoutShell({
                   </div>
                 </Button>
               </DropdownMenuTrigger>
-              
+
               <DropdownMenuContent align="end" className="w-56">
                 {/* User Info Section */}
                 <div className="px-2 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
-                      <AvatarImage 
-                        src={userData.image} 
+                      <AvatarImage
+                        src={userData.image}
                         alt={userData.name}
                         onError={(e) => {
                           e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || getUserDisplayName(currentRole as UserRole))}&background=random`;
@@ -236,14 +237,14 @@ export function LayoutShell({
                 </div>
 
                 <DropdownMenuSeparator />
-                
+
                 <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </DropdownMenuItem>
-                
+
                 <DropdownMenuSeparator />
-                
+
                 <DropdownMenuItem
                   onClick={onLogout}
                   className="text-red-600"
@@ -288,10 +289,9 @@ export function LayoutShell({
                   }}
                   className={`
                     w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors
-                    ${
-                      isActive
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : 'text-gray-700 hover:bg-gray-100'
+                    ${isActive
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-gray-700 hover:bg-gray-100'
                     }
                   `}
                 >
@@ -333,6 +333,9 @@ export function LayoutShell({
           />
         </div>
       )}
+
+      {/* Global Upload Manager */}
+      <GlobalUploadManager />
     </div>
   );
 }
@@ -393,8 +396,8 @@ export function LayoutShell({
 
 //   // UPDATED: Handle null role
 //   const items = currentRole ? (NAVIGATION_ITEMS[currentRole as NavigationRole] || []) : [];
-//   const roleDisplay = currentRole 
-//     ? currentRole.charAt(0).toUpperCase() + currentRole.slice(1) 
+//   const roleDisplay = currentRole
+//     ? currentRole.charAt(0).toUpperCase() + currentRole.slice(1)
 //     : 'User';
 
 //   const toggleSidebar = () => {
