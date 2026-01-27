@@ -451,8 +451,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     {file.status === "completed"
                       ? "Done"
                       : file.status === "error"
-                      ? "Failed"
-                      : `${file.progress}%`}
+                        ? "Failed"
+                        : `${file.progress}%`}
                   </span>
                 </div>
                 {file.status === "uploading" && (
@@ -520,54 +520,63 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Toolbar */}
         <div className="border-b bg-card">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4">
-            <div className="flex-1 w-full sm:max-w-2xl">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center gap-4 p-3 sm:p-4">
+            {/* Left: Upload Button */}
+            <Button
+              className="gap-2 shrink-0 h-10 px-4"
+              onClick={handleUploadClick}
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline font-medium">Upload</span>
+            </Button>
+
+            {/* Middle: Search bar */}
+            <div className="flex-1 max-w-2xl mx-auto">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
                 <Input
                   placeholder="Search in Drive"
-                  className="pl-10 bg-secondary/50 text-sm sm:text-base"
+                  className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Button
-                className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
-                onClick={handleUploadClick}
-              >
-                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Upload</span>
-              </Button>
-
-              <div className="flex gap-1 border rounded-md">
+            {/* Right: View toggle and Refresh */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <div className="flex bg-secondary/30 p-1 rounded-lg">
                 <Button
                   variant={viewMode === "grid" ? "secondary" : "ghost"}
                   size="icon"
-                  className="h-9 w-9 sm:h-10 sm:w-10"
+                  className={cn(
+                    "h-8 w-8 rounded-md transition-all",
+                    viewMode === "grid" ? "bg-background shadow-sm" : "hover:bg-background/50"
+                  )}
                   onClick={() => setViewMode("grid")}
                 >
-                  <Grid3x3 className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <Grid3x3 className="h-4 w-4" />
                 </Button>
                 <Button
                   variant={viewMode === "list" ? "secondary" : "ghost"}
                   size="icon"
-                  className="h-9 w-9 sm:h-10 sm:w-10"
+                  className={cn(
+                    "h-8 w-8 rounded-md transition-all",
+                    viewMode === "list" ? "bg-background shadow-sm" : "hover:bg-background/50"
+                  )}
                   onClick={() => setViewMode("list")}
                 >
-                  <List className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <List className="h-4 w-4" />
                 </Button>
               </div>
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 sm:h-10 sm:w-10"
+                className="h-10 w-10 hover:bg-secondary/50 rounded-full"
                 onClick={loadDriveStructure}
               >
-                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
+                <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
           </div>
