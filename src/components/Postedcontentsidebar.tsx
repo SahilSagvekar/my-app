@@ -9,36 +9,64 @@ import {
   Twitter,
   Facebook,
   Video,
-  ChevronDown,
-  ChevronRight,
   Calendar,
   X,
   Loader2,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 // Platform icons mapping
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
-  instagram: <Instagram className="h-4 w-4 text-pink-500" />,
-  youtube: <Youtube className="h-4 w-4 text-red-500" />,
-  twitter: <Twitter className="h-4 w-4 text-blue-400" />,
-  facebook: <Facebook className="h-4 w-4 text-blue-600" />,
-  tiktok: <Video className="h-4 w-4 text-black" />,
-  snapchat: <span className="text-yellow-400 text-sm">👻</span>,
+  instagram: <Instagram className="h-4 w-4" />,
+  youtube: <Youtube className="h-4 w-4" />,
+  twitter: <Twitter className="h-4 w-4" />,
+  facebook: <Facebook className="h-4 w-4" />,
+  tiktok: <Video className="h-4 w-4" />,
+  snapchat: <span className="text-sm">👻</span>,
 };
 
-// Platform colors for badges
+// Platform styles for pills
+const PLATFORM_STYLES: Record<string, { active: string; inactive: string }> = {
+  instagram: {
+    active: "bg-gradient-to-r from-purple-500 to-pink-500 text-white border-transparent",
+    inactive: "text-pink-500 border-pink-200 hover:border-pink-400 hover:bg-pink-50",
+  },
+  youtube: {
+    active: "bg-red-500 text-white border-transparent",
+    inactive: "text-red-500 border-red-200 hover:border-red-400 hover:bg-red-50",
+  },
+  twitter: {
+    active: "bg-blue-400 text-white border-transparent",
+    inactive: "text-blue-400 border-blue-200 hover:border-blue-400 hover:bg-blue-50",
+  },
+  facebook: {
+    active: "bg-blue-600 text-white border-transparent",
+    inactive: "text-blue-600 border-blue-200 hover:border-blue-400 hover:bg-blue-50",
+  },
+  tiktok: {
+    active: "bg-black text-white border-transparent",
+    inactive: "text-black border-gray-300 hover:border-gray-500 hover:bg-gray-50",
+  },
+  snapchat: {
+    active: "bg-yellow-400 text-black border-transparent",
+    inactive: "text-yellow-600 border-yellow-200 hover:border-yellow-400 hover:bg-yellow-50",
+  },
+};
+
+// Platform colors for content badges
 const PLATFORM_COLORS: Record<string, string> = {
   instagram: "bg-gradient-to-r from-purple-500 to-pink-500 text-white",
   youtube: "bg-red-500 text-white",
@@ -51,11 +79,30 @@ const PLATFORM_COLORS: Record<string, string> = {
 // Available platforms
 const ALL_PLATFORMS = [
   { id: "instagram", label: "Instagram" },
-  { id: "youtube", label: "YouTube" },
-  { id: "twitter", label: "Twitter/X" },
+  { id: "youtube", label: "Youtube" },
+  { id: "twitter", label: "Twitter" },
   { id: "facebook", label: "Facebook" },
   { id: "tiktok", label: "TikTok" },
   { id: "snapchat", label: "Snapchat" },
+];
+
+// Common deliverable types in video production
+const DELIVERABLE_TYPES = [
+  "Reel",
+  "Story",
+  "Post",
+  "Video",
+  "Short",
+  "Carousel",
+  "Live",
+  "IGTV",
+  "Podcast",
+  "Vlog",
+  "Interview",
+  "BTS",
+  "Promo",
+  "Ad",
+  "Trailer",
 ];
 
 interface SocialMediaLink {
@@ -85,7 +132,6 @@ export function PostedContentSidebar({
   const [tasks, setTasks] = useState<PostedTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [selectedDeliverables, setSelectedDeliverables] = useState<string[]>([]);
 
@@ -97,7 +143,6 @@ export function PostedContentSidebar({
 
       const res = await fetch("/api/tasks", { cache: "no-store" });
 
-
       if (!res.ok) {
         throw new Error("Failed to fetch tasks");
       }
@@ -107,10 +152,8 @@ export function PostedContentSidebar({
       // Filter for scheduled tasks (posted content) with social media links
       const postedTasks = (data.tasks || [])
         .filter((task: any) => {
-          // Only include tasks that are "scheduled" (posted)
           const isScheduled = task.status === "SCHEDULED";
-          
-          // Parse socialMediaLinks if it's a string
+
           let links = task.socialMediaLinks;
           if (typeof links === "string") {
             try {
@@ -119,14 +162,11 @@ export function PostedContentSidebar({
               links = [];
             }
           }
-          
-          // Must have at least one social media link
+
           const hasLinks = Array.isArray(links) && links.length > 0;
-          
           return isScheduled && hasLinks;
         })
         .map((task: any) => {
-          // Parse socialMediaLinks if needed
           let socialMediaLinks = task.socialMediaLinks;
           if (typeof socialMediaLinks === "string") {
             try {
@@ -139,7 +179,7 @@ export function PostedContentSidebar({
           return {
             id: task.id,
             title: task.title,
-            deliverableType: task.deliverableType || task.title,
+            deliverableType: task.deliverableType,
             socialMediaLinks: socialMediaLinks || [],
             completedAt: task.completedAt,
             status: task.status,
@@ -155,19 +195,16 @@ export function PostedContentSidebar({
     }
   };
 
-  // Fetch on mount
   useEffect(() => {
     fetchPostedTasks();
   }, [clientId]);
 
-  // Extract unique deliverable types from tasks
-  const deliverableTypes = useMemo(() => {
+  // Extract unique deliverable types from tasks (actual deliverableType field only)
+  const availableDeliverables = useMemo(() => {
     const types = new Set<string>();
     tasks.forEach((task) => {
       if (task.deliverableType) {
         types.add(task.deliverableType);
-      } else {
-        types.add(task.title);
       }
     });
     return Array.from(types).sort();
@@ -189,7 +226,6 @@ export function PostedContentSidebar({
     });
 
     return allContent.filter(({ task, link }) => {
-      // Platform filter
       if (
         selectedPlatforms.length > 0 &&
         !selectedPlatforms.includes(link.platform.toLowerCase())
@@ -197,12 +233,16 @@ export function PostedContentSidebar({
         return false;
       }
 
-      // Deliverable filter
-      const deliverable = task.deliverableType || task.title;
       if (
         selectedDeliverables.length > 0 &&
-        !selectedDeliverables.includes(deliverable)
+        task.deliverableType &&
+        !selectedDeliverables.includes(task.deliverableType)
       ) {
+        return false;
+      }
+
+      // If deliverable filter is active but task has no deliverableType, exclude it
+      if (selectedDeliverables.length > 0 && !task.deliverableType) {
         return false;
       }
 
@@ -261,7 +301,7 @@ export function PostedContentSidebar({
   // Loading state
   if (loading) {
     return (
-      <div className={cn("flex flex-col h-full", className)}>
+      <div className={cn("flex flex-col h-full bg-background", className)}>
         <div className="px-4 py-3 border-b">
           <h3 className="font-semibold text-sm">Posted Content</h3>
         </div>
@@ -275,7 +315,7 @@ export function PostedContentSidebar({
   // Error state
   if (error) {
     return (
-      <div className={cn("flex flex-col h-full", className)}>
+      <div className={cn("flex flex-col h-full bg-background", className)}>
         <div className="px-4 py-3 border-b">
           <h3 className="font-semibold text-sm">Posted Content</h3>
         </div>
@@ -291,158 +331,151 @@ export function PostedContentSidebar({
   }
 
   return (
-    <div className={cn("flex flex-col h-full", className)}>
+    <div className={cn("flex flex-col h-full bg-background", className)}>
       {/* Header */}
       <div className="px-4 py-3 border-b">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Posted Content</h3>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">
-              {filteredContent.length} posts
+            <h3 className="font-semibold text-sm">Posted Content</h3>
+            <Badge variant="outline" className="text-xs font-normal">
+              {filteredContent.length}
             </Badge>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={fetchPostedTasks}
-              title="Refresh"
-            >
-              <RefreshCw className="h-3 w-3" />
-            </Button>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={fetchPostedTasks}
+            title="Refresh"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
 
-      {/* Filters Section */}
-      <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-        <CollapsibleTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-between px-4 py-2 h-auto"
-          >
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              <span className="text-sm font-medium">Filters</span>
-              {hasActiveFilters && (
-                <Badge variant="secondary" className="text-xs">
-                  {selectedPlatforms.length + selectedDeliverables.length}
-                </Badge>
-              )}
-            </div>
-            {isFilterOpen ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </Button>
-        </CollapsibleTrigger>
-
-        <CollapsibleContent>
-          <div className="px-4 pb-3 space-y-4">
-            {/* Clear Filters */}
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3 mr-1" />
-                Clear all filters
-              </Button>
-            )}
-
-            {/* Platform Filters */}
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Platforms
-              </p>
-              <div className="space-y-1">
-                {ALL_PLATFORMS.map((platform) => (
-                  <label
-                    key={platform.id}
-                    className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/50 cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedPlatforms.includes(platform.id)}
-                      onCheckedChange={() => togglePlatform(platform.id)}
-                    />
-                    <span className="flex items-center gap-2 text-sm">
-                      {PLATFORM_ICONS[platform.id]}
-                      {platform.label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Deliverable Filters */}
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Deliverables
-              </p>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {deliverableTypes.map((deliverable) => (
-                  <label
-                    key={deliverable}
-                    className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/50 cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedDeliverables.includes(deliverable)}
-                      onCheckedChange={() => toggleDeliverable(deliverable)}
-                    />
-                    <span className="text-sm truncate">{deliverable}</span>
-                  </label>
-                ))}
-                {deliverableTypes.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-2">
-                    No deliverables found
-                  </p>
+      {/* Compact Filters */}
+      <div className="px-3 py-2.5 border-b space-y-2.5">
+        {/* Platform Pills - Horizontal */}
+        <div className="flex flex-wrap gap-1.5">
+          {ALL_PLATFORMS.map((platform) => {
+            const isActive = selectedPlatforms.includes(platform.id);
+            const styles = PLATFORM_STYLES[platform.id];
+            return (
+              <button
+                key={platform.id}
+                onClick={() => togglePlatform(platform.id)}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border transition-all",
+                  isActive ? styles.active : styles.inactive
                 )}
-              </div>
-            </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+              >
+                {PLATFORM_ICONS[platform.id]}
+                <span>{platform.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
-      <Separator />
+        {/* Deliverables Dropdown + Clear */}
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1.5 flex-1 justify-between"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Filter className="h-3 w-3" />
+                  <span>
+                    {selectedDeliverables.length > 0
+                      ? `${selectedDeliverables.length} type${selectedDeliverables.length > 1 ? "s" : ""}`
+                      : "All Types"}
+                  </span>
+                </div>
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuLabel className="text-xs">
+                Deliverable Types
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {availableDeliverables.length > 0 ? (
+                availableDeliverables.map((deliverable) => (
+                  <DropdownMenuCheckboxItem
+                    key={deliverable}
+                    checked={selectedDeliverables.includes(deliverable)}
+                    onCheckedChange={() => toggleDeliverable(deliverable)}
+                  >
+                    {deliverable}
+                  </DropdownMenuCheckboxItem>
+                ))
+              ) : (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  No deliverable types found
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Content List */}
       <ScrollArea className="flex-1">
-        <div className="p-2 space-y-4">
+        <div className="p-2 space-y-3">
           {groupedByDate.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Video className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No posted content yet</p>
+            <div className="text-center py-12 text-muted-foreground">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                <Video className="h-6 w-6 opacity-50" />
+              </div>
+              <p className="text-sm font-medium">No posted content</p>
               {hasActiveFilters && (
-                <p className="text-xs mt-1">Try adjusting your filters</p>
+                <p className="text-xs mt-1 text-muted-foreground/70">
+                  Try adjusting your filters
+                </p>
               )}
             </div>
           ) : (
             groupedByDate.map(([date, items]) => (
-              <div key={date} className="space-y-2">
+              <div key={date} className="space-y-1.5">
                 {/* Date Header */}
-                <div className="flex items-center gap-2 px-2">
+                <div className="flex items-center gap-2 px-2 sticky top-0 bg-background py-1">
                   <Calendar className="h-3 w-3 text-muted-foreground" />
                   <span className="text-xs font-medium text-muted-foreground">
                     {date}
                   </span>
+                  <div className="flex-1 h-px bg-border" />
                 </div>
 
                 {/* Posts for this date */}
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {items.map(({ task, link }, index) => (
                     <button
                       key={`${task.id}-${link.platform}-${index}`}
                       onClick={() => window.open(link.url, "_blank")}
-                      className="w-full text-left p-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors group"
+                      className="w-full text-left p-2.5 rounded-lg border bg-card hover:bg-accent/50 hover:border-accent transition-all group"
                     >
-                      <div className="flex items-start gap-2">
-                        {/* Platform Icon */}
-                        <div className="mt-0.5">
+                      <div className="flex items-start gap-2.5">
+                        {/* Platform Icon with background */}
+                        <div
+                          className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                            PLATFORM_COLORS[link.platform.toLowerCase()] ||
+                              "bg-gray-500 text-white"
+                          )}
+                        >
                           {PLATFORM_ICONS[link.platform.toLowerCase()] || (
                             <Video className="h-4 w-4" />
                           )}
@@ -450,20 +483,19 @@ export function PostedContentSidebar({
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate group-hover:text-primary">
+                          <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                             {task.title}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge
-                              className={cn(
-                                "text-xs capitalize",
-                                PLATFORM_COLORS[link.platform.toLowerCase()] ||
-                                  "bg-gray-500 text-white"
-                              )}
-                            >
-                              {link.platform}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {task.deliverableType && (
+                              <span className="text-xs text-muted-foreground">
+                                {task.deliverableType}
+                              </span>
+                            )}
+                            <span className="text-xs text-muted-foreground/60">
+                              •
+                            </span>
+                            <span className="text-xs text-muted-foreground/60">
                               {new Date(link.postedAt).toLocaleTimeString(
                                 "en-US",
                                 {
@@ -476,7 +508,7 @@ export function PostedContentSidebar({
                         </div>
 
                         {/* External Link Icon */}
-                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
                       </div>
                     </button>
                   ))}
