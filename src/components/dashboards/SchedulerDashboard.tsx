@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle, FileText, Eye } from 'lucide-react';
 import { useTaskWorkflow, WorkflowTask } from '../workflow/TaskWorkflowEngine';
+import { FilePreviewModal } from '../FileViewerModal';
 
 // Mock current scheduler user
 const currentUser = {
@@ -151,6 +152,8 @@ export function SchedulerDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<WorkflowTask | null>(null);
   const { tasks: workflowTasks, completeSchedulingTask } = useTaskWorkflow();
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // useEffect(() => {
   //   // Filter workflow tasks for scheduling
@@ -190,7 +193,15 @@ export function SchedulerDashboard() {
           projectId: t.clientId,
           priority: t.priority,
           feedback: t.feedback,
-          files: (t.files || []).filter((f: any) => f.isActive !== false),
+          files: (t.files || [])
+            .filter((f: any) => f.isActive !== false)
+            .map((f: any) => ({
+              id: f.id,
+              name: f.name,
+              url: f.url,
+              size: f.size || 0,
+              mimeType: f.mimeType || f.contentType || '',
+            })),
         }));
 
         setSchedulingTasks(mapped);
@@ -479,7 +490,10 @@ export function SchedulerDashboard() {
                           size="sm"
                           variant="outline"
                           className="w-full"
-                          onClick={() => window.open(file.url, '_blank')}
+                          onClick={() => {
+                            setPreviewFile(file);
+                            setIsPreviewOpen(true);
+                          }}
                         >
                           <Eye className="h-3 w-3 mr-1" />
                           View
@@ -506,6 +520,13 @@ export function SchedulerDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Calendar, Clock, FileText, Eye, Search, Filter, CheckCircle, MapPin, Link as LinkIcon, Download, ChevronDown, ExternalLink, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '../ui/sonner';
+import { FilePreviewModal } from '../FileViewerModal';
 
 type SchedulerTask = {
   id: string;
@@ -55,6 +56,8 @@ export function SchedulerApprovedQueuePage() {
   const [socialMediaPlatform, setSocialMediaPlatform] = useState('');
   const [socialMediaUrl, setSocialMediaUrl] = useState('');
   const [submittingLink, setSubmittingLink] = useState(false);
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Folder expansion state
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -89,6 +92,7 @@ export function SchedulerApprovedQueuePage() {
           url: file.url,
           key: file.s3Key || file.url?.split('.amazonaws.com/')[1] || '',
           size: file.size || 0,
+          mimeType: file.mimeType || file.contentType || '',
           folderType: file.folderType || 'other',
         }));
 
@@ -563,7 +567,10 @@ export function SchedulerApprovedQueuePage() {
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => window.open(file.url, "_blank")}
+                                        onClick={() => {
+                                          setPreviewFile(file);
+                                          setIsPreviewOpen(true);
+                                        }}
                                       >
                                         <Eye className="h-3 w-3 mr-1" />
                                         View
@@ -666,7 +673,10 @@ export function SchedulerApprovedQueuePage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => window.open(link.url, '_blank')}
+                              onClick={() => {
+                                setPreviewFile({ url: link.url, name: `${link.platform} Post`, mimeType: 'text/html' });
+                                setIsPreviewOpen(true);
+                              }}
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
@@ -773,6 +783,12 @@ export function SchedulerApprovedQueuePage() {
         </DialogContent>
       </Dialog>
 
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
       <Toaster />
     </>
   );

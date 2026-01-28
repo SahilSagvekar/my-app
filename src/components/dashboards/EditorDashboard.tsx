@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
+import { FilePreviewModal } from "../FileViewerModal";
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -322,10 +323,12 @@ function FileViewerDialog({
   files,
   open,
   onOpenChange,
+  onPreview,
 }: {
   files: TaskFile[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onPreview: (file: TaskFile) => void;
 }) {
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith("video/"))
@@ -359,7 +362,7 @@ function FileViewerDialog({
             <Card
               key={file.id}
               className="cursor-pointer hover:border-primary hover:shadow-sm transition-all"
-              onClick={() => window.open(file.url, "_blank")}
+              onClick={() => onPreview(file)}
             >
               <CardContent className="p-3">
                 <div className="flex items-center gap-3">
@@ -403,12 +406,14 @@ function TaskCard({
   onStartTask,
   onDragStart,
   isDragging,
+  onPreview,
 }: {
   task: WorkflowTask;
   onUploadComplete: (files: any[]) => void;
   onStartTask: () => void;
   onDragStart: (e: DragEvent<HTMLDivElement>, task: WorkflowTask) => void;
   isDragging: boolean;
+  onPreview: (file: TaskFile) => void;
 }) {
   const [showFiles, setShowFiles] = useState(false);
   const isOverdue = new Date(task.dueDate) < new Date();
@@ -571,7 +576,7 @@ function TaskCard({
                     <FilePreviewCard
                       key={file.id}
                       file={file}
-                      onView={() => window.open(file.url, "_blank")}
+                      onView={() => onPreview(file)}
                     />
                   ))}
                   {task.files.length > 1 && (
@@ -610,9 +615,10 @@ function TaskCard({
       {/* File Viewer Dialog */}
       {task.files && task.files.length > 0 && (
         <FileViewerDialog
-          files={task.files}
+          files={task.files || []}
           open={showFiles}
           onOpenChange={setShowFiles}
+          onPreview={onPreview}
         />
       )}
     </>
@@ -638,6 +644,7 @@ interface ColumnProps {
   draggingTaskId: string | null;
   onUploadComplete: (taskId: string, files: any[]) => void;
   onStartTask: (taskId: string) => void;
+  onPreview: (file: TaskFile) => void;
 }
 
 function DroppableColumn({
@@ -655,6 +662,7 @@ function DroppableColumn({
   draggingTaskId,
   onUploadComplete,
   onStartTask,
+  onPreview,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -696,6 +704,7 @@ function DroppableColumn({
             onStartTask={() => onStartTask(task.id)}
             onDragStart={onDragStart}
             isDragging={draggingTaskId === task.id}
+            onPreview={onPreview}
           />
         ))}
 
@@ -732,6 +741,8 @@ export function EditorDashboard() {
     useState<string>("all");
   const [draggingTask, setDraggingTask] = useState<WorkflowTask | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const { user } = useAuth();
 
   const currentUser = {
@@ -1322,9 +1333,19 @@ export function EditorDashboard() {
             draggingTaskId={draggingTask?.id || null}
             onUploadComplete={handleUploadComplete}
             onStartTask={startTask}
+            onPreview={(file) => {
+              setPreviewFile(file);
+              setIsPreviewOpen(true);
+            }}
           />
         ))}
       </div>
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </div>
   );
 }

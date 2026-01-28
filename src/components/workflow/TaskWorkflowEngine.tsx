@@ -21,6 +21,7 @@ export interface WorkflowTask {
   originalTaskId?: string;
   queuePosition?: number;
   priority?: string;
+  completedAt?: string;
 }
 
 export interface WorkflowFile {
@@ -302,7 +303,7 @@ export function useTaskWorkflow() {
     // Load initial tasks
     setTasks(workflowEngine.getAllTasks());
 
-    return unsubscribe;
+    return () => { unsubscribe(); };
   }, []);
 
   const createQCReviewTask = async (originalTask: WorkflowTask, files: WorkflowFile[]) => {

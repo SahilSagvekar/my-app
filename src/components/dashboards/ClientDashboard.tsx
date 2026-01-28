@@ -28,6 +28,7 @@ import {
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
+import { FilePreviewModal } from '../FileViewerModal';
 
 interface TaskFile {
   id: string;
@@ -141,6 +142,7 @@ export function ClientDashboard() {
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const { user } = useAuth();
 
   /* ---------------------------- FETCH CLIENT TASKS -------------------------- */
@@ -316,8 +318,8 @@ export function ClientDashboard() {
     if (file.mimeType?.startsWith('video/')) {
       setShowVideoReview(true);
     } else {
-      // For non-video files, open in new tab
-      window.open(file.url, '_blank');
+      // Open in-app preview modal
+      setIsPreviewOpen(true);
     }
   };
 
@@ -872,6 +874,12 @@ export function ClientDashboard() {
           }}
         />
       )}
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={selectedFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </div>
   );
 }

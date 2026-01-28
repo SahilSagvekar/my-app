@@ -116,6 +116,20 @@ export function QCDashboard() {
   const [showFilePreview, setShowFilePreview] = useState(false);
   const { user } = useAuth();
 
+  const getMimeType = (file: TaskFile | null) => {
+    if (!file) return "";
+    if (file.mimeType) return file.mimeType;
+    const url = (file.url || "").split('?')[0];
+    const name = file.name || "";
+    const ext = (name || url).split('.').pop()?.toLowerCase();
+    if (!ext) return '';
+
+    if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) return 'video/mp4';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image/jpeg';
+    if (ext === 'pdf') return 'application/pdf';
+    return '';
+  };
+
   useEffect(() => {
     loadQCTasks();
   }, []);
@@ -224,7 +238,8 @@ export function QCDashboard() {
     setSelectedFile(file);
     setShowFileSelector(false);
 
-    if (file.mimeType?.startsWith('video/')) {
+    const mimeType = getMimeType(file);
+    if (mimeType.startsWith('video/')) {
       setShowVideoReview(true);
     } else {
       // Open images and other files in the in-app preview modal
@@ -807,60 +822,29 @@ export function QCDashboard() {
 
           {/* Content Area - Full screen image/file view */}
           <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
-            {selectedFile.mimeType?.startsWith('image/') ? (
+            {getMimeType(selectedFile).startsWith('image/') ? (
               <div className="relative">
                 <img
+                  key={selectedFile.url}
                   src={selectedFile.url}
                   alt={selectedFile.name}
                   className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
                 />
               </div>
-            ) : selectedFile.mimeType?.includes('pdf') ? (
-              <div className="text-center">
-                <div className="p-10 bg-white/5 rounded-3xl backdrop-blur-sm border border-white/10 max-w-lg mx-auto">
-                  <div className="p-8 bg-red-500/20 rounded-2xl inline-block mb-6">
-                    <FileText className="h-16 w-16 text-red-400" />
-                  </div>
-                  <h3 className="text-white text-2xl font-semibold mb-3">{selectedFile.name}</h3>
-                  <p className="text-white/60 text-base mb-2">
-                    PDF Document • {formatFileSize(selectedFile.size)}
-                  </p>
-                  <p className="text-white/40 text-sm mb-8">
-                    Click below to view or download this PDF
-                  </p>
-                  <div className="flex gap-4 justify-center">
-                    <Button
-                      size="lg"
-                      onClick={() => window.open(selectedFile.url, '_blank')}
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      <Eye className="h-5 w-5 mr-2" />
-                      View PDF
-                    </Button>
-                    <Button
-                      size="lg"
-                      onClick={() => {
-                        const link = document.createElement('a');
-                        link.href = selectedFile.url;
-                        link.download = selectedFile.name;
-                        link.click();
-                      }}
-                      variant="outline"
-                      className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                    >
-                      <Download className="h-5 w-5 mr-2" />
-                      Download
-                    </Button>
-                  </div>
-                </div>
-              </div>
+            ) : getMimeType(selectedFile).includes('pdf') ? (
+              <iframe
+                key={selectedFile.url}
+                src={selectedFile.url}
+                className="w-full h-[85vh] bg-white rounded-lg shadow-2xl"
+                title="PDF Preview"
+              />
             ) : (
               <div className="text-center">
-                <div className="p-8 bg-white/5 rounded-3xl backdrop-blur-sm border border-white/10 max-w-lg mx-auto">
-                  <div className="p-6 bg-white/10 rounded-2xl inline-block mb-6">
+                <div className="p-10 bg-white/5 rounded-3xl backdrop-blur-sm border border-white/10 max-w-lg mx-auto">
+                  <div className="p-8 bg-white/10 rounded-2xl inline-block mb-6">
                     {getFileIcon(selectedFile.mimeType)}
                   </div>
-                  <h3 className="text-white text-xl font-semibold mb-3">{selectedFile.name}</h3>
+                  <h3 className="text-white text-2xl font-semibold mb-3">{selectedFile.name}</h3>
                   <p className="text-white/60 text-base mb-2">
                     {getFileTypeLabel(selectedFile.mimeType)} • {formatFileSize(selectedFile.size)}
                   </p>
@@ -894,10 +878,10 @@ export function QCDashboard() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
+          </div >
+        </div >
       )}
-    </div>
+    </div >
   );
 }
 
