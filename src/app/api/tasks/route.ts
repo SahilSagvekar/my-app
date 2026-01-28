@@ -623,6 +623,7 @@ export async function GET(req: Request) {
         qcNotes: true,
         feedback: true,
         // files: true,
+        deliverableType: true,
         monthlyDeliverableId: true,
         monthlyDeliverable: true,
         socialMediaLinks: true,

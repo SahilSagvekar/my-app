@@ -86,23 +86,16 @@ const ALL_PLATFORMS = [
   { id: "snapchat", label: "Snapchat" },
 ];
 
-// Common deliverable types in video production
+// Actual deliverable types used in the system
 const DELIVERABLE_TYPES = [
-  "Reel",
-  "Story",
-  "Post",
-  "Video",
-  "Short",
-  "Carousel",
-  "Live",
-  "IGTV",
-  "Podcast",
-  "Vlog",
-  "Interview",
-  "BTS",
-  "Promo",
-  "Ad",
-  "Trailer",
+  "Short Form Videos",
+  "Long Form Videos",
+  "Square Form Videos",
+  "Thumbnails",
+  "Tiles",
+  "Hard Posts / Graphic Images",
+  "Snapchat Episodes",
+  "Beta Short Form",
 ];
 
 interface SocialMediaLink {
@@ -119,6 +112,29 @@ interface PostedTask {
   completedAt?: string;
   status?: string;
 }
+
+// Helper to normalize deliverable types
+const normalizeDeliverableType = (type: string | undefined | null): string => {
+  if (!type) return "";
+  const t = type.trim();
+  const lower = t.toLowerCase();
+
+  // Map common short codes to full names
+  if (lower === "sf" || lower === "short_form") return "Short Form Videos";
+  if (lower === "lf" || lower === "long_form") return "Long Form Videos";
+  if (lower === "sqf" || lower === "square_form") return "Square Form Videos";
+  if (lower === "thumb" || lower === "thumbnail") return "Thumbnails";
+  if (lower === "t" || lower === "tile") return "Tiles";
+  if (lower === "hp" || lower === "hard_post") return "Hard Posts / Graphic Images";
+  if (lower === "sep" || lower === "snapchat_episode") return "Snapchat Episodes";
+  if (lower === "bsf" || lower === "beta_short_form") return "Beta Short Form";
+  if (lower === "reel") return "Reel";
+  if (lower === "story") return "Story";
+  if (lower === "post") return "Post";
+
+  // Default: Title Case if it's a known multi-word type, otherwise just return as is
+  return t;
+};
 
 interface PostedContentSidebarProps {
   clientId?: string;
@@ -153,7 +169,6 @@ export function PostedContentSidebar({
       const postedTasks = (data.tasks || [])
         .filter((task: any) => {
           const isScheduled = task.status === "SCHEDULED";
-
           let links = task.socialMediaLinks;
           if (typeof links === "string") {
             try {
@@ -162,25 +177,23 @@ export function PostedContentSidebar({
               links = [];
             }
           }
-
           const hasLinks = Array.isArray(links) && links.length > 0;
           return isScheduled && hasLinks;
         })
         .map((task: any) => {
-          let socialMediaLinks = task.socialMediaLinks;
-          if (typeof socialMediaLinks === "string") {
+          let smLinks = task.socialMediaLinks;
+          if (typeof smLinks === "string") {
             try {
-              socialMediaLinks = JSON.parse(socialMediaLinks);
+              smLinks = JSON.parse(smLinks);
             } catch {
-              socialMediaLinks = [];
+              smLinks = [];
             }
           }
-
           return {
             id: task.id,
             title: task.title,
-            deliverableType: task.deliverableType,
-            socialMediaLinks: socialMediaLinks || [],
+            deliverableType: normalizeDeliverableType(task.deliverableType || task.monthlyDeliverable?.type),
+            socialMediaLinks: smLinks || [],
             completedAt: task.completedAt,
             status: task.status,
           };
@@ -201,13 +214,26 @@ export function PostedContentSidebar({
 
   // Extract unique deliverable types from tasks (actual deliverableType field only)
   const availableDeliverables = useMemo(() => {
-    const types = new Set<string>();
+    // Use an object as a map to store normalized -> original/formatted pairs
+    // This prevents duplicates like "Reel" and "REEL"
+    const typeMap = new Map<string, string>();
+
+    // Helper to format string to Title Case
+    const formatType = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+
+    // Always include common types to ensure the filter displays
+    DELIVERABLE_TYPES.forEach(t => {
+      typeMap.set(t.toLowerCase(), t);
+    });
+
     tasks.forEach((task) => {
-      if (task.deliverableType) {
-        types.add(task.deliverableType);
+      const type = task.deliverableType;
+      if (type && !typeMap.has(type.toLowerCase())) {
+        typeMap.set(type.toLowerCase(), type);
       }
     });
-    return Array.from(types).sort();
+
+    return Array.from(typeMap.values()).sort();
   }, [tasks]);
 
   // Filter tasks based on selected filters
@@ -228,22 +254,20 @@ export function PostedContentSidebar({
     return allContent.filter(({ task, link }) => {
       if (
         selectedPlatforms.length > 0 &&
-        !selectedPlatforms.includes(link.platform.toLowerCase())
+        !selectedPlatforms.includes((link.platform || "").toLowerCase().trim())
       ) {
         return false;
       }
 
-      if (
-        selectedDeliverables.length > 0 &&
-        task.deliverableType &&
-        !selectedDeliverables.includes(task.deliverableType)
-      ) {
-        return false;
-      }
+      if (selectedDeliverables.length > 0) {
+        const taskType = (task.deliverableType || "").trim(); // Already normalized in fetch
+        if (!taskType) return false;
 
-      // If deliverable filter is active but task has no deliverableType, exclude it
-      if (selectedDeliverables.length > 0 && !task.deliverableType) {
-        return false;
+        const isMatched = selectedDeliverables.some(
+          d => d.trim() === taskType
+        );
+
+        if (!isMatched) return false;
       }
 
       return true;
@@ -473,7 +497,7 @@ export function PostedContentSidebar({
                           className={cn(
                             "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
                             PLATFORM_COLORS[link.platform.toLowerCase()] ||
-                              "bg-gray-500 text-white"
+                            "bg-gray-500 text-white"
                           )}
                         >
                           {PLATFORM_ICONS[link.platform.toLowerCase()] || (

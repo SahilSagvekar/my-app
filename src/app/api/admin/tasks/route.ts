@@ -429,6 +429,7 @@ export async function GET(req: Request) {
                             type: true,
                         },
                     },
+                    deliverableType: true,
                 },
             }),
             prisma.task.count({ where }),
@@ -498,7 +499,9 @@ export async function GET(req: Request) {
             stats: {
                 total,
                 byStatus: statusCounts.reduce((acc, item) => {
-                    acc[item.status] = item._count.status;
+                    if (item.status) {
+                        acc[item.status] = item._count.status;
+                    }
                     return acc;
                 }, {} as Record<string, number>),
                 overdue: overdueCount,
