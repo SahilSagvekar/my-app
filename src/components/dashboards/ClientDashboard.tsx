@@ -649,18 +649,7 @@ export function ClientDashboard() {
                       <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
                         Pending
                       </Badge>
-                      <Badge variant="outline" className="text-zinc-500 border-zinc-200 rounded-full px-3 py-0.5 text-[10px] font-medium bg-transparent capitalize">
-                        {task.priority || 'medium'}
-                      </Badge>
-                    </div>
-
-                    {/* Footer - Workflow Step */}
-                    <div className="flex items-center gap-2 pt-3 border-t border-zinc-100 mt-1 text-zinc-400 text-[11px]">
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      <span className="flex items-center gap-1">
-                        → <span>Client Review</span>
-                      </span>
-                    </div>
+                    </div>                   
                   </div>
                 </Card>
               );
