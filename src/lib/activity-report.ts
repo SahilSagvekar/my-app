@@ -97,6 +97,10 @@ export async function generateDailyActivityReport(targetDate: Date = new Date())
             }
         });
 
+        // 6. Send Email Notification to Eric
+        const { sendActivityReportEmail } = await import('./email');
+        await sendActivityReportEmail(uploadResult.url, targetDate, auditLogs.length);
+
         console.log(`✅ Report generated successfully: ${fileName}`);
         return report;
 
