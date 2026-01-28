@@ -209,6 +209,37 @@ export async function POST(req: Request) {
     const targetYear = typeof year === "number" ? year : now.getFullYear();
     const targetMonth = typeof month === "number" ? month : now.getMonth();
 
+    // 📁 NEW: Ensure Month Folders for all active clients
+    // This runs every time the recurring cron runs (typically daily)
+    const monthLabel = new Date(targetYear, targetMonth).toLocaleDateString("en-US", { month: "long" });
+    const monthYearFolder = `${monthLabel}-${targetYear}`;
+
+    const activeClients = await prisma.client.findMany({
+      where: { status: "active" },
+      select: { id: true, companyName: true, name: true, rawFootageFolderId: true },
+    });
+
+    console.log(`📂 Ensuring month folders for ${activeClients.length} clients for ${monthYearFolder}`);
+
+    for (const client of activeClients) {
+      const companyName = client.companyName || client.name;
+      const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
+      const base = rawFootageBase.endsWith("/") ? rawFootageBase : `${rawFootageBase}/`;
+      const folderKey = `${base}${monthYearFolder}/`;
+
+      try {
+        await s3Client.send(
+          new PutObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET!,
+            Key: folderKey,
+            ContentType: "application/x-directory",
+          })
+        );
+      } catch (err) {
+        console.log(`   ⚠️ Folder check failed for ${client.name} (usually OK):`, err);
+      }
+    }
+
     console.log(`🔄 Running recurring tasks for ${targetYear}-${targetMonth + 1}${dryRun ? " (DRY RUN)" : ""}`);
 
     // Find active recurring tasks
