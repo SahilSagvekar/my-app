@@ -68,7 +68,7 @@ export function LoginScreen({
 
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1>Welcome back</h1>
+          <h1>Welcome Back</h1>
           <p className="text-muted-foreground">
             Sign in to your account
           </p>
