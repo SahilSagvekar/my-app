@@ -269,9 +269,13 @@ html {
 
 /* Review Modal Header */
 .review-header {
-  background: linear-gradient(to bottom, var(--review-bg-secondary), transparent);
+  background: var(--review-bg-secondary);
+  background: linear-gradient(to bottom, var(--review-bg-secondary) 80%, transparent);
   border-bottom: 1px solid var(--review-border);
-  backdrop-filter: blur(10px);
+  /* Optimize backdrop-filter for Windows performance */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 40;
 }
 
 /* Status Dropdown Styles */
@@ -366,7 +370,10 @@ html {
   height: 100%;
   background: var(--review-timeline-progress);
   border-radius: 2px;
-  transition: width 0.1s linear;
+  /* Use hardware acceleration */
+  will-change: transform;
+  transform-origin: left center;
+  width: 100%;
 }
 
 .review-timeline-playhead {
@@ -376,7 +383,10 @@ html {
   height: 14px;
   background: white;
   border-radius: 50%;
+  /* Use transform instead of left for performance */
+  left: 0;
   transform: translate(-50%, -50%);
+  will-change: transform;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   cursor: grab;
   z-index: 10;

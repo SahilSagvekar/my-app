@@ -127,17 +127,20 @@ export const ReviewTimeline = memo(function ReviewTimeline({
                 onClick={handleTrackClick}
                 onMouseDown={handleMouseDown}
             >
-                {/* Progress */}
+                {/* Progress - Uses scaleX for performance */}
                 <div
                     className="review-timeline-progress"
-                    style={{ width: `${getPositionFromTime(currentTime)}%` }}
+                    style={{ transform: `scaleX(${getPositionFromTime(currentTime) / 100})` }}
                 />
             </div>
 
-            {/* Playhead */}
+            {/* Playhead - Uses translateX for performance */}
             <div
                 className="review-timeline-playhead"
-                style={{ left: `${getPositionFromTime(currentTime)}%` }}
+                style={{
+                    transform: `translate(calc(${getPositionFromTime(currentTime)} * (var(--track-width, 100%) / 100) - 50%), -50%)`,
+                    left: `${getPositionFromTime(currentTime)}%`
+                }}
                 onMouseDown={handleMouseDown}
             />
         </div>

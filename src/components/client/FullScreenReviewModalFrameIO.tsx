@@ -157,6 +157,12 @@ export function FullScreenReviewModalFrameIO({
     const [confirmFinal, setConfirmFinal] = useState(false);
     const [savingFeedback, setSavingFeedback] = useState(false);
 
+    // 🔥 Memoize sorted comments to prevent re-sorting on every video time update
+    const sortedComments = useMemo(() => {
+        return [...comments].sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+    }, [comments]);
+
+
     // UI State
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
@@ -332,8 +338,9 @@ export function FullScreenReviewModalFrameIO({
 
     const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
         const time = e.currentTarget.currentTime;
-        // Only update state every 100ms to improve UI performance
-        if (Math.abs(time - lastTimeUpdateRef.current) >= 0.1 || time === 0 || time === duration) {
+        // Optimization for Windows: Update state every 150ms instead of 100ms
+        // This reduces rerenders in the main container significantly
+        if (Math.abs(time - lastTimeUpdateRef.current) >= 0.15 || time === 0 || time === duration) {
             setCurrentTime(time);
             lastTimeUpdateRef.current = time;
         }
@@ -1034,19 +1041,17 @@ export function FullScreenReviewModalFrameIO({
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {comments
-                                            .sort((a, b) => a.timestampSeconds - b.timestampSeconds)
-                                            .map((comment) => (
-                                                <div key={comment.id} id={`comment-${comment.id}`}>
-                                                    <ReviewCommentCard
-                                                        comment={comment}
-                                                        isActive={activeCommentId === comment.id}
-                                                        onTimestampClick={handleTimestampClick}
-                                                        onResolve={handleCommentResolve}
-                                                        onDelete={handleCommentDelete}
-                                                    />
-                                                </div>
-                                            ))}
+                                        {sortedComments.map((comment) => (
+                                            <div key={comment.id} id={`comment-${comment.id}`}>
+                                                <ReviewCommentCard
+                                                    comment={comment}
+                                                    isActive={activeCommentId === comment.id}
+                                                    onTimestampClick={handleTimestampClick}
+                                                    onResolve={handleCommentResolve}
+                                                    onDelete={handleCommentDelete}
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
