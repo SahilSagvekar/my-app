@@ -254,7 +254,7 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
 
 export async function generateSignedUrl(
   key: string,
-  expiresIn: number = 1440
+  expiresIn: number = 604800 // 7 days (maximum for SigV4 with IAM)
 ): Promise<string> {
 
   const command = new GetObjectCommand({

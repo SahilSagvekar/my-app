@@ -17,7 +17,7 @@ export function ShareDialog({ open, onOpenChange, shareLink, onCopy, copied }: S
             <DialogContent className="sm:max-w-md">
                 <DialogTitle>Share Review Link</DialogTitle>
                 <DialogDescription>
-                    Share this link with clients or stakeholders who need to view this review. The link will expire in 30 days.
+                    Share this link with clients or stakeholders who need to view this review. This link does not expire.
                 </DialogDescription>
 
                 <div className="space-y-4 pt-4">

@@ -26,7 +26,10 @@ import {
   CheckCircle,
   Loader2,
   AlertTriangle,
+  Link as LinkIcon,
+  Share2
 } from "lucide-react";
+import { ShareDialog } from "../review/ShareDialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +108,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [itemToDelete, setItemToDelete] = useState<DriveItem | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 🔥 NEW: Share states
+  const [shareLink, setShareLink] = useState("");
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -352,6 +361,51 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const cancelDelete = () => {
     setShowDeleteDialog(false);
     setItemToDelete(null);
+  };
+
+  // 🔥 NEW: Handle Share Link
+  const handleShareClick = async (item: DriveItem) => {
+    if (item.type !== "file") return;
+
+    setIsSharing(true);
+    setCopied(false);
+
+    try {
+      const s3Key = item.s3Key || getS3Key(item);
+
+      const response = await fetch("/api/drive/share", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          s3Key,
+          fileName: item.name,
+          fileSize: item.size,
+          mimeType: item.url ? (await fetch(item.url, { method: 'HEAD' })).headers.get('content-type') : null
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate share link");
+      }
+
+      const data = await response.json();
+      setShareLink(data.shareUrl);
+      setShowShareDialog(true);
+
+      // Auto-copy
+      await navigator.clipboard.writeText(data.shareUrl);
+      setCopied(true);
+      toast.success("Share link created and copied to clipboard");
+      setTimeout(() => setCopied(false), 3000);
+
+    } catch (error: any) {
+      console.error("Share error:", error);
+      toast.error("Failed to generate share link");
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const getFileIcon = (fileName: string) => {
@@ -700,6 +754,23 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           Add to starred
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        {/* 🔥 NEW: Share Link Option */}
+                        {item.type === "file" && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShareClick(item);
+                            }}
+                            disabled={isSharing}
+                          >
+                            {isSharing ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Share2 className="h-4 w-4 mr-2" />
+                            )}
+                            Copy shareable link
+                          </DropdownMenuItem>
+                        )}
                         {/* 🔥 NEW: Delete Option */}
                         <DropdownMenuItem
                           onClick={() => handleDeleteClick(item)}
@@ -807,6 +878,22 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                 Add to starred
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
+                              {item.type === "file" && (
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShareClick(item);
+                                  }}
+                                  disabled={isSharing}
+                                >
+                                  {isSharing ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Share2 className="h-4 w-4 mr-2" />
+                                  )}
+                                  Copy shareable link
+                                </DropdownMenuItem>
+                              )}
                               {/* 🔥 NEW: Delete Option */}
                               <DropdownMenuItem
                                 onClick={() => handleDeleteClick(item)}

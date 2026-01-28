@@ -627,6 +627,25 @@ model ShareableReview {
   @@index([ expiresAt ])
 }
 
+model ShareableFile {
+  id           String    @id @default(cuid())
+  s3Key        String
+  fileName     String
+  fileSize     BigInt?
+  mimeType     String?
+  shareToken   String    @unique
+  createdBy    Int
+  expiresAt    DateTime?
+  viewCount    Int       @default(0)
+  lastViewedAt DateTime?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([ shareToken ])
+  @@index([ createdBy ])
+}
+
 model ActivityReport {
   id          String   @id @default(cuid())
   fileName    String

@@ -562,7 +562,7 @@ export function FullScreenReviewModalFrameIO({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    expiresInDays: 30 // Link expires in 30 days
+                    expiresInDays: 0 // 0 means never expires
                 }),
             });
 
