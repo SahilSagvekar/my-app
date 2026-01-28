@@ -30,7 +30,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'analytics', label: 'Client Analytics', icon: BarChart3 },
     { id: 'leaves', label: 'Employee Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
