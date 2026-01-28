@@ -454,6 +454,33 @@ export function QCDashboard() {
     setShowFileSelector(true);
   };
 
+  const handleDownload = async (file: TaskFile) => {
+    try {
+      toast.loading('Preparing download...', { id: 'download-file' });
+
+      const response = await fetch(file.url);
+      if (!response.ok) throw new Error('Download failed');
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast.success('Download completed', { id: 'download-file' });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download file. Browser restrictions may apply.', { id: 'download-file' });
+    }
+  };
+
   const pendingReviews = qcTasks.length;
 
   return (
@@ -704,18 +731,60 @@ export function QCDashboard() {
                                 </div>
                               </div>
 
-                              {/* Action Button */}
+                              {/* Action Buttons */}
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 {file.mimeType?.startsWith('video/') ? (
-                                  <Button size="sm" variant="default">
-                                    <Play className="h-4 w-4 mr-2" />
-                                    Review
-                                  </Button>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleFileSelect(file);
+                                      }}
+                                    >
+                                      <Play className="h-4 w-4 mr-2" />
+                                      Review
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-9 w-9 p-0"
+                                      title="Download Video"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownload(file);
+                                      }}
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 ) : (
-                                  <Button size="sm" variant="outline">
-                                    <ExternalLink className="h-4 w-4 mr-2" />
-                                    View
-                                  </Button>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleFileSelect(file);
+                                      }}
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-2" />
+                                      View
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-9 w-9 p-0"
+                                      title="Download File"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownload(file);
+                                      }}
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -796,12 +865,7 @@ export function QCDashboard() {
                 size="sm"
                 variant="outline"
                 className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/40"
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = selectedFile.url;
-                  link.download = selectedFile.name;
-                  link.click();
-                }}
+                onClick={() => handleDownload(selectedFile)}
               >
                 <Download className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Download</span>
@@ -862,12 +926,7 @@ export function QCDashboard() {
                     </Button>
                     <Button
                       size="lg"
-                      onClick={() => {
-                        const link = document.createElement('a');
-                        link.href = selectedFile.url;
-                        link.download = selectedFile.name;
-                        link.click();
-                      }}
+                      onClick={() => handleDownload(selectedFile)}
                       variant="outline"
                       className="bg-white/10 border-white/20 text-white hover:bg-white/20"
                     >

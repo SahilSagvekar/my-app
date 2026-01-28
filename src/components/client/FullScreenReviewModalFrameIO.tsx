@@ -608,6 +608,35 @@ export function FullScreenReviewModalFrameIO({
         }
     };
 
+    const handleDownload = async () => {
+        if (!asset) return;
+
+        try {
+            toast.loading('Preparing download...', { id: 'download-video' });
+
+            const response = await fetch(asset.videoUrl);
+            if (!response.ok) throw new Error('Download failed');
+
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `${asset.title.replace(/\s+/g, '_')}_V${asset.currentVersion}.mp4`;
+            document.body.appendChild(link);
+            link.click();
+
+            // Cleanup
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+
+            toast.success('Download completed', { id: 'download-video' });
+        } catch (error) {
+            console.error('Download error:', error);
+            toast.error('Failed to download video. Browser restrictions may apply.', { id: 'download-video' });
+        }
+    };
+
     if (!asset) return null;
 
     const currentVersionData = asset.versions.find(v => v.id === currentVersion) || asset.versions[0];
@@ -776,6 +805,16 @@ export function FullScreenReviewModalFrameIO({
                                     className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
                                 >
                                     <Info className="h-4 w-4" />
+                                </Button>
+
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleDownload}
+                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                    title="Download Video"
+                                >
+                                    <Download className="h-4 w-4" />
                                 </Button>
 
                                 <Button

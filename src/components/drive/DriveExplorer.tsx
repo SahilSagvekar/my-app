@@ -88,6 +88,9 @@ interface UploadingFile {
   error?: string;
 }
 
+const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks
+const PARALLEL_UPLOADS = 10;
+
 export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -218,23 +221,134 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     event.target.value = "";
   };
 
+  const uploadChunk = async (
+    chunk: Blob,
+    partNumber: number,
+    key: string,
+    uploadId: string,
+    fileType: string
+  ) => {
+    const partUrlResponse = await fetch("/api/upload/part-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, uploadId, partNumber }),
+    });
+
+    if (!partUrlResponse.ok) {
+      throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+    }
+
+    const { presignedUrl } = await partUrlResponse.json();
+
+    const uploadResponse = await fetch(presignedUrl, {
+      method: "PUT",
+      body: chunk,
+      headers: { "Content-Type": fileType },
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Failed to upload part ${partNumber}`);
+    }
+
+    const etag = uploadResponse.headers.get("ETag");
+    if (!etag) {
+      throw new Error("Failed to get ETag");
+    }
+
+    return {
+      ETag: etag.replace(/"/g, ""),
+      PartNumber: partNumber,
+    };
+  };
+
   const uploadFile = async (file: File, index: number) => {
     try {
       const currentPath = getCurrentFolderS3Path();
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folderPath", currentPath);
-      formData.append("userId", user?.id?.toString() || "");
-      formData.append("role", role);
+      // Update status to starting
+      setUploadingFiles((prev) =>
+        prev.map((f, i) =>
+          i === index ? { ...f, progress: 1 } : f
+        )
+      );
 
-      const response = await fetch("/api/drive/upload", {
+      // 1. Initiate multipart upload
+      const initResponse = await fetch("/api/upload/initiate", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+          taskId: "drive-upload", // Dummy taskId for drive
+          clientId: user?.id || "unknown", // Using userId as clientId for drive scope
+          folderType: "drive",
+          subfolder: currentPath, // Direct path
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error("Upload failed");
+      if (!initResponse.ok) {
+        throw new Error("Failed to initiate upload");
+      }
+
+      const { uploadId: s3UploadId, key } = await initResponse.json();
+
+      // 2. Prepare chunks
+      const numChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const chunks: Array<{ chunk: Blob; partNumber: number }> = [];
+
+      for (let i = 0; i < numChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        chunks.push({
+          chunk: file.slice(start, end),
+          partNumber: i + 1,
+        });
+      }
+
+      const uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
+      let uploadedBytes = 0;
+      const startTime = Date.now();
+
+      // 3. Upload chunks in parallel batches
+      for (let i = 0; i < chunks.length; i += PARALLEL_UPLOADS) {
+        const batch = chunks.slice(i, i + PARALLEL_UPLOADS);
+
+        const results = await Promise.all(
+          batch.map(({ chunk, partNumber }) =>
+            uploadChunk(chunk, partNumber, key, s3UploadId, file.type)
+          )
+        );
+
+        uploadedParts.push(...results);
+
+        // Update progress
+        uploadedBytes += batch.reduce((sum, c) => sum + c.chunk.size, 0);
+        const currentProgress = Math.round((uploadedBytes / file.size) * 100);
+
+        setUploadingFiles((prev) =>
+          prev.map((f, i) =>
+            i === index ? { ...f, progress: currentProgress } : f
+          )
+        );
+      }
+
+      // 4. Complete multipart upload
+      const completeResponse = await fetch("/api/upload/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key,
+          uploadId: s3UploadId,
+          parts: uploadedParts,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          taskId: "drive-upload",
+        }),
+      });
+
+      if (!completeResponse.ok) {
+        throw new Error("Failed to complete upload");
       }
 
       setUploadingFiles((prev) =>
@@ -430,6 +544,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return <FileIcon className="h-8 w-8 text-gray-500" />;
   };
 
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true);
+    toast.success("Link copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -569,6 +690,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Share Dialog */}
+      <ShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        shareLink={shareLink}
+        onCopy={handleCopyLink}
+        copied={copied}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">

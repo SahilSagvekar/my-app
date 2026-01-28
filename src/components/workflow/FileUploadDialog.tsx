@@ -20,11 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Upload, 
-  X, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Upload,
+  X,
+  CheckCircle,
+  AlertCircle,
   File as FileIcon,
   Zap,
   Play,
@@ -36,7 +36,7 @@ import { useAuth } from "@/components/auth/AuthContext";
 import { uploadStateManager, UploadState } from "@/lib/upload-state-manager";
 
 const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks
-const PARALLEL_UPLOADS = 5;
+const PARALLEL_UPLOADS = 10;
 
 interface FileUploadDialogProps {
   task: any;
@@ -135,77 +135,77 @@ export function FileUploadDialog({
   // };
 
   const uploadChunk = async (
-  chunk: Blob,
-  partNumber: number,
-  key: string,
-  uploadId: string,
-  fileType: string
-) => {
-  try {
-    console.log(`📤 Requesting presigned URL for part ${partNumber}`);
-    
-    const partUrlResponse = await fetch("/api/upload/part-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, uploadId, partNumber }),
-    });
+    chunk: Blob,
+    partNumber: number,
+    key: string,
+    uploadId: string,
+    fileType: string
+  ) => {
+    try {
+      console.log(`📤 Requesting presigned URL for part ${partNumber}`);
 
-    if (!partUrlResponse.ok) {
-      const errorText = await partUrlResponse.text();
-      console.error(`❌ Failed to get presigned URL for part ${partNumber}:`, errorText);
-      throw new Error(`Failed to get presigned URL for part ${partNumber}: ${errorText}`);
-    }
-
-    const { presignedUrl } = await partUrlResponse.json();
-    console.log(`✅ Got presigned URL for part ${partNumber}`);
-
-    console.log(`📤 Uploading chunk ${partNumber} to S3...`);
-    
-    const uploadResponse = await fetch(presignedUrl, {
-      method: "PUT",
-      body: chunk,
-      headers: { 
-        "Content-Type": fileType,
-        "Content-Length": chunk.size.toString(), // Add this
-      },
-    });
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error(`❌ Failed to upload part ${partNumber} to S3:`, {
-        status: uploadResponse.status,
-        statusText: uploadResponse.statusText,
-        error: errorText,
+      const partUrlResponse = await fetch("/api/upload/part-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, uploadId, partNumber }),
       });
-      throw new Error(`Failed to upload part ${partNumber}: ${uploadResponse.status} ${uploadResponse.statusText}`);
+
+      if (!partUrlResponse.ok) {
+        const errorText = await partUrlResponse.text();
+        console.error(`❌ Failed to get presigned URL for part ${partNumber}:`, errorText);
+        throw new Error(`Failed to get presigned URL for part ${partNumber}: ${errorText}`);
+      }
+
+      const { presignedUrl } = await partUrlResponse.json();
+      console.log(`✅ Got presigned URL for part ${partNumber}`);
+
+      console.log(`📤 Uploading chunk ${partNumber} to S3...`);
+
+      const uploadResponse = await fetch(presignedUrl, {
+        method: "PUT",
+        body: chunk,
+        headers: {
+          "Content-Type": fileType,
+          "Content-Length": chunk.size.toString(), // Add this
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error(`❌ Failed to upload part ${partNumber} to S3:`, {
+          status: uploadResponse.status,
+          statusText: uploadResponse.statusText,
+          error: errorText,
+        });
+        throw new Error(`Failed to upload part ${partNumber}: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      }
+
+      const etag = uploadResponse.headers.get("ETag");
+      if (!etag) {
+        console.error(`❌ No ETag received for part ${partNumber}`);
+        throw new Error(`No ETag received for part ${partNumber}`);
+      }
+
+      console.log(`✅ Part ${partNumber} uploaded successfully, ETag: ${etag}`);
+
+      return {
+        ETag: etag.replace(/"/g, ""),
+        PartNumber: partNumber,
+      };
+    } catch (error: any) {
+      console.error(`❌ Error uploading chunk ${partNumber}:`, error);
+      throw error;
     }
-
-    const etag = uploadResponse.headers.get("ETag");
-    if (!etag) {
-      console.error(`❌ No ETag received for part ${partNumber}`);
-      throw new Error(`No ETag received for part ${partNumber}`);
-    }
-
-    console.log(`✅ Part ${partNumber} uploaded successfully, ETag: ${etag}`);
-
-    return {
-      ETag: etag.replace(/"/g, ""),
-      PartNumber: partNumber,
-    };
-  } catch (error: any) {
-    console.error(`❌ Error uploading chunk ${partNumber}:`, error);
-    throw error;
-  }
-};
+  };
 
   const startUpload = async (file: File, resumeState?: UploadState) => {
     setUploading(true);
     setError(null);
     setPaused(false);
 
-    let uploadId: string;
-    let key: string;
-    let s3UploadId: string;
+    let uploadId: string = "";
+    let key: string = "";
+    let s3UploadId: string = "";
     let uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
     let completedChunks: number[] = [];
     let uploadedBytes = 0;
@@ -219,7 +219,7 @@ export function FileUploadDialog({
         uploadedParts = resumeState.uploadedParts;
         completedChunks = resumeState.completedChunks;
         uploadedBytes = resumeState.uploadedBytes;
-        
+
         console.log("📥 Resuming upload:", { uploadId, progress: Math.round((uploadedBytes / file.size) * 100) + '%' });
         await uploadStateManager.resumeUpload(uploadId);
       } else {
@@ -278,7 +278,7 @@ export function FileUploadDialog({
 
       for (let i = 0; i < numChunks; i++) {
         const partNumber = i + 1;
-        
+
         // Skip already uploaded chunks
         if (completedChunks.includes(partNumber)) {
           console.log(`⏭️ Skipping already uploaded chunk ${partNumber}`);
@@ -384,27 +384,27 @@ export function FileUploadDialog({
         setCurrentUploadId(null);
         checkResumableUploads();
       }, 1500);
-    }  catch (error: any) {
-    console.error("❌ Upload failed:", error);
-    
-    // Provide more specific error messages
-    let errorMessage = error.message || "Upload failed";
-    if (error.message?.includes("Failed to fetch")) {
-      errorMessage = "Network error: Unable to connect to server. Please check your internet connection.";
-    } else if (error.message?.includes("presigned URL")) {
-      errorMessage = "Failed to get upload permission from server. Please try again.";
-    } else if (error.message?.includes("ETag")) {
-      errorMessage = "Upload completed but verification failed. Please try again.";
+    } catch (error: any) {
+      console.error("❌ Upload failed:", error);
+
+      // Provide more specific error messages
+      let errorMessage = error.message || "Upload failed";
+      if (error.message?.includes("Failed to fetch")) {
+        errorMessage = "Network error: Unable to connect to server. Please check your internet connection.";
+      } else if (error.message?.includes("presigned URL")) {
+        errorMessage = "Failed to get upload permission from server. Please try again.";
+      } else if (error.message?.includes("ETag")) {
+        errorMessage = "Upload completed but verification failed. Please try again.";
+      }
+
+      if (uploadId) {
+        await uploadStateManager.markAsFailed(uploadId, errorMessage);
+      }
+
+      setError(errorMessage);
+      setUploading(false);
     }
-    
-    if (uploadId) {
-      await uploadStateManager.markAsFailed(uploadId, errorMessage);
-    }
-    
-    setError(errorMessage);
-    setUploading(false);
-  }
-};
+  };
 
   const pauseUpload = async () => {
     if (currentUploadId) {
@@ -420,7 +420,7 @@ export function FileUploadDialog({
       setError("Please select the original file to resume");
       return;
     }
-    
+
     await startUpload(selectedFile, uploadState);
   };
 
@@ -434,7 +434,7 @@ export function FileUploadDialog({
           body: JSON.stringify({ key: state.key, uploadId: state.uploadId }),
         });
       }
-      
+
       await uploadStateManager.deleteUploadState(currentUploadId);
       setUploading(false);
       setPaused(false);

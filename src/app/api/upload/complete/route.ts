@@ -55,12 +55,19 @@ export async function POST(request: NextRequest) {
 
       console.log("✅ S3 upload completed:", fileUrl);
 
+      if (taskId === "drive-upload") {
+        console.log("📂 Drive upload completed, skipping DB updates");
+        return NextResponse.json({
+          success: true,
+          fileUrl,
+          fileName,
+          etag: s3Response.ETag,
+          location: s3Response.Location,
+        });
+      }
+
       // 🔥 Determine folderType based on subfolder
       const folderType = !subfolder || subfolder === "main" ? "main" : subfolder;
-
-      // ═══════════════════════════════════════════════════════════════
-      // 🔥 VERSION CONTROL LOGIC - START
-      // ═══════════════════════════════════════════════════════════════
 
       // 1. Find the current active file for this task + folderType
       const existingActiveFile = await prisma.file.findFirst({
@@ -79,10 +86,7 @@ export async function POST(request: NextRequest) {
       // 2. If active file exists, mark it as inactive
       if (existingActiveFile) {
         newVersion = existingActiveFile.version + 1;
-
         console.log(`📦 Found existing v${existingActiveFile.version}, creating v${newVersion}`);
-
-        // We'll update the old file's replacedBy after creating the new file
       }
 
       // 3. Create new file record with version
@@ -113,13 +117,8 @@ export async function POST(request: NextRequest) {
             replacedBy: fileRecord.id,
           },
         });
-
         console.log(`📁 v${existingActiveFile.version} marked inactive, replaced by v${newVersion}`);
       }
-
-      // ═══════════════════════════════════════════════════════════════
-      // 🔥 VERSION CONTROL LOGIC - END
-      // ═══════════════════════════════════════════════════════════════
 
       // Add file URL to task.driveLinks (only if not already there)
       await prisma.task.update({
