@@ -472,19 +472,43 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     },
   });
 
-  // Set this task as the master template for RecurringTask
-  await prisma.recurringTask.updateMany({
+  // ─────────────────────────────────────────
+  // 🔥 ENSURE RECURRING TASK TRACKER IS UPDATED
+  // ─────────────────────────────────────────
+  const existingRecurring = await prisma.recurringTask.findFirst({
     where: {
       clientId: clientId,
       deliverableId: deliverable.id,
-      templateTaskId: null,
-    },
-    data: {
-      templateTaskId: taskId,
     },
   });
 
-  console.log(`✅ Set task ${taskId} as master template for client ${clientId}`);
+  if (existingRecurring) {
+    await prisma.recurringTask.update({
+      where: { id: existingRecurring.id },
+      data: {
+        templateTaskId: taskId, // Update to the newest blueprint
+      },
+    });
+    console.log(`✅ Updated existing RecurringTask ${existingRecurring.id} with new template ${taskId}`);
+  } else {
+    // Determine next month's start for the tracker
+    const now = new Date();
+    const nextMonth = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
+    const nextYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+    const nextRunDate = new Date(nextYear, nextMonth, 1);
+
+    const newRecurring = await prisma.recurringTask.create({
+      data: {
+        clientId: clientId,
+        deliverableId: deliverable.id,
+        templateTaskId: taskId,
+        active: true,
+        nextRunDate: nextRunDate,
+        scheduleType: deliverable.postingSchedule || "monthly",
+      },
+    });
+    console.log(`✅ Created NEW RecurringTask ${newRecurring.id} for deliverable ${deliverable.id}`);
+  }
   console.log(`✅ Template task (#1) updated: ${title1}`);
 
   // STEP 7 — Create remaining tasks (starting from #2)
@@ -540,6 +564,22 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   }
 
   console.log(`✅ Created ${creates.length} additional tasks (Total: ${count} tasks)`);
+
+  // 📝 LOG THE SUCCESSFUL RUN
+  try {
+    const runDate = new Date(templateTask.dueDate);
+    await prisma.monthlyRun.create({
+      data: {
+        clientId: clientId,
+        month: runDate.getMonth() + 1, // 1-based month
+        year: runDate.getFullYear(),
+        runAt: new Date(),
+      },
+    });
+    console.log(`📊 Logged MonthlyRun for ${clientId} (${runDate.getMonth() + 1}/${runDate.getFullYear()})`);
+  } catch (error) {
+    console.error("⚠️ Failed to log MonthlyRun:", error);
+  }
 
   return { created: creates.length };
 }
