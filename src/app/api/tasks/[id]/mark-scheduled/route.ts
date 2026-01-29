@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
+import { notifyUser } from "@/lib/notify";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -39,6 +40,31 @@ export async function PATCH(
         updatedAt: new Date(),
       },
     });
+
+    // 🔔 Notify editor and client
+    try {
+      // Notify Editor
+      await notifyUser({
+        userId: updated.assignedTo,
+        type: "task_scheduled",
+        title: "Content Scheduled/Posted",
+        body: `Your task "${updated.title}" has been marked as scheduled.`,
+        payload: { taskId: updated.id }
+      });
+
+      // Notify Client User
+      if (updated.clientUserId) {
+        await notifyUser({
+          userId: updated.clientUserId,
+          type: "task_scheduled",
+          title: "Content Live",
+          body: `Content "${updated.title}" is now live/scheduled.`,
+          payload: { taskId: updated.id }
+        });
+      }
+    } catch (notifErr) {
+      console.error("Failed to send scheduled notification:", notifErr);
+    }
 
     return NextResponse.json({ task: updated }, { status: 200 });
   } catch (err: any) {

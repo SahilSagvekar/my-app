@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { startTitlingJob } from '@/lib/titling-service';
+import { notifyUser } from "@/lib/notify";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -127,19 +128,79 @@ export async function PATCH(
     });
 
     // ============================================
-    // NEW: Email Notifications
+    // NEW: In-app & Email Notifications
     // ============================================
     try {
       if (finalStatus === "IN_PROGRESS" && task.status !== "IN_PROGRESS") {
         // Only trigger if role is editor or admin/manager starting it
         const { sendEditorStartedEmail } = await import("@/lib/email-notifications");
         sendEditorStartedEmail(id, user?.name || "An editor");
-      } else if (finalStatus === "CLIENT_REVIEW" && task.status !== "CLIENT_REVIEW") {
+      }
+
+      else if (finalStatus === "READY_FOR_QC" && task.status !== "READY_FOR_QC") {
+        // Notify QC specialist
+        if (task.qc_specialist) {
+          await notifyUser({
+            userId: task.qc_specialist,
+            type: "content_ready",
+            title: "Task Ready for QC",
+            body: `Task "${task.title}" is ready for your review.`,
+            payload: { taskId: task.id }
+          });
+        }
+      }
+
+      else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
+        // Notify Editor
+        await notifyUser({
+          userId: task.assignedTo,
+          type: "task_rejected",
+          title: "Task Needs Revision",
+          body: `Task "${task.title}" has been rejected: ${qcNotes || "Please check QC notes."}`,
+          payload: { taskId: task.id }
+        });
+      }
+
+      else if (finalStatus === "CLIENT_REVIEW" && task.status !== "CLIENT_REVIEW") {
+        // Email
         const { sendTaskReadyForReviewEmail } = await import("@/lib/email-notifications");
         sendTaskReadyForReviewEmail(id);
+
+        // Notify Client User
+        if (task.clientUserId) {
+          await notifyUser({
+            userId: task.clientUserId,
+            type: "review_queue",
+            title: "Content Ready for Review",
+            body: `Your content "${task.title}" is ready for review.`,
+            payload: { taskId: task.id }
+          });
+        }
       }
-    } catch (emailErr) {
-      console.error("[StatusUpdate] Notification error:", emailErr);
+
+      else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
+        // Notify Editor that it's approved
+        await notifyUser({
+          userId: task.assignedTo,
+          type: "qc_approval",
+          title: "Task Approved",
+          body: `Your task "${task.title}" has been approved.`,
+          payload: { taskId: task.id }
+        });
+
+        // Notify Scheduler
+        if (task.scheduler) {
+          await notifyUser({
+            userId: task.scheduler,
+            type: "approved_content",
+            title: "New Content to Schedule",
+            body: `Task "${task.title}" is approved and ready for scheduling.`,
+            payload: { taskId: task.id }
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error("[StatusUpdate] Notification error:", notifErr);
     }
     // ============================================
 

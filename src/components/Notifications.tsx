@@ -7,17 +7,16 @@ import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from './ui/sheet';
 import { useNotifications } from './NotificationContext';
-import { 
-  Bell, 
-  CheckCircle, 
-  AlertTriangle, 
-  Clock, 
-  FileText, 
-  User, 
-  MessageCircle, 
-  Calendar, 
-  Trash2, 
-  MarkAsRead,
+import {
+  Bell,
+  CheckCircle,
+  AlertTriangle,
+  Clock,
+  FileText,
+  User,
+  MessageCircle,
+  Calendar,
+  Trash2,
   X,
   Shield,
   Eye
@@ -111,7 +110,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
               )}
             </div>
             <p className={`text-sm ${notification.read ? 'text-muted-foreground' : 'text-foreground'}`}>
-              {notification.message}
+              {notification.body}
             </p>
             <div className="flex items-center gap-2 mt-2">
               {notification.user && (
@@ -123,7 +122,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
                 </div>
               )}
               <span className="text-xs text-muted-foreground">
-                {notification.timestamp}
+                {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : ""}
               </span>
             </div>
           </div>
@@ -176,7 +175,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
           <SheetDescription>
             View and manage your notifications and alerts
           </SheetDescription>
-          
+
           <div className="flex items-center gap-2 mt-4">
             <Button
               variant={filter === 'all' ? 'default' : 'outline'}
@@ -213,8 +212,8 @@ export function Notifications({ currentRole }: NotificationsProps) {
                 <Bell className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <h3 className="text-lg font-medium mb-2">No notifications</h3>
                 <p className="text-sm">
-                  {filter === 'all' 
-                    ? "You're all caught up!" 
+                  {filter === 'all'
+                    ? "You're all caught up!"
                     : "No unread notifications"}
                 </p>
               </div>

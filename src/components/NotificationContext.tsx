@@ -48,43 +48,45 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // ----------------------------
   // INITIAL FETCH FROM BACKEND
   // ----------------------------
-  // useEffect(() => {
-  //   fetch("/api/notifications")
-  //     .then((res) => res.json())
-  //     .then((data) => {
-  //       if (data.notifications) {
-  //         setNotifications(data.notifications);
-  //       }
-  //     });
+  useEffect(() => {
+    fetch("/api/notifications")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.notifications) {
+          setNotifications(data.notifications);
+        }
+      });
 
-  //   // ----------------------------
-  //   // REALTIME CONNECTION (SSE)
-  //   // ----------------------------
-  //   const connect = () => {
-  //     const es = new EventSource("/api/notifications/stream");
-  //     esRef.current = es;
+    // ----------------------------
+    // REALTIME CONNECTION (SSE)
+    // ----------------------------
+    const connect = () => {
+      if (esRef.current) esRef.current.close();
 
-  //     es.addEventListener("notification", (e) => {
-  //       const notif = JSON.parse(e.data);
+      const es = new EventSource("/api/notifications/stream");
+      esRef.current = es;
 
-  //       setNotifications((prev) => {
-  //         if (prev.some((item) => item.id === notif.id)) return prev;
-  //         return [notif, ...prev];
-  //       });
-  //     });
+      es.addEventListener("notification", (e) => {
+        const notif = JSON.parse(e.data);
 
-  //     es.onerror = () => {
-  //       es.close();
-  //       setTimeout(connect, 2000);
-  //     };
-  //   };
+        setNotifications((prev) => {
+          if (prev.some((item) => item.id === notif.id)) return prev;
+          return [notif, ...prev];
+        });
+      });
 
-  //   connect();
+      es.onerror = () => {
+        es.close();
+        setTimeout(connect, 3000); // Wait 3s before reconnecting
+      };
+    };
 
-  //   return () => {
-  //     esRef.current?.close();
-  //   };
-  // }, []);
+    connect();
+
+    return () => {
+      esRef.current?.close();
+    };
+  }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -118,8 +120,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const markAllAsRead = () => {
-    notifications.forEach((n) => markAsRead(n.id));
+  const markAllAsRead = async () => {
+    await fetch("/api/notifications/mark-all-read", { method: "PATCH" });
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   // ----------------------------
