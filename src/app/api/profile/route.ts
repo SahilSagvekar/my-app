@@ -105,6 +105,7 @@ export async function GET(req: NextRequest) {
         monthlyRate: true,
         hoursPerWeek: true,
         monthlyBaseHours: true,
+        emailNotifications: true,
       },
     });
 
@@ -165,9 +166,10 @@ export async function PUT(req: NextRequest) {
 
     const name = formData.get("name") as string;
     const phone = formData.get("phone") as string;
+    const emailNotifications = formData.get("emailNotifications") as string;
     const imageFile = formData.get("image") as File | null;
 
-    console.log("Received data:", { name, phone, hasImage: !!imageFile });
+    console.log("Received data:", { name, phone, emailNotifications, hasImage: !!imageFile });
 
     // Find existing user
     const user = await prisma.user.findUnique({
@@ -245,6 +247,10 @@ export async function PUT(req: NextRequest) {
       updateData.image = imageUrl;
     }
 
+    if (emailNotifications !== null) {
+      updateData.emailNotifications = emailNotifications === "true";
+    }
+
     console.log("Updating user with data:", updateData);
 
     // Update user profile in database
@@ -258,6 +264,7 @@ export async function PUT(req: NextRequest) {
         image: true,
         phone: true,
         role: true,
+        emailNotifications: true,
         updatedAt: true,
       },
     });

@@ -23,38 +23,78 @@ async function getAllClientEmails(clientId: string): Promise<string[]> {
     const client = await prisma.client.findUnique({
         where: { id: clientId },
         include: {
+            user: {
+                select: {
+                    email: true,
+                    emailNotifications: true
+                }
+            },
             linkedUsers: {
-                select: { email: true }
+                select: {
+                    email: true,
+                    emailNotifications: true
+                }
             }
         }
     });
 
-    console.log("client" + JSON.stringify(client))
-
-    if (!client) return [];
+    if (!client) {
+        console.log(`[EmailNotification] Client ${clientId} not found.`);
+        return [];
+    }
 
     const emailSet = new Set<string>();
+    const blockedEmails = new Set<string>();
 
-    // 1. Primary email on Client record
-    if (client.email) emailSet.add(client.email.trim());
+    // 1. Identify blocked emails from ALL associated users
+    const allAssociatedUsers = [
+        ...(client.user ? [client.user] : []),
+        ...(client.linkedUsers || [])
+    ];
 
-    // 2. Additional emails array on Client record
+    allAssociatedUsers.forEach(u => {
+        if (u.emailNotifications === false && u.email) {
+            const blocked = u.email.trim().toLowerCase();
+            blockedEmails.add(blocked);
+            console.log(`[EmailNotification] User ${blocked} has OPTED OUT.`);
+        }
+    });
+
+    // 2. Add Primary email on Client record (if not blocked)
+    if (client.email) {
+        const primary = client.email.trim();
+        if (!blockedEmails.has(primary.toLowerCase())) {
+            emailSet.add(primary);
+        } else {
+            console.log(`[EmailNotification] Blocked company primary email: ${primary}`);
+        }
+    }
+
+    // 3. Add Additional emails array on Client record (if not blocked)
     if (client.emails && Array.isArray(client.emails)) {
         client.emails.forEach(e => {
-            if (e && e.trim()) emailSet.add(e.trim());
+            if (e && e.trim()) {
+                const email = e.trim();
+                if (!blockedEmails.has(email.toLowerCase())) {
+                    emailSet.add(email);
+                } else {
+                    console.log(`[EmailNotification] Blocked company additional email: ${email}`);
+                }
+            }
         });
     }
 
-    // 3. Linked User emails
-    if (client.linkedUsers) {
-        client.linkedUsers.forEach(u => {
-            if (u.email && u.email.trim()) emailSet.add(u.email.trim());
-        });
-    }
+    // 4. Add User emails who have notifications enabled
+    allAssociatedUsers.forEach(u => {
+        if (u.email && u.email.trim() && u.emailNotifications !== false) {
+            emailSet.add(u.email.trim());
+        }
+    });
 
-    console.log("emailSet" + JSON.stringify(Array.from(emailSet)));
+    const finalEscapedEmails = Array.from(emailSet);
+    console.log(`[EmailNotification] Final recipient list for ${client.name}:`, finalEscapedEmails);
 
-    return Array.from(emailSet);
+    return finalEscapedEmails;
 }
 
 /**

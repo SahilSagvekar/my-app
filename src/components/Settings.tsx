@@ -22,7 +22,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     phone: '',
     role: '',
     image: '',
-    
+
     // Notification preferences
     emailNotifications: true,
     pushNotifications: true,
@@ -31,7 +31,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     teamUpdates: false,
     systemMaintenance: true,
     weeklyReports: true,
-    
+
     // Appearance settings
     theme: 'system',
     language: 'en',
@@ -57,7 +57,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     try {
       setLoading(true);
       setError('');
-      
+
       const response = await fetch('/api/profile', {
         method: 'GET',
         credentials: 'include', // This sends cookies automatically
@@ -114,7 +114,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         setError('Image size must be less than 1MB');
         return;
       }
-      
+
       setImageFile(file);
       // Create preview
       const reader = new FileReader();
@@ -134,6 +134,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
       const formDataToSend = new FormData();
       formDataToSend.append('name', formData.name || '');
       formDataToSend.append('phone', formData.phone || '');
+      formDataToSend.append('emailNotifications', String(formData.emailNotifications));
       // Note: Don't send 'role' as it's the system role (admin/editor/qc), not job title
 
       if (imageFile) {
@@ -163,7 +164,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         setMessage('Profile updated successfully!');
         setImageFile(null);
         setIsEditing(false);
-        
+
         // Update form data with response if provided
         if (data.data) {
           setFormData(prev => ({
@@ -178,7 +179,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
             setPreviewUrl(data.data.image);
           }
         }
-        
+
         setTimeout(() => {
           setMessage('');
         }, 3000);
@@ -297,7 +298,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         </div>
         <div className="flex gap-2">
           {!isEditing && (
-            <Button 
+            <Button
               onClick={() => setIsEditing(true)}
               className="flex items-center gap-2"
             >
@@ -551,8 +552,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
       <div className="flex-shrink-0 border-t p-6">
         {isEditing ? (
           <div className="flex items-center gap-3">
-            <Button 
-              onClick={handleSave} 
+            <Button
+              onClick={handleSave}
               disabled={loading}
               className="flex items-center gap-2"
             >
@@ -563,8 +564,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
               )}
               {loading ? 'Saving...' : 'Save Changes'}
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleCancel}
               disabled={loading}
             >
