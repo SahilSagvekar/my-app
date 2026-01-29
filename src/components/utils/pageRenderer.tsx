@@ -14,6 +14,7 @@ import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
 import { SchedulerReportsPage } from "../dashboards/SchedulerReportsPage";
 import { SchedulerTrainingPage } from "../dashboards/SchedulerTrainingPage";
+import { SchedulerPostedArchivePage } from "../dashboards/SchedulerPostedArchivePage";
 import { ManagerDashboard } from "../dashboards/ManagerDashboard";
 import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
@@ -157,6 +158,8 @@ export function renderPage(role: string, page: string): React.ReactElement {
         return <SchedulerTrainingPage currentRole={role} />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
+      case "posted-archive":
+        return <SchedulerPostedArchivePage />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:

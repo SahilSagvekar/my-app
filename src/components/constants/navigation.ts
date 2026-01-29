@@ -31,6 +31,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'analytics', label: 'Client Analytics', icon: BarChart3 },
+    { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'leaves', label: 'Employee Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
@@ -60,6 +61,7 @@ export const NAVIGATION_ITEMS = {
   ],
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
+    { id: 'posted-archive', label: 'Posted Content Archive', icon: Archive },
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'reports', label: 'Analytics', icon: FileSpreadsheet },

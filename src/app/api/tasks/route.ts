@@ -462,7 +462,7 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
           { scheduler: userId },
           {
             status: {
-              in: [TaskStatus.COMPLETED],
+              in: [TaskStatus.COMPLETED, TaskStatus.SCHEDULED],
             },
           },
         ],
@@ -627,6 +627,13 @@ export async function GET(req: Request) {
         monthlyDeliverableId: true,
         monthlyDeliverable: true,
         socialMediaLinks: true,
+        updatedAt: true,
+        client: {
+          select: {
+            name: true,
+            companyName: true,
+          }
+        },
         user: {
           select: {
             name: true,
@@ -714,7 +721,7 @@ export async function GET(req: Request) {
     // // ✅ NO COUNT QUERY - just return tasks
     // 🔥 ADD SIGNED URLs TO ALL TASK FILES
     const tasksWithSignedUrls = await Promise.all(
-      sortedTasks.map(async (task) => {
+      sortedTasks.map(async (task: any) => {
         if (task.files && task.files.length > 0) {
           const filesWithSignedUrls = await addSignedUrlsToFiles(task.files);
           return {
