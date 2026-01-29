@@ -97,50 +97,6 @@ async function getAllClientEmails(clientId: string): Promise<string[]> {
     return finalEscapedEmails;
 }
 
-/**
- * Send email when an editor starts a task
- */
-export async function sendEditorStartedEmail(taskId: string, editorName: string) {
-    try {
-        const task = await prisma.task.findUnique({
-            where: { id: taskId },
-            include: { client: true }
-        });
-
-        if (!task || !task.client) {
-            console.error(`[EmailNotification] Task or client not found for ID: ${taskId}`);
-            return;
-        }
-
-        const clientEmails = await getAllClientEmails(task.client.id);
-        if (clientEmails.length === 0) {
-            console.log(`[EmailNotification] No emails found for client: ${task.client.name}`);
-            return;
-        }
-
-        const mailOptions = {
-            from: `"E8 Productions" <i@needediting.com>`,
-            to: clientEmails.join(', '),
-            subject: `Task Started: ${task.title || 'Untitled Task'}`,
-            html: `
-        <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
-          <h2 style="color: #0070f3;">Project Update</h2>
-          <p>Hi ${task.client.name},</p>
-          <p>Good news! Our editor <strong>${editorName}</strong> has started working on your task: <strong>${task.title || 'Untitled Task'}</strong>.</p>
-          <p>We will notify you once it's ready for your review.</p>
-          <br />
-          <p>Best regards,</p>
-          <p><strong>E8 Productions Team</strong></p>
-        </div>
-      `,
-        };
-
-        await transporter.sendMail(mailOptions);
-        console.log(`✅ Editor started email sent to: ${clientEmails.join(', ')}`);
-    } catch (error) {
-        console.error('❌ Failed to send editor started email:', error);
-    }
-}
 
 /**
  * Send email when a task is ready for client review

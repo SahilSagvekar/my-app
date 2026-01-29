@@ -131,13 +131,7 @@ export async function PATCH(
     // NEW: In-app & Email Notifications
     // ============================================
     try {
-      if (finalStatus === "IN_PROGRESS" && task.status !== "IN_PROGRESS") {
-        // Only trigger if role is editor or admin/manager starting it
-        const { sendEditorStartedEmail } = await import("@/lib/email-notifications");
-        sendEditorStartedEmail(id, user?.name || "An editor");
-      }
-
-      else if (finalStatus === "READY_FOR_QC" && task.status !== "READY_FOR_QC") {
+      if (finalStatus === "READY_FOR_QC" && task.status !== "READY_FOR_QC") {
         // Notify QC specialist
         if (task.qc_specialist) {
           await notifyUser({
