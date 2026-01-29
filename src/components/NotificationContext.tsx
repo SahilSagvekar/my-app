@@ -57,6 +57,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
       });
 
+    const playSound = () => {
+      try {
+        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3"); // Light ping sound
+        audio.volume = 0.5;
+        audio.play().catch(err => console.warn("Audio play blocked:", err));
+      } catch (err) {
+        console.warn("Notification sound failed:", err);
+      }
+    };
+
     // ----------------------------
     // REALTIME CONNECTION (SSE)
     // ----------------------------
@@ -71,6 +81,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         setNotifications((prev) => {
           if (prev.some((item) => item.id === notif.id)) return prev;
+          playSound();
           return [notif, ...prev];
         });
       });
