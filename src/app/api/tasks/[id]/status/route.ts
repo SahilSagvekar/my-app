@@ -86,8 +86,8 @@ export async function PATCH(
     // ============================================
     // NEW: Trigger AI titling on QC approval
     // ============================================
-    const shouldTriggerTitling = 
-      role.toLowerCase() === "qc" && 
+    const shouldTriggerTitling =
+      role.toLowerCase() === "qc" &&
       (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW") &&
       task.titlingStatus !== 'COMPLETED' && // Don't re-trigger if already done
       task.titlingStatus !== 'PROCESSING'; // Don't re-trigger if in progress
@@ -95,10 +95,10 @@ export async function PATCH(
     if (shouldTriggerTitling) {
       // Check if task has a video file
       const hasVideoFile = task.files.some(f => f.mimeType?.startsWith('video/'));
-      
+
       if (hasVideoFile) {
         console.log(`\n🎬 QC approved task ${id} - triggering AI titling`);
-        
+
         // Start titling in background (don't await - let it run async)
         startTitlingJob(id)
           .then(({ jobId, transcriptId }) => {
@@ -125,6 +125,23 @@ export async function PATCH(
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
+
+    // ============================================
+    // NEW: Email Notifications
+    // ============================================
+    try {
+      if (finalStatus === "IN_PROGRESS" && task.status !== "IN_PROGRESS") {
+        // Only trigger if role is editor or admin/manager starting it
+        const { sendEditorStartedEmail } = await import("@/lib/email-notifications");
+        sendEditorStartedEmail(id, user?.name || "An editor");
+      } else if (finalStatus === "CLIENT_REVIEW" && task.status !== "CLIENT_REVIEW") {
+        const { sendTaskReadyForReviewEmail } = await import("@/lib/email-notifications");
+        sendTaskReadyForReviewEmail(id);
+      }
+    } catch (emailErr) {
+      console.error("[StatusUpdate] Notification error:", emailErr);
+    }
+    // ============================================
 
     await createAuditLog({
       userId: userId,
