@@ -5,6 +5,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   try {
+    console.log("ENV CHECK:", {
+  hasDbUrl: !!process.env.DATABASE_URL,
+  dbUrlStart: process.env.DATABASE_URL?.substring(0, 20) + "..."
+});
+
     console.log("[LOGIN] 1. Request received");
     
     const { email, password } = await req.json();
@@ -63,6 +68,7 @@ export async function POST(req: Request) {
     console.log("[LOGIN] 9. Done");
     return response;
   } catch (err) {
+    console.log("[LOGIN] Error:", err);
     console.error("[LOGIN] Error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }

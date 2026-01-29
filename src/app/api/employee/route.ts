@@ -137,21 +137,21 @@ export async function POST(req: Request) {
     }
 
     // 4️⃣ Send welcome email (only for new users)
-    if (tempPassword) {
-      const emailResult = await sendWelcomeEmail({
-        email: data.email,
-        name: data.name,
-        role: data.role || 'editor',
-        tempPassword, // ← Pass the temporary password
-      });
+    // if (tempPassword) {
+    //   const emailResult = await sendWelcomeEmail({
+    //     email: data.email,
+    //     name: data.name,
+    //     role: data.role || 'editor',
+    //     tempPassword, // ← Pass the temporary password
+    //   });
 
-      if (!emailResult.success) {
-        console.error('Failed to send welcome email, but employee created');
-        // Don't fail the request if email fails
-      } else {
-        console.log('✅ Welcome email sent successfully');
-      }
-    }
+    //   if (!emailResult.success) {
+    //     console.error('Failed to send welcome email, but employee created');
+    //     // Don't fail the request if email fails
+    //   } else {
+    //     console.log('✅ Welcome email sent successfully');
+    //   }
+    // }
 
     return NextResponse.json({
       ok: true,

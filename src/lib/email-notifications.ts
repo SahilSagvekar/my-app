@@ -29,6 +29,8 @@ async function getAllClientEmails(clientId: string): Promise<string[]> {
         }
     });
 
+    console.log("client" + JSON.stringify(client))
+
     if (!client) return [];
 
     const emailSet = new Set<string>();
@@ -49,6 +51,8 @@ async function getAllClientEmails(clientId: string): Promise<string[]> {
             if (u.email && u.email.trim()) emailSet.add(u.email.trim());
         });
     }
+
+    console.log("emailSet" + JSON.stringify(Array.from(emailSet)));
 
     return Array.from(emailSet);
 }
@@ -132,9 +136,6 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
           <p>Your task <strong>${task.title || 'Untitled Task'}</strong> is now ready for your review!</p>
           <p>Please log in to your dashboard to review the files and provide feedback.</p>
           <div style="margin: 30px 0;">
-            <a href="${dashboardUrl}" style="background-color: #0070f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-              Review Task Now
-            </a>
           </div>
           <br />
           <p>Best regards,</p>
