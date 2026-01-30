@@ -84,20 +84,11 @@ export function LayoutShell({
 
   const fetchUserData = async () => {
     try {
-      const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+      // Since the token is stored in cookies, the browser will 
+      // automatically include it in the request.
+      const response = await fetch('/api/profile');
 
-      if (!token) {
-        setLoadingUserData(false);
-        return;
-      }
-
-      const response = await fetch('/api/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      console.log('Profile response status:', response);
+      console.log('Profile status:', response.status);
 
       const data = await response.json();
 
