@@ -24,8 +24,10 @@ import {
   MessageSquare,
   Send,
   RotateCcw,
+  History,
 } from 'lucide-react';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
+import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -143,6 +145,8 @@ export function ClientDashboard() {
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
   const { user } = useAuth();
 
   /* ---------------------------- FETCH CLIENT TASKS -------------------------- */
@@ -649,7 +653,7 @@ export function ClientDashboard() {
                       <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
                         Pending
                       </Badge>
-                    </div>                   
+                    </div>
                   </div>
                 </Card>
               );
@@ -686,6 +690,21 @@ export function ClientDashboard() {
                             {group.files.length} file{group.files.length !== 1 ? 's' : ''}
                           </Badge>
                         </div>
+                        {group.folderType === 'thumbnails' && group.files.length > 1 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-white/50 hover:bg-white text-xs h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setComparisonFiles(group.files);
+                              setShowComparison(true);
+                            }}
+                          >
+                            <History className="h-3.5 w-3.5 mr-1.5" />
+                            Compare Versions
+                          </Button>
+                        )}
                       </div>
 
                       {/* Files in this section */}
@@ -869,6 +888,16 @@ export function ClientDashboard() {
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
       />
+
+      {/* Thumbnail Comparison Modal */}
+      {selectedTask && (
+        <ThumbnailComparisonModal
+          isOpen={showComparison}
+          onOpenChange={setShowComparison}
+          thumbnails={comparisonFiles}
+          taskTitle={selectedTask.title}
+        />
+      )}
     </div>
   );
 }
