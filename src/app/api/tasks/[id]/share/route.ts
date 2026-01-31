@@ -52,9 +52,9 @@ export async function POST(
             return NextResponse.json({ error: 'Task not found' }, { status: 404 });
         }
 
-        // Check if user has permission (QC, admin, or manager)
-        const userRole = decoded.role;
-        if (!['qc', 'admin', 'manager'].includes(userRole)) {
+        // Check if user has permission (Client, admin, or manager)
+        const userRole = decoded.role?.toLowerCase();
+        if (!['client', 'admin', 'manager'].includes(userRole)) {
             return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
         }
 

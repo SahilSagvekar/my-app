@@ -754,8 +754,8 @@ export function FullScreenReviewModalFrameIO({
                                 </div>
                             </div>
 
-                            {/* 🔥 NEW: In-Header Share Link (Very Visible) */}
-                            {shareLink && (
+                            {/* 🔥 NEW: In-Header Share Link (Visible only to clients) */}
+                            {userRole === 'client' && shareLink && (
                                 <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-full animate-in fade-in slide-in-from-top-4 duration-500 mx-4">
                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                                     <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider whitespace-nowrap">Shared Review:</span>
@@ -817,19 +817,21 @@ export function FullScreenReviewModalFrameIO({
                                     <Download className="h-4 w-4" />
                                 </Button>
 
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleGenerateShareLink}
-                                    disabled={generatingLink}
-                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                >
-                                    {generatingLink ? (
-                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                    ) : (
-                                        <Share className="h-4 w-4" />
-                                    )}
-                                </Button>
+                                {userRole === 'client' && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleGenerateShareLink}
+                                        disabled={generatingLink}
+                                        className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                    >
+                                        {generatingLink ? (
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                        ) : (
+                                            <Share className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                )}
 
                                 <Button
                                     variant="ghost"

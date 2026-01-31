@@ -25,9 +25,13 @@ import {
   Send,
   RotateCcw,
   History,
+  Share,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
+import { ShareDialog } from '../review/ShareDialog';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -147,6 +151,10 @@ export function ClientDashboard() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareLink, setShareLink] = useState("");
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const { user } = useAuth();
 
   /* ---------------------------- FETCH CLIENT TASKS -------------------------- */
@@ -310,6 +318,62 @@ export function ClientDashboard() {
       toast.error("Failed to request revisions");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  /* -------------------------- SHARE HANDLERS ------------------------------- */
+
+  const handleGenerateShareLink = async (task?: ClientTask) => {
+    const taskToShare = task || selectedTask;
+    if (!taskToShare) return;
+
+    try {
+      setGeneratingLink(true);
+      setLinkCopied(false);
+
+      const response = await fetch(`/api/tasks/${taskToShare.id}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expiresInDays: 0 // 0 means never expires
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate share link');
+      }
+
+      setShareLink(data.shareUrl);
+      setShowShareDialog(true);
+
+      // Auto-copy to clipboard
+      try {
+        await navigator.clipboard.writeText(data.shareUrl);
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 3000);
+        toast.success('Share link generated and copied to clipboard!');
+      } catch (copyErr) {
+        toast.success('Share link generated successfully!');
+      }
+    } catch (error: any) {
+      console.error('Error generating share link:', error);
+      toast.error(error.message || 'Failed to generate share link');
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setLinkCopied(true);
+      toast.success('Link copied to clipboard!');
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      toast.error('Failed to copy link');
     }
   };
 
@@ -615,10 +679,23 @@ export function ClientDashboard() {
                       </div>
                     </div>
 
-                    {/* File Count - Top Right */}
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm">
-                      <FileText className="h-3 w-3" />
-                      {task.files?.length || 0}
+                    {/* File Count & Share - Top Right */}
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm">
+                        <FileText className="h-3 w-3" />
+                        {task.files?.length || 0}
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-7 w-7 rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:bg-white flex items-center justify-center p-0 border border-zinc-200/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGenerateShareLink(task);
+                        }}
+                      >
+                        <Share className="h-3.5 w-3.5 text-zinc-700" />
+                      </Button>
                     </div>
 
                     {/* Bottom Right Clock Icon in Circle */}
@@ -777,6 +854,19 @@ export function ClientDashboard() {
             <div className="flex items-center justify-end gap-3 pt-4 border-t mt-4">
               <Button
                 variant="outline"
+                className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 mr-auto"
+                onClick={() => handleGenerateShareLink()}
+                disabled={generatingLink}
+              >
+                {generatingLink ? (
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Share className="h-4 w-4 mr-2" />
+                )}
+                Share Review
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => {
                   setShowFileSelector(false);
                   setShowRevisionDialog(true);
@@ -798,6 +888,15 @@ export function ClientDashboard() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Share dialog */}
+      <ShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        shareLink={shareLink}
+        onCopy={handleCopyLink}
+        copied={linkCopied}
+      />
 
       {/* Revision Request Dialog */}
       {selectedTask && (
