@@ -13,23 +13,21 @@ function getTokenFromCookies(req: Request) {
 // POST /api/tasks/[id]/share - Generate a shareable link
 export async function POST(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id: taskId } = await params;
+
         const token = getTokenFromCookies(req);
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        console.log('🔍 Decoded Token:', decoded);
-
         if (!decoded?.userId) {
-            console.error('❌ No userId in decoded token');
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id: taskId } = params;
         console.log('📋 Generating share link for taskId:', taskId);
 
         const body = await req.json();
@@ -109,9 +107,11 @@ export async function POST(
 // GET /api/tasks/[id]/share - Get existing share links for a task
 export async function GET(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id: taskId } = await params;
+
         const token = getTokenFromCookies(req);
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -121,8 +121,6 @@ export async function GET(
         if (!decoded?.userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-
-        const { id: taskId } = params;
 
         // Get all active share links for this task
         const shareLinks = await prisma.shareableReview.findMany({
@@ -163,9 +161,11 @@ export async function GET(
 // DELETE /api/tasks/[id]/share - Deactivate a share link
 export async function DELETE(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id: taskId } = await params;
+
         const token = getTokenFromCookies(req);
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -186,7 +186,7 @@ export async function DELETE(
         // Deactivate the share link
         await prisma.shareableReview.updateMany({
             where: {
-                taskId: params.id,
+                taskId,
                 shareToken,
             },
             data: {
