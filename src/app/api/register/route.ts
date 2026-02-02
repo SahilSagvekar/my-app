@@ -1,9 +1,16 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
+import { getGeoLocation, formatLocation } from '@/lib/geo';
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown';
+  const userAgent = req.headers.get('user-agent') || 'unknown';
+
+  // Fetch location data
+  const locationData = await getGeoLocation(ip);
+  const locationString = formatLocation(locationData);
   try {
     const { name, email, phone, password, acceptTerms } = await req.json();
 
@@ -35,22 +42,39 @@ export async function POST(req: Request) {
           },
         });
 
+        // Add audit log for existing client registration
+        await prisma.auditLog.create({
+          data: {
+            userId: updatedUser.id,
+            action: 'CLIENT_SIGNUP_COMPLETE',
+            entity: 'User',
+            entityId: String(updatedUser.id),
+            details: `Client completed registration from ${locationString}`,
+            ipAddress: ip,
+            userAgent: userAgent,
+            metadata: {
+              location: locationData,
+              method: 'standard'
+            } as any
+          }
+        });
+
         if (!process.env.JWT_SECRET) {
           throw new Error("JWT_SECRET not configured");
         }
 
         const token = jwt.sign(
           { userId: updatedUser.id, email: updatedUser.email, role: updatedUser.role },
-          process.env.JWT_SECRET,
+          process.env.JWT_SECRET!,
           { expiresIn: "7d" }
         );
 
         const response = NextResponse.json({
-          user: { 
-            id: updatedUser.id, 
-            name: updatedUser.name, 
-            email: updatedUser.email, 
-            role: updatedUser.role 
+          user: {
+            id: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role
           },
           message: "Registration completed successfully",
         });
@@ -80,13 +104,30 @@ export async function POST(req: Request) {
       },
     });
 
+    // Add audit log for new user signup
+    await prisma.auditLog.create({
+      data: {
+        userId: newUser.id,
+        action: 'USER_SIGNUP',
+        entity: 'User',
+        entityId: String(newUser.id),
+        details: `New user signed up from ${locationString}`,
+        ipAddress: ip,
+        userAgent: userAgent,
+        metadata: {
+          location: locationData,
+          method: 'standard'
+        } as any
+      }
+    });
+
     if (!process.env.JWT_SECRET) {
       throw new Error("JWT_SECRET not configured");
     }
 
     const token = jwt.sign(
       { userId: newUser.id, email: newUser.email, role: newUser.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET!,
       { expiresIn: "7d" }
     );
 
