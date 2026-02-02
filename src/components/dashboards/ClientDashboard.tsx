@@ -587,45 +587,32 @@ export function ClientDashboard() {
 
   return (
     <div className="flex flex-col h-full space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Content Review</h1>
-          <p className="text-muted-foreground mt-2">
+      {/* Page Header & Stats Row */}
+      <div className="flex flex-row items-center justify-between pb-6 border-b border-zinc-100">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Content Review</h1>
+          <p className="text-sm text-zinc-500">
             Review content from your team and approve or request revisions
           </p>
         </div>
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Review</p>
-                <h3 className="text-2xl font-bold">{pendingReviews}</h3>
+        <div className="flex items-center">
+          <div className="flex items-center gap-4 px-4 py-2 rounded-2xl bg-zinc-50/50 border border-zinc-200/60">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Tasks Pending</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-zinc-900">{pendingReviews}</span>
+                <span className="text-[10px] text-zinc-400 font-medium">items</span>
               </div>
-              <Clock className="h-8 w-8 text-blue-500" />
             </div>
-          </CardContent>
-        </Card>
-
-      </div>
-
-      {/* Review Queue */}
-      <div className="flex-1">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              Review Queue
-              <Badge variant="secondary" className="font-mono">
-                {pendingReviews}
-              </Badge>
-            </h2>
-            <p className="text-xs text-muted-foreground">Click on any card to review its files</p>
+            <div className="h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-zinc-100">
+              <Clock className="h-5 w-5 text-blue-500" />
+            </div>
           </div>
         </div>
+      </div>
+
+      <div className="flex-1">
 
         {loading ? (
           <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
