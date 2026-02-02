@@ -933,7 +933,7 @@ export function FullScreenReviewModalFrameIO({
                             </div>
 
                             {/* Timeline + Controls */}
-                            <div className="mt-4 px-0">
+                            <div className="mt-4 px-6">
                                 {/* Timeline with markers */}
                                 {videoSource.type === 'video' && (
                                     <ReviewTimeline

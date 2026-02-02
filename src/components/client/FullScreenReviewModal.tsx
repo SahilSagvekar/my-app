@@ -691,59 +691,61 @@ export function FullScreenReviewModal({
 
                     {/* Interactive Timeline */}
                     <div className="absolute bottom-0 left-0 right-0 px-0 pb-4">
-                      <div className="relative bg-white/5 h-12 rounded-lg px-6 flex items-center">
-                        {/* Time display at the top */}
-                        <div className="flex justify-between w-full absolute top-1 left-0 px-4 pointer-events-none">
-                          <span className="text-[10px] text-white/50 font-mono">{formatTime(currentTime)}</span>
-                          <span className="text-[10px] text-white/50 font-mono">{formatTime(duration)}</span>
-                        </div>
+                      <div className="relative bg-white/5 h-12 rounded-lg flex items-center">
+                        <div className="relative mx-12 flex-1 h-full flex items-center">
+                          {/* Time display at the top */}
+                          <div className="flex justify-between w-full absolute top-1 left-0 pointer-events-none">
+                            <span className="text-[10px] text-white/50 font-mono">{formatTime(currentTime)}</span>
+                            <span className="text-[10px] text-white/50 font-mono">{formatTime(duration)}</span>
+                          </div>
 
-                        <div className="relative flex-1 h-2">
-                          {/* Time tooltip */}
-                          {hoverTime !== null && (
-                            <div
-                              className="absolute -top-10 bg-black/80 text-white text-xs px-2 py-1 rounded pointer-events-none z-10"
-                              style={{
-                                left: `${(hoverTime / duration) * 100}%`,
-                                transform: 'translateX(-50%)'
-                              }}
-                            >
-                              {formatTime(hoverTime)}
-                            </div>
-                          )}
-
-                          {/* Timeline track */}
-                          <div
-                            ref={timelineRef}
-                            className="relative bg-white/20 h-2 rounded-full cursor-pointer group"
-                            onClick={handleTimelineClick}
-                            onMouseMove={handleTimelineMouseMove}
-                            onMouseLeave={handleTimelineMouseLeave}
-                            onMouseDown={handleTimelineDragStart}
-                          >
-                            {/* Progress fill */}
-                            <div
-                              className="bg-white h-2 rounded-full transition-all duration-150"
-                              style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-                            />
-
-                            {/* Hover indicator */}
+                          <div className="relative flex-1 h-2">
+                            {/* Time tooltip */}
                             {hoverTime !== null && (
                               <div
-                                className="absolute top-0 w-0.5 h-2 bg-white/60"
-                                style={{ left: `${(hoverTime / duration) * 100}%` }}
-                              />
+                                className="absolute -top-10 bg-black/80 text-white text-xs px-2 py-1 rounded pointer-events-none z-10"
+                                style={{
+                                  left: `${(hoverTime / duration) * 100}%`,
+                                  transform: 'translateX(-50%)'
+                                }}
+                              >
+                                {formatTime(hoverTime)}
+                              </div>
                             )}
 
-                            {/* Playhead */}
+                            {/* Timeline track */}
                             <div
-                              className="absolute top-1/2 w-4 h-4 bg-white rounded-full shadow-lg transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-grab active:cursor-grabbing"
-                              style={{
-                                left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                                transform: 'translate(-50%, -50%)'
-                              }}
+                              ref={timelineRef}
+                              className="relative bg-white/20 h-2 rounded-full cursor-pointer group"
+                              onClick={handleTimelineClick}
+                              onMouseMove={handleTimelineMouseMove}
+                              onMouseLeave={handleTimelineMouseLeave}
                               onMouseDown={handleTimelineDragStart}
-                            />
+                            >
+                              {/* Progress fill */}
+                              <div
+                                className="bg-white h-2 rounded-full transition-all duration-150"
+                                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                              />
+
+                              {/* Hover indicator */}
+                              {hoverTime !== null && (
+                                <div
+                                  className="absolute top-0 w-0.5 h-2 bg-white/60"
+                                  style={{ left: `${(hoverTime / duration) * 100}%` }}
+                                />
+                              )}
+
+                              {/* Playhead */}
+                              <div
+                                className="absolute top-1/2 w-4 h-4 bg-white rounded-full shadow-lg transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-grab active:cursor-grabbing"
+                                style={{
+                                  left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                                  transform: 'translate(-50%, -50%)'
+                                }}
+                                onMouseDown={handleTimelineDragStart}
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>

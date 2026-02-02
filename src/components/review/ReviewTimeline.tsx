@@ -92,57 +92,59 @@ export const ReviewTimeline = memo(function ReviewTimeline({
     }, [comments, duration]);
 
     return (
-        <div className="review-timeline px-6 py-2">
-            {/* Time Display at the top */}
-            <div className="flex justify-between w-full absolute top-1 left-0 px-4 pointer-events-none">
-                <span className="text-[10px] text-[var(--review-text-muted)] font-mono">{formatTime(currentTime)}</span>
-                <span className="text-[10px] text-[var(--review-text-muted)] font-mono">{formatTime(duration)}</span>
-            </div>
-
-            {/* Comment Markers */}
-            {markerGroups.map((group: { time: number; comments: ReviewComment[] }, index: number) => (
-                <div
-                    key={index}
-                    className={`review-timeline-marker ${group.comments.some((c: ReviewComment) => c.id === activeCommentId) ? 'active' : ''
-                        }`}
-                    style={{ left: `${getPositionFromTime(group.time)}%` }}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onMarkerClick(group.comments[0]);
-                    }}
-                    title={`${group.comments.length} comment${group.comments.length > 1 ? 's' : ''} at ${formatTime(group.time)}`}
-                >
-                    {group.comments.length > 1 && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-white text-[var(--review-accent-purple)] text-[8px] font-bold rounded-full flex items-center justify-center">
-                            {group.comments.length}
-                        </span>
-                    )}
+        <div className="review-timeline !rounded-full" style={{ padding: '0 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div className="relative flex-1 h-2 flex items-center">
+                {/* Time Display at the top */}
+                <div className="flex justify-between w-full absolute -top-5 left-0 pointer-events-none">
+                    <span className="text-[10px] text-[var(--review-text-muted)] font-mono">{formatTime(currentTime)}</span>
+                    <span className="text-[10px] text-[var(--review-text-muted)] font-mono">{formatTime(duration)}</span>
                 </div>
-            ))}
 
-            {/* Track */}
-            <div
-                ref={trackRef}
-                className="review-timeline-track"
-                onClick={handleTrackClick}
-                onMouseDown={handleMouseDown}
-            >
-                {/* Progress - Uses scaleX for performance */}
+                {/* Comment Markers */}
+                {markerGroups.map((group: { time: number; comments: ReviewComment[] }, index: number) => (
+                    <div
+                        key={index}
+                        className={`review-timeline-marker ${group.comments.some((c: ReviewComment) => c.id === activeCommentId) ? 'active' : ''
+                            }`}
+                        style={{ left: `${getPositionFromTime(group.time)}%` }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onMarkerClick(group.comments[0]);
+                        }}
+                        title={`${group.comments.length} comment${group.comments.length > 1 ? 's' : ''} at ${formatTime(group.time)}`}
+                    >
+                        {group.comments.length > 1 && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-white text-[var(--review-accent-purple)] text-[8px] font-bold rounded-full flex items-center justify-center">
+                                {group.comments.length}
+                            </span>
+                        )}
+                    </div>
+                ))}
+
+                {/* Track */}
                 <div
-                    className="review-timeline-progress"
-                    style={{ transform: `scaleX(${getPositionFromTime(currentTime) / 100})` }}
+                    ref={trackRef}
+                    className="review-timeline-track !left-0 !right-0 !rounded-full"
+                    onClick={handleTrackClick}
+                    onMouseDown={handleMouseDown}
+                >
+                    {/* Progress - Uses percentage for width */}
+                    <div
+                        className="review-timeline-progress !rounded-full"
+                        style={{ width: `${getPositionFromTime(currentTime)}%` }}
+                    />
+                </div>
+
+                {/* Playhead */}
+                <div
+                    className="review-timeline-playhead"
+                    style={{
+                        left: `${getPositionFromTime(currentTime)}%`,
+                        transform: 'translate(-50%, -50%)'
+                    }}
+                    onMouseDown={handleMouseDown}
                 />
             </div>
-
-            {/* Playhead - Uses translateX for performance */}
-            <div
-                className="review-timeline-playhead"
-                style={{
-                    transform: `translate(calc(${getPositionFromTime(currentTime)} * (var(--track-width, 100%) / 100) - 50%), -50%)`,
-                    left: `${getPositionFromTime(currentTime)}%`
-                }}
-                onMouseDown={handleMouseDown}
-            />
         </div>
     );
 });
