@@ -110,9 +110,9 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
             (showAll ? safeTasks : safeTasks.slice(0, 5)).map((task) => (
               <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg border">
                 <Avatar className="h-8 w-8 mt-1">
-                  <AvatarFallback>
+                  {/* <AvatarFallback>
                     {task.assignedTo ? task.assignedTo.toString().slice(0, 2) : "?"}
-                  </AvatarFallback>
+                  </AvatarFallback> */}
                 </Avatar>
 
                 <div className="flex-1">
