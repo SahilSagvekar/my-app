@@ -10,7 +10,7 @@ export const ROLE_COLORS = {
 
 export const ROLE_NAMES = {
   admin: 'Admin',
-  editor: 'Editor', 
+  editor: 'Editor',
   qc: 'QC Specialist',
   scheduler: 'Scheduler',
   manager: 'Manager',
@@ -20,7 +20,8 @@ export const ROLE_NAMES = {
 
 export type UserRole = keyof typeof ROLE_COLORS;
 
-export const getUserDisplayName = (role: UserRole): string => {
+export const getUserDisplayName = (role: string): string => {
+  const r = role.toLowerCase() as UserRole;
   const names: Record<UserRole, string> = {
     admin: 'Admin User',
     editor: 'Editor User',
@@ -30,10 +31,11 @@ export const getUserDisplayName = (role: UserRole): string => {
     client: 'Client User',
     videographer: 'Video Photographer'
   };
-  return names[role];
+  return names[r] || 'Portal User';
 };
 
-export const getUserAvatar = (role: UserRole): string => {
+export const getUserAvatar = (role: string): string => {
+  const r = role.toLowerCase() as UserRole;
   const avatars: Record<UserRole, string> = {
     admin: 'AU',
     editor: 'EU',
@@ -43,5 +45,5 @@ export const getUserAvatar = (role: UserRole): string => {
     client: 'CU',
     videographer: 'VP'
   };
-  return avatars[role];
+  return avatars[r] || 'PU';
 };

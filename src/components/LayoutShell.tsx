@@ -34,6 +34,7 @@ import {
 } from './constants/roles';
 import Image from 'next/image';
 import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
+import { useAuth } from './auth/AuthContext';
 
 interface LayoutShellProps {
   currentRole: string | null;  // UPDATED: Allow null
@@ -41,12 +42,6 @@ interface LayoutShellProps {
   onPageChange: (page: string) => void;
   onLogout: () => void;
   children: React.ReactNode;
-}
-
-interface UserData {
-  name: string;
-  email: string;
-  image: string;
 }
 
 export function LayoutShell({
@@ -58,18 +53,7 @@ export function LayoutShell({
 }: LayoutShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [userData, setUserData] = useState<UserData>({
-    name: '',
-    email: '',
-    image: '',
-  });
-  const [loadingUserData, setLoadingUserData] = useState(true);
-
-  // UPDATED: Handle null role
-  const items = currentRole ? (NAVIGATION_ITEMS[currentRole as NavigationRole] || []) : [];
-  // const roleDisplay = currentRole 
-  //   ? currentRole.charAt(0).toUpperCase() + currentRole.slice(1) 
-  //   : 'User';
+  const { user: authUser } = useAuth();
 
   const roleDisplay = currentRole
     ? currentRole.toLowerCase() === 'qc'
@@ -77,34 +61,8 @@ export function LayoutShell({
       : currentRole.charAt(0).toUpperCase() + currentRole.slice(1)
     : 'User';
 
-  // Fetch user data on mount
-  useEffect(() => {
-    fetchUserData();
-  }, []);
-
-  const fetchUserData = async () => {
-    try {
-      // Since the token is stored in cookies, the browser will 
-      // automatically include it in the request.
-      const response = await fetch('/api/profile');
-
-      console.log('Profile status:', response.status);
-
-      const data = await response.json();
-
-      if (data.success) {
-        setUserData({
-          name: data.data.name || '',
-          email: data.data.email || '',
-          image: data.data.image || '',
-        });
-      }
-    } catch (err) {
-      console.error('Failed to fetch user data:', err);
-    } finally {
-      setLoadingUserData(false);
-    }
-  };
+  // UPDATED: Handle null role
+  const items = currentRole ? (NAVIGATION_ITEMS[currentRole as NavigationRole] || []) : [];
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -177,10 +135,10 @@ export function LayoutShell({
                 <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-gray-100">
                   <Avatar className="h-8 w-8">
                     <AvatarImage
-                      src={userData.image}
-                      alt={userData.name}
+                      src={authUser?.image}
+                      alt={authUser?.name || ''}
                       onError={(e) => {
-                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || getUserDisplayName(currentRole as UserRole))}&background=random`;
+                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(authUser?.name || getUserDisplayName(currentRole as UserRole))}&background=random`;
                       }}
                     />
                     <AvatarFallback className="text-xs">
@@ -189,7 +147,7 @@ export function LayoutShell({
                   </Avatar>
                   <div className="hidden sm:block text-left">
                     <div className="text-sm font-medium">
-                      {userData.name || getUserDisplayName(currentRole as UserRole)}
+                      {authUser?.name || getUserDisplayName(currentRole as UserRole)}
                     </div>
                     {/* <Badge
                       className={`text-xs ${ROLE_COLORS[currentRole as UserRole]}`}
@@ -206,10 +164,10 @@ export function LayoutShell({
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
                       <AvatarImage
-                        src={userData.image}
-                        alt={userData.name}
+                        src={authUser?.image}
+                        alt={authUser?.name || ''}
                         onError={(e) => {
-                          e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || getUserDisplayName(currentRole as UserRole))}&background=random`;
+                          e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(authUser?.name || getUserDisplayName(currentRole as UserRole))}&background=random`;
                         }}
                       />
                       <AvatarFallback className="text-xs">
@@ -218,10 +176,10 @@ export function LayoutShell({
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">
-                        {userData.name || getUserDisplayName(currentRole as UserRole)}
+                        {authUser?.name || getUserDisplayName(currentRole as UserRole)}
                       </p>
                       <p className="text-xs text-gray-500 truncate">
-                        {userData.email}
+                        {authUser?.email || ''}
                       </p>
                     </div>
                   </div>

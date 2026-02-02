@@ -8,6 +8,7 @@ interface User {
   id: string;
   email: string;
   name?: string;
+  image?: string;
   role: string;
   linkedClientId?: string; // Client ID for users with client role
 }
