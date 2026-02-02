@@ -1,25 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+import { getCurrentUser2 } from "@/lib/auth";
 import { addClient } from "@/lib/notifications-bus";
 
 export const dynamic = "force-dynamic";
 
-function getTokenFromCookies(req: Request) {
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-    const match = cookieHeader.match(/authToken=([^;]+)/);
-    return match ? match[1] : null;
-}
-
-export async function GET(req: Request) {
-    const token = getTokenFromCookies(req);
-    if (!token) {
+export async function GET(req: any) {
+    const user = await getCurrentUser2(req);
+    if (!user) {
         return new Response("Unauthorized", { status: 401 });
     }
 
     try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        const userId = Number(decoded.userId);
+        const userId = user.id;
         const clientKey = `${userId}:${Date.now()}`;
 
         const stream = new ReadableStream({

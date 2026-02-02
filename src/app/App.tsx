@@ -1,30 +1,32 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { AuthProvider, useAuth } from '../components/auth/AuthContext';
-import { NotificationProvider } from '../components/NotificationContext';
-import { SearchProvider } from '../components/SearchContext';
-import { LoginScreen } from '../components/auth/LoginScreen';
-import { ForgotPasswordScreen } from '../components/auth/ForgotPasswordScreen';
-import { ResetPasswordScreen } from '../components/auth/ResetPasswordScreen';
-import { TwoFactorScreen } from '../components/auth/TwoFactorScreen';
-import { LayoutShell } from '../components/LayoutShell';
-import { getDefaultPage } from '../components/constants/navigation';
-import { renderPage } from '../components/utils/pageRenderer';
+import { useState, useEffect } from "react";
+import { AuthProvider, useAuth } from "../components/auth/AuthContext";
+import { NotificationProvider } from "../components/NotificationContext";
+import { SearchProvider } from "../components/SearchContext";
+import { LoginScreen } from "../components/auth/LoginScreen";
+import { ForgotPasswordScreen } from "../components/auth/ForgotPasswordScreen";
+import { ResetPasswordScreen } from "../components/auth/ResetPasswordScreen";
+import { TwoFactorScreen } from "../components/auth/TwoFactorScreen";
+import { LayoutShell } from "../components/LayoutShell";
+import { getDefaultPage } from "../components/constants/navigation";
+import { renderPage } from "../components/utils/pageRenderer";
+import { PendingRoleScreen } from "../components/auth/PendingRoleScreen";
+import { UploadProvider } from "../components/workflow/UploadContext";
 
-type AuthScreen = 'login' | 'forgot-password' | 'reset-password' | 'two-factor';
-
-
+type AuthScreen = "login" | "forgot-password" | "reset-password" | "two-factor";
 
 function AuthenticatedApp() {
   const { user, logout, loading } = useAuth();
-  const [currentPage, setCurrentPage] = useState(() => getDefaultPage(user?.role || 'admin'));
+  const [currentPage, setCurrentPage] = useState(() =>
+    getDefaultPage(user?.role || "admin")
+  );
 
   useEffect(() => {
-    const savedPage = localStorage.getItem('returnToPage');
+    const savedPage = localStorage.getItem("returnToPage");
     if (savedPage) {
-      console.log('Restoring page:', savedPage);
-      localStorage.removeItem('returnToPage');
+      console.log("Restoring page:", savedPage);
+      localStorage.removeItem("returnToPage");
       setCurrentPage(savedPage);
     }
   }, []);
@@ -36,9 +38,13 @@ function AuthenticatedApp() {
   if (loading) return <div>Loading...</div>;
   if (!user) return <div>Not logged in</div>;
 
+  // 🔥 Handle user with no role assigned yet
+  if (!user.role) {
+    return <PendingRoleScreen user={user} onLogout={logout} />;
+  }
 
   return (
-    <NotificationProvider currentRole={user.role}>
+    <NotificationProvider>
       <SearchProvider>
         <LayoutShell
           currentRole={user.role}
@@ -58,48 +64,30 @@ function AuthenticationFlow() {
     isAuthenticated,
     loading,
     login,
-    forgotPassword,
-    resetPassword,
     verifyTwoFactor,
-    resendTwoFactorCode
+    resendTwoFactorCode,
   } = useAuth();
 
-  const [currentScreen, setCurrentScreen] = useState<AuthScreen>('login');
+  const [currentScreen, setCurrentScreen] = useState<AuthScreen>("login");
   const [authError, setAuthError] = useState<string | null>(null);
-  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
-  const [pendingTwoFactorEmail, setPendingTwoFactorEmail] = useState<string>('');
-  const [resetToken] = useState('demo-reset-token'); // Mock token
+  const [pendingTwoFactorEmail, setPendingTwoFactorEmail] = useState<string>("");
+  const [resetToken] = useState("demo-reset-token"); // Mock token
 
-  const handleLogin = async (email: string, password: string, rememberMe: boolean) => {
+  const handleLogin = async (
+    email: string,
+    password: string,
+    rememberMe: boolean
+  ) => {
     try {
       setAuthError(null);
       await login(email, password, rememberMe);
     } catch (error: any) {
-      if (error.message === '2FA_REQUIRED') {
+      if (error.message === "2FA_REQUIRED") {
         setPendingTwoFactorEmail(email);
-        setCurrentScreen('two-factor');
+        setCurrentScreen("two-factor");
       } else {
         setAuthError(error.message);
       }
-    }
-  };
-
-  const handleForgotPassword = async (email: string) => {
-    try {
-      setAuthError(null);
-      await forgotPassword(email);
-      setForgotPasswordSuccess(true);
-    } catch (error: any) {
-      setAuthError(error.message);
-    }
-  };
-
-  const handleResetPassword = async (newPassword: string, confirmPassword: string, token: string) => {
-    try {
-      setAuthError(null);
-      await resetPassword(newPassword, confirmPassword, token);
-    } catch (error: any) {
-      setAuthError(error.message);
     }
   };
 
@@ -122,13 +110,12 @@ function AuthenticationFlow() {
   };
 
   const handleOAuthLogin = (provider: string) => {
-    setAuthError('OAuth login not implemented in demo');
+    setAuthError("OAuth login handled by NextAuth");
   };
 
   const resetAuthState = () => {
     setAuthError(null);
-    setForgotPasswordSuccess(false);
-    setPendingTwoFactorEmail('');
+    setPendingTwoFactorEmail("");
   };
 
   if (loading) {
@@ -139,14 +126,13 @@ function AuthenticationFlow() {
     return <AuthenticatedApp />;
   }
 
-
-  if (currentScreen === 'login') {
+  if (currentScreen === "login") {
     return (
       <LoginScreen
         onLogin={handleLogin}
         onForgotPassword={() => {
           resetAuthState();
-          setCurrentScreen('forgot-password');
+          setCurrentScreen("forgot-password");
         }}
         onOAuthLogin={handleOAuthLogin}
         loading={loading}
@@ -155,25 +141,21 @@ function AuthenticationFlow() {
     );
   }
 
-  if (currentScreen === 'forgot-password') {
+  if (currentScreen === "forgot-password") {
     return (
       <ForgotPasswordScreen
-        onSendResetLink={handleForgotPassword}
         onBackToLogin={() => {
           resetAuthState();
-          setCurrentScreen('login');
+          setCurrentScreen("login");
         }}
-        loading={loading}
-        success={forgotPasswordSuccess}
-        error={authError}
       />
     );
   }
 
-  if (currentScreen === 'reset-password') {
+  if (currentScreen === "reset-password") {
     return (
       <ResetPasswordScreen
-        onResetPassword={handleResetPassword}
+        onResetPassword={() => console.log("Direct reset not implemented")}
         token={resetToken}
         loading={loading}
         error={authError}
@@ -181,15 +163,15 @@ function AuthenticationFlow() {
     );
   }
 
-  if (currentScreen === 'two-factor') {
+  if (currentScreen === "two-factor") {
     return (
       <TwoFactorScreen
         onVerifyCode={handleTwoFactorVerification}
         onResendCode={handleResendTwoFactorCode}
-        onUseBackupCode={() => console.log('Backup code not implemented')}
+        onUseBackupCode={() => console.log("Backup code not implemented")}
         onBackToLogin={() => {
           resetAuthState();
-          setCurrentScreen('login');
+          setCurrentScreen("login");
         }}
         loading={loading}
         error={authError}
@@ -200,8 +182,6 @@ function AuthenticationFlow() {
 
   return null;
 }
-
-import { UploadProvider } from '../components/workflow/UploadContext';
 
 export default function App() {
   return (

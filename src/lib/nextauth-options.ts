@@ -1,4 +1,4 @@
-import { NextAuthOptions } from "next-auth";
+import type { NextAuthConfig } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
 import SlackProvider from "next-auth/providers/slack";
@@ -6,11 +6,12 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-export const authOptions: any = {
-    adapter: PrismaAdapter(prisma),
-    secret: process.env.NEXTAUTH_SECRET,
+export const authOptions: NextAuthConfig = {
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+    trustHost: true,
+    debug: true,
     session: { strategy: "jwt" },
-    pages: { signIn: "/auth/login" },
+    pages: { signIn: "/login" },
 
     providers: [
         GoogleProvider({
@@ -61,15 +62,41 @@ export const authOptions: any = {
     ],
 
     callbacks: {
-        async jwt({ token, user }: any) {
+        async jwt({ token, user, account }: any) {
+            console.log("DEBUG [JWT CALLBACK] token:", !!token, "user:", !!user, "account:", account?.provider);
+
             if (user) {
-                token.id = user.id;
-                token.role = (user as any).role;
+                // Handle OAuth (Google/Slack) sign-ins manually since we removed the adapter
+                if (account?.provider === "google" || account?.provider === "slack") {
+                    let dbUser = await prisma.user.findFirst({
+                        where: { email: user.email as string },
+                    });
+
+                    // If user doesn't exist, create them with no role (pending)
+                    if (!dbUser) {
+                        dbUser = await prisma.user.create({
+                            data: {
+                                email: user.email as string,
+                                name: user.name,
+                                image: user.image,
+                                role: null, // Initial state is pending
+                            }
+                        });
+                    }
+
+                    token.id = dbUser.id.toString();
+                    token.role = dbUser.role;
+                } else {
+                    // Credentials login already has correct data from authorize()
+                    token.id = user.id;
+                    token.role = (user as any).role;
+                }
             }
             return token;
         },
 
         async session({ session, token }: any) {
+            console.log("DEBUG [SESSION CALLBACK] token:", !!token, "session:", !!session);
             if (token && session.user) {
                 session.user.id = token.id as string;
                 session.user.role = token.role;
@@ -80,13 +107,18 @@ export const authOptions: any = {
 
     events: {
         async signIn({ user }: { user: any }) {
-            const { createAuditLog, AuditAction } = await import('./audit-logger');
-            await createAuditLog({
-                userId: parseInt(user.id),
-                action: AuditAction.USER_LOGIN,
-                details: `User logged in: ${user.email}`,
-                metadata: { email: user.email, role: user.role }
-            });
+            console.log("DEBUG [SIGNIN EVENT] user:", user?.email);
+            try {
+                const { createAuditLog, AuditAction } = await import('./audit-logger');
+                await createAuditLog({
+                    userId: parseInt(user.id),
+                    action: AuditAction.USER_LOGIN,
+                    details: `User logged in: ${user.email}`,
+                    metadata: { email: user.email, role: user.role }
+                });
+            } catch (err) {
+                console.error("DEBUG [SIGNIN EVENT ERROR]:", err);
+            }
         }
     }
 };

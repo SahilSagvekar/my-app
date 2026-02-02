@@ -2,6 +2,7 @@
 "use client";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { SessionExpiredModal } from "@/components/auth/SessionExpiredModal";
 
 interface User {
@@ -9,7 +10,7 @@ interface User {
   email: string;
   name?: string;
   image?: string;
-  role: string;
+  role: string | null;
   linkedClientId?: string; // Client ID for users with client role
 }
 
@@ -17,8 +18,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (newPassword: string, confirmPassword: string, token: string) => Promise<void>;
+  verifyTwoFactor: (code: string) => Promise<void>;
+  resendTwoFactorCode: () => Promise<void>;
   handleSessionExpired: () => void;
 }
 
@@ -30,6 +35,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [showSessionExpired, setShowSessionExpired] = useState(false);
   const router = useRouter();
+
+  // Track auth state in a ref for the fetch interceptor
+  const authStateRef = React.useRef({ isAuthenticated, user });
+  React.useEffect(() => {
+    authStateRef.current = { isAuthenticated, user };
+  }, [isAuthenticated, user]);
 
   // Check auth status on mount
   useEffect(() => {
@@ -85,11 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             (data.message?.includes('jwt expired') ||
               data.message?.includes('Token expired') ||
               data.message?.includes('TokenExpiredError') ||
-              data.error?.includes('jwt expired') ||
-              data.message?.includes('Unauthorized'))
+              data.error?.includes('jwt expired'))
           ) {
-            // Show session expired modal
-            setShowSessionExpired(true);
+            // Only show modal if user WAS authenticated and it's a specific token error
+            if (authStateRef.current.isAuthenticated) {
+              setShowSessionExpired(true);
+            }
           }
         }
       } catch (e) {
@@ -105,12 +117,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe?: boolean) => {
     setLoading(true);
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, rememberMe }),
     });
 
     if (!res.ok) {
@@ -128,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await fetch("/api/logout", { method: "POST" });
+      await signOut({ redirect: false });
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -145,6 +158,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout();
   };
 
+  const forgotPassword = async (email: string) => { console.log('Forgot password stub:', email); };
+  const resetPassword = async (newPassword: string, confirmPassword: string, token: string) => { console.log('Reset password stub:', token); };
+  const verifyTwoFactor = async (code: string) => { console.log('Verify 2FA stub:', code); };
+  const resendTwoFactorCode = async () => { console.log('Resend 2FA stub'); };
+
   return (
     <AuthContext.Provider
       value={{
@@ -153,6 +171,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         login,
         logout,
+        forgotPassword,
+        resetPassword,
+        verifyTwoFactor,
+        resendTwoFactorCode,
         handleSessionExpired
       }}
     >

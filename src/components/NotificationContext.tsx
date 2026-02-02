@@ -8,6 +8,7 @@ import {
   useState,
   ReactNode,
 } from "react";
+import { useAuth } from "./auth/AuthContext";
 
 interface Notification {
   id: string;
@@ -44,18 +45,32 @@ export function useNotifications() {
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const esRef = useRef<EventSource | null>(null);
+  const { user } = useAuth();
 
   // ----------------------------
   // INITIAL FETCH FROM BACKEND
   // ----------------------------
   useEffect(() => {
-    fetch("/api/notifications")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.notifications) {
-          setNotifications(data.notifications);
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch("/api/notifications");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.notifications) {
+            setNotifications(data.notifications);
+          }
         }
-      });
+      } catch (err) {
+        console.error("Failed to fetch notifications:", err);
+      }
+    };
+
+    fetchNotifications();
 
     const playSound = () => {
       try {
@@ -97,7 +112,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return () => {
       esRef.current?.close();
     };
-  }, []);
+  }, [user?.id]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 

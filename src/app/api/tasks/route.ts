@@ -512,15 +512,16 @@ const WEEKDAY_MAP: Record<string, number> = {
   Saturday: 6,
 };
 
-export async function GET(req: Request) {
+import { getCurrentUser2 } from "@/lib/auth";
+
+export async function GET(req: any) {
   try {
-    const token = getTokenFromCookies(req);
-    if (!token) {
+    const user = await getCurrentUser2(req);
+    if (!user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    const { role, userId } = decoded;
+    const { role, id: userId } = user;
 
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -745,18 +746,16 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: any) {
   try {
     // 🔒 AUTH
-    const token = getTokenFromCookies(req);
-    if (!token)
+    const user = await getCurrentUser2(req);
+    if (!user)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    const { role, id: userId } = user;
 
-    const { role, userId } = decoded;
-
-    if (!["admin", "manager"].includes(decoded.role)) {
+    if (!role || !["admin", "manager"].includes(role.toLowerCase())) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
@@ -852,7 +851,7 @@ export async function POST(req: Request) {
         qc_specialist,
         scheduler,
         videographer,
-        createdBy: decoded.userId,
+        createdBy: userId,
         clientId: clientId,
         clientUserId: client?.userId,
         monthlyDeliverableId: monthlyDeliverableId,
@@ -913,7 +912,7 @@ export async function POST(req: Request) {
           url: uploaded.url,
           mimeType: file.type,
           size: BigInt(buffer.length),
-          uploadedBy: decoded.userId,
+          uploadedBy: userId,
         },
       });
     }

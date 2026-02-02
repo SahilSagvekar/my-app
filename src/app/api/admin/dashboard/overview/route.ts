@@ -35,18 +35,19 @@ export function requireAdmin(user: JWTUser | null) {
   return null;
 }
 
-export async function GET(req: NextRequest) {
+import { getCurrentUser2 } from '@/lib/auth';
+
+export async function GET(req: any) {
   const startTime = Date.now();
 
   try {
-    const currentUser = getUserFromToken(req);
-    const authError = requireAdmin(currentUser);
+    const user = await getCurrentUser2(req);
+    if (!user) {
+      return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (authError) {
-      return NextResponse.json(
-        { ok: false, message: authError.error },
-        { status: authError.status }
-      );
+    if (user.role?.toLowerCase() !== 'admin') {
+      return NextResponse.json({ ok: false, message: 'Access denied. Admin only.' }, { status: 403 });
     }
 
     const [

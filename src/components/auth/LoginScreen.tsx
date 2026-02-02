@@ -1,4 +1,7 @@
+"use client";
+
 import { useState } from "react";
+import { signIn } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -224,8 +227,7 @@ export function LoginScreen({
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <Button
                   variant="outline"
-                  // onClick={() => onOAuthLogin("google")}
-                  onClick={() => window.location.href = "/api/auth/google"}
+                  onClick={() => signIn("google")}
                   disabled={loading}
                   className="w-full h-11"
                 >

@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import jwt from "jsonwebtoken";
+import { getCurrentUser2 } from "@/lib/auth";
 
-function getTokenFromCookies(req: Request) {
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-    const match = cookieHeader.match(/authToken=([^;]+)/);
-    return match ? match[1] : null;
-}
-
-export async function GET(req: Request) {
+export async function GET(req: any) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
+        const user = await getCurrentUser2(req);
+        if (!user) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
         }
 
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        const userId = Number(decoded.userId);
+        const userId = user.id;
 
         const notifications = await prisma.notification.findMany({
             where: { userId },

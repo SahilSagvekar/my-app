@@ -105,37 +105,40 @@ export async function getCurrentUser(req: NextRequest) {
 
 type Decoded = { userId: string; email: string; role?: string; name?: string };
 
+import { auth } from "@/auth";
+
 export async function getCurrentUser2(req?: NextRequest) {
   try {
-    // Prefer cookie; allow Authorization header for Postman
+    // 1. Try Custom JWT Token (Cookie or Header)
     const cookieToken = req
       ? req.cookies.get("authToken")?.value
       : (await cookies()).get("authToken")?.value;
 
-    // console.log(req.cookies.getAll());
-    // console.log(req.headers.get("cookie"))
-
     const headerToken = req?.headers.get("authorization")?.split(" ")[1];
-
     const token = cookieToken || headerToken;
 
-    if (!token) return null;
-
-    // const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as Decoded;
-    if (!process.env.JWT_SECRET) {
-      throw new Error("JWT_SECRET not configured");
+    if (token && process.env.JWT_SECRET) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as Decoded;
+        if (decoded?.userId) {
+          const user = await prisma.user.findUnique({ where: { id: Number(decoded.userId) } });
+          if (user) return user;
+        }
+      } catch (jwtErr) {
+        // Fall through to NextAuth
+      }
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET) as Decoded;
-    // console.log("getCurrentUser2 decoded:", decoded);
-    if (!decoded?.userId) return null;
 
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    // console.log("getCurrentUser2 user:", user);
-    if (!user) return null;
+    // 2. Try NextAuth Session (Google/Slack)
+    const session = await auth();
+    if (session?.user?.email) {
+      const user = await prisma.user.findFirst({
+        where: { email: session.user.email }
+      });
+      if (user) return user;
+    }
 
-    return user;
-
-    // return { userId: user.id, email: user.email, role: user.role, name: user.name };
+    return null;
   } catch (err) {
     console.error("getCurrentUser error:", err);
     return null;

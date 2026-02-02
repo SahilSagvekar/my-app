@@ -1,7 +1,7 @@
-// /app/api/me/route.ts
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "../../../../lib/prisma"; // adjust path if needed
+import { prisma } from "../../../../lib/prisma";
+import { auth } from "@/auth";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -15,40 +15,54 @@ export async function GET(req: Request) {
   try {
     const token = getTokenFromCookies(req);
 
-    // No cookie = not logged in
-    if (!token) {
-      return NextResponse.json({ user: null }, { status: 200 });
+    // 1. Try Custom JWT Token first
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        const user = await prisma.user.findFirst({
+          where: { id: Number(decoded.userId) },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            image: true,
+            linkedClientId: true,
+          },
+        });
+
+        if (user) {
+          return NextResponse.json({ user }, { status: 200 });
+        }
+      } catch (err) {
+        // Fall through to NextAuth check if JWT fails
+      }
     }
 
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!);
-    } catch (err) {
-      // Invalid / expired token = treat as logged out
-      return NextResponse.json({ user: null }, { status: 200 });
+    // 2. Try NextAuth Session (for Google/Slack)
+    const session: any = await auth();
+    if (session?.user?.email) {
+      const user = await prisma.user.findFirst({
+        where: { email: session.user.email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          image: true,
+          linkedClientId: true,
+        },
+      });
+
+      if (user) {
+        return NextResponse.json({ user }, { status: 200 });
+      }
     }
 
-    const { userId } = decoded;
-
-    const user = await prisma.user.findFirst({
-      where: { id: Number(userId) },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        image: true,
-        linkedClientId: true, // Include linked client ID for client users
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json({ user: null }, { status: 200 });
-    }
-
-    return NextResponse.json({ user }, { status: 200 });
+    // No valid auth found
+    return NextResponse.json({ user: null }, { status: 200 });
   } catch (error) {
-    // Never break UI — just return no user
+    console.error("DEBUG [ME ROUTE] Error:", error);
     return NextResponse.json({ user: null }, { status: 200 });
   }
 }
