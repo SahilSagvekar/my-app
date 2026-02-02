@@ -62,35 +62,26 @@ function verifyToken(token: string): { userId: number; role: string } | null {
   }
 }
 
+import { getCurrentUser2 } from "@/lib/auth";
+
 // GET - Fetch user profile
-export async function GET(req: NextRequest) {
+export async function GET(req: any) {
   const url = new URL(req.url);
   console.log(`[PROFILE API] GET ${url.pathname} - Start`);
   try {
-    const token = await getToken(req);
-    console.log(`[PROFILE API] Token found: ${!!token}`);
+    const user = await getCurrentUser2(req);
 
-    // No cookie = not logged in
-    if (!token) {
-      console.warn("[PROFILE API] No token found in request");
+    if (!user) {
+      console.warn("[PROFILE API] No user found in request");
       return NextResponse.json(
-        { success: false, error: "Unauthorized - No token provided" },
+        { success: false, error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const decoded = verifyToken(token);
+    const userId = user.id;
 
-    if (!decoded) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized - Invalid token" },
-        { status: 401 }
-      );
-    }
-
-    const { userId } = decoded;
-
-    const user = await prisma.user.findUnique({
+    const dbUser = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -109,14 +100,14 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json(
         { success: false, error: "User not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ success: true, data: user });
+    return NextResponse.json({ success: true, data: dbUser });
   } catch (error) {
     console.error("Error fetching profile:", error);
     return NextResponse.json(
@@ -127,29 +118,20 @@ export async function GET(req: NextRequest) {
 }
 
 // PUT - Update user profile with image upload
-export async function PUT(req: NextRequest) {
+export async function PUT(req: any) {
   console.log("[PROFILE API] PUT request received");
   try {
-    const token = await getToken(req);
+    const user = await getCurrentUser2(req);
 
-    if (!token) {
-      console.warn("[PROFILE API] No token found in PUT request");
+    if (!user) {
+      console.warn("[PROFILE API] No user found in request");
       return NextResponse.json(
-        { success: false, error: "Unauthorized - No token provided" },
+        { success: false, error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const decoded = verifyToken(token);
-
-    if (!decoded) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized - Invalid token" },
-        { status: 401 }
-      );
-    }
-
-    const { userId } = decoded;
+    const userId = user.id;
     console.log("Updating profile for userId:", userId);
 
     // Parse FormData
@@ -172,18 +154,18 @@ export async function PUT(req: NextRequest) {
     console.log("Received data:", { name, phone, emailNotifications, hasImage: !!imageFile });
 
     // Find existing user
-    const user = await prisma.user.findUnique({
+    const dbUser = await prisma.user.findUnique({
       where: { id: userId },
     });
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json(
         { success: false, error: "User not found" },
         { status: 404 }
       );
     }
 
-    let imageUrl = user.image;
+    let imageUrl = dbUser.image;
 
     // Handle image upload if provided
     if (imageFile && imageFile.size > 0) {
@@ -243,7 +225,7 @@ export async function PUT(req: NextRequest) {
     if (phone !== undefined) {
       updateData.phone = phone?.trim() || null;
     }
-    if (imageUrl !== user.image) {
+    if (imageUrl !== dbUser.image) {
       updateData.image = imageUrl;
     }
 

@@ -9,15 +9,16 @@ function getTokenFromCookies(req: Request) {
     return match ? match[1] : null;
 }
 
-export async function PATCH(req: Request) {
+import { getCurrentUser2 } from "@/lib/auth";
+
+export async function PATCH(req: any) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
+        const user = await getCurrentUser2(req);
+        if (!user) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
         }
 
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        const userId = Number(decoded.userId);
+        const userId = user.id;
 
         await prisma.notification.updateMany({
             where: { userId, read: false },
