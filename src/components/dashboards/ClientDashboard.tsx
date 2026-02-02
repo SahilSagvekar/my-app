@@ -596,9 +596,9 @@ export function ClientDashboard() {
           </p>
         </div>
 
-        <div className="flex items-center">
-          <div className="flex items-center justify-between gap-8 px-6 py-2.5 rounded-2xl bg-zinc-50/50 border border-zinc-200/60 min-w-[240px]">
-            <div className="flex flex-col">
+        <div className="flex items-center pl-70">
+          <div className="flex items-center justify-between gap-8 px-6 py-2.5 rounded-2xl bg-zinc-50/50 border border-zinc-200/60 min-w-[240px] ">
+            <div className="flex flex-col pl-20 pr-20">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Tasks Pending</span>
               <div className="flex items-baseline gap-1">
                 <span className="text-2xl font-bold text-zinc-900">{pendingReviews}</span>
