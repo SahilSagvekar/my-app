@@ -588,7 +588,7 @@ export function ClientDashboard() {
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Page Header & Stats Row */}
-      <div className="flex flex-row items-center justify-between pb-6 border-b border-zinc-100">
+      <div className="flex flex-row items-center justify-start gap-16 pb-6 border-b border-zinc-100">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Content Review</h1>
           <p className="text-sm text-zinc-500">
@@ -597,7 +597,7 @@ export function ClientDashboard() {
         </div>
 
         <div className="flex items-center">
-          <div className="flex items-center gap-4 px-4 py-2 rounded-2xl bg-zinc-50/50 border border-zinc-200/60">
+          <div className="flex items-center justify-between gap-8 px-6 py-2.5 rounded-2xl bg-zinc-50/50 border border-zinc-200/60 min-w-[240px]">
             <div className="flex flex-col">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Tasks Pending</span>
               <div className="flex items-baseline gap-1">
@@ -605,7 +605,7 @@ export function ClientDashboard() {
                 <span className="text-[10px] text-zinc-400 font-medium">items</span>
               </div>
             </div>
-            <div className="h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-zinc-100">
+            <div className="h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-zinc-100 flex-shrink-0">
               <Clock className="h-5 w-5 text-blue-500" />
             </div>
           </div>
