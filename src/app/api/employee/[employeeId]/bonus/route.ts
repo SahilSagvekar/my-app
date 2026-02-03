@@ -23,6 +23,21 @@ export async function POST(req: Request, context: { params: { employeeId: string
       },
     });
 
+    // 🔥 Audit bonus creation
+    const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+    await createAuditLog({
+      userId: employeeId,
+      action: AuditAction.USER_UPDATED,
+      entity: 'Bonus',
+      entityId: bonus.id,
+      details: `Admin added bonus of $${body.amount} to employee ${employeeId}`,
+      metadata: {
+        employeeId,
+        bonusAmount: body.amount,
+        addedBy: body.addedBy
+      }
+    });
+
     return NextResponse.json({ ok: true, bonus });
   } catch (err: any) {
     console.error(err);
