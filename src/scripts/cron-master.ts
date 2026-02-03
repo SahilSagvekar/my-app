@@ -21,11 +21,12 @@ console.log(`🔗 Target API: ${BASE_URL}`);
  */
 async function triggerJob(name: string, endpoint: string, method: 'GET' | 'POST' = 'GET', data: any = {}) {
     const start = Date.now();
+    const url = endpoint.startsWith('http') ? endpoint : `${BASE_URL}${endpoint}`;
+
     console.log(`\n⏰ [${new Date().toLocaleString()}] Starting Job: ${name}`);
+    console.log(`   Target: ${url}`);
 
     try {
-        const url = endpoint.startsWith('http') ? endpoint : `${BASE_URL}${endpoint}`;
-
         // Set up headers with CRON_SECRET if available
         const config = {
             headers: {
@@ -45,7 +46,14 @@ async function triggerJob(name: string, endpoint: string, method: 'GET' | 'POST'
         console.log(`✅ [${name}] Success (${duration}ms):`, response.data.message || 'Job completed');
     } catch (error: any) {
         const duration = Date.now() - start;
-        console.error(`❌ [${name}] Failed (${duration}ms):`, error.response?.data?.error || error.message);
+        const status = error.response?.status;
+        const statusText = error.response?.statusText;
+        console.error(`❌ [${name}] Failed (${duration}ms) [${status || 'No Status'} ${statusText || ''}]:`,
+            error.response?.data?.error || error.response?.data?.message || error.message);
+
+        if (status === 502) {
+            console.warn(`   ⚠️  Got 502 Bad Gateway. This usually means the Next.js app is down or restarting.`);
+        }
     }
 }
 
