@@ -383,3 +383,79 @@ export async function sendActivityReportEmail(reportUrl: string, date: Date, log
   }
 }
 
+export async function sendCronReportEmail(data: {
+  results: any[];
+  timestamp: string;
+}) {
+  const mailOptions = {
+    from: `"E8 Robot" <${process.env.SMTP_USER}>`,
+    to: "sahilsagvekar230@GMAIL.COM",
+    subject: `🤖 Daily Task Machine Report - ${new Date().toLocaleDateString()}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; }
+            .header { text-align: center; padding-bottom: 20px; }
+            .stats { display: flex; justify-content: space-around; background: #f0f7ff; padding: 15px; border-radius: 8px; margin: 20px 0; }
+            .stat-box { text-align: center; }
+            .stat-num { font-size: 24px; font-weight: bold; color: #007bff; }
+            .stat-label { font-size: 14px; color: #666; }
+            .details { margin-top: 20px; }
+            .client-row { padding: 10px; border-bottom: 1px solid #f9f9f9; }
+            .success { color: #28a745; font-weight: bold; }
+            .skipped { color: #dc3545; font-size: 13px; }
+            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🤖 Hello Sahil!</h1>
+              <p>Your "Task Machine" just finished its morning work!</p>
+            </div>
+
+            <p>I woke up at ${new Date(data.timestamp).toLocaleTimeString()} and checked all our clients to make sure their schedules are ready.</p>
+
+            <div class="stats">
+              <div class="stat-box">
+                <div class="stat-num">${data.results.reduce((acc, curr) => acc + (curr.created || 0), 0)}</div>
+                <div class="stat-label">New Tasks Made</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-num">${data.results.reduce((acc, curr) => acc + (curr.skipped || 0), 0)}</div>
+                <div class="stat-label">Clients Skipped</div>
+              </div>
+            </div>
+
+            <div class="details">
+              <h3>📝 Here is what I did:</h3>
+              ${data.results.map(res => `
+                <div class="client-row">
+                  <strong>${res.name}</strong>: 
+                  ${res.created > 0 ? `<span class="success">I made ${res.created} new tasks!</span>` : `<span class="skipped">I skipped this because ${res.skippedReason || 'the schedule is already full.'}</span>`}
+                </div>
+              `).join('')}
+            </div>
+
+            <p><strong>Why did I do this?</strong> To make sure your editors have work ready for them and you don't have to click "Create" a hundred times!</p>
+
+            <div class="footer">
+              <p>This report was sent automatically by the E8 Productions Robot.</p>
+              <p>Timestamp: ${data.timestamp}</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Cron report email sent to Sahil`);
+  } catch (error) {
+    console.error('❌ Failed to send cron report email:', error);
+  }
+}

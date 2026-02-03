@@ -44,6 +44,7 @@ async function triggerJob(name: string, endpoint: string, method: 'GET' | 'POST'
 
         const duration = Date.now() - start;
         console.log(`✅ [${name}] Success (${duration}ms):`, response.data.message || 'Job completed');
+        return response.data;
     } catch (error: any) {
         const duration = Date.now() - start;
         const status = error.response?.status;
@@ -54,6 +55,7 @@ async function triggerJob(name: string, endpoint: string, method: 'GET' | 'POST'
         if (status === 502) {
             console.warn(`   ⚠️  Got 502 Bad Gateway. This usually means the Next.js app is down or restarting.`);
         }
+        return null;
     }
 }
 
@@ -67,13 +69,81 @@ cron.schedule('0,30 * * * *', () => {
 // ==========================================
 // 2. Monthly Task Generation (Daily at 1 AM)
 // ==========================================
-cron.schedule('0 1 * * *', () => {
-    // Bulk monthly generation for all clients
-    triggerJob('Monthly Task Generation', '/api/tasks/recurring/run', 'POST', {
-        year: new Date().getFullYear(),
-        month: new Date().getMonth(),
+cron.schedule('0 1 * * *', async () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Calculate next month
+    let nextMonth = currentMonth + 1;
+    let nextYear = currentYear;
+    if (nextMonth > 11) {
+        nextMonth = 0;
+        nextYear++;
+    }
+
+    console.log(`\n📦 [Cron Master] Starting Monthly Task Generation cycle...`);
+
+    // 1. Safety run for current month
+    const currentResult = await triggerJob('Current Month Tasks', '/api/tasks/recurring/run', 'POST', {
+        year: currentYear,
+        month: currentMonth,
         dryRun: false
     });
+
+    // 2. Proactive run for next month
+    let nextResult: any = null;
+    await new Promise((resolve) => {
+        setTimeout(async () => {
+            nextResult = await triggerJob('Next Month Tasks', '/api/tasks/recurring/run', 'POST', {
+                year: nextYear,
+                month: nextMonth,
+                dryRun: false
+            });
+            resolve(true);
+        }, 5000);
+    });
+
+    // 3. Send Child-Friendly Report to Sahil
+    if (currentResult || nextResult) {
+        console.log(`📤 [Cron Master] Sending summary report to Sahil...`);
+
+        const summaryResults: any[] = [];
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+        const processResult = (res: any, monthName: string) => {
+            if (!res) return;
+
+            // Total tasks created for this month
+            if (res.created > 0) {
+                summaryResults.push({
+                    name: `${monthName} Tasks`,
+                    created: res.created,
+                    skipped: 0
+                });
+            }
+
+            // Specific skip reasons
+            if (res.details?.skippedReasons) {
+                res.details.skippedReasons.forEach((skip: any) => {
+                    summaryResults.push({
+                        name: `${skip.clientName} (${monthName})`,
+                        created: 0,
+                        skipped: 1,
+                        skippedReason: skip.reason
+                    });
+                });
+            }
+        };
+
+        processResult(currentResult, monthNames[currentMonth]);
+        processResult(nextResult, monthNames[nextMonth]);
+
+        await triggerJob('Email Cron Report', '/api/reports/cron-email', 'POST', {
+            results: summaryResults,
+            timestamp: now.toISOString()
+        });
+    }
 });
 
 // ==========================================
