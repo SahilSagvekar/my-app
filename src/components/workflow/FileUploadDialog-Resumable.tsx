@@ -1,7 +1,7 @@
 // components/workflow/FileUploadDialog-Resumable.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -45,10 +45,12 @@ export function FileUploadDialog({
   trigger,
 }: FileUploadDialogProps) {
   const [open, setOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const [subfolder, setSubfolder] = useState<string>(preselectedSubfolder || "main");
   const [resumableUploads, setResumableUploads] = useState<UploadState[]>([]);
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { startUpload, pauseUpload, cancelUpload, getUploadState } = useUploads();
   const currentUpload = currentUploadId ? getUploadState(currentUploadId) : null;
@@ -62,14 +64,13 @@ export function FileUploadDialog({
   }, [task.id, open]);
 
   useEffect(() => {
-    if (currentUpload?.status === 'completed') {
+    if (currentUpload?.status === 'completed' && selectedFiles.length === 0) {
       setTimeout(() => {
         setOpen(false);
-        setSelectedFile(null);
         setCurrentUploadId(null);
       }, 2000);
     }
-  }, [currentUpload?.status]);
+  }, [currentUpload?.status, selectedFiles.length]);
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
@@ -82,29 +83,83 @@ export function FileUploadDialog({
     return labels[f] || f;
   };
 
-  const handleStart = async (file: File, resumeId?: string) => {
-    try {
-      const id = await startUpload(file, task, subfolder, resumeId);
-      setCurrentUploadId(id);
-    } catch (err) {
-      console.error(err);
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleStart = async () => {
+    if (selectedFiles.length === 0) return;
+
+    // Start all uploads in the background
+    const filesToUpload = [...selectedFiles];
+    setSelectedFiles([]); // Clear local state as they are moved to background manager
+
+    let firstId: string | null = null;
+
+    for (const file of filesToUpload) {
+      try {
+        const id = await startUpload(file, task, subfolder);
+        if (!firstId) firstId = id;
+      } catch (err) {
+        console.error("Failed to start upload for", file.name, err);
+      }
+    }
+
+    if (firstId) {
+      setCurrentUploadId(firstId);
     }
   };
 
   const progress = currentUpload ? Math.round((currentUpload.uploadedBytes / currentUpload.fileSize) * 100) : 0;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => {
+      setOpen(v);
+      if (!v) {
+        setSelectedFiles([]);
+        setIsDragging(false);
+      }
+    }}>
       <DialogTrigger asChild>
         {trigger || (
           <Button size="sm">
             <Upload className="h-4 w-4 mr-2" />
-            Upload File
+            Upload Files
           </Button>
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Upload to Task Output
@@ -147,42 +202,76 @@ export function FileUploadDialog({
             </div>
           </div>
 
-          {!currentUpload && !selectedFile && (
+          {!currentUpload && (
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
                 <FileIcon className="h-3.5 w-3.5" />
-                Select File
+                Upload Section
               </Label>
-              <label htmlFor="file-input" className="group flex flex-col items-center justify-center gap-3 border-2 border-dashed border-slate-200 rounded-xl p-10 cursor-pointer hover:border-primary hover:bg-slate-50 transition-all">
-                <div className="p-4 bg-slate-100 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary rounded-full transition-colors">
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={cn(
+                  "group flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl p-10 cursor-pointer transition-all",
+                  isDragging
+                    ? "border-primary bg-primary/5 scale-[1.02]"
+                    : "border-slate-200 hover:border-primary hover:bg-slate-50"
+                )}
+                onClick={() => document.getElementById('file-input')?.click()}
+              >
+                <div className={cn(
+                  "p-4 rounded-full transition-colors",
+                  isDragging ? "bg-primary/20 text-primary" : "bg-slate-100 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary"
+                )}>
                   <Upload className="h-8 w-8" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-bold text-gray-700">Click to upload or drag & drop</p>
-                  <p className="text-xs text-slate-400">Video, Image or Document up to 2GB</p>
+                  <p className="text-sm font-bold text-gray-700">
+                    {isDragging ? "Drop files now" : "Click to upload or drag & drop"}
+                  </p>
+                  <p className="text-xs text-slate-400">Multiple videos, images or documents</p>
                 </div>
-                <input type="file" className="hidden" id="file-input" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
-              </label>
+                <input
+                  type="file"
+                  className="hidden"
+                  id="file-input"
+                  multiple
+                  onChange={handleFileSelect}
+                />
+              </div>
             </div>
           )}
 
-          {selectedFile && !currentUpload && (
+          {selectedFiles.length > 0 && !currentUpload && (
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
                 <FileIcon className="h-3.5 w-3.5" />
-                Selected File
+                Selected Files ({selectedFiles.length})
               </Label>
-              <div className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl relative overflow-hidden">
-                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-lg">
-                  <FileVideo className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate pr-8">{selectedFile.name}</p>
-                  <p className="text-xs font-medium text-gray-500">{formatSize(selectedFile.size)}</p>
-                </div>
-                <Button size="icon" variant="ghost" className="h-8 w-8 absolute top-3 right-3 text-slate-400 hover:text-red-500 hover:bg-red-50" onClick={() => setSelectedFile(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {selectedFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                    <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
+                      <FileVideo className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-900 truncate pr-6">{file.name}</p>
+                      <p className="text-[10px] font-medium text-gray-500">{formatSize(file.size)}</p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(idx);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -235,10 +324,10 @@ export function FileUploadDialog({
             </div>
           )}
 
-          {selectedFile && !currentUpload && (
-            <Button onClick={() => handleStart(selectedFile)} className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold shadow-sm transition-all active:scale-[0.98]">
+          {selectedFiles.length > 0 && !currentUpload && (
+            <Button onClick={handleStart} className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold shadow-sm transition-all active:scale-[0.98]">
               <Zap className="h-4 w-4 mr-2 text-yellow-400 fill-yellow-400" />
-              Start Background Upload
+              Start {selectedFiles.length} Background {selectedFiles.length === 1 ? 'Upload' : 'Uploads'}
             </Button>
           )}
         </div>
