@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -163,7 +163,19 @@ export function ClientDashboard() {
     loadClientTasks();
   }, []);
 
-  const loadClientTasks = async () => {
+  // Global listener for background task updates
+  useEffect(() => {
+    const handleTaskGlobalUpdate = (e: any) => {
+      if (e.detail?.taskId) {
+        console.log("🔔 Global update received for task in Client:", e.detail.taskId);
+        loadClientTasks();
+      }
+    };
+    window.addEventListener('task-updated', handleTaskGlobalUpdate);
+    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
+  }, []);
+
+  const loadClientTasks = useCallback(async () => {
     try {
       setLoading(true);
       // 🔥 Fetch tasks pending client review
@@ -204,7 +216,7 @@ export function ClientDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   /* ---------------------------- APPROVE HANDLER ----------------------------- */
 

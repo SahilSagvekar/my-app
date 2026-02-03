@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -134,7 +134,19 @@ export function QCDashboard() {
     loadQCTasks();
   }, []);
 
-  const loadQCTasks = async () => {
+  // Global listener for background task updates
+  useEffect(() => {
+    const handleTaskGlobalUpdate = (e: any) => {
+      if (e.detail?.taskId) {
+        console.log("🔔 Global update received for task in QC:", e.detail.taskId);
+        loadQCTasks();
+      }
+    };
+    window.addEventListener('task-updated', handleTaskGlobalUpdate);
+    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
+  }, []);
+
+  const loadQCTasks = useCallback(async () => {
     try {
       setLoading(true);
       // 🔥 Fetch PENDING tasks (READY_FOR_QC status)
@@ -176,7 +188,7 @@ export function QCDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleSendToClient = async (asset: any) => {
     if (!selectedTask) return;

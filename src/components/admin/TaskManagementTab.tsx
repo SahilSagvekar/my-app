@@ -1,7 +1,7 @@
 // components/admin/TaskManagementTab.tsx
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -241,6 +241,18 @@ export function TaskManagementTab() {
     loadTasks();
   }, [page, filters]);
 
+  // Global listener for background task updates
+  useEffect(() => {
+    const handleTaskGlobalUpdate = (e: any) => {
+      if (e.detail?.taskId) {
+        console.log("🔔 Global update received for task in Admin:", e.detail.taskId);
+        loadTasks();
+      }
+    };
+    window.addEventListener('task-updated', handleTaskGlobalUpdate);
+    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
+  }, []);
+
   // 🔥 Task created handler
   const handleTaskCreated = (task: any) => {
     toast({
@@ -275,7 +287,7 @@ export function TaskManagementTab() {
     }
   }
 
-  async function loadTasks() {
+  const loadTasks = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -339,7 +351,7 @@ export function TaskManagementTab() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, filters]);
 
   async function handleRefresh() {
     setRefreshing(true);

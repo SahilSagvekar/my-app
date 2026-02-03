@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, DragEvent } from "react";
+import { useState, useEffect, useMemo, useCallback, DragEvent } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -409,8 +409,8 @@ function TaskCard({
   onPreview,
 }: {
   task: WorkflowTask;
-  onUploadComplete: (files: any[]) => void;
-  onStartTask: () => void;
+  onUploadComplete: (taskId: string, files: any[]) => void;
+  onStartTask: (taskId: string) => void;
   onDragStart: (e: DragEvent<HTMLDivElement>, task: WorkflowTask) => void;
   isDragging: boolean;
   onPreview: (file: TaskFile) => void;
@@ -597,7 +597,7 @@ function TaskCard({
               size="sm"
               variant="outline"
               className="w-full text-xs"
-              onClick={onStartTask}
+              onClick={() => onStartTask(task.id)}
             >
               {task.status === "rejected" ? "Start Revision" : "Start"}
             </Button>
@@ -606,7 +606,7 @@ function TaskCard({
           {task.status === "in_progress" && (
             <TaskUploadSections
               task={task}
-              onUploadComplete={onUploadComplete}
+              onUploadComplete={(files) => onUploadComplete(task.id, files)}
             />
           )}
         </CardContent>
@@ -700,8 +700,8 @@ function DroppableColumn({
           <TaskCard
             key={task.id}
             task={task}
-            onUploadComplete={(files) => onUploadComplete(task.id, files)}
-            onStartTask={() => onStartTask(task.id)}
+            onUploadComplete={onUploadComplete}
+            onStartTask={onStartTask}
             onDragStart={onDragStart}
             isDragging={draggingTaskId === task.id}
             onPreview={onPreview}
@@ -826,6 +826,18 @@ export function EditorDashboard() {
 
     loadTasks();
   }, [currentUser.id]);
+
+  // Global listener for background task updates
+  useEffect(() => {
+    const handleTaskGlobalUpdate = (e: any) => {
+      if (e.detail?.taskId) {
+        console.log("🔔 Global update received for task:", e.detail.taskId);
+        handleUploadComplete(e.detail.taskId, []);
+      }
+    };
+    window.addEventListener('task-updated', handleTaskGlobalUpdate);
+    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
+  }, []);
 
   /* ----------------------------- DERIVED DATA ------------------------------ */
 
@@ -1145,7 +1157,7 @@ export function EditorDashboard() {
 
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
-  async function startTask(taskId: string) {
+  const startTask = useCallback(async (taskId: string) => {
     await fetch(`/api/tasks/${taskId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1155,9 +1167,9 @@ export function EditorDashboard() {
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: "in_progress" } : t))
     );
-  }
+  }, []);
 
-  async function handleUploadComplete(taskId: string, files: any[]) {
+  const handleUploadComplete = useCallback(async (taskId: string, files: any[]) => {
     const res = await fetch("/api/tasks");
     const data = await res.json();
 
@@ -1168,7 +1180,12 @@ export function EditorDashboard() {
         t.id === taskId ? { ...t, files: updatedTask?.files || files } : t
       )
     );
-  }
+  }, []);
+
+  const handlePreview = useCallback((file: any) => {
+    setPreviewFile(file);
+    setIsPreviewOpen(true);
+  }, []);
 
   /* ----------------------------- CLEAR FILTERS ----------------------------- */
 
@@ -1333,10 +1350,7 @@ export function EditorDashboard() {
             draggingTaskId={draggingTask?.id || null}
             onUploadComplete={handleUploadComplete}
             onStartTask={startTask}
-            onPreview={(file) => {
-              setPreviewFile(file);
-              setIsPreviewOpen(true);
-            }}
+            onPreview={handlePreview}
           />
         ))}
       </div>

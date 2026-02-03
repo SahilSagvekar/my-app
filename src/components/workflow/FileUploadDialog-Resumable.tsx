@@ -50,7 +50,9 @@ export function FileUploadDialog({
   const [subfolder, setSubfolder] = useState<string>(preselectedSubfolder || "main");
   const [resumableUploads, setResumableUploads] = useState<UploadState[]>([]);
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const notifiedUploadsRef = useRef<Set<string>>(new Set());
 
   const { startUpload, pauseUpload, cancelUpload, getUploadState } = useUploads();
   const currentUpload = currentUploadId ? getUploadState(currentUploadId) : null;
@@ -64,13 +66,20 @@ export function FileUploadDialog({
   }, [task.id, open]);
 
   useEffect(() => {
-    if (currentUpload?.status === 'completed' && selectedFiles.length === 0) {
-      setTimeout(() => {
-        setOpen(false);
-        setCurrentUploadId(null);
-      }, 2000);
+    if (currentUpload?.status === 'completed' && !notifiedUploadsRef.current.has(currentUpload.id)) {
+      notifiedUploadsRef.current.add(currentUpload.id);
+
+      // Trigger update immediately
+      onUploadComplete([]);
+
+      if (selectedFiles.length === 0) {
+        setTimeout(() => {
+          setOpen(false);
+          setCurrentUploadId(null);
+        }, 2000);
+      }
     }
-  }, [currentUpload?.status, selectedFiles.length]);
+  }, [currentUpload?.status, currentUpload?.id, selectedFiles.length, onUploadComplete]);
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
@@ -120,23 +129,28 @@ export function FileUploadDialog({
   const handleStart = async () => {
     if (selectedFiles.length === 0) return;
 
-    // Start all uploads in the background
+    setIsStarting(true);
     const filesToUpload = [...selectedFiles];
-    setSelectedFiles([]); // Clear local state as they are moved to background manager
+    setSelectedFiles([]);
 
-    let firstId: string | null = null;
-
-    for (const file of filesToUpload) {
-      try {
-        const id = await startUpload(file, task, subfolder);
-        if (!firstId) firstId = id;
-      } catch (err) {
-        console.error("Failed to start upload for", file.name, err);
-      }
-    }
-
-    if (firstId) {
+    try {
+      // Start the first one and wait for it so we can show it in the UI
+      const firstId = await startUpload(filesToUpload[0], task, subfolder);
       setCurrentUploadId(firstId);
+      setIsStarting(false);
+
+      // Start the rest in parallel without awaiting
+      if (filesToUpload.length > 1) {
+        filesToUpload.slice(1).forEach(file => {
+          startUpload(file, task, subfolder).catch(err =>
+            console.error("Background initiation failed:", file.name, err)
+          );
+        });
+      }
+    } catch (err) {
+      console.error("Initiation failed:", err);
+      setIsStarting(false);
+      // Maybe put files back? For now just log
     }
   };
 
@@ -325,9 +339,22 @@ export function FileUploadDialog({
           )}
 
           {selectedFiles.length > 0 && !currentUpload && (
-            <Button onClick={handleStart} className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold shadow-sm transition-all active:scale-[0.98]">
-              <Zap className="h-4 w-4 mr-2 text-yellow-400 fill-yellow-400" />
-              Start {selectedFiles.length} Background {selectedFiles.length === 1 ? 'Upload' : 'Uploads'}
+            <Button
+              onClick={handleStart}
+              disabled={isStarting}
+              className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold shadow-sm transition-all active:scale-[0.98]"
+            >
+              {isStarting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Starting Uploads...
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4 mr-2 text-yellow-400 fill-yellow-400" />
+                  Start {selectedFiles.length} Background {selectedFiles.length === 1 ? 'Upload' : 'Uploads'}
+                </>
+              )}
             </Button>
           )}
         </div>
