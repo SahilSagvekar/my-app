@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
 
         const url = new URL(req.url);
         const reportId = url.searchParams.get('id');
+        const type = url.searchParams.get('type') || 'detailed'; // default to detailed
 
         if (!reportId) {
             return NextResponse.json({ message: "Report ID required" }, { status: 400 });
@@ -32,11 +33,27 @@ export async function GET(req: NextRequest) {
             where: { id: reportId }
         });
 
-        if (!report || !report.fileUrl) {
+        if (!report) {
             return NextResponse.json({ message: "Report not found" }, { status: 404 });
         }
 
-        const s3Key = extractS3KeyFromUrl(report.fileUrl);
+        let fileUrl = report.fileUrl;
+
+        // If summary requested and exists in metadata
+        if (type === 'summary') {
+            const metadata = report.metadata as any;
+            if (metadata?.summaryFileUrl) {
+                fileUrl = metadata.summaryFileUrl;
+            } else {
+                return NextResponse.json({ message: "Summary file not found for this report" }, { status: 404 });
+            }
+        }
+
+        if (!fileUrl) {
+            return NextResponse.json({ message: "File URL not found" }, { status: 404 });
+        }
+
+        const s3Key = extractS3KeyFromUrl(fileUrl);
         if (!s3Key) {
             return NextResponse.json({ message: "Invalid file URL" }, { status: 500 });
         }

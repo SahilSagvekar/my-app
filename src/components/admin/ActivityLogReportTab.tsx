@@ -276,19 +276,38 @@ export function ActivityLogReportTab() {
                                                                 <CheckCircle className="h-3 w-3" />
                                                                 Ready
                                                             </div>
-                                                            {report.fileUrl && (
-                                                                <Button
-                                                                    asChild
-                                                                    variant="outline"
-                                                                    size="icon"
-                                                                    className="h-9 w-9 border-slate-200 hover:border-primary hover:text-primary hover:bg-blue-50 transition-all active:scale-95"
-                                                                    title="Download report"
-                                                                >
-                                                                    <a href={`/api/reports/activity/download?id=${report.id}`} target="_blank" rel="noopener noreferrer">
-                                                                        <Download className="h-4 w-4" />
-                                                                    </a>
-                                                                </Button>
-                                                            )}
+
+                                                            <div className="flex items-center gap-2">
+                                                                {/* Detailed Report Button */}
+                                                                {report.fileUrl && (
+                                                                    <Button
+                                                                        asChild
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="h-9 px-3 border-slate-200 hover:border-primary hover:text-primary hover:bg-blue-50 transition-all active:scale-95"
+                                                                    >
+                                                                        <a href={`/api/reports/activity/download?id=${report.id}&type=detailed`} target="_blank" rel="noopener noreferrer">
+                                                                            <Download className="h-4 w-4 mr-2" />
+                                                                            Detailed
+                                                                        </a>
+                                                                    </Button>
+                                                                )}
+
+                                                                {/* Executive Summary Button */}
+                                                                {report.metadata?.summaryFileUrl && (
+                                                                    <Button
+                                                                        asChild
+                                                                        variant="default"
+                                                                        size="sm"
+                                                                        className="h-9 px-3 bg-blue-600 hover:bg-blue-700 shadow-sm transition-all active:scale-95"
+                                                                    >
+                                                                        <a href={`/api/reports/activity/download?id=${report.id}&type=summary`} target="_blank" rel="noopener noreferrer">
+                                                                            <FileText className="h-4 w-4 mr-2" />
+                                                                            Summary
+                                                                        </a>
+                                                                    </Button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </td>
                                                 </tr>
