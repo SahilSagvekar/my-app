@@ -3,14 +3,34 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser2 } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    // TODO: Add your auth check
-    // const session = await getServerSession(authOptions);
+    const user = await getCurrentUser2(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const clientId = req.nextUrl.searchParams.get("clientId");
-    const range = req.nextUrl.searchParams.get("range") || "28d"; // 7d, 28d, 90d, 365d
+    const { searchParams } = new URL(req.url);
+    let clientId = searchParams.get("clientId");
+    const range = searchParams.get("range") || "28d";
+
+    // If user is a client, they can only see their own data
+    if (user.role === 'client') {
+      const client = await prisma.client.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+
+      if (!client) {
+        return NextResponse.json(
+          { error: "Client profile not found" },
+          { status: 404 }
+        );
+      }
+      clientId = client.id;
+    }
 
     if (!clientId) {
       return NextResponse.json(
@@ -119,6 +139,10 @@ export async function GET(req: NextRequest) {
       avgViewDuration,
       totalLikes,
       totalComments,
+      distribution: snapshots.length > 0 ? {
+        geography: snapshots[snapshots.length - 1].geographyData,
+        device: snapshots[snapshots.length - 1].deviceData,
+      } : null,
       topVideos: topVideos.map((v) => ({
         id: v.videoId,
         title: v.title,
@@ -134,6 +158,7 @@ export async function GET(req: NextRequest) {
       dailyData,
       lastSyncedAt: channel.lastSyncedAt?.toISOString() || null,
       syncStatus: channel.syncStatus,
+      connected: true,
     };
 
     return NextResponse.json(response);

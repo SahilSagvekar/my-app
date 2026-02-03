@@ -28,11 +28,19 @@ export async function GET(req: Request) {
             role: true,
             image: true,
             linkedClientId: true,
+            client: {
+              select: { id: true }
+            }
           },
         });
 
         if (user) {
-          return NextResponse.json({ user }, { status: 200 });
+          const processedUser = {
+            ...user,
+            linkedClientId: user.linkedClientId || (user as any).client?.id || null
+          };
+          delete (processedUser as any).client;
+          return NextResponse.json({ user: processedUser }, { status: 200 });
         }
       } catch (err) {
         // Fall through to NextAuth check if JWT fails
@@ -51,11 +59,19 @@ export async function GET(req: Request) {
           role: true,
           image: true,
           linkedClientId: true,
+          client: {
+            select: { id: true }
+          }
         },
       });
 
       if (user) {
-        return NextResponse.json({ user }, { status: 200 });
+        const processedUser = {
+          ...user,
+          linkedClientId: user.linkedClientId || (user as any).client?.id || null
+        };
+        delete (processedUser as any).client;
+        return NextResponse.json({ user: processedUser }, { status: 200 });
       }
     }
 

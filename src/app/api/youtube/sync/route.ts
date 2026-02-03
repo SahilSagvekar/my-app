@@ -1,17 +1,33 @@
-// src/app/api/youtube/sync/route.ts
-// Manual sync trigger for a client's YouTube channel
-
 import { NextRequest, NextResponse } from "next/server";
-import { syncChannel } from "@/lib/youtube";
+import { syncYouTubeChannel } from "@/lib/youtube-sync-service";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser2 } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    // TODO: Add your auth check
-    // const session = await getServerSession(authOptions);
-    // if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getCurrentUser2(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const { clientId } = await req.json();
+    const body = await req.json();
+    let clientId = body.clientId;
+
+    // If user is a client, they can only sync their own data
+    if (user.role === 'client') {
+      const client = await prisma.client.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+
+      if (!client) {
+        return NextResponse.json(
+          { error: "Client profile not found" },
+          { status: 404 }
+        );
+      }
+      clientId = client.id;
+    }
 
     if (!clientId) {
       return NextResponse.json(
@@ -31,16 +47,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if already syncing
-    if (channel.syncStatus === "SYNCING") {
-      return NextResponse.json(
-        { error: "Sync already in progress" },
-        { status: 409 }
-      );
-    }
-
     // Run sync
-    const result = await syncChannel(channel.id);
+    const result = await syncYouTubeChannel(clientId);
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error || "Sync failed" }, { status: 500 });
+    }
 
     return NextResponse.json(result);
   } catch (error: any) {

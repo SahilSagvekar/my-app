@@ -65,6 +65,17 @@ run_activity_report() {
 }
 
 # ------------------------------------------------------------------------------
+# JOB 4: YOUTUBE ANALYTICS SYNC
+# Schedule: Every 6 hours (12 AM, 6 AM, 12 PM, 6 PM)
+# ------------------------------------------------------------------------------
+run_youtube_sync() {
+    log "📺 Syncing YouTube analytics data..."
+    RESPONSE=$(curl -s -X POST "$API_URL/api/cron/youtube-sync" \
+        -H "Authorization: Bearer $SECRET")
+    log "   Result: $RESPONSE"
+}
+
+# ------------------------------------------------------------------------------
 # MAIN COMMAND DISPATCHER
 # ------------------------------------------------------------------------------
 
@@ -78,12 +89,16 @@ case "$1" in
     report)
         run_activity_report
         ;;
+    youtube)
+        run_youtube_sync
+        ;;
     all)
         check_titling
         run_recurring
         run_activity_report
+        run_youtube_sync
         ;;
     *)
-        echo "Usage: $0 {titling|recurring|report|all}"
+        echo "Usage: $0 {titling|recurring|report|youtube|all}"
         exit 1
 esac

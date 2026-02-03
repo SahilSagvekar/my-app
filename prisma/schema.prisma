@@ -780,6 +780,10 @@ model YouTubeSnapshot {
   subscribersGained Int      @default(0)
   subscribersLost   Int      @default(0)
   
+  // Audience Demographics (JSON arrays of distributions)
+  geographyData     Json?
+  deviceData        Json?
+  
   periodStart       DateTime
   periodEnd         DateTime
   periodType        PeriodType @default(DAILY)

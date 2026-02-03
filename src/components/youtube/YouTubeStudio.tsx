@@ -4,7 +4,8 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useYouTubeAnalytics } from "@/lib/hooks/useYouTubeAnalytics";
 import type { DateRange, DailyMetric } from "@/types/youtube";
 import {
@@ -37,13 +38,31 @@ import {
   TrendingUp,
   ExternalLink,
   Play,
+  Globe,
+  Tablet,
+  Smartphone,
+  Monitor,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Legend,
+} from "recharts";
+
+const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
 // ============================================================================
 // HELPERS
 // ============================================================================
 
-function formatNumber(num: number): string {
+export function formatNumber(num: number): string {
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M";
   if (num >= 1_000) return (num / 1_000).toFixed(1) + "K";
   return num.toLocaleString();
@@ -55,7 +74,7 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-function formatRevenue(amount: number | null): string {
+export function formatRevenue(amount: number | null): string {
   if (amount == null) return "—";
   return "₹" + amount.toLocaleString("en-IN", { minimumFractionDigits: 0 });
 }
@@ -225,6 +244,7 @@ function ConnectYouTube({ clientId }: { clientId: string }) {
         <Button
           className="bg-red-600 hover:bg-red-700 text-white"
           onClick={() => {
+            localStorage.setItem("returnToPage", "youtube-analytics");
             window.location.href = `/api/youtube/connect?clientId=${clientId}`;
           }}
         >
@@ -247,6 +267,23 @@ interface YouTubeStudioProps {
 export default function YouTubeStudio({ clientId }: YouTubeStudioProps) {
   const { data, loading, syncing, error, range, setRange, triggerSync } =
     useYouTubeAnalytics(clientId);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("youtube_connected") === "true") {
+      toast.success("YouTube channel connected successfully!");
+      // Clean up URL
+      url.searchParams.delete("youtube_connected");
+      window.history.replaceState({}, "", url.pathname + url.search);
+      // Trigger a sync
+      triggerSync();
+    }
+    if (url.searchParams.get("youtube_error")) {
+      toast.error(`Failed to connect YouTube: ${url.searchParams.get("youtube_error")}`);
+      url.searchParams.delete("youtube_error");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+  }, [triggerSync]);
 
   // Loading state
   if (loading) {
@@ -303,6 +340,7 @@ export default function YouTubeStudio({ clientId }: YouTubeStudioProps) {
     totalComments,
     topVideos,
     dailyData,
+    distribution,
     lastSyncedAt,
     syncStatus,
   } = data;
@@ -547,6 +585,110 @@ export default function YouTubeStudio({ clientId }: YouTubeStudioProps) {
           <DailyBarChart data={dailyData} dataKey="views" color="#3b82f6" />
         </CardContent>
       </Card>
+
+      {/* Audience Insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Geography Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-500" />
+              Geography
+            </CardTitle>
+            <CardDescription>Views by country</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {distribution?.geography && distribution.geography.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={distribution.geography}
+                  layout="vertical"
+                  margin={{ left: 20, right: 20 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="country"
+                    type="category"
+                    width={80}
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <RechartsTooltip
+                    cursor={{ fill: "rgba(0,0,0,0.05)" }}
+                    contentStyle={{
+                      backgroundColor: "rgba(24, 24, 27, 0.95)",
+                      borderRadius: "8px",
+                      border: "none",
+                      color: "#fff",
+                    }}
+                  />
+                  <Bar
+                    dataKey="views"
+                    fill="#3b82f6"
+                    radius={[0, 4, 4, 0]}
+                    barSize={20}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm italic">
+                No geography data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Device Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Monitor className="w-4 h-4 text-purple-500" />
+              Devices
+            </CardTitle>
+            <CardDescription>Views by device type</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[300px]">
+            {distribution?.device && distribution.device.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={distribution.device}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="views"
+                    nameKey="device"
+                  >
+                    {distribution.device.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip
+                    contentStyle={{
+                      backgroundColor: "rgba(24, 24, 27, 0.95)",
+                      borderRadius: "8px",
+                      border: "none",
+                      color: "#fff",
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value) => <span className="text-xs capitalize">{value.toLowerCase()}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm italic">
+                No device data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Top Videos */}
       {topVideos && topVideos.length > 0 && (

@@ -58,7 +58,13 @@ export interface ChannelOverview {
   avgViewDuration: number | null;
   topVideos: YouTubeVideoItem[];
   dailyData: DailyMetric[];
+  distribution: DistributionData | null;
   lastSyncedAt: string | null;
+}
+
+export interface DistributionData {
+  geography: { country: string; views: number }[];
+  device: { device: string; views: number }[];
 }
 
 export interface DailyMetric {
