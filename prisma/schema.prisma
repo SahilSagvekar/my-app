@@ -253,6 +253,8 @@ model Client {
   emails               String[]             @default([])
   phones               String[]             @default([])
   outputsFolderId      String?
+  youtubeChannel       YouTubeChannel?
+  youtubeSnapshots     YouTubeSnapshot[]
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
   monthlyDeliverables  MonthlyDeliverable[]
@@ -719,4 +721,120 @@ enum FeedbackStatus {
   ACKNOWLEDGED
   IN_PROGRESS
   RESOLVED
+}
+
+// ============================================================================
+// YOUTUBE ANALYTICS
+// ============================================================================
+
+model YouTubeChannel {
+  id            String   @id @default(cuid())
+  clientId      String   @unique
+  channelId     String   @unique
+  channelTitle  String?
+  channelAvatar String?
+  
+  accessToken   String   @db.Text
+  refreshToken  String   @db.Text
+  tokenExpiry   DateTime
+  scope         String?
+  
+  subscriberCount   Int       @default(0)
+  totalViews        BigInt    @default(0)
+  totalVideos       Int       @default(0)
+  
+  lastSyncedAt      DateTime?
+  syncStatus        SyncStatus @default(PENDING)
+  syncError         String?
+  
+  isActive          Boolean  @default(true)
+  connectedAt       DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  snapshots         YouTubeSnapshot[]
+  videoStats        YouTubeVideoStat[]
+  
+  @@index([clientId])
+  @@index([channelId])
+  @@index([syncStatus])
+}
+
+model YouTubeSnapshot {
+  id              String   @id @default(cuid())
+  channelId       String
+  clientId        String
+  
+  subscriberCount   Int      @default(0)
+  views             BigInt   @default(0)
+  watchTimeHours    Float    @default(0)
+  estimatedRevenue  Float?
+  
+  likes             Int      @default(0)
+  comments          Int      @default(0)
+  shares            Int      @default(0)
+  impressions       BigInt   @default(0)
+  impressionsCtr    Float?
+  avgViewDuration   Float?
+  
+  subscribersGained Int      @default(0)
+  subscribersLost   Int      @default(0)
+  
+  periodStart       DateTime
+  periodEnd         DateTime
+  periodType        PeriodType @default(DAILY)
+  
+  snapshotDate      DateTime @default(now())
+  
+  channel           YouTubeChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  client            Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  @@unique([channelId, periodStart, periodEnd, periodType])
+  @@index([channelId])
+  @@index([clientId])
+  @@index([snapshotDate])
+  @@index([periodStart, periodEnd])
+}
+
+model YouTubeVideoStat {
+  id            String   @id @default(cuid())
+  channelId     String
+  videoId       String
+  
+  title         String
+  publishedAt   DateTime
+  thumbnailUrl  String?
+  duration      Int?
+  
+  views         BigInt   @default(0)
+  likes         Int      @default(0)
+  comments      Int      @default(0)
+  shares        Int      @default(0)
+  watchTimeHours Float   @default(0)
+  avgViewDuration Float?
+  
+  estimatedRevenue Float?
+  
+  lastUpdated   DateTime @default(now())
+  
+  channel       YouTubeChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  
+  @@unique([channelId, videoId])
+  @@index([channelId])
+  @@index([videoId])
+  @@index([publishedAt])
+  @@index([views])
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCING
+  COMPLETED
+  FAILED
+}
+
+enum PeriodType {
+  DAILY
+  WEEKLY
+  MONTHLY
 }
