@@ -78,6 +78,21 @@ export async function POST(
         });
         console.log('✅ ShareableReview created:', shareableReview.id);
 
+        // 🔥 Audit share link generation
+        const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+        await createAuditLog({
+            userId: Number(decoded.userId),
+            action: 'TASK_SHARED',
+            entity: 'Task',
+            entityId: taskId,
+            details: `Generated shareable review link for task ${taskId}`,
+            metadata: {
+                taskId,
+                expiresAt,
+                shareToken: shareToken.substring(0, 8) + '...'
+            }
+        });
+
         // Generate the shareable URL
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.headers.get('origin') || 'http://localhost:3000';
         const shareUrl = `${baseUrl}/shared/review/${shareToken}`;
@@ -192,6 +207,17 @@ export async function DELETE(
             data: {
                 isActive: false
             }
+        });
+
+        // 🔥 Audit share link deactivation
+        const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+        await createAuditLog({
+            userId: Number(decoded.userId),
+            action: 'TASK_SHARE_DEACTIVATED',
+            entity: 'Task',
+            entityId: taskId,
+            details: `Deactivated shareable review link for task ${taskId}`,
+            metadata: { taskId, shareToken: shareToken.substring(0, 8) + '...' }
         });
 
         return NextResponse.json({

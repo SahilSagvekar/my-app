@@ -443,6 +443,18 @@ export async function POST(req: Request) {
 
     console.log(`🎉 Completed: ${createdTasks.length} tasks ${dryRun ? "would be" : ""} created, ${skipped.length} skipped`);
 
+    const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+    await createAuditLog({
+      action: AuditAction.TASK_CREATED,
+      entity: "RecurringTask",
+      details: `Automated task generation complete: ${createdTasks.length} created, ${skipped.length} skipped`,
+      metadata: {
+        createdCount: createdTasks.length,
+        skippedCount: skipped.length,
+        targetMonth: `${targetYear}-${targetMonth + 1}`
+      }
+    });
+
     return NextResponse.json(
       {
         success: true,
