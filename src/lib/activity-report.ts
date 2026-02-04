@@ -4,21 +4,13 @@ import { format, startOfDay, endOfDay, addHours, subHours } from 'date-fns';
 import { uploadBufferToS3 } from './s3';
 
 /**
- * Generates a daily activity report for employees (excluding Admin and Client roles)
+ * Generates a daily activity report for employees and an executive summary for management.
  * Period: Start of day to 7 PM USA Time (EST/EDT)
  */
 export async function generateDailyActivityReport(targetDate: Date = new Date()) {
     try {
         // 1. Calculate the time range in EST (UTC-5)
-        // 7 PM EST on targetDate
-        // Start of day EST = 05:00 UTC (assuming no DST for simplicity, or 04:00 if DST)
-        // To be precise, we should assume the server runs in UTC and we offsets.
-
-        // USA Eastern Time is typically UTC-5 (EST) or UTC-4 (EDT)
-        // Let's assume EST (UTC-5) for now as a baseline.
         const estOffset = 5;
-
-        // Target date start of day in EST converted to UTC
         const estStartOfDay = startOfDay(targetDate);
         const utcStartRange = addHours(estStartOfDay, estOffset);
 
@@ -28,18 +20,14 @@ export async function generateDailyActivityReport(targetDate: Date = new Date())
 
         console.log(`📊 Generating report for range (UTC): ${utcStartRange.toISOString()} to ${utcEndRange.toISOString()}`);
 
-        // 2. Fetch Audit Logs
+        // 2. Fetch ALL relevant Audit Logs for the summary and detailed report
+        // We include clients now because the boss wants to see their approvals/rejections
         const auditLogs = await prisma.auditLog.findMany({
             where: {
                 timestamp: {
                     gte: utcStartRange,
                     lte: utcEndRange,
                 },
-                User: {
-                    role: {
-                        notIn: ['admin', 'client']
-                    }
-                }
             },
             include: {
                 User: true
@@ -54,9 +42,64 @@ export async function generateDailyActivityReport(targetDate: Date = new Date())
             return null;
         }
 
-        // 3. Transform to CSV
+        // 3. Separate logs for Employee Detailed Report (Excluding Admin and Client as per original requirement)
+        const employeeLogs = auditLogs.filter(log =>
+            log.User && !['admin'].includes(log.User.role as string)
+        );
+
+        // 4. Aggregate stats for the "Executive Summary" (Simplified)
+        const userStats: Record<number, any> = {};
+
+        auditLogs.forEach(log => {
+            if (!log.userId || !log.User) return;
+
+            // We want to track Editor work, QC work, and Client work
+            const userId = log.userId;
+            if (!userStats[userId]) {
+                userStats[userId] = {
+                    userName: log.User.name || 'Unknown',
+                    role: log.User.role || 'N/A',
+                    inProgress: 0,
+                    readyForQc: 0,
+                    approved: 0,
+                    rejected: 0,
+                    clientApproved: 0,
+                    clientRejected: 0
+                };
+            }
+
+            const stats = userStats[userId];
+            const metadata = log.metadata as any;
+            const newStatus = metadata?.newStatus;
+            const role = log.User.role?.toLowerCase();
+
+            // Logic to catch status changes
+            if (log.action === 'TASK_UPDATED' || log.action === 'TASK_STATUS_CHANGED') {
+                if (newStatus === 'IN_PROGRESS') stats.inProgress++;
+                if (newStatus === 'READY_FOR_QC') stats.readyForQc++;
+
+                // QC Role actions
+                if (role === 'qc') {
+                    if (newStatus === 'COMPLETED' || newStatus === 'CLIENT_REVIEW') stats.approved++;
+                    if (newStatus === 'REJECTED') stats.rejected++;
+                }
+
+                // Client Role actions
+                if (role === 'client') {
+                    if (newStatus === 'COMPLETED') stats.clientApproved++;
+                    if (newStatus === 'REJECTED') stats.clientRejected++;
+                }
+            }
+        });
+
+        // Filter out users who didn't actually do any of the tracked "Executive" actions
+        const statsArray = Object.values(userStats).filter((u: any) =>
+            (u.inProgress + u.readyForQc + u.approved + u.rejected + u.clientApproved + u.clientRejected) > 0
+        );
+
+        // 5. Transform detailed employee logs to CSV
         const headers = ["Timestamp (UTC)", "Employee Name", "Role", "Action", "Details", "Entity", "Entity ID"];
-        const rows = auditLogs.map(log => [
+        const rows = employeeLogs.map(log => [
             log.timestamp.toISOString(),
             log.User?.name || 'Unknown',
             log.User?.role || 'N/A',
@@ -71,11 +114,38 @@ export async function generateDailyActivityReport(targetDate: Date = new Date())
             ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
         ].join("\n");
 
-        // 4. Save report
-        const fileName = `Daily_Activity_Report_${format(targetDate, 'yyyy-MM-dd')}_7PM_EST.csv`;
+        // 6. Generate Executive Summary CSV
+        const summaryHeaders = ["Name", "Role", "Started Tasks", "Sent to QC", "QC Approved", "QC Rejected", "Client Approved", "Client Revisions"];
+        const summaryRows = statsArray.map(u => [
+            u.userName,
+            u.role,
+            u.inProgress,
+            u.readyForQc,
+            u.approved,
+            u.rejected,
+            u.clientApproved,
+            u.clientRejected
+        ]);
+
+        const summaryCsvContent = [
+            summaryHeaders.join(","),
+            ...summaryRows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+        ].join("\n");
+
+        const summaryFileName = `Executive_Summary_${format(targetDate, 'yyyy-MM-dd')}.csv`;
+        const summaryBuffer = Buffer.from(summaryCsvContent);
+
+        const summaryUpload = await uploadBufferToS3({
+            buffer: summaryBuffer,
+            filename: summaryFileName,
+            folderPrefix: 'reports/executive-summaries/',
+            mimeType: 'text/csv'
+        });
+
+        // 7. Save detailed report to S3
+        const fileName = `Detailed_Activity_Report_${format(targetDate, 'yyyy-MM-dd')}_7PM_EST.csv`;
         const buffer = Buffer.from(csvContent);
 
-        // Upload to S3
         const uploadResult = await uploadBufferToS3({
             buffer,
             filename: fileName,
@@ -83,7 +153,7 @@ export async function generateDailyActivityReport(targetDate: Date = new Date())
             mimeType: 'text/csv'
         });
 
-        // 5. Record in database
+        // 8. Record in database (linking both)
         const report = await prisma.activityReport.create({
             data: {
                 fileName,
@@ -91,17 +161,26 @@ export async function generateDailyActivityReport(targetDate: Date = new Date())
                 reportDate: targetDate,
                 metadata: {
                     logCount: auditLogs.length,
-                    startTimeRange: utcStartRange.toISOString(),
-                    endTimeRange: utcEndRange.toISOString()
+                    employeeLogCount: employeeLogs.length,
+                    summary: statsArray,
+                    summaryFileUrl: summaryUpload.url
                 }
             }
         });
 
-        // 6. Send Email Notification to Eric
-        const { sendActivityReportEmail } = await import('./email');
-        await sendActivityReportEmail(uploadResult.url, targetDate, auditLogs.length);
+        // 9. Generate a SIGNED long-lasting URL for the email (so its one-click for the boss)
+        const { generateSignedUrl } = await import('./s3');
+        const longLastingSignedUrl = await generateSignedUrl(summaryUpload.key, 604800); // 7 days
 
-        console.log(`✅ Report generated successfully: ${fileName}`);
+        // 10. Send Email with Summary Attachment Link
+        const { sendExecutiveSummaryReportEmail } = await import('./email');
+        await sendExecutiveSummaryReportEmail({
+            date: targetDate,
+            stats: statsArray,
+            summaryUrl: longLastingSignedUrl // Now its a one-click signed link
+        });
+
+        console.log(`✅ Reports generated. Detailed: ${fileName}, Summary: ${summaryFileName}`);
         return report;
 
     } catch (error) {

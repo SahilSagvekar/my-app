@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
+import jwt from "jsonwebtoken";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -84,8 +85,8 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       projectSettings,
       billing,
       postingSchedule,
-      clientReviewRequired,       
-      videographerRequired,       
+      clientReviewRequired,
+      videographerRequired,
       monthlyDeliverables = [],
     } = data;
 
@@ -116,8 +117,8 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         projectSettings,
         billing,
         postingSchedule,
-        requiresClientReview: clientReview,     
-        requiresVideographer: videographer,  
+        requiresClientReview: clientReview,
+        requiresVideographer: videographer,
       },
     });
 
@@ -131,7 +132,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     console.log("📦 Existing deliverables in DB:", existing.length, "items");
 
     const existingIds = existing.map((d) => d.id);
-    
+
     // Filter out frontend-generated IDs (they start with "deliverable-")
     const incomingDbIds = monthlyDeliverables
       .map((d: any) => d.id)
@@ -157,7 +158,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     // Update or create deliverables
     for (const d of monthlyDeliverables) {
       const isExistingDbRecord = d.id && existingIds.includes(d.id);
-      
+
       if (isExistingDbRecord) {
         // UPDATE existing deliverable
         console.log("✏️ Updating deliverable:", d.id);
@@ -205,8 +206,32 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 
     console.log("✅ Client updated successfully with", finalClient?.monthlyDeliverables.length, "deliverables");
 
-    return NextResponse.json({ 
-      success: true, 
+    // 🔥 Audit client update
+    const token = req.headers.get("cookie")?.match(/authToken=([^;]+)/)?.[1];
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+        await createAuditLog({
+          userId: decoded.userId,
+          action: AuditAction.CLIENT_UPDATED,
+          entity: "Client",
+          entityId: id,
+          details: `Updated client: ${name || companyName}`,
+          metadata: {
+            clientId: id,
+            updatedFields: Object.keys(data).filter(k => k !== 'monthlyDeliverables'),
+            deliverableChanges: {
+              added: monthlyDeliverables.filter((d: any) => !d.id || d.id.startsWith('deliverable-')).length,
+              deleted: toDelete.length
+            }
+          }
+        });
+      } catch { }
+    }
+
+    return NextResponse.json({
+      success: true,
       updated: {
         ...finalClient,
         emails: additionalEmails,
@@ -280,6 +305,29 @@ export async function DELETE(
       where: { id },
     });
 
+    // 🔥 Audit client deletion
+    const token = req.headers.get("cookie")?.match(/authToken=([^;]+)/)?.[1];
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+        await createAuditLog({
+          userId: decoded.userId,
+          action: AuditAction.CLIENT_DELETED,
+          entity: "Client",
+          entityId: id,
+          details: `Deleted client: ${deletedClient.name || deletedClient.companyName}`,
+          metadata: {
+            clientId: id,
+            clientName: deletedClient.name,
+            companyName: deletedClient.companyName,
+            tasksDeleted: taskIds.length,
+            deliverablesDeleted: deliverableIds.length
+          }
+        });
+      } catch { }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Client deleted successfully',
@@ -289,10 +337,10 @@ export async function DELETE(
   } catch (error: any) {
     console.error('DELETE client failed:', error);
     return NextResponse.json(
-      { 
-        error: 'Failed to delete client', 
+      {
+        error: 'Failed to delete client',
         details: error.message,
-        code: error.code 
+        code: error.code
       },
       { status: 500 }
     );

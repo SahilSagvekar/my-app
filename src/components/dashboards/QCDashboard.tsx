@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -55,6 +55,10 @@ interface EnhancedWorkflowTask {
   user?: {
     name: string;
     role: string;
+  };
+  client?: {
+    name: string;
+    companyName?: string;
   };
 }
 
@@ -134,7 +138,19 @@ export function QCDashboard() {
     loadQCTasks();
   }, []);
 
-  const loadQCTasks = async () => {
+  // Global listener for background task updates
+  useEffect(() => {
+    const handleTaskGlobalUpdate = (e: any) => {
+      if (e.detail?.taskId) {
+        console.log("🔔 Global update received for task in QC:", e.detail.taskId);
+        loadQCTasks();
+      }
+    };
+    window.addEventListener('task-updated', handleTaskGlobalUpdate);
+    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
+  }, []);
+
+  const loadQCTasks = useCallback(async () => {
     try {
       setLoading(true);
       // 🔥 Fetch PENDING tasks (READY_FOR_QC status)
@@ -176,7 +192,7 @@ export function QCDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleSendToClient = async (asset: any) => {
     if (!selectedTask) return;
@@ -250,31 +266,40 @@ export function QCDashboard() {
   const getVideoAssetFromFile = (file: TaskFile) => {
     if (!selectedTask) return null;
 
+    // Find all versions of this file (same folderType)
+    const folderType = file.folderType || 'main';
+    const versions = (selectedTask.files || [])
+      .filter(f => (f.folderType || 'main') === folderType)
+      .sort((a, b) => (a.version || 1) - (b.version || 1))
+      .map(f => ({
+        id: f.id,
+        number: String(f.version || 1),
+        thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
+        duration: '2:30',
+        uploadDate: new Date(f.uploadedAt).toLocaleDateString(),
+        status: 'in_qc' as 'in_qc',
+        url: f.url
+      }));
+
     return {
       id: selectedTask.id,
-      title: `${selectedTask.title} - ${file.name}`,
+      title: `${selectedTask.title}`,
       subtitle: `Project: ${selectedTask.clientId}`,
       videoUrl: file.url,
       thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
       runtime: '2:30',
       status: 'in_qc' as const,
-      client: 'Unknown Client',
+      client: selectedTask.client?.name || 'Unknown Client',
       platform: 'Web',
       resolution: '1920x1080',
       fileSize: formatFileSize(file.size),
-      uploader: 'Editor',
+      uploader: selectedTask.user?.name || 'Editor',
       uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
-      versions: [{
-        id: 'v1',
-        number: '1',
-        thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
-        duration: '2:30',
-        uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
-        status: 'in_qc' as const
-      }],
-      currentVersion: 'v1',
-      downloadEnabled: false,
-      approvalLocked: false
+      versions: versions,
+      currentVersion: file.id,
+      downloadEnabled: true,
+      approvalLocked: false,
+      taskFeedback: (selectedTask as any).taskFeedback || []
     };
   };
 

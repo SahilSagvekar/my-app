@@ -4,6 +4,7 @@ import { useState, memo } from 'react';
 import { ReviewComment as ReviewCommentType, COMMENT_CATEGORIES } from './types';
 import { MessageSquare, Check, Reply, MoreHorizontal, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -110,6 +111,12 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                 >
                     @{comment.timestamp}
                 </button>
+
+                {comment.version && (
+                    <Badge variant="outline" className="text-[10px] h-5 bg-white/5 border-white/10 text-[var(--review-text-secondary)]">
+                        V{comment.version}
+                    </Badge>
+                )}
 
                 {category && (
                     <span

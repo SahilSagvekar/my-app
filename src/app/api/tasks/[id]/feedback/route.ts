@@ -90,6 +90,21 @@ export async function POST(
       }
     });
 
+    const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+    await createAuditLog({
+      userId: createdBy,
+      action: AuditAction.TASK_UPDATED,
+      entity: "TaskFeedback",
+      entityId: newFeedback.id,
+      details: `Added new feedback to task ${id}`,
+      metadata: {
+        taskId: id,
+        folderType,
+        category,
+        status
+      }
+    });
+
     return NextResponse.json({ feedback: newFeedback });
   } catch (error: any) {
     console.error("Error creating feedback:", error);
@@ -157,6 +172,19 @@ export async function PATCH(
 
     console.log(`✅ Created ${result.count} feedback items for task ${id}`);
 
+    const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+    await createAuditLog({
+      userId: finalCreatedBy,
+      action: AuditAction.TASK_UPDATED,
+      entity: "Task",
+      entityId: id,
+      details: `Bulk added ${result.count} feedback items to task ${id}`,
+      metadata: {
+        taskId: id,
+        feedbackCount: result.count
+      }
+    });
+
     return NextResponse.json({
       success: true,
       count: result.count
@@ -193,6 +221,16 @@ export async function DELETE(
           resolvedAt: new Date(),
           status: 'resolved'
         }
+      });
+
+      const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+      await createAuditLog({
+        userId: 0, // System/Context dependent
+        action: AuditAction.TASK_UPDATED,
+        entity: "TaskFeedback",
+        entityId: feedbackId,
+        details: `Resolved feedback on task ${id}`,
+        metadata: { taskId: id, feedbackId }
       });
 
       return NextResponse.json({

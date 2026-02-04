@@ -221,6 +221,13 @@ class UploadService {
             await uploadStateManager.markAsCompleted(id);
             this.emit(id, 'completed', { ...currentState, status: 'completed' });
 
+            // Dispatch global event for UI refreshes
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('task-updated', {
+                    detail: { taskId: currentState.taskId }
+                }));
+            }
+
         } catch (err: any) {
             console.error("Background upload loop failed:", err);
             await uploadStateManager.markAsFailed(id, err.message);

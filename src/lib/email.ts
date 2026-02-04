@@ -383,3 +383,173 @@ export async function sendActivityReportEmail(reportUrl: string, date: Date, log
   }
 }
 
+export async function sendCronReportEmail(data: {
+  results: any[];
+  timestamp: string;
+}) {
+  const mailOptions = {
+    from: `"E8 Robot" <${process.env.SMTP_USER}>`,
+    to: "sahilsagvekar230@GMAIL.COM",
+    subject: `🤖 Daily Task Machine Report - ${new Date().toLocaleDateString()}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; }
+            .header { text-align: center; padding-bottom: 20px; }
+            .stats { display: flex; justify-content: space-around; background: #f0f7ff; padding: 15px; border-radius: 8px; margin: 20px 0; }
+            .stat-box { text-align: center; }
+            .stat-num { font-size: 24px; font-weight: bold; color: #007bff; }
+            .stat-label { font-size: 14px; color: #666; }
+            .details { margin-top: 20px; }
+            .client-row { padding: 10px; border-bottom: 1px solid #f9f9f9; }
+            .success { color: #28a745; font-weight: bold; }
+            .skipped { color: #dc3545; font-size: 13px; }
+            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🤖 Hello Sahil!</h1>
+              <p>Your "Task Machine" just finished its morning work!</p>
+            </div>
+
+            <p>I woke up at ${new Date(data.timestamp).toLocaleTimeString()} and checked all our clients to make sure their schedules are ready.</p>
+
+            <div class="stats">
+              <div class="stat-box">
+                <div class="stat-num">${data.results.reduce((acc, curr) => acc + (curr.created || 0), 0)}</div>
+                <div class="stat-label">New Tasks Made</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-num">${data.results.reduce((acc, curr) => acc + (curr.skipped || 0), 0)}</div>
+                <div class="stat-label">Clients Skipped</div>
+              </div>
+            </div>
+
+            <div class="details">
+              <h3>📝 Here is what I did:</h3>
+              ${data.results.map(res => `
+                <div class="client-row">
+                  <strong>${res.name}</strong>: 
+                  ${res.created > 0 ? `<span class="success">I made ${res.created} new tasks!</span>` : `<span class="skipped">I skipped this because ${res.skippedReason || 'the schedule is already full.'}</span>`}
+                </div>
+              `).join('')}
+            </div>
+
+            <p><strong>Why did I do this?</strong> To make sure your editors have work ready for them and you don't have to click "Create" a hundred times!</p>
+
+            <div class="footer">
+              <p>This report was sent automatically by the E8 Productions Robot.</p>
+              <p>Timestamp: ${data.timestamp}</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Cron report email sent to Sahil`);
+  } catch (error) {
+    console.error('❌ Failed to send cron report email:', error);
+  }
+}
+
+export async function sendExecutiveSummaryReportEmail(data: {
+  date: Date;
+  stats: any[];
+  summaryUrl: string;
+}) {
+  const formattedDate = data.date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const mailOptions = {
+    from: `"E8 Production Robot" <${process.env.SMTP_USER}>`,
+    to: "Eric@e8productions.com",
+    subject: `📊 Executive Production Summary - ${formattedDate}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 700px; margin: 0 auto; padding: 25px; border: 1px solid #eef; border-radius: 12px; background: #fff; }
+            .header { border-bottom: 3px solid #007bff; padding-bottom: 15px; margin-bottom: 25px; }
+            .user-card { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #007bff; }
+            .user-name { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 8px; }
+            .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .metric { font-size: 14px; }
+            .metric-count { font-weight: bold; color: #3b82f6; }
+            .button-container { text-align: center; margin: 30px 0; }
+            .download-button {
+              background-color: #007bff;
+              color: white !important;
+              padding: 12px 24px;
+              text-decoration: none;
+              border-radius: 6px;
+              font-weight: bold;
+              display: inline-block;
+            }
+            .footer { margin-top: 40px; font-size: 11px; color: #9ca3af; text-align: center; border-top: 1px solid #eee; padding-top: 15px; }
+            .summary-title { font-size: 20px; color: #111827; }
+            .highlight-green { color: #10b981; font-weight: bold; }
+            .highlight-red { color: #ef4444; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 class="summary-title">📊 Executive Production Summary</h1>
+              <p style="color: #6b7280; font-size: 15px;">Activity for ${formattedDate}</p>
+            </div>
+
+            <p>Hello,</p>
+            <p>Here is the simplified production report for today. You can see the high-level stats below or download the full summary file.</p>
+
+            <div class="button-container">
+              <a href="${data.summaryUrl}" class="download-button">📥 Download Summary CSV</a>
+            </div>
+
+            <div class="details">
+              ${data.stats.length === 0 ? '<p>No activity recorded for this period.</p>' : data.stats.map(user => `
+                <div class="user-card">
+                  <div class="user-name">${user.userName} (${user.role})</div>
+                  <div class="metric-grid">
+                    ${user.inProgress > 0 ? `<div class="metric">🚀 Started Tasks: <span class="metric-count">${user.inProgress}</span></div>` : ''}
+                    ${user.readyForQc > 0 ? `<div class="metric">📤 Sent to QC: <span class="metric-count">${user.readyForQc}</span></div>` : ''}
+                    ${user.approved > 0 ? `<div class="metric">✅ Approved: <span class="highlight-green">${user.approved}</span></div>` : ''}
+                    ${user.rejected > 0 ? `<div class="metric">❌ Rejected: <span class="highlight-red">${user.rejected}</span></div>` : ''}
+                    ${user.clientApproved > 0 ? `<div class="metric">🌟 Client Approved: <span class="highlight-green">${user.clientApproved}</span></div>` : ''}
+                    ${user.clientRejected > 0 ? `<div class="metric">⚠️ Client Revisions: <span class="highlight-red">${user.clientRejected}</span></div>` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+
+            <div class="footer">
+              <p>Automated Report by E8 Productions Management System</p>
+              <p>© ${new Date().getFullYear()} E8 Productions</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Executive summary report sent to Eric`);
+  } catch (error) {
+    console.error('❌ Failed to send executive summary report email:', error);
+  }
+}
+
