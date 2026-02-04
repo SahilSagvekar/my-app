@@ -1,149 +1,96 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DatePickerWithRange } from '../ui/date-picker-with-range';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, Eye, Heart, MessageCircle, Share, Users, MousePointer, DollarSign, Calendar, Download, Filter } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { TrendingUp, TrendingDown, Eye, Heart, MessageCircle, Share, Users, MousePointer, DollarSign, Calendar, Download, Filter, RefreshCw } from 'lucide-react';
 import { DateRangePicker } from '../ui/date-range-picker';
 
-// Mock data for client analytics
-const clients = [
-  { id: 'all', name: 'All Clients' },
-  { id: 'acme', name: 'Acme Corporation' },
-  { id: 'techstart', name: 'Tech Startup Inc.' },
-  { id: 'fashion', name: 'Fashion Forward' },
-  { id: 'foodie', name: 'Foodie Delights' }
-];
-
-const socialPlatforms = [
-  { id: 'all', name: 'All Platforms' },
-  { id: 'instagram', name: 'Instagram' },
-  { id: 'facebook', name: 'Facebook' },
-  { id: 'twitter', name: 'Twitter' },
-  { id: 'linkedin', name: 'LinkedIn' },
-  { id: 'tiktok', name: 'TikTok' },
-  { id: 'youtube', name: 'YouTube' },
-  { id: 'snapchat', name: 'Snapchat' }
-];
-
-const kpiMetrics = [
-  {
-    title: 'Total Views',
-    value: '2.4M',
-    change: '+15.2%',
-    trend: 'up',
-    icon: Eye,
-    color: 'text-blue-600'
-  },
-  {
-    title: 'Total Reach',
-    value: '1.8M',
-    change: '+22.8%',
-    trend: 'up',
-    icon: Users,
-    color: 'text-green-600'
-  },
-  {
-    title: 'Engagement Rate',
-    value: '4.7%',
-    change: '+0.8%',
-    trend: 'up',
-    icon: Heart,
-    color: 'text-pink-600'
-  },
-  {
-    title: 'Click-through Rate',
-    value: '2.3%',
-    change: '-0.2%',
-    trend: 'down',
-    icon: MousePointer,
-    color: 'text-orange-600'
-  },
-  {
-    title: 'Conversions',
-    value: '1,247',
-    change: '+18.9%',
-    trend: 'up',
-    icon: DollarSign,
-    color: 'text-purple-600'
-  },
-  {
-    title: 'Total Posts',
-    value: '328',
-    change: '+12',
-    trend: 'up',
-    icon: MessageCircle,
-    color: 'text-indigo-600'
-  }
-];
-
-const monthlyPerformanceData = [
-  { month: 'Jan', views: 180000, reach: 150000, engagement: 8500, clicks: 4200, conversions: 89 },
-  { month: 'Feb', views: 220000, reach: 180000, engagement: 10200, clicks: 5100, conversions: 112 },
-  { month: 'Mar', views: 280000, reach: 230000, engagement: 13100, clicks: 6400, conversions: 145 },
-  { month: 'Apr', views: 320000, reach: 270000, engagement: 15000, clicks: 7300, conversions: 167 },
-  { month: 'May', views: 380000, reach: 315000, engagement: 17800, clicks: 8700, conversions: 198 },
-  { month: 'Jun', views: 450000, reach: 380000, engagement: 21200, clicks: 10300, conversions: 234 }
-];
-
-const platformDistribution = [
-  { platform: 'Instagram', views: 850000, color: '#E4405F' },
-  { platform: 'Facebook', views: 680000, color: '#1877F2' },
-  { platform: 'TikTok', views: 520000, color: '#000000' },
-  { platform: 'LinkedIn', views: 280000, color: '#0A66C2' },
-  { platform: 'Twitter', views: 220000, color: '#1DA1F2' },
-  { platform: 'YouTube', views: 180000, color: '#FF0000' },
-  { platform: 'Sanpchat', views: 180000, color: '#FF0000' },
-
-];
-
-const clientPerformance = [
-  { 
-    client: 'Acme Corporation',
-    views: 820000,
-    reach: 690000,
-    engagement: 38500,
-    conversions: 456,
-    roi: '245%'
-  },
-  { 
-    client: 'Tech Startup Inc.',
-    views: 650000,
-    reach: 540000,
-    engagement: 29800,
-    conversions: 312,
-    roi: '189%'
-  },
-  { 
-    client: 'Fashion Forward',
-    views: 480000,
-    reach: 420000,
-    engagement: 35600,
-    conversions: 298,
-    roi: '312%'
-  },
-  { 
-    client: 'Foodie Delights',
-    views: 380000,
-    reach: 310000,
-    engagement: 18900,
-    conversions: 181,
-    roi: '156%'
-  }
-];
+// Types for data
+interface AnalyticsData {
+  summary: {
+    totalViews: number;
+    viewsChange: string;
+    totalEngagement: number;
+    engagementChange: string;
+    connectedChannels: number;
+  };
+  dailyData: Array<{ date: string; views: number; engagement: number }>;
+  clientPerformance: Array<{ id: string; name: string; views: number; engagement: number; subs: number }>;
+  clients: Array<{ id: string; name: string }>;
+}
 
 export function AnalyticsTab() {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AnalyticsData | null>(null);
   const [selectedClient, setSelectedClient] = useState('all');
-  const [selectedPlatform, setSelectedPlatform] = useState('all');
-   const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
-  from: new Date(new Date().setDate(new Date().getDate() - 30)),
-  to: new Date()
-});
+  const [selectedRange, setSelectedRange] = useState('30d');
+
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({
+    from: new Date(new Date().setDate(new Date().getDate() - 30)),
+    to: new Date()
+  });
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/admin/reports/youtube-analytics?range=${selectedRange}&clientId=${selectedClient}`);
+      const json = await res.json();
+      if (json.ok) {
+        setData(json);
+      }
+    } catch (err) {
+      console.error("Failed to fetch analytics:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [selectedClient, selectedRange]);
+
+  const handleRefresh = () => fetchData();
+
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-96">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    </div>
+  );
+
+  const kpiMetrics = [
+    {
+      title: 'Total aggregate Views',
+      value: (data?.summary.totalViews || 0).toLocaleString(),
+      change: data?.summary.viewsChange || '+0%',
+      trend: data?.summary.viewsChange.startsWith('+') ? 'up' : 'down',
+      icon: Eye,
+      color: 'text-blue-600'
+    },
+    {
+      title: 'Connected Channels',
+      value: data?.summary.connectedChannels || '0',
+      change: 'Active',
+      trend: 'up',
+      icon: Users,
+      color: 'text-green-600'
+    },
+    {
+      title: 'Total Engagement',
+      value: (data?.summary.totalEngagement || 0).toLocaleString(),
+      change: data?.summary.engagementChange || '+0%',
+      trend: data?.summary.engagementChange.startsWith('+') ? 'up' : 'down',
+      icon: Heart,
+      color: 'text-pink-600'
+    }
+  ];
 
   return (
     <div className="space-y-6">
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -161,7 +108,8 @@ export function AnalyticsTab() {
                   <SelectValue placeholder="Select client" />
                 </SelectTrigger>
                 <SelectContent>
-                  {clients.map((client) => (
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {data?.clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
                     </SelectItem>
@@ -171,30 +119,24 @@ export function AnalyticsTab() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm">Platform</label>
-              <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+              <label className="text-sm">Range</label>
+              <Select value={selectedRange} onValueChange={setSelectedRange}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Select platform" />
+                  <SelectValue placeholder="Select range" />
                 </SelectTrigger>
                 <SelectContent>
-                  {socialPlatforms.map((platform) => (
-                    <SelectItem key={platform.id} value={platform.id}>
-                      {platform.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="7d">Last 7 Days</SelectItem>
+                  <SelectItem value="28d">Last 28 Days</SelectItem>
+                  <SelectItem value="90d">Last 90 Days</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm">Date Range</label>
-             <DateRangePicker date={dateRange} setDate={setDateRange} />
-            </div>
-
-            <Button variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export Data
+            <Button onClick={fetchData} variant="outline" className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Refresh
             </Button>
+
           </div>
         </CardContent>
       </Card>
@@ -204,7 +146,7 @@ export function AnalyticsTab() {
         {kpiMetrics.map((metric, index) => {
           const Icon = metric.icon;
           const isPositive = metric.trend === 'up';
-          
+
           return (
             <Card key={index}>
               <CardContent className="p-6">
@@ -236,29 +178,30 @@ export function AnalyticsTab() {
         {/* Monthly Performance Trend */}
         <Card className="col-span-1 lg:col-span-2">
           <CardHeader>
-            <CardTitle>Monthly Performance Trends</CardTitle>
+            <CardTitle>Performance Trend (Views & Engagement)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyPerformanceData}>
+                <AreaChart data={data?.dailyData || []}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
+                  <XAxis dataKey="date" />
                   <YAxis />
-                  <Area 
-                    type="monotone" 
-                    dataKey="views" 
-                    stackId="1"
-                    stroke="#3b82f6" 
-                    fill="#3b82f6" 
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="views"
+                    name="Views"
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
                     fillOpacity={0.6}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="reach" 
-                    stackId="2"
-                    stroke="#10b981" 
-                    fill="#10b981" 
+                  <Area
+                    type="monotone"
+                    dataKey="engagement"
+                    name="Engagement"
+                    stroke="#10b981"
+                    fill="#10b981"
                     fillOpacity={0.6}
                   />
                 </AreaChart>
@@ -267,63 +210,25 @@ export function AnalyticsTab() {
           </CardContent>
         </Card>
 
-        {/* Platform Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Platform Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={platformDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={80}
-                    dataKey="views"
-                  >
-                    {platformDistribution.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-2 mt-4">
-              {platformDistribution.map((platform, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: platform.color }}
-                    />
-                    <span>{platform.platform}</span>
-                  </div>
-                  <span className="font-medium">{(platform.views / 1000).toFixed(0)}K</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Engagement Metrics */}
-        <Card>
+        {/* Engagement over time for current daily data */}
+        <Card className="col-span-1 lg:col-span-2">
           <CardHeader>
-            <CardTitle>Engagement Over Time</CardTitle>
+            <CardTitle>Daily Engagement Rate</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyPerformanceData}>
+                <LineChart data={data?.dailyData || []}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
+                  <XAxis dataKey="date" />
                   <YAxis />
-                  <Line 
-                    type="monotone" 
-                    dataKey="engagement" 
-                    stroke="#f59e0b" 
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="engagement"
+                    name="Engagement"
+                    stroke="#f59e0b"
                     strokeWidth={3}
                     dot={{ fill: '#f59e0b' }}
                   />
@@ -333,6 +238,7 @@ export function AnalyticsTab() {
           </CardContent>
         </Card>
       </div>
+
 
       {/* Client Performance Table */}
       <Card>
@@ -346,38 +252,36 @@ export function AnalyticsTab() {
                 <tr className="border-b">
                   <th className="text-left py-3 px-4">Client</th>
                   <th className="text-left py-3 px-4">Total Views</th>
-                  <th className="text-left py-3 px-4">Reach</th>
                   <th className="text-left py-3 px-4">Engagement</th>
-                  <th className="text-left py-3 px-4">Conversions</th>
-                  <th className="text-left py-3 px-4">ROI</th>
+                  <th className="text-left py-3 px-4">Current Subscribers</th>
+                  <th className="text-left py-3 px-4">Status</th>
                 </tr>
+
               </thead>
               <tbody>
-                {clientPerformance.map((client, index) => (
+                {data?.clientPerformance.map((client, index) => (
                   <tr key={index} className="border-b hover:bg-muted/50">
                     <td className="py-3 px-4">
-                      <div className="font-medium">{client.client}</div>
+                      <div className="font-medium">{client.name}</div>
                     </td>
                     <td className="py-3 px-4">
-                      {(client.views / 1000).toFixed(0)}K
+                      {client.views.toLocaleString()}
                     </td>
                     <td className="py-3 px-4">
-                      {(client.reach / 1000).toFixed(0)}K
+                      {client.engagement.toLocaleString()}
                     </td>
                     <td className="py-3 px-4">
-                      {(client.engagement / 1000).toFixed(1)}K
+                      {client.subs.toLocaleString()}
                     </td>
                     <td className="py-3 px-4">
-                      {client.conversions}
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge variant="outline" className="text-green-600 border-green-600">
-                        {client.roi}
+                      <Badge variant="outline" className="text-green-600 border-green-600 text-[10px]">
+                        ACTIVE
                       </Badge>
                     </td>
                   </tr>
                 ))}
               </tbody>
+
             </table>
           </div>
         </CardContent>
