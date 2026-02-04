@@ -1048,7 +1048,7 @@ export function FullScreenReviewModalFrameIO({
                         </div>
 
                         {/* Comments Sidebar */}
-                        <div className="w-80 flex-shrink-0 review-comments-sidebar flex flex-col">
+                        <div className="w-80 flex-shrink-0 review-comments-sidebar grid grid-rows-[auto,auto,1fr,auto] overflow-hidden border-l border-[var(--review-border)] bg-[var(--review-bg-secondary)]" style={{ height: 'calc(100vh - 64px)' }}>
                             {/* Sidebar Header */}
                             <div className="p-4 border-b border-[var(--review-border)]">
                                 <div className="flex items-center justify-between">
@@ -1094,7 +1094,7 @@ export function FullScreenReviewModalFrameIO({
                             {/* Comments List */}
                             <div
                                 ref={commentsRef}
-                                className="flex-1 overflow-y-auto p-3 review-scrollbar"
+                                className="overflow-y-auto p-3 review-scrollbar min-h-0"
                             >
                                 {comments.length === 0 ? (
                                     <div className="text-center py-12 text-[var(--review-text-muted)]">
@@ -1120,7 +1120,7 @@ export function FullScreenReviewModalFrameIO({
                             </div>
 
                             {/* Sidebar Footer - Action Buttons */}
-                            <div className="p-4 border-t border-[var(--review-border)] space-y-2">
+                            <div className="p-4 border-t border-[var(--review-border)] space-y-2 bg-[var(--review-bg-secondary)] z-10">
                                 {userRole === 'qc' ? (
                                     <>
                                         <Button
