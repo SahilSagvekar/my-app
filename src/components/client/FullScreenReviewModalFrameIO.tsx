@@ -144,6 +144,10 @@ export function FullScreenReviewModalFrameIO({
     const [duration, setDuration] = useState(0);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [currentVersion, setCurrentVersion] = useState('');
+    const currentVersionNumber = useMemo(() => {
+        const v = asset?.versions.find(v => v.id === currentVersion);
+        return v ? parseInt(v.number) : 1;
+    }, [asset, currentVersion]);
     const [currentVideoUrl, setCurrentVideoUrl] = useState('');
     const [videoError, setVideoError] = useState(false);
     const [iframeLoaded, setIframeLoaded] = useState(false);
@@ -212,14 +216,25 @@ export function FullScreenReviewModalFrameIO({
 
             // Clear and then load comments when asset changes
             if (asset && (asset as any).taskFeedback) {
-                const initialComments = (asset as any).taskFeedback.map((fb: any) => ({
-                    id: fb.id,
-                    content: fb.feedback,
-                    timestamp: fb.timestamp || '0:00',
-                    category: fb.category || 'other',
-                    createdAt: fb.createdAt,
-                    resolved: false, // shared view usually only sees active feedback
-                }));
+                const initialComments = (asset as any).taskFeedback.map((fb: any) => {
+                    const ts = fb.timestamp || '0:00';
+                    const parts = ts.split(':');
+                    const tsSeconds = parts.length === 2 ? (parseInt(parts[0]) * 60 + parseInt(parts[1])) : 0;
+
+                    return {
+                        id: fb.id,
+                        taskId: asset.id,
+                        authorId: String(fb.user?.id || 0),
+                        authorName: fb.user?.name || 'Member',
+                        content: fb.feedback,
+                        timestamp: ts,
+                        timestampSeconds: tsSeconds,
+                        category: fb.category || 'other',
+                        createdAt: new Date(fb.createdAt),
+                        resolved: fb.status === 'resolved',
+                        version: fb.file?.version || 1,
+                    };
+                });
                 setComments(initialComments);
             } else {
                 setComments([]);
@@ -389,6 +404,7 @@ export function FullScreenReviewModalFrameIO({
             ...comment,
             id: Date.now().toString(),
             createdAt: new Date(),
+            version: currentVersionNumber, // Track which version this comment belongs to
         };
 
         setComments(prev => [...prev, newComment]);
@@ -450,13 +466,19 @@ export function FullScreenReviewModalFrameIO({
 
             const feedbackItems = feedbackComments
                 .filter(c => !c.resolved)
-                .map(c => ({
-                    folderType: currentFileSection?.folderType || 'main',
-                    fileId: currentFileSection?.fileId || null,
-                    feedback: c.content,
-                    timestamp: c.timestamp,
-                    category: c.category,
-                }));
+                .map(c => {
+                    // Try to find the file ID for the version this comment was made on
+                    const commentVersion = c.version || currentVersionNumber;
+                    const versionFile = asset?.versions.find(v => parseInt(v.number) === commentVersion);
+
+                    return {
+                        folderType: currentFileSection?.folderType || 'main',
+                        fileId: versionFile?.id || currentFileSection?.fileId || null,
+                        feedback: c.content,
+                        timestamp: c.timestamp,
+                        category: c.category,
+                    };
+                });
 
             const res = await fetch(`/api/tasks/${actualTaskId}/feedback`, {
                 method: 'PATCH',

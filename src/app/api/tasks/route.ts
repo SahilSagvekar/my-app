@@ -658,6 +658,13 @@ export async function GET(req: Request) {
                 name: true,
               },
             },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                role: true,
+              },
+            },
           },
           orderBy: { createdAt: 'desc' as const },
         },
