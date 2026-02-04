@@ -958,6 +958,14 @@ export function SocialLogins() {
 
   // Role checks
   const userRole = user?.role?.toLowerCase() || "";
+
+  // Bypassing 2FA for Admins (TEMPORARY REQUEST)
+  useEffect(() => {
+    if (userRole === "admin") {
+      setIsUnlocked(true);
+    }
+  }, [userRole]);
+
   const canView = ["admin", "client", "scheduler"].includes(userRole);
   const canEdit = userRole === "admin" || userRole === "client"; // Both admin and client can add/edit/delete
   const isClient = userRole === "client";
