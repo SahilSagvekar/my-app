@@ -53,7 +53,9 @@ import {
   Repeat,
   DollarSign,
   CreditCard,
+  GripVertical,
 } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Separator } from "../ui/separator";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { VisuallyHidden } from "../ui/visually-hidden";
@@ -412,18 +414,18 @@ export function ClientManagement() {
   };
 
   const getStatusBadgeClasses = (status: string) => {
-  switch (status) {
-    case "active":
-      return "bg-green-50 text-green-700 border-green-300";
-    case "pending":
-      return "bg-yellow-50 text-yellow-700 border-yellow-300";
-    case "expired":
-      return "bg-red-50 text-red-700 border-red-300";
-    default:
-      return "bg-gray-50 text-gray-700 border-gray-300";
-  }
-};
- 
+    switch (status) {
+      case "active":
+        return "bg-green-50 text-green-700 border-green-300";
+      case "pending":
+        return "bg-yellow-50 text-yellow-700 border-yellow-300";
+      case "expired":
+        return "bg-red-50 text-red-700 border-red-300";
+      default:
+        return "bg-gray-50 text-gray-700 border-gray-300";
+    }
+  };
+
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -641,16 +643,16 @@ export function ClientManagement() {
           monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
             d.id === editingDeliverableId
               ? {
-                  ...d,
-                  type: newDeliverable.type,
-                  quantity: newDeliverable.quantity,
-                  videosPerDay: newDeliverable.videosPerDay || 1,
-                  platforms: newDeliverable.platforms,
-                  postingSchedule: newDeliverable.postingSchedule,
-                  postingDays: newDeliverable.postingDays || [],
-                  postingTimes: newDeliverable.postingTimes || ["10:00"],
-                  description: newDeliverable.description || "",
-                }
+                ...d,
+                type: newDeliverable.type,
+                quantity: newDeliverable.quantity,
+                videosPerDay: newDeliverable.videosPerDay || 1,
+                platforms: newDeliverable.platforms,
+                postingSchedule: newDeliverable.postingSchedule,
+                postingDays: newDeliverable.postingDays || [],
+                postingTimes: newDeliverable.postingTimes || ["10:00"],
+                description: newDeliverable.description || "",
+              }
               : d
           ),
         }));
@@ -730,11 +732,11 @@ export function ClientManagement() {
           prev.map((c) =>
             c.id === clientId
               ? {
-                  ...c,
-                  monthlyDeliverables: (c.monthlyDeliverables || []).map((d) =>
-                    d.id === editingDeliverableId ? data.deliverable : d
-                  ),
-                }
+                ...c,
+                monthlyDeliverables: (c.monthlyDeliverables || []).map((d) =>
+                  d.id === editingDeliverableId ? data.deliverable : d
+                ),
+              }
               : c
           )
         );
@@ -780,12 +782,12 @@ export function ClientManagement() {
           prev.map((c) =>
             c.id === clientId
               ? {
-                  ...c,
-                  monthlyDeliverables: [
-                    ...(c.monthlyDeliverables || []),
-                    data.deliverable,
-                  ],
-                }
+                ...c,
+                monthlyDeliverables: [
+                  ...(c.monthlyDeliverables || []),
+                  data.deliverable,
+                ],
+              }
               : c
           )
         );
@@ -865,11 +867,11 @@ export function ClientManagement() {
         prev.map((c) =>
           c.id === clientId
             ? {
-                ...c,
-                monthlyDeliverables: (c.monthlyDeliverables || []).filter(
-                  (d) => d.id !== deliverableId
-                ),
-              }
+              ...c,
+              monthlyDeliverables: (c.monthlyDeliverables || []).filter(
+                (d) => d.id !== deliverableId
+              ),
+            }
             : c
         )
       );
@@ -897,6 +899,27 @@ export function ClientManagement() {
     });
     setDeliverableDialogKey((prev) => prev + 1);
     setShowAddDeliverableDialog(true);
+  };
+
+  // 🔥 Handle drag and drop reordering of deliverables
+  const handleDeliverableDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+
+    const sourceIndex = result.source.index;
+    const destIndex = result.destination.index;
+
+    if (sourceIndex === destIndex) return;
+
+    const deliverables = [...(newClient.monthlyDeliverables || [])];
+    const [removed] = deliverables.splice(sourceIndex, 1);
+    deliverables.splice(destIndex, 0, removed);
+
+    setNewClient((prev) => ({
+      ...prev,
+      monthlyDeliverables: deliverables,
+    }));
+
+    toast.success("Deliverable order updated");
   };
 
   // 🔥 NEW: Handle editing a deliverable
@@ -1066,8 +1089,8 @@ export function ClientManagement() {
         // Determine task type based on deliverable type
         const taskType =
           deliverable.type === "Long Form Videos" ||
-          deliverable.type === "Square Form Videos" ||
-          deliverable.type === "Snapchat Show Episode"
+            deliverable.type === "Square Form Videos" ||
+            deliverable.type === "Snapchat Show Episode"
             ? "video"
             : "design";
 
@@ -1076,18 +1099,16 @@ export function ClientManagement() {
           deliverable.type === "Long Form Videos"
             ? "4"
             : deliverable.type === "Snapchat Show Episode"
-            ? "3"
-            : "2";
+              ? "3"
+              : "2";
 
         // Create the initial editor task
         const platformsText = deliverable.platforms.join(", ");
         const task = taskManager.createTask({
           title: `${deliverable.type} #${i + 1} - ${clientName}`,
-          description: `${
-            deliverable.type
-          } deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${
-            deliverable.postingSchedule
-          }\\n\\n${deliverable.description || "No additional notes"}`,
+          description: `${deliverable.type
+            } deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${deliverable.postingSchedule
+            }\\n\\n${deliverable.description || "No additional notes"}`,
           // description: `${deliverable.type} deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${deliverable.postingSchedule}\\nPosting Time: ${deliverable.defaultPostingTime}\\n\\n${deliverable.description || 'No additional notes'}`,
           type: taskType,
           assignedTo: "editor",
@@ -1615,7 +1636,7 @@ export function ClientManagement() {
                           </div>
                           <Badge variant="outline" className="text-gray-700">
                             {deliverable.postingDays &&
-                            deliverable.postingDays.length > 0
+                              deliverable.postingDays.length > 0
                               ? deliverable.postingDays.join(", ")
                               : "Various"}
                           </Badge>
@@ -2396,86 +2417,115 @@ export function ClientManagement() {
                 </Button>
               </div>
 
-              <div className="space-y-2">
-                {(newClient.monthlyDeliverables || []).map((deliverable) => (
-                  <div
-                    key={deliverable.id}
-                    className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {getDeliverableTypeIcon(deliverable.type)}
-                        <span className="text-gray-900">
-                          {deliverable.type}
-                        </span>
-                        <Badge variant="outline" className="text-gray-600">
-                          {deliverable.quantity} per month
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className="text-blue-600 bg-blue-50"
+              <DragDropContext onDragEnd={handleDeliverableDragEnd}>
+                <Droppable droppableId="deliverables-list">
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className="space-y-2"
+                    >
+                      {(newClient.monthlyDeliverables || []).map((deliverable, index) => (
+                        <Draggable
+                          key={deliverable.id}
+                          draggableId={deliverable.id}
+                          index={index}
                         >
-                          {deliverable.videosPerDay || 1} per day
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-gray-600 mb-1">
-                        {deliverable.postingSchedule} •{" "}
-                        {deliverable.postingDays &&
-                        deliverable.postingDays.length > 0
-                          ? deliverable.postingDays.join(", ")
-                          : "Various days"}{" "}
-                        • {(deliverable.postingTimes || ["10:00"]).join(", ")}
-                      </div>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {deliverable.platforms.map((platform) => (
-                          <Badge
-                            key={platform}
-                            variant="outline"
-                            className={`text-xs ${getPlatformBadgeColor(
-                              platform
-                            )}`}
-                          >
-                            {platform}
-                          </Badge>
-                        ))}
-                      </div>
-                      {deliverable.description && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          {deliverable.description}
-                        </p>
-                      )}
-                    </div>
-                    {/* 🔥 NEW: Edit and Delete buttons */}
-                    <div className="flex gap-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEditDeliverable(deliverable)}
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRemoveDeliverable(deliverable.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className={`p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between ${snapshot.isDragging ? "shadow-lg ring-2 ring-blue-500 bg-white" : ""
+                                }`}
+                            >
+                              {/* Drag Handle */}
+                              <div
+                                {...provided.dragHandleProps}
+                                className="flex items-center justify-center p-1 mr-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+                              >
+                                <GripVertical className="h-5 w-5" />
+                              </div>
 
-                {(!newClient.monthlyDeliverables ||
-                  newClient.monthlyDeliverables.length === 0) && (
-                  <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-gray-200">
-                    No monthly deliverables added yet
-                  </div>
-                )}
-              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {getDeliverableTypeIcon(deliverable.type)}
+                                  <span className="text-gray-900">
+                                    {deliverable.type}
+                                  </span>
+                                  <Badge variant="outline" className="text-gray-600">
+                                    {deliverable.quantity} per month
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-blue-600 bg-blue-50"
+                                  >
+                                    {deliverable.videosPerDay || 1} per day
+                                  </Badge>
+                                </div>
+                                <div className="text-sm text-gray-600 mb-1">
+                                  {deliverable.postingSchedule} •{" "}
+                                  {deliverable.postingDays &&
+                                    deliverable.postingDays.length > 0
+                                    ? deliverable.postingDays.join(", ")
+                                    : "Various days"}{" "}
+                                  • {(deliverable.postingTimes || ["10:00"]).join(", ")}
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {deliverable.platforms.map((platform) => (
+                                    <Badge
+                                      key={platform}
+                                      variant="outline"
+                                      className={`text-xs ${getPlatformBadgeColor(
+                                        platform
+                                      )}`}
+                                    >
+                                      {platform}
+                                    </Badge>
+                                  ))}
+                                </div>
+                                {deliverable.description && (
+                                  <p className="text-xs text-gray-500 mt-2">
+                                    {deliverable.description}
+                                  </p>
+                                )}
+                              </div>
+                              {/* Edit and Delete buttons */}
+                              <div className="flex gap-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEditDeliverable(deliverable)}
+                                  className="text-blue-600 hover:text-blue-700"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleRemoveDeliverable(deliverable.id)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+
+                      {(!newClient.monthlyDeliverables ||
+                        newClient.monthlyDeliverables.length === 0) && (
+                          <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-gray-200">
+                            No monthly deliverables added yet
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </div>
 
             <Separator className="bg-gray-200" />
@@ -2592,10 +2642,10 @@ export function ClientManagement() {
                             {day === 1
                               ? "st"
                               : day === 2
-                              ? "nd"
-                              : day === 3
-                              ? "rd"
-                              : "th"}{" "}
+                                ? "nd"
+                                : day === 3
+                                  ? "rd"
+                                  : "th"}{" "}
                             of the month
                           </SelectItem>
                         )
@@ -2886,11 +2936,10 @@ export function ClientManagement() {
                   size="sm"
                   variant="outline"
                   onClick={setEveryDay}
-                  className={`h-8 ${
-                    (newDeliverable.postingDays || []).length === 7
-                      ? "bg-blue-50 border-blue-500 text-blue-700"
-                      : "bg-white border-gray-200 text-gray-600"
-                  }`}
+                  className={`h-8 ${(newDeliverable.postingDays || []).length === 7
+                    ? "bg-blue-50 border-blue-500 text-blue-700"
+                    : "bg-white border-gray-200 text-gray-600"
+                    }`}
                 >
                   {(newDeliverable.postingDays || []).length === 7 ? "✓ " : ""}
                   Everyday
@@ -2909,11 +2958,10 @@ export function ClientManagement() {
                   <div
                     key={day}
                     onClick={() => toggleDay(day)}
-                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors ${
-                      (newDeliverable.postingDays || []).includes(day)
-                        ? "bg-blue-50 border-blue-500 text-blue-700"
-                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
+                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors ${(newDeliverable.postingDays || []).includes(day)
+                      ? "bg-blue-50 border-blue-500 text-blue-700"
+                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
                   >
                     {day.substring(0, 3)}
                   </div>
@@ -2972,11 +3020,10 @@ export function ClientManagement() {
                   size="sm"
                   variant="outline"
                   onClick={setAllPlatforms}
-                  className={`h-8 ${
-                    (newDeliverable.platforms || []).length === 7
-                      ? "bg-blue-50 border-blue-500 text-blue-700"
-                      : "bg-white border-gray-200 text-gray-600"
-                  }`}
+                  className={`h-8 ${(newDeliverable.platforms || []).length === 7
+                    ? "bg-blue-50 border-blue-500 text-blue-700"
+                    : "bg-white border-gray-200 text-gray-600"
+                    }`}
                 >
                   {(newDeliverable.platforms || []).length === 7 ? "✓ " : ""}
                   Select All
@@ -2997,11 +3044,10 @@ export function ClientManagement() {
                   <div
                     key={platform}
                     onClick={() => togglePlatform(platform)}
-                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors flex items-center justify-center gap-2 ${
-                      newDeliverable.platforms?.includes(platform)
-                        ? "bg-blue-50 border-blue-500 text-blue-700"
-                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
+                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors flex items-center justify-center gap-2 ${newDeliverable.platforms?.includes(platform)
+                      ? "bg-blue-50 border-blue-500 text-blue-700"
+                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
                   >
                     {getPlatformIcon(platform)}
                     <span>
