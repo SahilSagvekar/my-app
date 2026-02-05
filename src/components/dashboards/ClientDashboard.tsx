@@ -741,7 +741,8 @@ export function ClientDashboard() {
       {/* File Selector Dialog */}
       {selectedTask && (
         <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-          <DialogContent className="max-w-4xl max-h-[85vh]">
+          {/* 🔧 FIX: Added overflow-hidden + flex flex-col for proper Mac layout */}
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
@@ -752,7 +753,8 @@ export function ClientDashboard() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="overflow-y-auto max-h-[50vh] pr-2">
+            {/* 🔧 FIX: Changed from max-h-[50vh] to flex-1 min-h-0 so it fills available space */}
+            <div className="overflow-y-auto flex-1 min-h-0 pr-2">
               {selectedTask.files && selectedTask.files.length > 0 ? (
                 <div className="space-y-4">
                   {groupFilesByFolderType(selectedTask.files).map((group) => (
@@ -792,14 +794,6 @@ export function ClientDashboard() {
                             onClick={() => handleFileSelect(file)}
                           >
                             <div className="flex items-center gap-4">
-                              {/* File Icon */}
-                              {/* <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith('video/') ? 'bg-blue-100' :
-                                file.mimeType?.startsWith('image/') ? 'bg-green-100' :
-                                  'bg-gray-100'
-                                }`}>
-                                {getFileIcon(file.mimeType)}
-                              </div> */}
-
                               {/* File Info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -849,8 +843,8 @@ export function ClientDashboard() {
               )}
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t mt-4">
+            {/* 🔧 FIX: Changed mt-4 to mt-auto + flex-shrink-0 so buttons stay pinned at bottom */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t mt-auto flex-shrink-0">
               <Button
                 variant="outline"
                 className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 mr-auto"
