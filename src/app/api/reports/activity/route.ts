@@ -38,8 +38,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const cronSecret = req.headers.get('x-cron-secret');
-        if (cronSecret && cronSecret === process.env.CRON_SECRET) {
-            // Authorized via cron secret
+        const isCronJob = !!(cronSecret && cronSecret === process.env.CRON_SECRET);
+
+        if (isCronJob) {
+            // Authorized via cron secret - will send email
         } else {
             const token = getTokenFromCookies(req);
             if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -50,7 +52,10 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const report = await generateDailyActivityReport();
+        // Only send email when triggered by cron job at 7 PM EST
+        const report = await generateDailyActivityReport({
+            sendEmail: isCronJob
+        });
 
         // Handle case where no logs found
         if (!report) {

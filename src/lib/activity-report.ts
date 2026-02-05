@@ -3,11 +3,19 @@ import { prisma } from './prisma';
 import { format, startOfDay, endOfDay, addHours, subHours } from 'date-fns';
 import { uploadBufferToS3 } from './s3';
 
+interface ReportOptions {
+    targetDate?: Date;
+    sendEmail?: boolean; // Only send email when triggered by cron job
+}
+
 /**
  * Generates a daily activity report for employees and an executive summary for management.
  * Period: Start of day to 7 PM USA Time (EST/EDT)
+ * @param options.targetDate - The date to generate the report for (default: today)
+ * @param options.sendEmail - Whether to send the email notification (default: false)
  */
-export async function generateDailyActivityReport(targetDate: Date = new Date()) {
+export async function generateDailyActivityReport(options: ReportOptions = {}) {
+    const { targetDate = new Date(), sendEmail = false } = options;
     try {
         // 1. Calculate the time range in EST (UTC-5)
         const estOffset = 5;
@@ -168,17 +176,23 @@ export async function generateDailyActivityReport(targetDate: Date = new Date())
             }
         });
 
-        // 9. Generate a SIGNED long-lasting URL for the email (so its one-click for the boss)
-        const { generateSignedUrl } = await import('./s3');
-        const longLastingSignedUrl = await generateSignedUrl(summaryUpload.key, 604800); // 7 days
+        // 9. Only send email if triggered by cron job (sendEmail = true)
+        if (sendEmail) {
+            // Generate a SIGNED long-lasting URL for the email (so its one-click for the boss)
+            const { generateSignedUrl } = await import('./s3');
+            const longLastingSignedUrl = await generateSignedUrl(summaryUpload.key, 604800); // 7 days
 
-        // 10. Send Email with Summary Attachment Link
-        const { sendExecutiveSummaryReportEmail } = await import('./email');
-        await sendExecutiveSummaryReportEmail({
-            date: targetDate,
-            stats: statsArray,
-            summaryUrl: longLastingSignedUrl // Now its a one-click signed link
-        });
+            // Send Email with Summary Attachment Link
+            const { sendExecutiveSummaryReportEmail } = await import('./email');
+            await sendExecutiveSummaryReportEmail({
+                date: targetDate,
+                stats: statsArray,
+                summaryUrl: longLastingSignedUrl // Now its a one-click signed link
+            });
+            console.log(`📧 Email sent to Eric@e8productions.com`);
+        } else {
+            console.log(`📧 Email skipped (manual generation)`);
+        }
 
         console.log(`✅ Reports generated. Detailed: ${fileName}, Summary: ${summaryFileName}`);
         return report;
