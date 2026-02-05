@@ -7,18 +7,46 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   try {
     const { id } = await context.params;
 
+    // Get current month date range
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
     const client = await prisma.client.findUnique({
       where: { id: id },
       include: {
         monthlyDeliverables: true,
         brandAssets: true,
         recurringTasks: true,
+        tasks: {
+          where: {
+            createdAt: {
+              gte: startOfMonth,
+              lte: endOfMonth,
+            },
+          },
+          select: {
+            id: true,
+            status: true,
+          },
+        },
       }
     });
 
     if (!client) {
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
+
+    // Calculate total deliverables for the month
+    const totalDeliverables = (client.monthlyDeliverables ?? []).reduce(
+      (sum, d) => sum + (d.quantity ?? 0),
+      0
+    );
+
+    // Count completed tasks (COMPLETED or SCHEDULED means posted/done)
+    const completedTasks = (client.tasks ?? []).filter(
+      (t) => t.status === "COMPLETED" || t.status === "SCHEDULED"
+    ).length;
 
     const normalizedClient = {
       ...client,
@@ -52,7 +80,13 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
         notes: "",
       },
       postingSchedule: client.postingSchedule ?? {},
-      currentProgress: client.currentProgress ?? { completed: 0, total: 0 },
+      // 🔥 Dynamic progress calculation
+      currentProgress: {
+        completed: completedTasks,
+        total: totalDeliverables,
+      },
+      // Remove tasks from response to keep it clean
+      tasks: undefined,
     };
 
     return NextResponse.json({ client: normalizedClient });
