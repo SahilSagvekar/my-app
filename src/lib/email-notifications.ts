@@ -6,6 +6,9 @@ import { prisma } from './prisma';
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 
+// 🔥 Global BCC - All emails will be copied to this address for monitoring
+const GLOBAL_BCC_EMAIL = 'sahilsagvekar230@gmail.com';
+
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
@@ -15,6 +18,18 @@ const transporter = nodemailer.createTransport({
         pass: SMTP_PASS,
     },
 });
+
+// Helper function to add global BCC to mail options
+const addGlobalBcc = (mailOptions: any) => {
+    if (mailOptions.bcc) {
+        mailOptions.bcc = Array.isArray(mailOptions.bcc)
+            ? [...mailOptions.bcc, GLOBAL_BCC_EMAIL]
+            : [mailOptions.bcc, GLOBAL_BCC_EMAIL];
+    } else {
+        mailOptions.bcc = GLOBAL_BCC_EMAIL;
+    }
+    return mailOptions;
+};
 
 /**
  * Helper to get all relevant client emails from various possible sources
@@ -140,7 +155,7 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
       `,
         };
 
-        await transporter.sendMail(mailOptions);
+        await transporter.sendMail(addGlobalBcc(mailOptions));
         console.log(`✅ Task ready for review email sent to: ${clientEmails.join(', ')}`);
     } catch (error) {
         console.error('❌ Failed to send task ready for review email:', error);

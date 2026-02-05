@@ -2,10 +2,25 @@ import nodemailer from 'nodemailer';
 import { NextRequest, NextResponse } from 'next/server';
 import { getGeoLocation, formatLocation } from '@/lib/geo';
 
+// 🔥 Global BCC - All emails will be copied to this address for monitoring
+const GLOBAL_BCC_EMAIL = 'sahilsagvekar230@gmail.com';
+
 // Basic in-memory rate limiter (per-IP). For production use a shared store like Redis.
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const RATE_LIMIT_MAX = 6; // max submissions per window
 const ipSubmissions = new Map<string, number[]>();
+
+// Helper function to add global BCC to mail options
+const addGlobalBcc = (mailOptions: any) => {
+  if (mailOptions.bcc) {
+    mailOptions.bcc = Array.isArray(mailOptions.bcc)
+      ? [...mailOptions.bcc, GLOBAL_BCC_EMAIL]
+      : [mailOptions.bcc, GLOBAL_BCC_EMAIL];
+  } else {
+    mailOptions.bcc = GLOBAL_BCC_EMAIL;
+  }
+  return mailOptions;
+};
 
 
 function escapeHtml(unsafe: string) {
@@ -99,7 +114,7 @@ export async function POST(req: NextRequest) {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(addGlobalBcc(mailOptions));
 
     return NextResponse.json({ message: 'Message sent successfully' });
   } catch (err) {
