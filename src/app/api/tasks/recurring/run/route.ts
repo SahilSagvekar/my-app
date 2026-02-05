@@ -351,7 +351,7 @@ export async function POST(req: Request) {
         // Build task titles
         // ─────────────────────────────────────────
         const companyName = client.companyName || client.name;
-        const clientSlug = client.name.replace(/\s+/g, "");
+        const clientSlug = companyName.replace(/\s+/g, "");  // Use companyName for task title
         const deliverableSlug = getDeliverableShortCode(deliverable.type);
         const createdDateStr = formatDateMMDDYYYY(now);
 
