@@ -102,13 +102,28 @@ export function ActivityLogReportTab() {
         try {
             setGenerating(true);
             const res = await fetch('/api/reports/activity', { method: 'POST' });
-            if (!res.ok) throw new Error('Generation failed');
-            const newReport = await res.json();
-            setReports([newReport, ...reports]);
-            toast.success('Report generated successfully');
+            const data = await res.json();
+
+            if (!res.ok) {
+                // Handle specific error cases
+                if (res.status === 404) {
+                    toast.warning(data.message || 'No activity logs found for today.');
+                } else if (res.status === 401 || res.status === 403) {
+                    toast.error('You are not authorized to generate reports.');
+                } else {
+                    toast.error(data.message || 'Failed to generate report');
+                }
+                return;
+            }
+
+            // Success - add new report to list
+            if (data && data.id) {
+                setReports([data, ...reports]);
+                toast.success('Report generated successfully');
+            }
         } catch (error) {
-            console.error(error);
-            toast.error('Failed to generate report');
+            console.error('Report generation error:', error);
+            toast.error('Failed to generate report. Please try again.');
         } finally {
             setGenerating(false);
         }

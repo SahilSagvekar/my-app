@@ -51,8 +51,18 @@ export async function POST(req: NextRequest) {
         }
 
         const report = await generateDailyActivityReport();
+
+        // Handle case where no logs found
+        if (!report) {
+            return NextResponse.json(
+                { message: "No activity logs found for today's period. Report cannot be generated." },
+                { status: 404 }
+            );
+        }
+
         return NextResponse.json(report);
     } catch (error: any) {
-        return NextResponse.json({ message: error.message }, { status: 500 });
+        console.error('Report generation error:', error);
+        return NextResponse.json({ message: error.message || 'Failed to generate report' }, { status: 500 });
     }
 }

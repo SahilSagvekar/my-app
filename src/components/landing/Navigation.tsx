@@ -8,10 +8,10 @@ import logoImage from '../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6
 
 const services = [
   {
-    icon: Lightbulb,
-    title: 'Content Strategy',
-    description: 'Smart planning for your market',
-    href: '/services/content-strategy',
+    icon: Scissors,
+    title: 'Video Editing',
+    description: 'Polished, professional editing',
+    href: '/services/video-editing',
   },
   {
     icon: Video,
@@ -20,22 +20,28 @@ const services = [
     href: '/services/video-production',
   },
   {
-    icon: Scissors,
-    title: 'Video Editing',
-    description: 'Polished, professional editing',
-    href: '/services/video-editing',
-  },
-  {
     icon: Share2,
     title: 'Social Media Management',
     description: 'Strategic social presence',
     href: '/services/social-media-management',
   },
   {
+    icon: Camera,
+    title: 'UGC Content',
+    description: 'Authentic user-generated content',
+    href: '/services/ugc-content',
+  },
+  {
     icon: Cpu,
     title: 'Posting & Distribution',
     description: 'Automated scheduling',
     href: '/services/posting-distribution',
+  },
+  {
+    icon: Lightbulb,
+    title: 'Content Strategy',
+    description: 'Smart planning for your market',
+    href: '/services/content-strategy',
   },
   {
     icon: DollarSign,
@@ -48,12 +54,6 @@ const services = [
     title: 'Original Show Production',
     description: 'Full-scale show production',
     href: '/services/original-show-production',
-  },
-  {
-    icon: Camera,
-    title: 'UGC Content',
-    description: 'Authentic user-generated content',
-    href: '/services/ugc-content',
   },
 ];
 
