@@ -38,6 +38,7 @@ export async function PATCH(
     if (!status)
       return NextResponse.json({ message: "Status is required" }, { status: 400 });
 
+    console.log(`\n[StatusUpdate] User ${userId} (${role}) is updating task ${id} to status: ${status}`);
     const updateData: any = {};
 
     if (feedback !== undefined) updateData.feedback = feedback;
@@ -157,6 +158,7 @@ export async function PATCH(
 
       else if (finalStatus === "CLIENT_REVIEW" && task.status !== "CLIENT_REVIEW") {
         // Email
+        console.log(`\n📧 sending email notification`);
         const { sendTaskReadyForReviewEmail } = await import("@/lib/email-notifications");
         sendTaskReadyForReviewEmail(id);
 

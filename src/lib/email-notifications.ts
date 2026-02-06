@@ -123,6 +123,8 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
             include: { client: true }
         });
 
+        console.log(`Task ID: ${taskId}`);
+
         if (!task || !task.client) {
             console.error(`[EmailNotification] Task or client not found for ID: ${taskId}`);
             return;
@@ -133,6 +135,8 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
             console.log(`[EmailNotification] No emails found for client: ${task.client.name}`);
             return;
         }
+
+        console.log(`[clientEmails]`, clientEmails);
 
         const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://e8productions.com'}/client/dashboard`;
 
