@@ -163,7 +163,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-96 p-0">
+      <SheetContent className="w-96 p-0 flex flex-col h-full">
         <SheetHeader className="p-6 pb-4 pr-12">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2">
@@ -205,7 +205,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
           )}
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-0">
+        <ScrollArea className="flex-1 overflow-auto">
           <div className="space-y-0">
             {filteredNotifications.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
