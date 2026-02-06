@@ -23,11 +23,11 @@ model User {
   updatedAt           DateTime            @updatedAt
   resetOTP            String?
   resetOTPExpiry      DateTime?
-  emailNotifications  Boolean             @default(true)
   hoursPerWeek        Decimal?            @default(0) @db.Decimal(5, 2)
   phone               String?             @unique
   monthlyRate         Int?
   linkedClientId      String?
+  emailNotifications  Boolean             @default(true)
   accounts            Account[]
   auditLogs           AuditLog[]
   bonuses             Bonus[]
@@ -132,6 +132,12 @@ model Task {
   hasThumbnails        Boolean             @default(false)
   hasTiles             Boolean             @default(false)
   socialMediaLinks     Json                @default("[]")
+  platform             String?
+  suggestedTitles      Json?
+  titlingError         String?
+  titlingStatus        String              @default("NONE")
+  transcript           String?
+  transcriptSummary    String?
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   user                 User                @relation("AssignedTasks", fields: [assignedTo], references: [id])
@@ -139,15 +145,7 @@ model Task {
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
   taskFeedback         TaskFeedback[]
-
-  transcript        String?   @db.Text
-  transcriptSummary String?   @db.Text
-  suggestedTitles   Json?
-  titlingStatus     String    @default("NONE")
-  titlingError      String?
-  platform          String?
-  
-  titlingJob        TitlingJob?
+  titlingJob           TitlingJob?
 
   @@index([assignedTo])
   @@index([clientId])
@@ -163,22 +161,21 @@ model Task {
 }
 
 model TitlingJob {
-  id              String    @id @default(cuid())
-  taskId          String    @unique
-  status          String    @default("PENDING")
-  assemblyId      String?
-  error           String?
-  attempts        Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  startedAt       DateTime?
-  completedAt     DateTime?
-  videoFileId     String?
-  videoFileName   String?
-  videoDuration   Int?
-  
-  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  
+  id            String    @id @default(cuid())
+  taskId        String    @unique
+  status        String    @default("PENDING")
+  assemblyId    String?
+  error         String?
+  attempts      Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  startedAt     DateTime?
+  completedAt   DateTime?
+  videoFileId   String?
+  videoFileName String?
+  videoDuration Int?
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
   @@index([status])
   @@index([assemblyId])
   @@index([createdAt])
@@ -253,8 +250,6 @@ model Client {
   emails               String[]             @default([])
   phones               String[]             @default([])
   outputsFolderId      String?
-  youtubeChannel       YouTubeChannel?
-  youtubeSnapshots     YouTubeSnapshot[]
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
   monthlyDeliverables  MonthlyDeliverable[]
@@ -263,6 +258,8 @@ model Client {
   socialLogins         SocialLogin[]
   tasks                Task[]
   linkedUsers          User[]               @relation("LinkedClientUsers")
+  youtubeChannel       YouTubeChannel?
+  youtubeSnapshots     YouTubeSnapshot[]
 
   @@index([status])
 }
@@ -625,9 +622,9 @@ model ShareableReview {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  @@index([ shareToken ])
-  @@index([ createdBy ])
-  @@index([ expiresAt ])
+  @@index([shareToken])
+  @@index([createdBy])
+  @@index([expiresAt])
 }
 
 model ShareableFile {
@@ -645,21 +642,107 @@ model ShareableFile {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  @@index([ shareToken ])
-  @@index([ createdBy ])
+  @@index([shareToken])
+  @@index([createdBy])
 }
 
 model ActivityReport {
   id          String   @id @default(cuid())
   fileName    String
-  fileUrl     String?  // Optional if stored in S3
+  fileUrl     String?
   reportDate  DateTime
   generatedAt DateTime @default(now())
   metadata    Json?
   status      String   @default("completed")
-  
+
   @@index([reportDate])
   @@index([generatedAt])
+}
+
+model YouTubeChannel {
+  id              String             @id @default(cuid())
+  clientId        String             @unique
+  channelId       String             @unique
+  channelTitle    String?
+  channelAvatar   String?
+  accessToken     String
+  refreshToken    String
+  tokenExpiry     DateTime
+  scope           String?
+  subscriberCount Int                @default(0)
+  totalViews      BigInt             @default(0)
+  totalVideos     Int                @default(0)
+  lastSyncedAt    DateTime?
+  syncStatus      SyncStatus         @default(PENDING)
+  syncError       String?
+  isActive        Boolean            @default(true)
+  connectedAt     DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  client          Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  snapshots       YouTubeSnapshot[]
+  videoStats      YouTubeVideoStat[]
+
+  @@index([clientId])
+  @@index([channelId])
+  @@index([syncStatus])
+}
+
+model YouTubeSnapshot {
+  id                String         @id @default(cuid())
+  channelId         String
+  clientId          String
+  subscriberCount   Int            @default(0)
+  views             BigInt         @default(0)
+  watchTimeHours    Float          @default(0)
+  estimatedRevenue  Float?
+  likes             Int            @default(0)
+  comments          Int            @default(0)
+  shares            Int            @default(0)
+  impressions       BigInt         @default(0)
+  impressionsCtr    Float?
+  avgViewDuration   Float?
+  subscribersGained Int            @default(0)
+  subscribersLost   Int            @default(0)
+  geographyData     Json?
+  deviceData        Json?
+  periodStart       DateTime
+  periodEnd         DateTime
+  periodType        PeriodType     @default(DAILY)
+  snapshotDate      DateTime       @default(now())
+  dateRange         String         @default("28d")
+  channel           YouTubeChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  client            Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, dateRange])
+  @@index([channelId])
+  @@index([clientId])
+  @@index([snapshotDate])
+  @@index([dateRange])
+}
+
+model YouTubeVideoStat {
+  id               String         @id @default(cuid())
+  channelId        String
+  videoId          String
+  title            String
+  publishedAt      DateTime
+  thumbnailUrl     String?
+  duration         Int?
+  views            BigInt         @default(0)
+  likes            Int            @default(0)
+  comments         Int            @default(0)
+  shares           Int            @default(0)
+  watchTimeHours   Float          @default(0)
+  avgViewDuration  Float?
+  estimatedRevenue Float?
+  lastUpdated      DateTime       @default(now())
+  channel          YouTubeChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, videoId])
+  @@index([channelId])
+  @@index([videoId])
+  @@index([publishedAt])
+  @@index([views])
 }
 
 enum Role {
