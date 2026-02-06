@@ -1,4 +1,5 @@
 // src/lib/hooks/useYouTubeAnalytics.ts
+// Hook for fetching YouTube analytics with smart caching
 
 "use client";
 
@@ -12,53 +13,65 @@ export function useYouTubeAnalytics(clientId: string, initialRange: DateRange = 
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<DateRange>(initialRange);
 
-  const fetchAnalytics = useCallback(async () => {
+  // Fetch analytics data - uses cached data unless forceRefresh is true
+  const fetchAnalytics = useCallback(async (forceRefresh = false) => {
     if (!clientId) return;
-    setLoading(true);
+
+    // Only show loading spinner on initial load, not on refresh
+    if (!data) {
+      setLoading(true);
+    }
     setError(null);
 
     try {
+      const refreshParam = forceRefresh ? "&refresh=true" : "";
       const res = await fetch(
-        `/api/youtube/analytics?clientId=${clientId}&range=${range}`
+        `/api/youtube/analytics?clientId=${clientId}&range=${range}${refreshParam}`
       );
       if (!res.ok) throw new Error("Failed to fetch analytics");
       const json = await res.json();
       setData(json);
+
+      // Log cache info for debugging
+      if (json.cacheAge !== undefined) {
+        console.log(`[YouTube Analytics] Cache age: ${json.cacheAge} minutes, refreshed: ${forceRefresh}`);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [clientId, range]);
+  }, [clientId, range, data]);
 
+  // Force refresh - fetches live data from YouTube API
   const triggerSync = useCallback(async () => {
     if (!clientId) return;
     setSyncing(true);
 
     try {
-      const res = await fetch("/api/youtube/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId }),
-      });
+      // Call analytics API with refresh=true to force fresh data
+      const res = await fetch(
+        `/api/youtube/analytics?clientId=${clientId}&range=${range}&refresh=true`
+      );
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Sync failed");
+        throw new Error(err.error || "Refresh failed");
       }
 
-      // Refetch data after sync
-      await fetchAnalytics();
+      const json = await res.json();
+      setData(json);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setSyncing(false);
     }
-  }, [clientId, fetchAnalytics]);
+  }, [clientId, range]);
 
+  // Initial fetch (uses cache)
   useEffect(() => {
-    fetchAnalytics();
-  }, [fetchAnalytics]);
+    fetchAnalytics(false);
+  }, [clientId, range]); // Re-fetch when range changes
 
   return {
     data,
@@ -67,8 +80,8 @@ export function useYouTubeAnalytics(clientId: string, initialRange: DateRange = 
     error,
     range,
     setRange,
-    refetch: fetchAnalytics,
-    triggerSync,
+    refetch: () => fetchAnalytics(false),
+    triggerSync, // This now forces a refresh from YouTube API
   };
 }
 

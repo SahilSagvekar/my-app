@@ -76,7 +76,7 @@ function formatDuration(seconds: number): string {
 
 export function formatRevenue(amount: number | null): string {
   if (amount == null) return "—";
-  return "₹" + amount.toLocaleString("en-IN", { minimumFractionDigits: 0 });
+  return "$" + amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function getChangeIndicator(change: number) {

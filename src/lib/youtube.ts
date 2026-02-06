@@ -276,50 +276,105 @@ export async function syncChannel(channelDbId: string) {
       },
     });
 
-    // 5. Upsert daily snapshots
-    for (const day of analytics) {
-      const date = new Date(day.day);
-      const periodStart = new Date(date.setHours(0, 0, 0, 0));
-      const periodEnd = new Date(date.setHours(23, 59, 59, 999));
+    // 5. Sync all date ranges (7d, 28d, 90d, 365d) for caching
+    const dateRanges = ['7d', '28d', '90d', '365d'];
 
-      await prisma.youTubeSnapshot.upsert({
-        where: {
-          channelId_periodStart_periodEnd_periodType: {
+    for (const range of dateRanges) {
+      const days = parseInt(range.replace('d', ''));
+      const rangeEndDate = new Date();
+      const rangeStartDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      // Fetch analytics for this specific range
+      const rangeStartStr = rangeStartDate.toISOString().split('T')[0];
+      const rangeEndStr = rangeEndDate.toISOString().split('T')[0];
+
+      try {
+        const rangeAnalytics = await fetchChannelAnalytics(
+          accessToken,
+          rangeStartStr,
+          rangeEndStr
+        );
+
+        // Aggregate the daily data for this range
+        const aggregated = rangeAnalytics.reduce((acc: any, day: any) => {
+          acc.views += day.views || 0;
+          acc.watchTimeMinutes += day.estimatedMinutesWatched || 0;
+          acc.likes += day.likes || 0;
+          acc.comments += day.comments || 0;
+          acc.shares += day.shares || 0;
+          acc.subscribersGained += day.subscribersGained || 0;
+          acc.subscribersLost += day.subscribersLost || 0;
+          acc.revenue += day.estimatedRevenue || 0;
+          if (day.averageViewDuration) {
+            acc.avgDurations.push(day.averageViewDuration);
+          }
+          return acc;
+        }, {
+          views: 0,
+          watchTimeMinutes: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          subscribersGained: 0,
+          subscribersLost: 0,
+          revenue: 0,
+          avgDurations: [] as number[],
+        });
+
+        const avgViewDuration = aggregated.avgDurations.length > 0
+          ? aggregated.avgDurations.reduce((a: number, b: number) => a + b, 0) / aggregated.avgDurations.length
+          : null;
+
+        // Upsert the snapshot for this date range
+        await prisma.youTubeSnapshot.upsert({
+          where: {
+            channelId_dateRange: {
+              channelId: channel.id,
+              dateRange: range,
+            },
+          },
+          update: {
+            subscriberCount: channelInfo.subscriberCount,
+            views: BigInt(aggregated.views),
+            watchTimeHours: aggregated.watchTimeMinutes / 60,
+            likes: aggregated.likes,
+            comments: aggregated.comments,
+            shares: aggregated.shares,
+            subscribersGained: aggregated.subscribersGained,
+            subscribersLost: aggregated.subscribersLost,
+            estimatedRevenue: aggregated.revenue > 0 ? aggregated.revenue : null,
+            avgViewDuration: avgViewDuration,
+            periodStart: rangeStartDate,
+            periodEnd: rangeEndDate,
+            snapshotDate: new Date(),
+          },
+          create: {
             channelId: channel.id,
-            periodStart,
-            periodEnd,
+            clientId: channel.clientId,
+            dateRange: range,
+            subscriberCount: channelInfo.subscriberCount,
+            views: BigInt(aggregated.views),
+            watchTimeHours: aggregated.watchTimeMinutes / 60,
+            likes: aggregated.likes,
+            comments: aggregated.comments,
+            shares: aggregated.shares,
+            subscribersGained: aggregated.subscribersGained,
+            subscribersLost: aggregated.subscribersLost,
+            estimatedRevenue: aggregated.revenue > 0 ? aggregated.revenue : null,
+            avgViewDuration: avgViewDuration,
+            periodStart: rangeStartDate,
+            periodEnd: rangeEndDate,
             periodType: "DAILY",
           },
-        },
-        update: {
-          views: BigInt(day.views || 0),
-          watchTimeHours: (day.estimatedMinutesWatched || 0) / 60,
-          likes: day.likes || 0,
-          comments: day.comments || 0,
-          shares: day.shares || 0,
-          subscribersGained: day.subscribersGained || 0,
-          subscribersLost: day.subscribersLost || 0,
-          estimatedRevenue: day.estimatedRevenue ?? null,
-          avgViewDuration: day.averageViewDuration ?? null,
-        },
-        create: {
-          channelId: channel.id,
-          clientId: channel.clientId,
-          subscriberCount: channelInfo.subscriberCount,
-          views: BigInt(day.views || 0),
-          watchTimeHours: (day.estimatedMinutesWatched || 0) / 60,
-          likes: day.likes || 0,
-          comments: day.comments || 0,
-          shares: day.shares || 0,
-          subscribersGained: day.subscribersGained || 0,
-          subscribersLost: day.subscribersLost || 0,
-          estimatedRevenue: day.estimatedRevenue ?? null,
-          avgViewDuration: day.averageViewDuration ?? null,
-          periodStart,
-          periodEnd,
-          periodType: "DAILY",
-        },
-      });
+        });
+
+        console.log(`[YouTube Sync] Updated ${range} snapshot for ${channelInfo.title}`);
+      } catch (rangeError: any) {
+        console.error(`[YouTube Sync] Failed to sync ${range} for ${channelInfo.title}:`, rangeError.message);
+      }
+
+      // Small delay between API calls to respect rate limits
+      await new Promise((r) => setTimeout(r, 500));
     }
 
     // 6. Upsert video stats

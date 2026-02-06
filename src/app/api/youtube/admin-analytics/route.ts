@@ -3,22 +3,23 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser2 } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    // TODO: Add your admin auth check
-    // const session = await getServerSession(authOptions);
-    // if (session.user.role !== "admin") {
-    //   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    // }
+    // Auth check - admin only
+    const user = await getCurrentUser2(req);
+    if (!user || user.role?.toLowerCase() !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const range = req.nextUrl.searchParams.get("range") || "28d";
     const days = parseInt(range.replace("d", ""));
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    // Get all clients with their YouTube channels
+    // Get all clients with their YouTube channels (status is lowercase 'active')
     const clients = await prisma.client.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "active" },
       include: {
         youtubeChannel: true,
       },
@@ -47,11 +48,11 @@ export async function GET(req: NextRequest) {
           };
         }
 
-        // Get aggregated stats for the period
+        // Get aggregated stats for the period - use snapshotDate for filtering
         const snapshots = await prisma.youTubeSnapshot.findMany({
           where: {
             channelId: channel.id,
-            periodStart: { gte: startDate },
+            snapshotDate: { gte: startDate },  // Changed from periodStart to snapshotDate
             periodType: "DAILY",
           },
         });

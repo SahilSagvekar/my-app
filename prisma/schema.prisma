@@ -765,6 +765,9 @@ model YouTubeSnapshot {
   channelId       String
   clientId        String
   
+  // Date range this snapshot represents (e.g., "7d", "28d", "90d", "365d")
+  dateRange       String   @default("28d")
+  
   subscriberCount   Int      @default(0)
   views             BigInt   @default(0)
   watchTimeHours    Float    @default(0)
@@ -793,11 +796,12 @@ model YouTubeSnapshot {
   channel           YouTubeChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   client            Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   
-  @@unique([channelId, periodStart, periodEnd, periodType])
+  // One cached snapshot per channel per date range
+  @@unique([channelId, dateRange])
   @@index([channelId])
   @@index([clientId])
   @@index([snapshotDate])
-  @@index([periodStart, periodEnd])
+  @@index([dateRange])
 }
 
 model YouTubeVideoStat {

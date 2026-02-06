@@ -425,12 +425,11 @@ export async function getYouTubeDashboardStats(
     const { startDate: currentStart, endDate: currentEnd } = getDateRange(period);
     const { startDate: previousStart, endDate: previousEnd } = getDateRange(period * 2);
 
-    // Get current period data
+    // Get current period data - use snapshotDate for filtering
     const currentData = await prisma.youTubeSnapshot.aggregate({
         where: {
             clientId,
-            periodStart: { gte: new Date(currentStart) },
-            periodEnd: { lte: new Date(currentEnd) },
+            snapshotDate: { gte: new Date(currentStart) },  // Changed from periodStart
         },
         _sum: {
             views: true,
@@ -446,7 +445,7 @@ export async function getYouTubeDashboardStats(
     const previousData = await prisma.youTubeSnapshot.aggregate({
         where: {
             clientId,
-            periodStart: { gte: new Date(previousStart), lt: new Date(currentStart) },
+            snapshotDate: { gte: new Date(previousStart), lt: new Date(currentStart) },  // Changed from periodStart
         },
         _sum: {
             views: true,
@@ -509,11 +508,59 @@ export async function getYouTubeDashboardStats(
             current: Math.round((currentData._sum.estimatedRevenue || 0) * 100) / 100,
             ...revenue,
         },
-        distribution: await prisma.youTubeSnapshot.findFirst({
-            where: { clientId, periodType: 'DAILY' },
-            orderBy: { periodStart: 'desc' },
-            select: { geographyData: true, deviceData: true }
-        }),
         lastSyncedAt: channel?.lastSyncedAt || null,
     };
+}
+
+/**
+ * Fetch live YouTube analytics for any date range (exported for API use)
+ * This function fetches data directly from YouTube API instead of stored snapshots
+ */
+export async function fetchLiveYouTubeAnalytics(clientId: string, days: number): Promise<{
+    success: boolean;
+    data?: YouTubeMetrics & { subscriberCount: number };
+    error?: string;
+}> {
+    try {
+        const client = await prisma.client.findUnique({
+            where: { id: clientId },
+            include: { youtubeChannel: true },
+        });
+
+        if (!client?.youtubeChannel) {
+            return { success: false, error: 'No YouTube channel connected' };
+        }
+
+        const youtubeChannel = client.youtubeChannel;
+
+        if (!youtubeChannel.isActive) {
+            return { success: false, error: 'YouTube channel is inactive' };
+        }
+
+        // Get valid access token
+        const accessToken = await getValidAccessToken(youtubeChannel);
+
+        // Fetch channel statistics (current subscriber count)
+        const channelStats = await fetchChannelStats(youtubeChannel.channelId, accessToken);
+
+        // Fetch analytics for the requested period
+        const { startDate, endDate } = getDateRange(days);
+        const analytics = await fetchYouTubeAnalytics(
+            youtubeChannel.channelId,
+            accessToken,
+            startDate,
+            endDate
+        );
+
+        // Combine channel stats with analytics
+        analytics.subscriberCount = channelStats.subscriberCount;
+
+        return {
+            success: true,
+            data: analytics,
+        };
+    } catch (error: any) {
+        console.error('[fetchLiveYouTubeAnalytics] Error:', error.message);
+        return { success: false, error: error.message };
+    }
 }
