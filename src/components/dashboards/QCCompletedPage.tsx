@@ -25,6 +25,13 @@ interface CompletedTask {
   qcNotes?: string;
   feedback?: string;
   priority?: string;
+  // 🔥 QC reviewer tracking
+  qcResult?: string | null;
+  qcReviewedAt?: string | null;
+  qcReviewer?: {
+    id: number;
+    name: string;
+  } | null;
 }
 
 export function QCCompletedPage() {
@@ -73,6 +80,10 @@ export function QCCompletedPage() {
         qcNotes: task.qcNotes,
         feedback: task.feedback,
         priority: task.priority || 'medium',
+        // 🔥 QC reviewer tracking
+        qcResult: task.qcResult,
+        qcReviewedAt: task.qcReviewedAt,
+        qcReviewer: task.qcReviewer,
       }));
 
       const sorted = normalized.sort(
@@ -367,12 +378,18 @@ export function QCCompletedPage() {
                     <div className="flex-1">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
                             {getStatusIcon(task.status)}
                             <h4 className="font-medium">{task.title}</h4>
                             <Badge variant={getStatusBadgeVariant(task.status)}>
                               {getStatusLabel(task.status)}
                             </Badge>
+                            {/* 🔥 Show QC Reviewer */}
+                            {task.qcReviewer && (
+                              <span className="text-xs text-muted-foreground">
+                                by {task.qcReviewer.name}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                             <div className="flex items-center gap-1">

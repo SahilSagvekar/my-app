@@ -58,9 +58,10 @@ export async function PATCH(
     if (!task)
       return NextResponse.json({ message: "Task not found" }, { status: 404 });
 
+    console.log("ROLE" + role);
     // Handle client review requirement
-    if (
-      role.toLowerCase() === "qc" &&
+    if (  
+      (role.toLowerCase() === "qc" || role.toLowerCase() === "admin") &&
       status === "COMPLETED" &&
       task.client?.requiresClientReview === true
     ) {
@@ -76,6 +77,15 @@ export async function PATCH(
     }
 
     // Update task
+    // 🔥 Track QC reviewer when QC approves/rejects
+    const isQCAction = role.toLowerCase() === "qc" &&
+      (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW" || finalStatus === "REJECTED");
+
+    if (isQCAction) {
+      updateData.qcReviewedBy = userId;
+      updateData.qcReviewedAt = new Date();
+    }
+
     const updatedTask = await prisma.task.update({
       where: { id },
       data: {

@@ -47,6 +47,7 @@ model User {
   updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
   assignedTasks       Task[]              @relation("AssignedTasks")
   clientTasks         Task[]              @relation("ClientUserTasks")
+  qcReviewedTasks     Task[]              @relation("QCReviewedTasks")
   taskFeedback        TaskFeedback[]      @relation("TaskFeedbackAuthor")
   linkedClient        Client?             @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin         UserSecurityPin?
@@ -126,6 +127,8 @@ model Task {
   monthFolder          String?
   outputFolderId       String?
   deliverableType      String?
+  qcReviewedBy         Int?
+  qcReviewedAt         DateTime?
   hasCovers            Boolean             @default(false)
   hasMainFile          Boolean             @default(false)
   hasMusicLicense      Boolean             @default(false)
@@ -144,6 +147,7 @@ model Task {
   client               Client?             @relation(fields: [clientId], references: [id])
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
+  qcReviewer           User?               @relation("QCReviewedTasks", fields: [qcReviewedBy], references: [id])
   taskFeedback         TaskFeedback[]
   titlingJob           TitlingJob?
 
@@ -158,6 +162,7 @@ model Task {
   @@index([assignedTo, status])
   @@index([clientId, status])
   @@index([dueDate, status])
+  @@index([qcReviewedBy])
 }
 
 model TitlingJob {

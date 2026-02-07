@@ -642,6 +642,16 @@ export async function GET(req: any) {
             role: true,
           },
         },
+        // 🔥 Include QC reviewer info
+        qcReviewedBy: true,
+        qcReviewedAt: true,
+        qcResult: true,
+        qcReviewer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         taskFeedback: {
           select: {
             id: true,

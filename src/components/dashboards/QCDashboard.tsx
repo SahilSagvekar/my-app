@@ -52,6 +52,14 @@ interface EnhancedWorkflowTask {
   files?: TaskFile[];
   monthlyDeliverable?: any;
   socialMediaLinks?: string[];
+  // 🔥 QC reviewer tracking
+  qcResult?: string | null;
+  qcReviewedBy?: number | null;
+  qcReviewedAt?: string | null;
+  qcReviewer?: {
+    id: number;
+    name: string;
+  } | null;
   user?: {
     name: string;
     role: string;
@@ -630,11 +638,21 @@ export function QCDashboard() {
                       </div>
                     </div>
 
-                    {/* Badges Row */}
+                    {/* Badges Row - Show QC Reviewer */}
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                        Pending
-                      </Badge>
+                      {task.qcResult === 'APPROVED' && task.qcReviewer ? (
+                        <Badge className="bg-green-50 text-green-600 hover:bg-green-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                          ✅ Approved by {task.qcReviewer.name}
+                        </Badge>
+                      ) : task.qcResult === 'REJECTED' && task.qcReviewer ? (
+                        <Badge className="bg-red-50 text-red-600 hover:bg-red-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                          ❌ Rejected by {task.qcReviewer.name}
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                          Pending
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </Card>
