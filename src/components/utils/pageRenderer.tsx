@@ -8,7 +8,7 @@ import { QCReportsPage } from "../dashboards/QCReportsPage";
 import { QCResourcesPage } from "../dashboards/QCResourcesPage";
 import { QCTrainingPage } from "../dashboards/QCTrainingPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
-import { SchedulerApprovedQueuePage } from "../dashboards/SchedulerApprovedQueuePage";
+import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
 import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
 import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
@@ -150,7 +150,7 @@ export function renderPage(role: string, page: string): React.ReactElement {
       case "calendar":
         return <SchedulerDashboard />;
       case "approved-queue":
-        return <SchedulerApprovedQueuePage />;
+        return <SchedulerSpreadsheetView />;
       case "scheduling":
         return <SchedulerSchedulingPage />;
       case "content-titling":
