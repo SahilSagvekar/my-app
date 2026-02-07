@@ -601,25 +601,20 @@ export function ClientDashboard() {
     <div className="flex flex-col h-full space-y-6">
       {/* Page Header & Stats Row */}
       <div className="flex flex-row items-center justify-start gap-16 pb-6 border-b border-zinc-100">
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 pr-165">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Content Review</h1>
           <p className="text-sm text-zinc-500">
             Review content from your team and approve or request revisions
           </p>
         </div>
 
-        <div className="flex items-center pl-70">
-          <div className="flex items-center justify-between gap-8 px-6 py-2.5 rounded-2xl bg-zinc-50/50 border border-zinc-200/60 min-w-[240px] ">
-            <div className="flex flex-col pl-20 pr-20">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Tasks Pending</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-zinc-900">{pendingReviews}</span>
-                <span className="text-[10px] text-zinc-400 font-medium">items</span>
-              </div>
-            </div>
-            <div className="h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-zinc-100 flex-shrink-0">
-              <Clock className="h-5 w-5 text-blue-500" />
-            </div>
+        <div className="relative flex items-center justify-center px-6 py-2.5 rounded-2xl bg-zinc-50/50 border border-zinc-200/60 min-w-[240px]">
+          <div className="flex flex-col items-center text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Tasks Pending</span>
+            <span className="text-2xl font-bold text-zinc-900">{pendingReviews}</span>
+          </div>
+          <div className="absolute right-4 h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-zinc-100">
+            <Clock className="h-5 w-5 text-blue-500" />
           </div>
         </div>
       </div>
@@ -714,22 +709,27 @@ export function ClientDashboard() {
 
                     {/* Editor & Date Row */}
                     <div className="flex items-center justify-between text-zinc-500 text-[11px]">
-                      <div className="flex items-center gap-1.5">
+                      {/* <div className="flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5" />
                         <span>Editor: {task.user?.name || 'Assigned Editor'}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>{new Date(task.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                      </div>
-                    </div>
-
-                    {/* Badges Row */}
-                    <div className="flex flex-wrap gap-2 pt-1">
+                      </div> */}
+                      <div className="flex flex-wrap gap-2 pt-1">
                       <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
                         Pending
                       </Badge>
                     </div>
+                      {/* <div className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{new Date(task.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                      </div> */}
+                    </div>
+
+                    {/* Badges Row */}
+                    {/* <div className="flex flex-wrap gap-2 pt-1">
+                      <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                        Pending
+                      </Badge>
+                    </div> */}
                   </div>
                 </Card>
               );
