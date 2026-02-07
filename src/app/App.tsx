@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "../components/auth/AuthContext";
+import { ViewAsRoleProvider, useViewAsRole } from "../components/auth/ViewAsRoleContext";
 import { NotificationProvider } from "../components/NotificationContext";
 import { SearchProvider } from "../components/SearchContext";
 import { LoginScreen } from "../components/auth/LoginScreen";
@@ -16,11 +17,19 @@ import { UploadProvider } from "../components/workflow/UploadContext";
 
 type AuthScreen = "login" | "forgot-password" | "reset-password" | "two-factor";
 
-function AuthenticatedApp() {
+function AuthenticatedAppInner() {
   const { user, logout, loading } = useAuth();
+  const { viewingAsRole, isViewingAsOther } = useViewAsRole();
   const [currentPage, setCurrentPage] = useState(() =>
-    getDefaultPage(user?.role || "admin")
+    getDefaultPage(viewingAsRole || user?.role || "admin")
   );
+
+  // Reset page when role changes
+  useEffect(() => {
+    if (viewingAsRole) {
+      setCurrentPage(getDefaultPage(viewingAsRole));
+    }
+  }, [viewingAsRole]);
 
   useEffect(() => {
     const savedPage = localStorage.getItem("returnToPage");
@@ -43,19 +52,40 @@ function AuthenticatedApp() {
     return <PendingRoleScreen user={user} onLogout={logout} />;
   }
 
+  // Use viewingAsRole for UI, but keep actual user.role for auth purposes
+  const displayRole = viewingAsRole || user.role;
+
   return (
     <NotificationProvider>
       <SearchProvider>
         <LayoutShell
-          currentRole={user.role}
+          currentRole={displayRole}
           currentPage={currentPage}
           onPageChange={handlePageChange}
           onLogout={logout}
         >
-          {renderPage(user.role, currentPage)}
+          {renderPage(displayRole, currentPage)}
         </LayoutShell>
       </SearchProvider>
     </NotificationProvider>
+  );
+}
+
+function AuthenticatedApp() {
+  const { user, logout, loading } = useAuth();
+
+  if (loading) return <div>Loading...</div>;
+  if (!user) return <div>Not logged in</div>;
+
+  // 🔥 Handle user with no role assigned yet
+  if (!user.role) {
+    return <PendingRoleScreen user={user} onLogout={logout} />;
+  }
+
+  return (
+    <ViewAsRoleProvider userEmail={user.email} userRole={user.role}>
+      <AuthenticatedAppInner />
+    </ViewAsRoleProvider>
   );
 }
 

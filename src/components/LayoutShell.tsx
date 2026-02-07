@@ -23,6 +23,7 @@ import {
   Menu,
   X,
   Settings as SettingsIcon,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
@@ -35,6 +36,7 @@ import {
 import Image from 'next/image';
 import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
 import { useAuth } from './auth/AuthContext';
+import { useViewAsRole } from './auth/ViewAsRoleContext';
 
 interface LayoutShellProps {
   currentRole: string | null;  // UPDATED: Allow null
@@ -54,6 +56,9 @@ export function LayoutShell({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { user: authUser } = useAuth();
+
+  // 🔥 Role switching feature
+  const { canSwitchRole, isViewingAsOther, targetSwitchRole, toggleRole } = useViewAsRole();
 
   const roleDisplay = currentRole
     ? currentRole.toLowerCase() === 'qc'
@@ -128,6 +133,34 @@ export function LayoutShell({
 
             {/* Notifications */}
             <Notifications currentRole={currentRole} />
+
+            {/* 🔥 Role Switch Button - Only for authorized users */}
+            {canSwitchRole && (
+              <Button
+                variant={isViewingAsOther ? "default" : "outline"}
+                size="sm"
+                onClick={toggleRole}
+                className={`flex items-center gap-2 ${isViewingAsOther
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                    : 'border-gray-300 hover:bg-gray-100'
+                  }`}
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {isViewingAsOther
+                    ? `Back to ${authUser?.role === 'admin' ? 'Admin' : 'QC'}`
+                    : `Switch to ${targetSwitchRole === 'admin' ? 'Admin' : 'QC'}`
+                  }
+                </span>
+              </Button>
+            )}
+
+            {/* Viewing As Indicator */}
+            {isViewingAsOther && (
+              <Badge className="bg-amber-100 text-amber-800 border-amber-300 hidden sm:flex">
+                Viewing as {roleDisplay}
+              </Badge>
+            )}
 
             {/* User Menu */}
             <DropdownMenu>
