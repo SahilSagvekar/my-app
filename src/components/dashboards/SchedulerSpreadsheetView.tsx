@@ -90,6 +90,8 @@ export function SchedulerSpreadsheetView() {
     const [sortColumn, setSortColumn] = useState<string>('dueDate');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'scheduled'>('all');
+    const [clientFilter, setClientFilter] = useState<string>('all');
+    const [deliverableFilter, setDeliverableFilter] = useState<string>('all');
 
     // File preview
     const [previewFile, setPreviewFile] = useState<any | null>(null);
@@ -323,7 +325,9 @@ export function SchedulerSpreadsheetView() {
             const matchesStatus = statusFilter === 'all' ||
                 (statusFilter === 'pending' && t.status === 'PENDING') ||
                 (statusFilter === 'scheduled' && t.status === 'SCHEDULED');
-            return matchesSearch && matchesStatus;
+            const matchesClient = clientFilter === 'all' || t.client?.name === clientFilter;
+            const matchesDeliverable = deliverableFilter === 'all' || t.deliverable?.type === deliverableFilter;
+            return matchesSearch && matchesStatus && matchesClient && matchesDeliverable;
         })
         .sort((a, b) => {
             let aVal: any, bVal: any;
@@ -342,6 +346,10 @@ export function SchedulerSpreadsheetView() {
 
     const pendingCount = tasks.filter(t => t.status === 'PENDING').length;
     const scheduledCount = tasks.filter(t => t.status === 'SCHEDULED').length;
+
+    // Get unique clients and deliverables for filter dropdowns
+    const uniqueClients = Array.from(new Set(tasks.map(t => t.client?.companyName).filter(Boolean))) as string[];
+    const uniqueDeliverables = Array.from(new Set(tasks.map(t => t.deliverable?.type).filter(Boolean))) as string[];
 
     // Copy title to clipboard - handle both string and object formats
     const copyTitle = (titleItem: any) => {
@@ -424,6 +432,30 @@ export function SchedulerSpreadsheetView() {
                     >
                         Scheduled ({scheduledCount})
                     </Button>
+                </div>
+
+                <div className="flex items-center gap-2 border-l pl-4">
+                    <select
+                        className="text-sm border rounded-md px-2 py-1 bg-white outline-none focus:ring-2 focus:ring-primary/20"
+                        value={clientFilter}
+                        onChange={(e) => setClientFilter(e.target.value)}
+                    >
+                        <option value="all">All Clients</option>
+                        {uniqueClients.sort().map(client => (
+                            <option key={client} value={client}>{client}</option>
+                        ))}
+                    </select>
+
+                    <select
+                        className="text-sm border rounded-md px-2 py-1 bg-white outline-none focus:ring-2 focus:ring-primary/20"
+                        value={deliverableFilter}
+                        onChange={(e) => setDeliverableFilter(e.target.value)}
+                    >
+                        <option value="all">All Deliverables</option>
+                        {uniqueDeliverables.sort().map(type => (
+                            <option key={type} value={type}>{type}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
 
