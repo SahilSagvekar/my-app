@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import axios from 'axios';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'url';
 
 // Load environment variables
@@ -13,6 +14,36 @@ const __dirname = path.dirname(__filename);
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
+/**
+ * 📝 Helper for job-specific logging
+ */
+function logToJobFile(jobName: string, message: string, isError: boolean = false) {
+    const logDir = path.join(process.cwd(), 'logs', 'jobs');
+    if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+    }
+
+    const fileName = `${jobName.toLowerCase().replace(/\s+/g, '-')}.log`;
+    const logPath = path.join(logDir, fileName);
+    const timestamp = new Date().toLocaleString();
+    const prefix = isError ? '❌ ERROR' : '✅ INFO';
+    const logMessage = `[${timestamp}] [${prefix}] ${message}\n`;
+
+    // 1. Log to console for PM2 visibility
+    if (isError) {
+        console.error(`[${jobName}] ${message}`);
+    } else {
+        console.log(`[${jobName}] ${message}`);
+    }
+
+    // 2. Append to its own dedicated file
+    try {
+        fs.appendFileSync(logPath, logMessage);
+    } catch (err) {
+        console.error(`Failed to write to log file: ${logPath}`, err);
+    }
+}
+
 console.log('🚀 [Cron Master] Starting centralized cron service...');
 console.log(`🔗 Target API: ${BASE_URL}`);
 
@@ -23,8 +54,7 @@ async function triggerJob(name: string, endpoint: string, method: 'GET' | 'POST'
     const start = Date.now();
     const url = endpoint.startsWith('http') ? endpoint : `${BASE_URL}${endpoint}`;
 
-    console.log(`\n⏰ [${new Date().toLocaleString()}] Starting Job: ${name}`);
-    console.log(`   Target: ${url}`);
+    logToJobFile(name, `Starting Job: ${name} (Target: ${url})`);
 
     try {
         // Set up headers with CRON_SECRET if available
@@ -43,28 +73,24 @@ async function triggerJob(name: string, endpoint: string, method: 'GET' | 'POST'
         }
 
         const duration = Date.now() - start;
-        console.log(`✅ [${name}] Success (${duration}ms):`, response.data.message || 'Job completed');
+        const msg = response.data.message || 'Job completed';
+        logToJobFile(name, `Success (${duration}ms): ${msg}`);
         return response.data;
     } catch (error: any) {
         const duration = Date.now() - start;
         const status = error.response?.status;
         const statusText = error.response?.statusText;
-        console.error(`❌ [${name}] Failed (${duration}ms) [${status || 'No Status'} ${statusText || ''}]:`,
-            error.response?.data?.error || error.response?.data?.message || error.message);
+        const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message;
+
+        logToJobFile(name, `Failed (${duration}ms) [${status || 'No Status'} ${statusText || ''}]: ${errorMsg}`, true);
 
         if (status === 502) {
-            console.warn(`   ⚠️  Got 502 Bad Gateway. This usually means the Next.js app is down or restarting.`);
+            logToJobFile(name, `Got 502 Bad Gateway. This usually means the Next.js app is down or restarting.`, true);
         }
         return null;
     }
 }
 
-// ==========================================
-// 1. AI Titling Maintenance (Every 30 mins)
-// ==========================================
-cron.schedule('0,30 * * * *', () => {
-    triggerJob('AI Titling Check', '/api/cron/check-titling-jobs');
-});
 
 // ==========================================
 // 2. Monthly Task Generation (Daily at 1 AM)
@@ -198,7 +224,6 @@ cron.schedule('0 * * * *', () => {
 
 // Log initialized jobs
 console.log('📦 Jobs Scheduled:');
-console.log(' - AI Titling: Every 30 mins');
 console.log(' - Monthly Tasks: Daily at 1 AM');
 console.log(' - Meta Sync: Daily at 2 AM');
 console.log(' - YouTube Sync: Daily at 3 AM');

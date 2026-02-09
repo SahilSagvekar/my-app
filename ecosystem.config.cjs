@@ -79,5 +79,25 @@ module.exports = {
             out_file: './logs/cron-out.log',
             merge_logs: true,
         },
+        {
+            name: 'cron-titling',
+            script: 'src/scripts/cron-titling.ts',
+            interpreter: 'node_modules/.bin/tsx',
+            instances: 1,
+            exec_mode: 'fork',
+
+            max_memory_restart: '256M',
+            restart_delay: 5000,
+
+            env: {
+                NODE_ENV: 'production',
+                BASE_URL: 'http://localhost:3000',
+            },
+
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+            error_file: './logs/cron-titling-error.log',
+            out_file: './logs/cron-titling-out.log',
+            merge_logs: true,
+        },
     ],
 };

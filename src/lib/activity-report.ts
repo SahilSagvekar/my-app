@@ -1,6 +1,6 @@
 // lib/activity-report.ts
 import { prisma } from './prisma';
-import { format, startOfDay, endOfDay, addHours, subHours } from 'date-fns';
+import { format, startOfDay, addHours, subSeconds } from 'date-fns';
 import { uploadBufferToS3 } from './s3';
 
 interface ReportOptions {
@@ -15,7 +15,10 @@ interface ReportOptions {
  * @param options.sendEmail - Whether to send the email notification (default: false)
  */
 export async function generateDailyActivityReport(options: ReportOptions = {}) {
-    const { targetDate = new Date(), sendEmail = false } = options;
+    // 🔥 FIX: If this runs exactly at 7 PM EST (which is midnight UTC next day), 
+    // we need to make sure we target the day that just finished.
+    let { targetDate = subSeconds(new Date(), 60), sendEmail = false } = options;
+
     try {
         // 1. Calculate the time range in EST (UTC-5)
         const estOffset = 5;

@@ -1,69 +1,49 @@
-# ⏰ Cron Job Setup for AWS (E8 Productions)
+# ⏰ Decoupled Cron System (E8 Productions)
 
-This guide helps you set up scheduled tasks (Cron Jobs) on your AWS server to keep the platform running smoothly.
+The scheduled tasks for E8 Productions are managed by two separate TypeScript scripts. This separation ensures that high-volume tasks (like AI Titling) do not clutter the logs of critical production tasks (like Activity Reports).
 
-## 1. Prerequisites
+## 1. The Scripts
 
-1.  **Ensure Script Permissions**:
-    Run the following command to make the master script executable:
-    ```bash
-    chmod +x /home/ubuntu/my-app/scripts/cron-master.sh
-    ```
+### A. `src/scripts/cron-master.ts`
+Handles low-volume, critical production tasks:
+*   **Monthly Task Generation**: Daily at 1 AM EST
+*   **Daily Activity Report**: Daily at 7 PM EST
+*   **Meta Analytics Sync**: Daily at 2 AM EST
+*   **YouTube Analytics Sync**: Daily at 3 AM EST
 
-2.  **Environment Variables**:
-    Ensure your `.env` file contains a `CRON_SECRET`. This is used to prevent unauthorized access to your cron endpoints.
-    ```env
-    CRON_SECRET="your-random-secure-string"
-    BASE_URL="http://localhost:3000"
-    ```
+### B. `src/scripts/cron-titling.ts`
+Handles high-volume maintenance:
+*   **AI Titling Check**: Every 30 mins
 
-## 2. Setting Up the Crontab
+## 2. PM2 Management
 
-Open your server's crontab editor:
+The system is split into two PM2 processes for better isolation.
+
+*   **Check status**: `pm2 status`
+*   **Restart Cron Master**: `pm2 restart cron-master`
+*   **Restart Cron Titling**: `pm2 restart cron-titling`
+*   **View Master Logs**: `pm2 logs cron-master`
+*   **View Titling Logs**: `pm2 logs cron-titling`
+
+## 3. Advanced Debugging (Separate Logs)
+
+Instead of one long log file, every job now has its own dedicated log file for easy debugging. No more scrolling!
+
+Find logs at:
+*   `logs/jobs/ai-titling-check.log`
+*   `logs/jobs/daily-activity-report.log`
+*   `logs/jobs/meta-daily-sync.log`
+*   `logs/jobs/youtube-daily-sync.log`
+
+To watch a specific job in real-time:
 ```bash
-crontab -e
+tail -f logs/jobs/daily-activity-report.log
 ```
 
-Copy and paste the following entries at the bottom of the file (adjust the path to match your actual project directory on AWS). 
+## 4. Manual Triggers
 
-**Note on Timing**: 7:00 PM EST is typically **00:00 UTC** (Standard Time) or **23:00 UTC** (Daylight Savings). The entries below are set to 7:00 PM Server Time. If your server is in UTC, use `0 0 * * *`.
+If you need to force a job to run manually, you can use the API endpoints with your `CRON_SECRET` in the `x-cron-secret` header:
 
-```bash
-# E8 Productions - Master Cron Jobs
-# Format: minute hour day month day_of_week command
-
-# 1. Check for stuck titling/transcription jobs (Every 30 minutes)
-*/30 * * * * /home/ubuntu/my-app/scripts/cron-master.sh titling >> /home/ubuntu/my-app/logs/cron.log 2>&1
-
-# 2. Recurring Task Generation (Daily at 7:00 PM EST)
-0 19 * * * /home/ubuntu/my-app/scripts/cron-master.sh recurring >> /home/ubuntu/my-app/logs/cron.log 2>&1
-
-# 3. Daily Activity Report & Email to Eric (Daily at 7:00 PM EST)
-5 19 * * * /home/ubuntu/my-app/cron-master.sh report >> /home/ubuntu/my-app/logs/cron.log 2>&1
-
-# 4. Meta Analytics Sync (Daily at 2:00 AM)
-0 2 * * * /home/ubuntu/my-app/cron-master.sh meta >> /home/ubuntu/my-app/logs/cron.log 2>&1
-
-# 5. YouTube Analytics Sync (Daily at 3:00 AM)
-0 3 * * * /home/ubuntu/my-app/cron-master.sh youtube >> /home/ubuntu/my-app/logs/cron.log 2>&1
-```
-
-## 3. Available Commands
-
-You can also run these manually at any time to test them:
-
-| Command | Action |
-| :--- | :--- |
-| `./scripts/cron-master.sh titling` | Checks for stuck AI processing/transcription |
-| `./scripts/cron-master.sh recurring` | Forces a check/generation of monthly tasks |
-| `./scripts/cron-master.sh report` | Manually triggers the Daily Activity Report |
-| `./scripts/cron-master.sh meta` | Forces a sync of all connected Meta/Instagram accounts |
-| `./scripts/cron-master.sh youtube` | Forces a sync of all connected YouTube channels |
-| `./scripts/cron-master.sh all` | Runs all jobs in sequence |
-
-## 4. Monitoring
-
-You can monitor the output of these jobs by checking the log file:
-```bash
-tail -f /home/ubuntu/my-app/logs/cron.log
-```
+*   **Activity Report**: `POST /api/reports/activity`
+*   **Recurring Tasks**: `POST /api/tasks/recurring/run`
+*   **YouTube Sync**: `POST /api/cron/youtube-sync`
