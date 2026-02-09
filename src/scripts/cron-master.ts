@@ -168,7 +168,21 @@ cron.schedule('0 19 * * *', () => {
 }, { timezone: 'America/New_York' });
 
 // ==========================================
-// 4. Stuck Uploads / Drive Maintenance (Every 2 hours)
+// 4. Meta Analytics Sync (Daily at 2 AM)
+// ==========================================
+cron.schedule('0 2 * * *', () => {
+    triggerJob('Meta Daily Sync', '/api/cron/meta-sync', 'GET');
+});
+
+// ==========================================
+// 5. YouTube Analytics Sync (Daily at 3 AM)
+// ==========================================
+cron.schedule('0 3 * * *', () => {
+    triggerJob('YouTube Daily Sync', '/api/cron/youtube-sync', 'POST');
+});
+
+// ==========================================
+// 6. Stuck Uploads / Drive Maintenance (Every 2 hours)
 // ==========================================
 cron.schedule('0 */2 * * *', () => {
     // Placeholder - add endpoint if you have one for drive sync/cleanup
@@ -186,6 +200,8 @@ cron.schedule('0 * * * *', () => {
 console.log('📦 Jobs Scheduled:');
 console.log(' - AI Titling: Every 30 mins');
 console.log(' - Monthly Tasks: Daily at 1 AM');
+console.log(' - Meta Sync: Daily at 2 AM');
+console.log(' - YouTube Sync: Daily at 3 AM');
 console.log(' - Activity Report: Daily at 7 PM');
 console.log(' - Maintenance: Every 2 hours');
 console.log(' - Heartbeat: Every hour');

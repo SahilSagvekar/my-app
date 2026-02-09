@@ -5,24 +5,15 @@ import { syncAllYouTubeChannels } from '@/lib/youtube-sync-service';
 export async function POST(req: NextRequest) {
     try {
         // Verify cron secret
-        const authHeader = req.headers.get('authorization');
-        const cronSecret = process.env.CRON_SECRET;
+        const cronSecret = req.headers.get('x-cron-secret');
+        const expectedSecret = process.env.CRON_SECRET;
 
-        if (!cronSecret) {
-            console.error('[YouTube Cron] CRON_SECRET not configured');
-            return NextResponse.json(
-                { error: 'Server configuration error' },
-                { status: 500 }
-            );
+        if (expectedSecret && cronSecret !== expectedSecret) {
+            // Allow without secret in development
+            if (process.env.NODE_ENV === 'production') {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }
         }
-
-        // if (authHeader !== `Bearer ${cronSecret}`) {
-        //     console.error('[YouTube Cron] Invalid authorization');
-        //     return NextResponse.json(
-        //         { error: 'Unauthorized' },
-        //         { status: 401 }
-        //     );
-        // }
 
         console.log('[YouTube Cron] Starting YouTube sync job');
 

@@ -3,12 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { MetaService } from "@/lib/meta";
 
 export async function GET(req: NextRequest) {
-    // Check CRON_SECRET for security
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-        // Also check for a secret in query for easy testing
-        const secret = new URL(req.url).searchParams.get("secret");
-        if (secret !== process.env.CRON_SECRET) {
+    // Verify cron secret for security
+    const cronSecret = req.headers.get("x-cron-secret");
+    const expectedSecret = process.env.CRON_SECRET;
+    const querySecret = new URL(req.url).searchParams.get("secret");
+
+    if (expectedSecret && cronSecret !== expectedSecret && querySecret !== expectedSecret) {
+        // In production, strictly enforce secret
+        if (process.env.NODE_ENV === "production") {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
     }

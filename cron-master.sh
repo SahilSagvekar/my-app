@@ -65,6 +65,28 @@ run_activity_report() {
 }
 
 # ------------------------------------------------------------------------------
+# JOB 4: META ANALYTICS SYNC
+# Schedule: Daily at 2:00 AM
+# ------------------------------------------------------------------------------
+run_meta_sync() {
+    log "📸 Running Meta daily sync..."
+    RESPONSE=$(curl -s -X GET "$API_URL/api/cron/meta-sync" \
+        -H "x-cron-secret: $SECRET")
+    log "   Result: $RESPONSE"
+}
+
+# ------------------------------------------------------------------------------
+# JOB 5: YOUTUBE ANALYTICS SYNC
+# Schedule: Daily at 3:00 AM
+# ------------------------------------------------------------------------------
+run_youtube_sync() {
+    log "📺 Running YouTube daily sync..."
+    RESPONSE=$(curl -s -X POST "$API_URL/api/cron/youtube-sync" \
+        -H "x-cron-secret: $SECRET")
+    log "   Result: $RESPONSE"
+}
+
+# ------------------------------------------------------------------------------
 # MAIN COMMAND DISPATCHER
 # ------------------------------------------------------------------------------
 
@@ -78,13 +100,21 @@ case "$1" in
     report)
         run_activity_report
         ;;
+    meta)
+        run_meta_sync
+        ;;
+    youtube)
+        run_youtube_sync
+        ;;
     all)
         check_titling
         run_recurring
         run_activity_report
+        run_meta_sync
+        run_youtube_sync
         ;;
     *)
-        echo "Usage: $0 {titling|recurring|report|all}"
+        echo "Usage: $0 {titling|recurring|report|meta|youtube|all}"
         exit 1
 esac
 

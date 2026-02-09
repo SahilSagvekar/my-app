@@ -39,7 +39,13 @@ Copy and paste the following entries at the bottom of the file (adjust the path 
 0 19 * * * /home/ubuntu/my-app/scripts/cron-master.sh recurring >> /home/ubuntu/my-app/logs/cron.log 2>&1
 
 # 3. Daily Activity Report & Email to Eric (Daily at 7:00 PM EST)
-5 19 * * * /home/ubuntu/my-app/scripts/cron-master.sh report >> /home/ubuntu/my-app/logs/cron.log 2>&1
+5 19 * * * /home/ubuntu/my-app/cron-master.sh report >> /home/ubuntu/my-app/logs/cron.log 2>&1
+
+# 4. Meta Analytics Sync (Daily at 2:00 AM)
+0 2 * * * /home/ubuntu/my-app/cron-master.sh meta >> /home/ubuntu/my-app/logs/cron.log 2>&1
+
+# 5. YouTube Analytics Sync (Daily at 3:00 AM)
+0 3 * * * /home/ubuntu/my-app/cron-master.sh youtube >> /home/ubuntu/my-app/logs/cron.log 2>&1
 ```
 
 ## 3. Available Commands
@@ -51,6 +57,8 @@ You can also run these manually at any time to test them:
 | `./scripts/cron-master.sh titling` | Checks for stuck AI processing/transcription |
 | `./scripts/cron-master.sh recurring` | Forces a check/generation of monthly tasks |
 | `./scripts/cron-master.sh report` | Manually triggers the Daily Activity Report |
+| `./scripts/cron-master.sh meta` | Forces a sync of all connected Meta/Instagram accounts |
+| `./scripts/cron-master.sh youtube` | Forces a sync of all connected YouTube channels |
 | `./scripts/cron-master.sh all` | Runs all jobs in sequence |
 
 ## 4. Monitoring
