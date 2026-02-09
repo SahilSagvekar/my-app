@@ -317,6 +317,36 @@ export async function syncYouTubeChannel(clientId: string): Promise<SyncResult> 
             },
         });
 
+        // 🔥 Auto-populate ClientRevenue for YouTube AdSense
+        try {
+            const normalizedPeriod = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            await (prisma as any).clientRevenue.upsert({
+                where: {
+                    clientId_platform_period_source: {
+                        clientId,
+                        platform: 'youtube',
+                        period: normalizedPeriod,
+                        source: 'adsense'
+                    }
+                },
+                update: {
+                    amount: analytics.estimatedRevenue,
+                    isAutomatic: true,
+                    updatedAt: new Date(),
+                },
+                create: {
+                    clientId,
+                    platform: 'youtube',
+                    amount: analytics.estimatedRevenue,
+                    period: normalizedPeriod,
+                    source: 'adsense',
+                    isAutomatic: true
+                }
+            });
+        } catch (revError) {
+            console.error('[YouTube Sync] Failed to auto-populate revenue:', revError);
+        }
+
         // Update channel's last sync time and stats
         await prisma.youTubeChannel.update({
             where: { id: youtubeChannel.id },

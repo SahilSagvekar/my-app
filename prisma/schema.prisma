@@ -265,6 +265,9 @@ model Client {
   linkedUsers          User[]               @relation("LinkedClientUsers")
   youtubeChannel       YouTubeChannel?
   youtubeSnapshots     YouTubeSnapshot[]
+  metaAccount          MetaAccount?
+  metaSnapshots        MetaSnapshot[]
+  revenues             ClientRevenue[]
 
   @@index([status])
 }
@@ -933,4 +936,78 @@ enum PeriodType {
   DAILY
   WEEKLY
   MONTHLY
+}
+
+// ============================================================================
+// META (INSTAGRAM/FACEBOOK) ANALYTICS
+// ============================================================================
+
+model MetaAccount {
+  id              String   @id @default(cuid())
+  clientId        String   @unique
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  instagramId     String?  @unique
+  facebookPageId  String?
+  username        String?
+  profilePicture  String?
+  accessToken     String   @db.Text
+  tokenExpiry     DateTime
+  followerCount   Int      @default(0)
+  followingCount  Int      @default(0)
+  mediaCount      Int      @default(0)
+  lastSyncedAt    DateTime?
+  syncStatus      SyncStatus @default(PENDING)
+  syncError       String?
+  isActive        Boolean  @default(true)
+  connectedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  snapshots       MetaSnapshot[]
+
+  @@index([clientId])
+  @@index([instagramId])
+  @@index([syncStatus])
+}
+
+model MetaSnapshot {
+  id                String      @id @default(cuid())
+  metaAccountId     String
+  clientId          String
+  impressions       BigInt      @default(0)
+  reach             BigInt      @default(0)
+  profileViews      Int         @default(0)
+  websiteClicks     Int         @default(0)
+  followerCount     Int         @default(0)
+  followersGained   Int         @default(0)
+  engagement        Int         @default(0)
+  topPosts          Json?
+  demographics      Json?
+  periodStart       DateTime
+  periodEnd         DateTime
+  dateRange         String      @default("28d")
+  snapshotDate      DateTime    @default(now())
+  metaAccount       MetaAccount @relation(fields: [metaAccountId], references: [id], onDelete: Cascade)
+  client            Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([metaAccountId, dateRange])
+  @@index([metaAccountId])
+  @@index([clientId])
+  @@index([snapshotDate])
+}
+
+model ClientRevenue {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  platform    String
+  amount      Decimal  @db.Decimal(12, 2)
+  currency    String   @default("INR")
+  period      DateTime
+  source      String
+  isAutomatic Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([clientId, platform, period, source])
+  @@index([clientId])
 }

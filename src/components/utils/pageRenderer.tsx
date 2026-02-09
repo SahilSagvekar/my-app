@@ -30,6 +30,7 @@ import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
 import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
+import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="p-8 text-center text-muted-foreground">
@@ -70,6 +71,10 @@ export function renderPage(role: string, page: string): React.ReactElement {
 
   if (page === "youtube-analytics") {
     return <YouTubeAnalyticsWrapper />;
+  }
+
+  if (page === "meta-analytics" || page === "instagram-analytics") {
+    return <MetaAnalyticsWrapper />;
   }
 
   if (page === "activity_logs") {

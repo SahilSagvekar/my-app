@@ -21,7 +21,8 @@ import {
   Sparkles,
   HardDrive, // 🔥 NEW ICON FOR DRIVE
   Briefcase,  // 🔥 NEW ICON FOR EMPLOYMENT INFO
-  LogIn  // 🔥 NEW ICON FOR LOGINS
+  LogIn,
+  Instagram // 🔥 ICON FOR INSTAGRAM
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -31,6 +32,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'analytics', label: 'Client Analytics', icon: BarChart3 },
+    { id: 'instagram-analytics', label: 'Instagram Analytics', icon: Instagram },
     { id: 'leaves', label: 'Employee Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
@@ -89,6 +91,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
     { id: 'youtube-analytics', label: 'YouTube Analytics', icon: TrendingUp },
+    { id: 'instagram-analytics', label: 'Instagram Analytics', icon: Instagram },
     // { id: 'projects', label: 'My Projects', icon: FolderOpen },
     // { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     // { id: 'training', label: 'Training', icon: Layout },
