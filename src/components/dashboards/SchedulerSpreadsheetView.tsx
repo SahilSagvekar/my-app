@@ -24,19 +24,25 @@ import {
     Copy,
     RefreshCw,
     Filter,
-    ArrowUpDown
+    ArrowUpDown,
+    Instagram,
+    Youtube,
+    Facebook,
+    Linkedin,
+    Twitter,
+    Music
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
 
 // Platform icons and colors
 const PLATFORMS = {
-    instagram: { label: 'IG', icon: '📸', color: 'bg-gradient-to-br from-purple-500 to-pink-500', hoverColor: 'hover:from-purple-600 hover:to-pink-600' },
-    youtube: { label: 'YT', icon: '📺', color: 'bg-red-600', hoverColor: 'hover:bg-red-700' },
-    tiktok: { label: 'TT', icon: '🎵', color: 'bg-black', hoverColor: 'hover:bg-gray-800' },
-    facebook: { label: 'FB', icon: '📘', color: 'bg-blue-600', hoverColor: 'hover:bg-blue-700' },
-    linkedin: { label: 'LI', icon: '💼', color: 'bg-blue-700', hoverColor: 'hover:bg-blue-800' },
-    twitter: { label: 'X', icon: '𝕏', color: 'bg-black', hoverColor: 'hover:bg-gray-800' },
+    instagram: { label: 'IG', icon: Instagram, color: 'text-pink-600', bgColor: 'bg-pink-50' },
+    youtube: { label: 'YT', icon: Youtube, color: 'text-red-600', bgColor: 'bg-red-50' },
+    tiktok: { label: 'TT', icon: Music, color: 'text-black', bgColor: 'bg-gray-100' },
+    facebook: { label: 'FB', icon: Facebook, color: 'text-blue-600', bgColor: 'bg-blue-50' },
+    linkedin: { label: 'LI', icon: Linkedin, color: 'text-blue-700', bgColor: 'bg-blue-50' },
+    twitter: { label: 'X', icon: Twitter, color: 'text-gray-900', bgColor: 'bg-gray-100' },
 };
 
 type PlatformKey = keyof typeof PLATFORMS;
@@ -456,7 +462,9 @@ export function SchedulerSpreadsheetView() {
                                 {/* Platform columns */}
                                 {Object.entries(PLATFORMS).map(([key, platform]) => (
                                     <th key={key} className="px-2 py-3 text-center font-semibold w-12">
-                                        <span title={key} className="text-lg">{platform.icon}</span>
+                                        <div className="flex justify-center" title={platform.label}>
+                                            <platform.icon className={`h-4 w-4 ${platform.color}`} />
+                                        </div>
                                     </th>
                                 ))}
                                 <th
@@ -592,23 +600,24 @@ export function SchedulerSpreadsheetView() {
                                                 {/* Platform columns */}
                                                 {Object.entries(PLATFORMS).map(([key, platform]) => {
                                                     const linkUrl = hasPlatformLink(task, key as PlatformKey);
+                                                    const Icon = platform.icon;
                                                     return (
                                                         <td key={key} className="px-2 py-3 text-center">
                                                             {linkUrl ? (
                                                                 <button
                                                                     onClick={() => window.open(linkUrl, '_blank')}
-                                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                                                                    className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${platform.bgColor} ${platform.color} border border-current opacity-80 hover:opacity-100 transition-opacity`}
                                                                     title={`View ${key} post`}
                                                                 >
-                                                                    <Check className="h-4 w-4" />
+                                                                    <Icon className="h-4 w-4" />
                                                                 </button>
                                                             ) : (
                                                                 <button
                                                                     onClick={() => setLinkDialog({ open: true, taskId: task.id, platform: key as PlatformKey })}
-                                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors"
+                                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors border border-dashed border-gray-300"
                                                                     title={`Add ${key} link`}
                                                                 >
-                                                                    <Plus className="h-4 w-4" />
+                                                                    <Plus className="h-3 w-3" />
                                                                 </button>
                                                             )}
                                                         </td>
@@ -684,7 +693,7 @@ export function SchedulerSpreadsheetView() {
                                                                                         </div>
                                                                                     </div>
                                                                                     <div className="flex items-center gap-2">
-                                                                                        {isVideo && (
+                                                                                        {/* {isVideo && (
                                                                                             <Button
                                                                                                 size="sm"
                                                                                                 variant="outline"
@@ -694,7 +703,7 @@ export function SchedulerSpreadsheetView() {
                                                                                                 <Play className="h-3 w-3 mr-1" />
                                                                                                 Play
                                                                                             </Button>
-                                                                                        )}
+                                                                                        )} */}
                                                                                         <Button
                                                                                             size="sm"
                                                                                             variant="outline"
@@ -810,12 +819,18 @@ export function SchedulerSpreadsheetView() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            {linkDialog && (
-                                <>
-                                    <span className="text-2xl">{PLATFORMS[linkDialog.platform].icon}</span>
-                                    Add {linkDialog.platform.charAt(0).toUpperCase() + linkDialog.platform.slice(1)} Link
-                                </>
-                            )}
+                            {linkDialog && (() => {
+                                const platform = PLATFORMS[linkDialog.platform];
+                                const Icon = platform.icon;
+                                return (
+                                    <>
+                                        <div className={`p-1.5 rounded-md ${platform.bgColor}`}>
+                                            <Icon className={`h-5 w-5 ${platform.color}`} />
+                                        </div>
+                                        Add {linkDialog.platform.charAt(0).toUpperCase() + linkDialog.platform.slice(1)} Link
+                                    </>
+                                );
+                            })()}
                         </DialogTitle>
                         <DialogDescription>
                             Paste the URL of the published post
