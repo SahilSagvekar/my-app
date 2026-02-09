@@ -7,6 +7,12 @@ import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Checkbox } from '../ui/checkbox';
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {
     Search,
     Download,
     Play,
@@ -30,7 +36,8 @@ import {
     Facebook,
     Linkedin,
     Twitter,
-    Music
+    Music,
+    Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -219,6 +226,26 @@ export function SchedulerSpreadsheetView() {
             toast.success('Marked as scheduled!');
         } catch (err) {
             toast.error('Failed to mark as scheduled');
+        }
+    }
+
+    // Mark task as pending (revert)
+    async function markAsPending(taskId: string) {
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/mark-pending`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" }
+            });
+
+            if (!res.ok) throw new Error("Failed to revert to pending");
+
+            setTasks(prev => prev.map(t =>
+                t.id === taskId ? { ...t, status: 'PENDING' } : t
+            ));
+
+            toast.success('Reverted to pending!');
+        } catch (err) {
+            toast.error('Failed to revert status');
         }
     }
 
@@ -626,15 +653,40 @@ export function SchedulerSpreadsheetView() {
 
                                                 {/* Status */}
                                                 <td className="px-3 py-3 text-center">
-                                                    {task.status === 'SCHEDULED' ? (
-                                                        <Badge className="bg-green-600 text-white text-xs">
-                                                            ✓ Scheduled
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="outline" className="text-xs">
-                                                            Pending
-                                                        </Badge>
-                                                    )}
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            {task.status === 'SCHEDULED' ? (
+                                                                <Button variant="ghost" className="h-7 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1 px-2">
+                                                                    ✓ Scheduled
+                                                                    <ChevronDown className="h-3 w-3 opacity-50" />
+                                                                </Button>
+                                                            ) : (
+                                                                <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                                                                    Pending
+                                                                    <ChevronDown className="h-3 w-3 opacity-50" />
+                                                                </Button>
+                                                            )}
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            {task.status !== 'SCHEDULED' ? (
+                                                                <DropdownMenuItem
+                                                                    onClick={() => markAsScheduled(task.id)}
+                                                                    className="text-green-600 font-medium"
+                                                                >
+                                                                    <Check className="h-4 w-4 mr-2" />
+                                                                    Mark as Scheduled
+                                                                </DropdownMenuItem>
+                                                            ) : (
+                                                                <DropdownMenuItem
+                                                                    onClick={() => markAsPending(task.id)}
+                                                                    className="text-amber-600 font-medium"
+                                                                >
+                                                                    <Clock className="h-4 w-4 mr-2" />
+                                                                    Revert to Pending
+                                                                </DropdownMenuItem>
+                                                            )}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
                                                 </td>
 
                                                 {/* Actions */}
