@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    const { role } = decoded;
+    const { role, userId } = decoded;
 
     // Only scheduler / manager / admin should access
     if (!["scheduler", "manager", "admin"].includes((role || "").toLowerCase())) {
@@ -26,15 +26,23 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const includeTitling = url.searchParams.get("includeTitling") === "true";
 
+    // Build filter
+    const where: any = {
+      OR: [
+        { status: "COMPLETED" },
+        // { status: "CLIENT_REVIEW" },
+        { status: "SCHEDULED" },
+      ],
+    };
+
+    // If role is scheduler, only show tasks assigned to them
+    if (role === "scheduler") {
+      where.scheduler = userId;
+    }
+
     // Fetch tasks that are ready for scheduler (QC approved or in scheduler status)
     const tasks = await prisma.task.findMany({
-      where: {
-        OR: [
-          { status: "COMPLETED" },
-          { status: "CLIENT_REVIEW" },
-          { status: "SCHEDULED" },
-        ],
-      },
+      where,
       orderBy: { createdAt: "desc" },
       include: {
         client: {
