@@ -62,7 +62,8 @@ module.exports = {
         {
             name: 'cron-master',
             script: 'src/scripts/cron-master.ts',
-            interpreter: 'node_modules/.bin/tsx',
+            interpreter: 'node',
+            node_args: '--import tsx',
             instances: 1,
             exec_mode: 'fork',
 
@@ -82,7 +83,8 @@ module.exports = {
         {
             name: 'cron-titling',
             script: 'src/scripts/cron-titling.ts',
-            interpreter: 'node_modules/.bin/tsx',
+            interpreter: 'node',
+            node_args: '--import tsx',
             instances: 1,
             exec_mode: 'fork',
 
