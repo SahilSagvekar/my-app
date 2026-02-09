@@ -751,66 +751,71 @@ export function SchedulerSpreadsheetView() {
                                                                 {task.files.length === 0 ? (
                                                                     <p className="text-muted-foreground text-sm">No files attached</p>
                                                                 ) : (
-                                                                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                                                                        {task.files.map((file) => {
-                                                                            const isVideo = file.mimeType?.startsWith('video/');
-                                                                            const isImage = file.mimeType?.startsWith('image/');
+                                                                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                                                                        {Object.entries(
+                                                                            task.files.reduce((acc, file) => {
+                                                                                const folderType = file.folderType || 'Uncategorized';
+                                                                                if (!acc[folderType]) acc[folderType] = [];
+                                                                                acc[folderType].push(file);
+                                                                                return acc;
+                                                                            }, {} as Record<string, typeof task.files>)
+                                                                        ).map(([folderType, folderFiles]) => (
+                                                                            <div key={folderType} className="space-y-2">
+                                                                                <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-gray-100 px-2 py-1 rounded inline-block">
+                                                                                    {folderType.replace(/_/g, ' ')}
+                                                                                </h5>
+                                                                                <div className="space-y-2">
+                                                                                    {folderFiles.map((file) => {
+                                                                                        const isVideo = file.mimeType?.startsWith('video/');
+                                                                                        const isImage = file.mimeType?.startsWith('image/');
 
-                                                                            return (
-                                                                                <div
-                                                                                    key={file.id}
-                                                                                    className="flex items-center justify-between p-3 bg-white rounded-lg border"
-                                                                                >
-                                                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                                                        {isVideo ? (
-                                                                                            <Video className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                                                                                        ) : isImage ? (
-                                                                                            <ImageIcon className="h-5 w-5 text-green-600 flex-shrink-0" />
-                                                                                        ) : (
-                                                                                            <FileText className="h-5 w-5 text-gray-600 flex-shrink-0" />
-                                                                                        )}
-                                                                                        <div className="min-w-0">
-                                                                                            <p className="font-medium text-sm truncate">{file.name}</p>
-                                                                                            <p className="text-xs text-muted-foreground">
-                                                                                                {(file.size / 1024 / 1024).toFixed(2)} MB
-                                                                                            </p>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        {/* {isVideo && (
-                                                                                            <Button
-                                                                                                size="sm"
-                                                                                                variant="outline"
-                                                                                                onClick={() => setPlayingVideo(playingVideo === file.url ? null : file.url)}
-                                                                                                className="h-8"
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={file.id}
+                                                                                                className="flex items-center justify-between p-2 bg-white rounded-lg border hover:border-primary/30 transition-colors"
                                                                                             >
-                                                                                                <Play className="h-3 w-3 mr-1" />
-                                                                                                Play
-                                                                                            </Button>
-                                                                                        )} */}
-                                                                                        <Button
-                                                                                            size="sm"
-                                                                                            variant="outline"
-                                                                                            onClick={() => {
-                                                                                                setPreviewFile(file);
-                                                                                                setIsPreviewOpen(true);
-                                                                                            }}
-                                                                                            className="h-8"
-                                                                                        >
-                                                                                            <Eye className="h-3 w-3" />
-                                                                                        </Button>
-                                                                                        <Button
-                                                                                            size="sm"
-                                                                                            variant="outline"
-                                                                                            onClick={() => downloadFile(file)}
-                                                                                            className="h-8"
-                                                                                        >
-                                                                                            <Download className="h-3 w-3" />
-                                                                                        </Button>
-                                                                                    </div>
+                                                                                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                                                                    {isVideo ? (
+                                                                                                        <Video className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                                                                                    ) : isImage ? (
+                                                                                                        <ImageIcon className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                                                                                                    ) : (
+                                                                                                        <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                                                                                                    )}
+                                                                                                    <div className="min-w-0">
+                                                                                                        <p className="font-medium text-[13px] truncate">{file.name}</p>
+                                                                                                        <p className="text-[10px] text-muted-foreground">
+                                                                                                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                                                                        </p>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <div className="flex items-center gap-1">
+                                                                                                    <Button
+                                                                                                        size="sm"
+                                                                                                        variant="ghost"
+                                                                                                        onClick={() => {
+                                                                                                            setPreviewFile(file);
+                                                                                                            setIsPreviewOpen(true);
+                                                                                                        }}
+                                                                                                        className="h-7 w-7 p-0"
+                                                                                                    >
+                                                                                                        <Eye className="h-3 w-3" />
+                                                                                                    </Button>
+                                                                                                    <Button
+                                                                                                        size="sm"
+                                                                                                        variant="ghost"
+                                                                                                        onClick={() => downloadFile(file)}
+                                                                                                        className="h-7 w-7 p-0"
+                                                                                                    >
+                                                                                                        <Download className="h-3 w-3" />
+                                                                                                    </Button>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
                                                                                 </div>
-                                                                            );
-                                                                        })}
+                                                                            </div>
+                                                                        ))}
                                                                     </div>
                                                                 )}
 
