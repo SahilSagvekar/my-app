@@ -11,7 +11,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
 /**
@@ -96,9 +96,9 @@ async function triggerJob(name: string, endpoint: string, method: 'GET' | 'POST'
 // ==========================================
 cron.schedule('0,30 * * * *', () => {
     triggerJob('AI Titling Check', '/api/cron/check-titling-jobs');
-});
+}, { timezone: 'America/New_York' });
 
 // System Heartbeat
 cron.schedule('0 * * * *', () => {
     console.log(`💓 [Heartbeat] Cron Titling is alive.`);
-});
+}, { timezone: 'America/New_York' });

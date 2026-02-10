@@ -11,7 +11,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
 /**
@@ -198,14 +198,14 @@ cron.schedule('0 19 * * *', () => {
 // ==========================================
 cron.schedule('0 2 * * *', () => {
     triggerJob('Meta Daily Sync', '/api/cron/meta-sync', 'GET');
-});
+}, { timezone: 'America/New_York' });
 
 // ==========================================
 // 5. YouTube Analytics Sync (Daily at 3 AM)
 // ==========================================
 cron.schedule('0 3 * * *', () => {
     triggerJob('YouTube Daily Sync', '/api/cron/youtube-sync', 'POST');
-});
+}, { timezone: 'America/New_York' });
 
 // ==========================================
 // 6. Stuck Uploads / Drive Maintenance (Every 2 hours)
@@ -213,14 +213,14 @@ cron.schedule('0 3 * * *', () => {
 cron.schedule('0 */2 * * *', () => {
     // Placeholder - add endpoint if you have one for drive sync/cleanup
     console.log('⏳ [Maintenance] Running drive/upload health check placeholder...');
-});
+}, { timezone: 'America/New_York' });
 
 // ==========================================
 // 5. System Heartbeat (Every hour)
 // ==========================================
 cron.schedule('0 * * * *', () => {
     console.log(`💓 [Heartbeat] Cron Master is alive and tracking ${cron.getTasks().size} jobs.`);
-});
+}, { timezone: 'America/New_York' });
 
 // Log initialized jobs
 console.log('📦 Jobs Scheduled:');

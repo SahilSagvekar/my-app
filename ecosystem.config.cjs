@@ -16,6 +16,7 @@ module.exports = {
             env: {
                 NODE_ENV: 'production',
                 PORT: 3000,
+                HOSTNAME: '127.0.0.1',
             },
 
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
@@ -72,7 +73,7 @@ module.exports = {
 
             env: {
                 NODE_ENV: 'production',
-                BASE_URL: 'http://localhost:3000',
+                BASE_URL: 'http://127.0.0.1:3000',
             },
 
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
