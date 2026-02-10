@@ -15,6 +15,30 @@ const s3Client = new S3Client({
 
 const BUCKET = process.env.AWS_S3_BUCKET || "e8-app-s3-prod";
 
+// --- Helpers for correct file metadata ---
+function getMimeTypeFromName(name: string): string | null {
+    const ext = name.split('.').pop()?.toLowerCase();
+    if (!ext) return null;
+    const map: Record<string, string> = {
+        'mp4': 'video/mp4', 'mov': 'video/quicktime', 'avi': 'video/x-msvideo',
+        'webm': 'video/webm', 'mkv': 'video/x-matroska',
+        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+        'gif': 'image/gif', 'webp': 'image/webp', 'svg': 'image/svg+xml',
+        'pdf': 'application/pdf',
+        'mp3': 'audio/mpeg', 'wav': 'audio/wav',
+        'zip': 'application/zip',
+    };
+    return map[ext] || null;
+}
+
+function getSmartFolderType(mimeType: string | null, fileName: string): string {
+    if (fileName.toLowerCase().includes('license')) return 'music-license';
+    if (mimeType?.startsWith('video/')) return 'main';
+    if (mimeType?.startsWith('image/')) return 'thumbnails';
+    if (mimeType?.includes('pdf')) return 'music-license';
+    return 'main';
+}
+
 async function prodRestore() {
     console.log("🚀 Starting Production Restoration for InvestmentJoy...");
 
@@ -110,10 +134,12 @@ async function prodRestore() {
                 }
             });
 
-            // Create File records
+            // Create File records with correct mimeType and folderType
             for (const fileItem of files) {
                 const fileName = fileItem.Key!.split("/").pop() || "unknown";
                 const url = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${fileItem.Key}`;
+                const mimeType = getMimeTypeFromName(fileName);
+                const folderType = getSmartFolderType(mimeType, fileName);
 
                 await prisma.file.create({
                     data: {
@@ -122,7 +148,8 @@ async function prodRestore() {
                         url: url,
                         s3Key: fileItem.Key,
                         size: BigInt(fileItem.Size || 0),
-                        folderType: "outputs",
+                        mimeType: mimeType,
+                        folderType: folderType,
                     }
                 });
             }
