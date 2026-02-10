@@ -10,6 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '../ui/tooltip';
+import {
     X,
     Download,
     Share,
@@ -671,416 +677,486 @@ export function FullScreenReviewModalFrameIO({
             <DialogContent
                 className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !overflow-hidden !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog review-modal"
             >
-                {/* Accessibility: Hidden title and description for screen readers */}
-                <div className="sr-only">
-                    <DialogTitle>
-                        {asset?.title ? `Review ${asset.title}` : 'Asset Review'}
-                    </DialogTitle>
-                    <DialogDescription>
-                        Review and provide feedback on this video asset using time-coded comments.
-                    </DialogDescription>
-                </div>
+                <TooltipProvider delayDuration={300}>
+                    {/* Accessibility: Hidden title and description for screen readers */}
+                    <div className="sr-only">
+                        <DialogTitle>
+                            {asset?.title ? `Review ${asset.title}` : 'Asset Review'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Review and provide feedback on this video asset using time-coded comments.
+                        </DialogDescription>
+                    </div>
 
-                <div
-                    ref={containerRef}
-                    className="relative w-full h-full flex flex-col"
-                    style={{ background: 'var(--review-bg-primary)' }}
-                >
-                    {/* Success States */}
-                    {showApprovalSuccess && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
-                            <Card className="bg-green-900/50 border-green-500/50 backdrop-blur-xl">
-                                <CardContent className="p-8 text-center">
-                                    <CheckCircle2 className="h-16 w-16 text-green-400 mx-auto mb-4" />
-                                    <h3 className="text-xl font-medium text-green-100 mb-2">
-                                        {userRole === 'qc' ? 'Sent to Client!' : 'Version Approved!'}
-                                    </h3>
-                                    <p className="text-green-300/80">
-                                        {userRole === 'qc'
-                                            ? 'Asset has been sent to client for review'
-                                            : 'Asset has been approved for publishing'
-                                        }
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    )}
+                    <div
+                        ref={containerRef}
+                        className="relative w-full h-full flex flex-col"
+                        style={{ background: 'var(--review-bg-primary)' }}
+                    >
+                        {/* Success States */}
+                        {showApprovalSuccess && (
+                            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
+                                <Card className="bg-green-900/50 border-green-500/50 backdrop-blur-xl">
+                                    <CardContent className="p-8 text-center">
+                                        <CheckCircle2 className="h-16 w-16 text-green-400 mx-auto mb-4" />
+                                        <h3 className="text-xl font-medium text-green-100 mb-2">
+                                            {userRole === 'qc' ? 'Sent to Client!' : 'Version Approved!'}
+                                        </h3>
+                                        <p className="text-green-300/80">
+                                            {userRole === 'qc'
+                                                ? 'Asset has been sent to client for review'
+                                                : 'Asset has been approved for publishing'
+                                            }
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
 
-                    {showRevisionSuccess && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
-                            <Card className="bg-orange-900/50 border-orange-500/50 backdrop-blur-xl">
-                                <CardContent className="p-8 text-center">
-                                    <MessageSquare className="h-16 w-16 text-orange-400 mx-auto mb-4" />
-                                    <h3 className="text-xl font-medium text-orange-100 mb-2">
-                                        {userRole === 'qc' ? 'Sent Back to Editor' : 'Revisions Requested'}
-                                    </h3>
-                                    <p className="text-orange-300/80">
-                                        {comments.filter(c => !c.resolved).length} comments sent as feedback
-                                        {currentFileSection && (
-                                            <span className="block mt-1 text-sm">
-                                                for {currentFileSection.folderType} v{currentFileSection.version}
+                        {showRevisionSuccess && (
+                            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
+                                <Card className="bg-orange-900/50 border-orange-500/50 backdrop-blur-xl">
+                                    <CardContent className="p-8 text-center">
+                                        <MessageSquare className="h-16 w-16 text-orange-400 mx-auto mb-4" />
+                                        <h3 className="text-xl font-medium text-orange-100 mb-2">
+                                            {userRole === 'qc' ? 'Sent Back to Editor' : 'Revisions Requested'}
+                                        </h3>
+                                        <p className="text-orange-300/80">
+                                            {comments.filter(c => !c.resolved).length} comments sent as feedback
+                                            {currentFileSection && (
+                                                <span className="block mt-1 text-sm">
+                                                    for {currentFileSection.folderType} v{currentFileSection.version}
+                                                </span>
+                                            )}
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* Header */}
+                        <div className="flex-shrink-0 review-header px-6 py-3">
+                            <div className="flex items-center justify-between">
+                                {/* Left: Back + Title */}
+                                <div className="flex items-center gap-4">
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onOpenChange(false)}
+                                                className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                            >
+                                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                                Back
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">Go back</TooltipContent>
+                                    </Tooltip>
+
+                                    <div className="h-6 w-px bg-[var(--review-border)]" />
+
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h1 className="text-lg font-medium text-white">{asset.title}</h1>
+                                            {/* 🔥 NEW: Show section badge */}
+                                            {currentFileSection && (
+                                                <Badge className={`${asset.status === 'approved' ? 'bg-green-600' : 'bg-purple-600'} text-xs`}>
+                                                    {/* {currentFileSection.folderType}  */}
+                                                    v{currentFileSection.version}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-sm text-[var(--review-text-muted)]">
+                                                {duration > 0 ? formatTime(duration) : asset.runtime}
                                             </span>
-                                        )}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    )}
-
-                    {/* Header */}
-                    <div className="flex-shrink-0 review-header px-6 py-3">
-                        <div className="flex items-center justify-between">
-                            {/* Left: Back + Title */}
-                            <div className="flex items-center gap-4">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onOpenChange(false)}
-                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                >
-                                    <ArrowLeft className="h-4 w-4 mr-2" />
-                                    Back
-                                </Button>
-
-                                <div className="h-6 w-px bg-[var(--review-border)]" />
-
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h1 className="text-lg font-medium text-white">{asset.title}</h1>
-                                        {/* 🔥 NEW: Show section badge */}
-                                        {currentFileSection && (
-                                            <Badge className={`${asset.status === 'approved' ? 'bg-green-600' : 'bg-purple-600'} text-xs`}>
-                                                {/* {currentFileSection.folderType}  */}
-                                                v{currentFileSection.version}
-                                            </Badge>
-                                        )}
+                                            <span className="text-[var(--review-text-muted)]">•</span>
+                                            <span className="text-sm text-[var(--review-text-muted)]">
+                                                {measuredResolution || asset.resolution}
+                                            </span>
+                                            {asset.versions.length > 1 && (
+                                                <>
+                                                    <span className="text-[var(--review-text-muted)]">•</span>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Select value={currentVersion} onValueChange={setCurrentVersion}>
+                                                                <SelectTrigger className="h-6 w-16 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] text-xs">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
+                                                                    {asset.versions.map((v) => (
+                                                                        <SelectItem key={v.id} value={v.id} className="text-[var(--review-text-secondary)]">
+                                                                            V{v.number}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="bottom">Quick switch version</TooltipContent>
+                                                    </Tooltip>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-sm text-[var(--review-text-muted)]">
-                                            {duration > 0 ? formatTime(duration) : asset.runtime}
-                                        </span>
-                                        <span className="text-[var(--review-text-muted)]">•</span>
-                                        <span className="text-sm text-[var(--review-text-muted)]">
-                                            {measuredResolution || asset.resolution}
-                                        </span>
-                                        {asset.versions.length > 1 && (
-                                            <>
-                                                <span className="text-[var(--review-text-muted)]">•</span>
-                                                <Select value={currentVersion} onValueChange={setCurrentVersion}>
-                                                    <SelectTrigger className="h-6 w-16 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] text-xs">
-                                                        <SelectValue />
+                                </div>
+
+                                {/* 🔥 NEW: In-Header Share Link (Visible only to clients) */}
+                                {userRole === 'client' && shareLink && (
+                                    <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-full animate-in fade-in slide-in-from-top-4 duration-500 mx-4">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                        <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider whitespace-nowrap">Shared Review:</span>
+                                        <span className="text-[11px] text-blue-200 uppercase tracking-wider font-mono truncate max-w-[150px]">{shareLink}</span>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={handleCopyLink}
+                                                    className="h-5 px-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20"
+                                                >
+                                                    {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom">Copy shared link</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Badge variant="outline" className="h-4 text-[9px] border-blue-500/30 text-blue-400">ACTIVE</Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom" className="text-[10px]">Review link is live</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                )}
+
+                                {/* Right: Status + Actions */}
+                                <div className="flex items-center gap-3">
+                                    {/* Version Selector */}
+                                    {asset.versions.length > 1 ? (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Select value={currentVersion} onValueChange={handleVersionChange}>
+                                                    <SelectTrigger className="h-8 w-auto min-w-[100px] bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-sm">
+                                                        <SelectValue placeholder="Version" />
                                                     </SelectTrigger>
                                                     <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
                                                         {asset.versions.map((v) => (
-                                                            <SelectItem key={v.id} value={v.id} className="text-[var(--review-text-secondary)]">
-                                                                V{v.number}
+                                                            <SelectItem
+                                                                key={v.id}
+                                                                value={v.id}
+                                                                className="text-[var(--review-text-secondary)] hover:text-white"
+                                                            >
+                                                                Version {v.number} - {v.uploadDate}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 🔥 NEW: In-Header Share Link (Visible only to clients) */}
-                            {userRole === 'client' && shareLink && (
-                                <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/30 rounded-full animate-in fade-in slide-in-from-top-4 duration-500 mx-4">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                                    <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wider whitespace-nowrap">Shared Review:</span>
-                                    <span className="text-[11px] text-blue-200 uppercase tracking-wider font-mono truncate max-w-[150px]">{shareLink}</span>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleCopyLink}
-                                        className="h-5 px-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20"
-                                    >
-                                        {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                                    </Button>
-                                    <Badge variant="outline" className="h-4 text-[9px] border-blue-500/30 text-blue-400">ACTIVE</Badge>
-                                </div>
-                            )}
-
-                            {/* Right: Status + Actions */}
-                            <div className="flex items-center gap-3">
-                                {/* Version Selector */}
-                                {asset.versions.length > 1 ? (
-                                    <Select value={currentVersion} onValueChange={handleVersionChange}>
-                                        <SelectTrigger className="h-8 w-auto min-w-[100px] bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-sm">
-                                            <SelectValue placeholder="Version" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
-                                            {asset.versions.map((v) => (
-                                                <SelectItem
-                                                    key={v.id}
-                                                    value={v.id}
-                                                    className="text-[var(--review-text-secondary)] hover:text-white"
-                                                >
-                                                    Version {v.number} - {v.uploadDate}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <Badge className="bg-[var(--review-bg-tertiary)] text-white text-sm px-3 py-1">
-                                        Version {asset.versions[0]?.number || '1'}
-                                    </Badge>
-                                )}
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setShowInfoPanel(!showInfoPanel)}
-                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                >
-                                    <Info className="h-4 w-4" />
-                                </Button>
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleDownload}
-                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                    title="Download Video"
-                                >
-                                    <Download className="h-4 w-4" />
-                                </Button>
-
-                                {userRole === 'client' && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleGenerateShareLink}
-                                        disabled={generatingLink}
-                                        className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                    >
-                                        {generatingLink ? (
-                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                        ) : (
-                                            <Share className="h-4 w-4" />
-                                        )}
-                                    </Button>
-                                )}
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onOpenChange(false)}
-                                    className="text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                                >
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Main Content */}
-                    <div className="flex-1 flex overflow-hidden min-h-0">
-                        {/* Video Area */}
-                        <div className="flex-1 flex flex-col p-6 pr-0">
-                            {/* Video Container */}
-                            <div className="flex-1 flex items-center justify-center">
-                                <div className="relative w-full max-w-5xl aspect-video review-video-container">
-                                    {videoError ? (
-                                        <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white">
-                                            <div className="text-center p-8 max-w-2xl">
-                                                <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
-                                                <h3 className="text-xl mb-2">Video Failed to Load</h3>
-                                                <p className="text-sm text-[var(--review-text-muted)] mb-4">
-                                                    Please ensure the video file is accessible and permissions are set correctly.
-                                                </p>
-                                                <div className="flex gap-2 justify-center">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => setVideoError(false)}
-                                                        className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white"
-                                                    >
-                                                        Retry
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => window.open(asset.videoUrl, '_blank')}
-                                                        className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white"
-                                                    >
-                                                        Open in New Tab
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : videoSource.type === 'iframe' ? (
-                                        <div className="relative w-full h-full">
-                                            {!iframeLoaded && (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
-                                                    <div className="text-center">
-                                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                                                        <p className="text-sm text-[var(--review-text-muted)]">Loading video...</p>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            <iframe
-                                                ref={iframeRef}
-                                                className="w-full h-full bg-black"
-                                                src={videoSource.src}
-                                                title={`Video player for ${asset.title}`}
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                allowFullScreen
-                                                onLoad={() => setIframeLoaded(true)}
-                                                onError={() => setVideoError(true)}
-                                            />
-                                        </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom">Choose version</TooltipContent>
+                                        </Tooltip>
                                     ) : (
-                                        <>
-                                            <video
-                                                ref={videoRef}
-                                                className="w-full h-full object-contain bg-black"
-                                                src={videoSource.src}
-                                                onTimeUpdate={handleTimeUpdate}
-                                                onLoadedMetadata={(e) => {
-                                                    setDuration(e.currentTarget.duration);
-                                                    if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
-                                                        setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
-                                                    }
-                                                }}
-                                                onPlay={() => setIsPlaying(true)}
-                                                onPause={() => setIsPlaying(false)}
-                                                onError={() => setVideoError(true)}
-                                                playsInline
-                                                preload="auto"
-                                            />
-
-                                            {/* Play/Pause Overlay */}
-                                            <div
-                                                className="absolute inset-0 flex items-center justify-center cursor-pointer"
-                                                onClick={togglePlay}
-                                            >
-                                                {!isPlaying && (
-                                                    <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
-                                                        <Play className="h-12 w-12 text-white fill-white" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
+                                        <Badge className="bg-[var(--review-bg-tertiary)] text-white text-sm px-3 py-1">
+                                            Version {asset.versions[0]?.number || '1'}
+                                        </Badge>
                                     )}
-                                </div>
-                            </div>
 
-                            {/* Timeline + Controls */}
-                            <div className="mt-4 px-6">
-                                {/* Timeline with markers */}
-                                {videoSource.type === 'video' && (
-                                    <ReviewTimeline
-                                        duration={duration}
-                                        currentTime={currentTime}
-                                        comments={comments}
-                                        activeCommentId={activeCommentId}
-                                        onSeek={handleSeek}
-                                        onMarkerClick={handleMarkerClick}
-                                        onDragStart={() => setIsDragging(true)}
-                                        onDragEnd={() => setIsDragging(false)}
-                                    />
-                                )}
-
-                                {/* Control Bar */}
-                                <div className="flex items-center justify-between mt-4">
-                                    {/* Left Controls */}
-                                    <div className="flex items-center gap-2">
-                                        {videoSource.type === 'video' && (
-                                            <>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={seekBackward}
-                                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                                >
-                                                    <SkipBack className="h-4 w-4" />
-                                                </Button>
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={togglePlay}
-                                                    className="text-white hover:bg-[var(--review-bg-tertiary)]"
-                                                >
-                                                    {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                                                </Button>
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={seekForward}
-                                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                                >
-                                                    <SkipForward className="h-4 w-4" />
-                                                </Button>
-
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={toggleMute}
-                                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                                >
-                                                    {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                                                </Button>
-
-                                                <Select value={playbackSpeed.toString()} onValueChange={handlePlaybackSpeedChange}>
-                                                    <SelectTrigger className="w-16 h-8 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] text-xs">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
-                                                        <SelectItem value="0.5">0.5x</SelectItem>
-                                                        <SelectItem value="0.75">0.75x</SelectItem>
-                                                        <SelectItem value="1">1x</SelectItem>
-                                                        <SelectItem value="1.25">1.25x</SelectItem>
-                                                        <SelectItem value="1.5">1.5x</SelectItem>
-                                                        <SelectItem value="2">2x</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    {/* Right Controls */}
-                                    <div className="flex items-center gap-2">
-                                        {onNextAsset && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={onNextAsset}
-                                                className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                                onClick={() => setShowInfoPanel(!showInfoPanel)}
+                                                className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
                                             >
-                                                Next Asset
-                                                <ChevronRight className="h-4 w-4 ml-1" />
+                                                <Info className="h-4 w-4" />
                                             </Button>
-                                        )}
-                                    </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">Asset Details</TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={handleDownload}
+                                                className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">Download</TooltipContent>
+                                    </Tooltip>
+
+                                    {userRole === 'client' && (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={handleGenerateShareLink}
+                                                    disabled={generatingLink}
+                                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                                >
+                                                    {generatingLink ? (
+                                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                    ) : (
+                                                        <Share className="h-4 w-4" />
+                                                    )}
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom">Share Review</TooltipContent>
+                                        </Tooltip>
+                                    )}
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onOpenChange(false)}
+                                                className="text-red-500 hover:text-red-400 hover:bg-red-500/10"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">Close</TooltipContent>
+                                    </Tooltip>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Comments Sidebar */}
-                        <div className="w-80 flex-shrink-0 review-comments-sidebar grid grid-rows-[auto,auto,1fr,auto] overflow-hidden border-l border-[var(--review-border)] bg-[var(--review-bg-secondary)]" style={{ height: 'calc(100vh - 64px)' }}>
-                            {/* Sidebar Header */}
-                            <div className="p-4 border-b border-[var(--review-border)]">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-medium text-white flex items-center gap-2">
-                                        <MessageSquare className="h-4 w-4" />
-                                        Comments
-                                        <Badge className="bg-[var(--review-bg-tertiary)] text-[var(--review-text-secondary)] text-xs">
-                                            {comments.length}
-                                        </Badge>
-                                    </h3>
-                                    <Badge
-                                        variant="outline"
-                                        className="text-xs border-[var(--review-border)] text-[var(--review-text-muted)]"
-                                    >
-                                        {comments.filter(c => !c.resolved).length} open
-                                    </Badge>
+                        {/* Main Content */}
+                        <div className="flex-1 flex overflow-hidden min-h-0">
+                            {/* Video Area */}
+                            <div className="flex-1 flex flex-col p-6 pr-0">
+                                {/* Video Container */}
+                                <div className="flex-1 flex items-center justify-center">
+                                    <div className="relative w-full max-w-5xl aspect-video review-video-container">
+                                        {videoError ? (
+                                            <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white">
+                                                <div className="text-center p-8 max-w-2xl">
+                                                    <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
+                                                    <h3 className="text-xl mb-2">Video Failed to Load</h3>
+                                                    <p className="text-sm text-[var(--review-text-muted)] mb-4">
+                                                        Please ensure the video file is accessible and permissions are set correctly.
+                                                    </p>
+                                                    <div className="flex gap-2 justify-center">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setVideoError(false)}
+                                                            className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white"
+                                                        >
+                                                            Retry
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => window.open(asset.videoUrl, '_blank')}
+                                                            className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white"
+                                                        >
+                                                            Open in New Tab
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : videoSource.type === 'iframe' ? (
+                                            <div className="relative w-full h-full">
+                                                {!iframeLoaded && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
+                                                        <div className="text-center">
+                                                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                                                            <p className="text-sm text-[var(--review-text-muted)]">Loading video...</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <iframe
+                                                    ref={iframeRef}
+                                                    className="w-full h-full bg-black"
+                                                    src={videoSource.src}
+                                                    title={`Video player for ${asset.title}`}
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                    allowFullScreen
+                                                    onLoad={() => setIframeLoaded(true)}
+                                                    onError={() => setVideoError(true)}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <video
+                                                    ref={videoRef}
+                                                    className="w-full h-full object-contain bg-black"
+                                                    src={videoSource.src}
+                                                    onTimeUpdate={handleTimeUpdate}
+                                                    onLoadedMetadata={(e) => {
+                                                        setDuration(e.currentTarget.duration);
+                                                        if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
+                                                            setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
+                                                        }
+                                                    }}
+                                                    onPlay={() => setIsPlaying(true)}
+                                                    onPause={() => setIsPlaying(false)}
+                                                    onError={() => setVideoError(true)}
+                                                    playsInline
+                                                    preload="auto"
+                                                />
+
+                                                {/* Play/Pause Overlay */}
+                                                <div
+                                                    className="absolute inset-0 flex items-center justify-center cursor-pointer"
+                                                    onClick={togglePlay}
+                                                >
+                                                    {!isPlaying && (
+                                                        <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
+                                                            <Play className="h-12 w-12 text-white fill-white" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
-                                {/* 🔥 NEW: Show which section feedback is for */}
-                                {/* {currentFileSection && (
+
+                                {/* Timeline + Controls */}
+                                <div className="mt-4 px-6">
+                                    {/* Timeline with markers */}
+                                    {videoSource.type === 'video' && (
+                                        <ReviewTimeline
+                                            duration={duration}
+                                            currentTime={currentTime}
+                                            comments={comments}
+                                            activeCommentId={activeCommentId}
+                                            onSeek={handleSeek}
+                                            onMarkerClick={handleMarkerClick}
+                                            onDragStart={() => setIsDragging(true)}
+                                            onDragEnd={() => setIsDragging(false)}
+                                        />
+                                    )}
+
+                                    {/* Control Bar */}
+                                    <div className="flex items-center justify-between mt-4">
+                                        {/* Left Controls */}
+                                        <div className="flex items-center gap-2">
+                                            {videoSource.type === 'video' && (
+                                                <>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={seekBackward}
+                                                                className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                                            >
+                                                                <SkipBack className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="top">Backward 10s</TooltipContent>
+                                                    </Tooltip>
+
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={togglePlay}
+                                                                className="text-white hover:bg-[var(--review-bg-tertiary)]"
+                                                            >
+                                                                {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="top">{isPlaying ? 'Pause' : 'Play'} (Space)</TooltipContent>
+                                                    </Tooltip>
+
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={seekForward}
+                                                                className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                                            >
+                                                                <SkipForward className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="top">Forward 10s</TooltipContent>
+                                                    </Tooltip>
+
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={toggleMute}
+                                                                className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                                            >
+                                                                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="top">Mute/Unmute</TooltipContent>
+                                                    </Tooltip>
+
+                                                    <Select value={playbackSpeed.toString()} onValueChange={handlePlaybackSpeedChange}>
+                                                        <SelectTrigger className="w-16 h-8 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] text-xs">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
+                                                            <SelectItem value="0.5">0.5x</SelectItem>
+                                                            <SelectItem value="0.75">0.75x</SelectItem>
+                                                            <SelectItem value="1">1x</SelectItem>
+                                                            <SelectItem value="1.25">1.25x</SelectItem>
+                                                            <SelectItem value="1.5">1.5x</SelectItem>
+                                                            <SelectItem value="2">2x</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Right Controls */}
+                                        <div className="flex items-center gap-2">
+                                            {onNextAsset && (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={onNextAsset}
+                                                            className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                                        >
+                                                            Next Asset
+                                                            <ChevronRight className="h-4 w-4 ml-1" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top">Next file</TooltipContent>
+                                                </Tooltip>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Comments Sidebar */}
+                            <div className="w-80 flex-shrink-0 review-comments-sidebar grid grid-rows-[auto,auto,1fr,auto] overflow-hidden border-l border-[var(--review-border)] bg-[var(--review-bg-secondary)]" style={{ height: 'calc(100vh - 64px)' }}>
+                                {/* Sidebar Header */}
+                                <div className="p-4 border-b border-[var(--review-border)]">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="font-medium text-white flex items-center gap-2">
+                                            <MessageSquare className="h-4 w-4" />
+                                            Comments
+                                            <Badge className="bg-[var(--review-bg-tertiary)] text-[var(--review-text-secondary)] text-xs">
+                                                {comments.length}
+                                            </Badge>
+                                        </h3>
+                                        <Badge
+                                            variant="outline"
+                                            className="text-xs border-[var(--review-border)] text-[var(--review-text-muted)]"
+                                        >
+                                            {comments.filter(c => !c.resolved).length} open
+                                        </Badge>
+                                    </div>
+                                    {/* 🔥 NEW: Show which section feedback is for */}
+                                    {/* {currentFileSection && (
                                     <p className="text-xs text-[var(--review-text-muted)] mt-2">
                                         Feedback for: <span className="text-[var(--review-text-secondary)]">
                                             {currentFileSection.folderType} 
@@ -1088,224 +1164,225 @@ export function FullScreenReviewModalFrameIO({
                                         </span>
                                     </p>
                                 )} */}
-                            </div>
-
-                            {/* Comment Input */}
-                            <div className="p-3 border-b border-[var(--review-border)]">
-                                <CommentInput
-                                    taskId={asset.id}
-                                    currentTime={currentTime}
-                                    currentTimestamp={formatTime(currentTime)}
-                                    authorId="current-user"
-                                    authorName={user?.name || 'User'}
-                                    onSubmit={handleCommentSubmit}
-                                    onCancel={() => setShowCommentInput(false)}
-                                    isExpanded={showCommentInput}
-                                    onToggleExpand={() => setShowCommentInput(true)}
-                                />
-                            </div>
-
-                            {/* Comments List */}
-                            <div
-                                ref={commentsRef}
-                                className="overflow-y-auto p-3 review-scrollbar min-h-0"
-                            >
-                                {comments.length === 0 ? (
-                                    <div className="text-center py-12 text-[var(--review-text-muted)]">
-                                        <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                                        <p className="text-sm">No comments yet</p>
-                                        <p className="text-xs mt-1">Press C to add a comment</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {sortedComments.map((comment) => (
-                                            <div key={comment.id} id={`comment-${comment.id}`}>
-                                                <ReviewCommentCard
-                                                    comment={comment}
-                                                    isActive={activeCommentId === comment.id}
-                                                    onTimestampClick={handleTimestampClick}
-                                                    onResolve={handleCommentResolve}
-                                                    onDelete={handleCommentDelete}
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Sidebar Footer - Action Buttons */}
-                            <div className="p-4 border-t border-[var(--review-border)] space-y-2 bg-[var(--review-bg-secondary)] z-10">
-                                {userRole === 'qc' ? (
-                                    <>
-                                        <Button
-                                            size="sm"
-                                            className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white"
-                                            onClick={() => handleStatusChange('approved')}
-                                            disabled={asset.approvalLocked || savingFeedback}
-                                        >
-                                            {requiresClientReview ? (
-                                                <>
-                                                    <UserCheck className="h-4 w-4 mr-2" />
-                                                    Approve & Send to Client
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Calendar className="h-4 w-4 mr-2" />
-                                                    Approve & Send to Scheduler
-                                                </>
-                                            )}
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="w-full bg-transparent border-[var(--review-status-changes)] text-[var(--review-status-changes)] hover:bg-[var(--review-status-changes)]/10"
-                                            onClick={() => handleStatusChange('needs_changes')}
-                                            disabled={comments.filter(c => !c.resolved).length === 0 || savingFeedback}
-                                        >
-                                            {savingFeedback ? (
-                                                <>
-                                                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                                    Saving...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <MessageSquare className="h-4 w-4 mr-2" />
-                                                    Send Back with {comments.filter(c => !c.resolved).length} Comments
-                                                </>
-                                            )}
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="flex items-start gap-2 mb-2">
-                                            <Checkbox
-                                                id="confirm-final"
-                                                checked={confirmFinal}
-                                                onCheckedChange={(checked) => setConfirmFinal(checked as boolean)}
-                                                className="mt-0.5"
-                                            />
-                                            <label
-                                                htmlFor="confirm-final"
-                                                className="text-xs text-[var(--review-text-secondary)] cursor-pointer"
-                                            >
-                                                I confirm this is the final version for publishing
-                                            </label>
-                                        </div>
-                                        <Button
-                                            size="sm"
-                                            className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white"
-                                            onClick={() => handleStatusChange('approved')}
-                                            disabled={!confirmFinal || asset.approvalLocked}
-                                        >
-                                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                                            Approve Version
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="w-full bg-transparent border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-400"
-                                            onClick={() => handleStatusChange('needs_changes')}
-                                            disabled={comments.filter(c => !c.resolved).length === 0}
-                                        >
-                                            <MessageSquare className="h-4 w-4 mr-2" />
-                                            Request Revisions
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Info Panel (slide out) */}
-                        {showInfoPanel && (
-                            <div className="w-72 flex-shrink-0 bg-[var(--review-bg-secondary)] border-l border-[var(--review-border)] p-4 review-animate-slide-in review-scrollbar overflow-y-auto">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-medium text-white">Asset Details</h3>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setShowInfoPanel(false)}
-                                        className="h-6 w-6 p-0 text-[var(--review-text-muted)] hover:text-white"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </Button>
                                 </div>
 
-                                <div className="space-y-4 text-sm">
-                                    {/* 🔥 NEW: Show section info */}
-                                    {currentFileSection && (
-                                        <div>
-                                            <div className="text-[var(--review-text-muted)] mb-1">Section</div>
-                                            <div className="text-white capitalize">{currentFileSection.folderType}</div>
-                                        </div>
-                                    )}
-                                    {currentFileSection && (
-                                        <div>
-                                            <div className="text-[var(--review-text-muted)] mb-1">Version</div>
-                                            <div className="text-white">v{currentFileSection.version}</div>
-                                        </div>
-                                    )}
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">Resolution</div>
-                                        <div className="text-white">{measuredResolution || asset.resolution}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">File Size</div>
-                                        <div className="text-white">{asset.fileSize}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">Platform</div>
-                                        <div className="text-white">{asset.platform}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">Uploaded</div>
-                                        <div className="text-white">{asset.uploadDate}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">Uploader</div>
-                                        <div className="text-white">{asset.uploader}</div>
-                                    </div>
+                                {/* Comment Input */}
+                                <div className="p-3 border-b border-[var(--review-border)]">
+                                    <CommentInput
+                                        taskId={asset.id}
+                                        currentTime={currentTime}
+                                        currentTimestamp={formatTime(currentTime)}
+                                        authorId="current-user"
+                                        authorName={user?.name || 'User'}
+                                        onSubmit={handleCommentSubmit}
+                                        onCancel={() => setShowCommentInput(false)}
+                                        isExpanded={showCommentInput}
+                                        onToggleExpand={() => setShowCommentInput(true)}
+                                    />
+                                </div>
 
-                                    {/* 🔥 Show Share Link if it exists */}
-                                    {shareLink && (
-                                        <div className="pt-4 mt-4 border-t border-[var(--review-border)]">
-                                            <div className="text-[var(--review-text-muted)] mb-2 flex items-center justify-between">
-                                                <span>Active Share Link</span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-6 p-1 text-blue-400 hover:text-blue-300"
-                                                    onClick={handleCopyLink}
+                                {/* Comments List */}
+                                <div
+                                    ref={commentsRef}
+                                    className="overflow-y-auto p-3 review-scrollbar min-h-0"
+                                >
+                                    {comments.length === 0 ? (
+                                        <div className="text-center py-12 text-[var(--review-text-muted)]">
+                                            <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                                            <p className="text-sm">No comments yet</p>
+                                            <p className="text-xs mt-1">Press C to add a comment</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {sortedComments.map((comment) => (
+                                                <div key={comment.id} id={`comment-${comment.id}`}>
+                                                    <ReviewCommentCard
+                                                        comment={comment}
+                                                        isActive={activeCommentId === comment.id}
+                                                        onTimestampClick={handleTimestampClick}
+                                                        onResolve={handleCommentResolve}
+                                                        onDelete={handleCommentDelete}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Sidebar Footer - Action Buttons */}
+                                <div className="p-4 border-t border-[var(--review-border)] space-y-2 bg-[var(--review-bg-secondary)] z-10">
+                                    {userRole === 'qc' ? (
+                                        <>
+                                            <Button
+                                                size="sm"
+                                                className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white"
+                                                onClick={() => handleStatusChange('approved')}
+                                                disabled={asset.approvalLocked || savingFeedback}
+                                            >
+                                                {requiresClientReview ? (
+                                                    <>
+                                                        <UserCheck className="h-4 w-4 mr-2" />
+                                                        Approve & Send to Client
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Calendar className="h-4 w-4 mr-2" />
+                                                        Approve & Send to Scheduler
+                                                    </>
+                                                )}
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="w-full bg-transparent border-[var(--review-status-changes)] text-[var(--review-status-changes)] hover:bg-[var(--review-status-changes)]/10"
+                                                onClick={() => handleStatusChange('needs_changes')}
+                                                disabled={comments.filter(c => !c.resolved).length === 0 || savingFeedback}
+                                            >
+                                                {savingFeedback ? (
+                                                    <>
+                                                        <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                        Saving...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <MessageSquare className="h-4 w-4 mr-2" />
+                                                        Send Back with {comments.filter(c => !c.resolved).length} Comments
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-start gap-2 mb-2">
+                                                <Checkbox
+                                                    id="confirm-final"
+                                                    checked={confirmFinal}
+                                                    onCheckedChange={(checked) => setConfirmFinal(checked as boolean)}
+                                                    className="mt-0.5"
+                                                />
+                                                <label
+                                                    htmlFor="confirm-final"
+                                                    className="text-xs text-[var(--review-text-secondary)] cursor-pointer"
                                                 >
-                                                    {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                                                </Button>
-                                            </div>
-                                            <div className="bg-[var(--review-bg-tertiary)] p-2 rounded text-[10px] break-all font-mono text-blue-300 border border-blue-500/20">
-                                                {shareLink}
+                                                    I confirm this is the final version for publishing
+                                                </label>
                                             </div>
                                             <Button
-                                                variant="outline"
                                                 size="sm"
-                                                className="w-full mt-2 h-7 text-xs bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
-                                                onClick={() => setShowShareDialog(true)}
+                                                className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white"
+                                                onClick={() => handleStatusChange('approved')}
+                                                disabled={!confirmFinal || asset.approvalLocked}
                                             >
-                                                Manage Share
+                                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                Approve Version
                                             </Button>
-                                        </div>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="w-full bg-transparent border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                                                onClick={() => handleStatusChange('needs_changes')}
+                                                disabled={comments.filter(c => !c.resolved).length === 0}
+                                            >
+                                                <MessageSquare className="h-4 w-4 mr-2" />
+                                                Request Revisions
+                                            </Button>
+                                        </>
                                     )}
                                 </div>
                             </div>
-                        )}
-                    </div>
-                </div>
 
-                {/* Share Dialog */}
-                <ShareDialog
-                    open={showShareDialog}
-                    onOpenChange={setShowShareDialog}
-                    shareLink={shareLink}
-                    onCopy={handleCopyLink}
-                    copied={linkCopied}
-                />
+                            {/* Info Panel (slide out) */}
+                            {showInfoPanel && (
+                                <div className="w-72 flex-shrink-0 bg-[var(--review-bg-secondary)] border-l border-[var(--review-border)] p-4 review-animate-slide-in review-scrollbar overflow-y-auto">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="font-medium text-white">Asset Details</h3>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setShowInfoPanel(false)}
+                                            className="h-6 w-6 p-0 text-[var(--review-text-muted)] hover:text-white"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+
+                                    <div className="space-y-4 text-sm">
+                                        {/* 🔥 NEW: Show section info */}
+                                        {currentFileSection && (
+                                            <div>
+                                                <div className="text-[var(--review-text-muted)] mb-1">Section</div>
+                                                <div className="text-white capitalize">{currentFileSection.folderType}</div>
+                                            </div>
+                                        )}
+                                        {currentFileSection && (
+                                            <div>
+                                                <div className="text-[var(--review-text-muted)] mb-1">Version</div>
+                                                <div className="text-white">v{currentFileSection.version}</div>
+                                            </div>
+                                        )}
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] mb-1">Resolution</div>
+                                            <div className="text-white">{measuredResolution || asset.resolution}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] mb-1">File Size</div>
+                                            <div className="text-white">{asset.fileSize}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] mb-1">Platform</div>
+                                            <div className="text-white">{asset.platform}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] mb-1">Uploaded</div>
+                                            <div className="text-white">{asset.uploadDate}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] mb-1">Uploader</div>
+                                            <div className="text-white">{asset.uploader}</div>
+                                        </div>
+
+                                        {/* 🔥 Show Share Link if it exists */}
+                                        {shareLink && (
+                                            <div className="pt-4 mt-4 border-t border-[var(--review-border)]">
+                                                <div className="text-[var(--review-text-muted)] mb-2 flex items-center justify-between">
+                                                    <span>Active Share Link</span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-6 p-1 text-blue-400 hover:text-blue-300"
+                                                        onClick={handleCopyLink}
+                                                    >
+                                                        {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                                    </Button>
+                                                </div>
+                                                <div className="bg-[var(--review-bg-tertiary)] p-2 rounded text-[10px] break-all font-mono text-blue-300 border border-blue-500/20">
+                                                    {shareLink}
+                                                </div>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full mt-2 h-7 text-xs bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20"
+                                                    onClick={() => setShowShareDialog(true)}
+                                                >
+                                                    Manage Share
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Share Dialog */}
+                    <ShareDialog
+                        open={showShareDialog}
+                        onOpenChange={setShowShareDialog}
+                        shareLink={shareLink}
+                        onCopy={handleCopyLink}
+                        copied={linkCopied}
+                    />
+                </TooltipProvider>
             </DialogContent>
         </Dialog>
     );
