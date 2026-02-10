@@ -612,15 +612,9 @@ export function QCDashboard() {
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     ) : (
-                      /* Large Icon per category (fallback) */
-                      <div className="opacity-20 transform group-hover:scale-110 transition-transform duration-500">
-                        {task.taskCategory === "video" ? (
-                          <Video className="h-16 w-16 text-zinc-900" />
-                        ) : task.taskCategory === "design" ? (
-                          <Palette className="h-16 w-16 text-zinc-900" />
-                        ) : (
-                          <FileText className="h-16 w-16 text-zinc-900" />
-                        )}
+                      /* No thumbnail text fallback */
+                      <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider">
+                        No thumbnail
                       </div>
                     )}
 
