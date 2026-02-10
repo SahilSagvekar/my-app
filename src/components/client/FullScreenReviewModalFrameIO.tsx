@@ -747,7 +747,8 @@ export function FullScreenReviewModalFrameIO({
                                         {/* 🔥 NEW: Show section badge */}
                                         {currentFileSection && (
                                             <Badge className="bg-purple-600 text-xs">
-                                                {currentFileSection.folderType} v{currentFileSection.version}
+                                                {/* {currentFileSection.folderType}  */}
+                                                v{currentFileSection.version}
                                             </Badge>
                                         )}
                                     </div>
@@ -1067,13 +1068,14 @@ export function FullScreenReviewModalFrameIO({
                                     </Badge>
                                 </div>
                                 {/* 🔥 NEW: Show which section feedback is for */}
-                                {currentFileSection && (
+                                {/* {currentFileSection && (
                                     <p className="text-xs text-[var(--review-text-muted)] mt-2">
                                         Feedback for: <span className="text-[var(--review-text-secondary)]">
-                                            {currentFileSection.folderType} v{currentFileSection.version}
+                                            {currentFileSection.folderType} 
+                                            v{currentFileSection.version}
                                         </span>
                                     </p>
-                                )}
+                                )} */}
                             </div>
 
                             {/* Comment Input */}
