@@ -379,7 +379,7 @@ export function QCCompletedPage() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            {getStatusIcon(task.status)}
+                            {/* {getStatusIcon(task.status)} */}
                             <h4 className="font-medium">{task.title}</h4>
                             <Badge variant={getStatusBadgeVariant(task.status)}>
                               {getStatusLabel(task.status)}
@@ -392,31 +392,31 @@ export function QCCompletedPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                            <div className="flex items-center gap-1">
+                            {/* <div className="flex items-center gap-1">
                               <Badge variant="outline" className="text-xs">{task.id}</Badge>
-                            </div>
-                            <div className="flex items-center gap-1">
+                            </div> */}
+                            {/* <div className="flex items-center gap-1">
                               {getTaskCategoryIcon(task.taskCategory)}
                               <span className="capitalize">{task.taskCategory}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               <span>{new Date(task.createdAt).toLocaleDateString()}</span>
-                            </div>
-                            {task.clientId && (
+                            </div> */}
+                            {/* {task.clientId && (
                               <div className="flex items-center gap-1">
                                 <FileText className="h-3 w-3" />
                                 <span>Project: {task.clientId}</span>
                               </div>
-                            )}
+                            )} */}
                           </div>
                         </div>
-                        {task.nextDestination && (
+                        {/* {task.nextDestination && (
                           <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs flex-shrink-0 ${getDestinationColor(task.nextDestination)}`}>
                             {getDestinationIcon(task.nextDestination)}
                             <span className="capitalize">→ {task.nextDestination}</span>
                           </div>
-                        )}
+                        )} */}
                       </div>
                       {(task.feedback || task.qcNotes) && (
                         <div className="mt-3 p-3 bg-accent/50 rounded">

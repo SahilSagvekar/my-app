@@ -749,7 +749,7 @@ export function FullScreenReviewModalFrameIO({
                                         <h1 className="text-lg font-medium text-white">{asset.title}</h1>
                                         {/* 🔥 NEW: Show section badge */}
                                         {currentFileSection && (
-                                            <Badge className="bg-purple-600 text-xs">
+                                            <Badge className={`${asset.status === 'approved' ? 'bg-green-600' : 'bg-purple-600'} text-xs`}>
                                                 {/* {currentFileSection.folderType}  */}
                                                 v{currentFileSection.version}
                                             </Badge>
