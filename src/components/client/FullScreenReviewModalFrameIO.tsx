@@ -142,6 +142,7 @@ export function FullScreenReviewModalFrameIO({
     const [isMuted, setIsMuted] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [measuredResolution, setMeasuredResolution] = useState('');
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [currentVersion, setCurrentVersion] = useState('');
     const currentVersionNumber = useMemo(() => {
@@ -197,6 +198,8 @@ export function FullScreenReviewModalFrameIO({
             setCurrentVideoUrl(asset.videoUrl);
             setIsPlaying(false);
             setCurrentTime(0);
+            setDuration(0);
+            setMeasuredResolution('');
             setConfirmFinal(false);
             setShowApprovalSuccess(false);
             setShowRevisionSuccess(false);
@@ -753,9 +756,13 @@ export function FullScreenReviewModalFrameIO({
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-sm text-[var(--review-text-muted)]">{asset.runtime}</span>
+                                        <span className="text-sm text-[var(--review-text-muted)]">
+                                            {duration > 0 ? formatTime(duration) : asset.runtime}
+                                        </span>
                                         <span className="text-[var(--review-text-muted)]">•</span>
-                                        <span className="text-sm text-[var(--review-text-muted)]">{asset.resolution}</span>
+                                        <span className="text-sm text-[var(--review-text-muted)]">
+                                            {measuredResolution || asset.resolution}
+                                        </span>
                                         {asset.versions.length > 1 && (
                                             <>
                                                 <span className="text-[var(--review-text-muted)]">•</span>
@@ -931,7 +938,12 @@ export function FullScreenReviewModalFrameIO({
                                                 className="w-full h-full object-contain bg-black"
                                                 src={videoSource.src}
                                                 onTimeUpdate={handleTimeUpdate}
-                                                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                                                onLoadedMetadata={(e) => {
+                                                    setDuration(e.currentTarget.duration);
+                                                    if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
+                                                        setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
+                                                    }
+                                                }}
                                                 onPlay={() => setIsPlaying(true)}
                                                 onPause={() => setIsPlaying(false)}
                                                 onError={() => setVideoError(true)}
@@ -1234,7 +1246,7 @@ export function FullScreenReviewModalFrameIO({
                                     )}
                                     <div>
                                         <div className="text-[var(--review-text-muted)] mb-1">Resolution</div>
-                                        <div className="text-white">{asset.resolution}</div>
+                                        <div className="text-white">{measuredResolution || asset.resolution}</div>
                                     </div>
                                     <div>
                                         <div className="text-[var(--review-text-muted)] mb-1">File Size</div>
