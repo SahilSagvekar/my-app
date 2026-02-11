@@ -95,7 +95,7 @@
 //             Manage your shooting schedule, upload footage, and track equipment
 //           </p>
 //         </div>
-        
+
 //       </div> */}
 
 //         <div className="flex items-center gap-3">
@@ -610,30 +610,52 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Calendar } from '../ui/calendar';
-import { 
-  Camera, 
-  Upload, 
-  Calendar as CalendarIcon, 
-  MapPin, 
-  Clock, 
-  User, 
-  CheckCircle2, 
+import {
+  Camera,
+  Upload,
+  Calendar as CalendarIcon,
+  MapPin,
+  Clock,
+  User,
+  CheckCircle2,
   Download,
   Eye,
   Settings,
   Briefcase,
   MoreHorizontal,
-  Loader
+  Loader,
+  DollarSign,
+  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { 
-  mockShootingTasks, 
-  mockUploadTasks, 
+import {
+  mockShootingTasks,
+  mockUploadTasks,
   mockEquipment,
   statusColors,
   uploadStatusColors,
   equipmentStatusColors
 } from '../data/videographerMockData';
+
+// Types for Remote Data
+interface Bid {
+  id: string;
+  amount: number;
+  note?: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+}
+
+interface Job {
+  id: string;
+  title: string;
+  description: string;
+  location?: string;
+  shootDate: string;
+  budget?: number; // Decimal in DB, number in JSON
+  status: 'OPEN' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED';
+  bids?: Bid[]; // Current user's bid (if videographer)
+  _count?: { bids: number };
+}
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
@@ -676,15 +698,15 @@ export function VideographerDashboard() {
     console.log('📁 [VIDEOGRAPHER] Starting upload:', newUpload);
     if (!newUpload.projectId || !newUpload.title) {
       console.warn('⚠️ [VIDEOGRAPHER] Missing upload information');
-      toast('❌ Missing Information', { 
-        description: 'Please select a project and enter upload title.' 
+      toast('❌ Missing Information', {
+        description: 'Please select a project and enter upload title.'
       });
       return;
     }
 
     console.log('✅ [VIDEOGRAPHER] Upload validated and started');
-    toast('📁 Upload Started', { 
-      description: 'Files are being uploaded to Google Drive.' 
+    toast('📁 Upload Started', {
+      description: 'Files are being uploaded to Google Drive.'
     });
     setIsUploadDialogOpen(false);
     setNewUpload({ projectId: '', title: '', notes: '' });
@@ -692,8 +714,8 @@ export function VideographerDashboard() {
 
   const handleMarkAsCompleted = (taskId: string) => {
     console.log(`✅ [VIDEOGRAPHER] Marking task ${taskId} as completed`);
-    toast('✅ Shoot Completed', { 
-      description: 'Task marked as completed. Upload footage when ready.' 
+    toast('✅ Shoot Completed', {
+      description: 'Task marked as completed. Upload footage when ready.'
     });
   };
 
@@ -702,6 +724,179 @@ export function VideographerDashboard() {
   const completedTasks = mockShootingTasks.filter(task => task.status === 'completed');
 
   console.log(`📊 [VIDEOGRAPHER] Dashboard state - Upcoming: ${upcomingTasks.length}, In Progress: ${inProgressTasks.length}, Completed: ${completedTasks.length}`);
+
+  const JobBoardTab = () => {
+    const [jobs, setJobs] = useState<Job[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+    const [bidAmount, setBidAmount] = useState('');
+    const [bidNote, setBidNote] = useState('');
+    const [isBidDialogOpen, setIsBidDialogOpen] = useState(false);
+
+    useEffect(() => {
+      fetchJobs();
+      console.log('💼 [VIDEOGRAPHER] Job Board tab mounted');
+      return () => console.log('💼 [VIDEOGRAPHER] Job Board tab unmounted');
+    }, []);
+
+    const fetchJobs = async () => {
+      try {
+        setLoading(true);
+        // Fetch OPEN jobs. 
+        const res = await fetch('/api/jobs?status=OPEN');
+        if (res.ok) {
+          const data = await res.json();
+          setJobs(data);
+        } else {
+          const errorData = await res.json().catch(() => ({}));
+          console.error(`Failed to fetch jobs: ${res.status} ${res.statusText}`, errorData);
+          toast.error('Could not load jobs', { description: errorData.error || 'Check server logs' });
+        }
+      } catch (error) {
+        console.error('Error fetching jobs:', error);
+        toast.error('Network error', { description: 'Failed to connect to API' });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleBidClick = (job: Job) => {
+      setSelectedJob(job);
+      const myBid = job.bids && job.bids.length > 0 ? job.bids[0] : null;
+      if (myBid) {
+        setBidAmount(myBid.amount.toString());
+        setBidNote(myBid.note || '');
+      } else {
+        setBidAmount('');
+        setBidNote('');
+      }
+      setIsBidDialogOpen(true);
+    };
+
+    const submitBid = async () => {
+      if (!selectedJob || !bidAmount) return;
+
+      try {
+        const res = await fetch(`/api/jobs/${selectedJob.id}/bids`, {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: parseFloat(bidAmount),
+            note: bidNote
+          }),
+        });
+
+        if (res.ok) {
+          toast('✅ Bid Submitted', {
+            description: `You placed a bid of $${bidAmount} for ${selectedJob.title}`
+          });
+          setIsBidDialogOpen(false);
+          fetchJobs();
+        } else {
+          const err = await res.json();
+          toast('❌ Bid Failed', { description: err.error });
+        }
+      } catch (error) {
+        toast('❌ Error', { description: 'Something went wrong.' });
+      }
+    };
+
+    if (loading) return <DashboardLoadingFallback componentName="Job Board" />;
+
+    return (
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {jobs.length === 0 ? (
+            <div className="col-span-full text-center py-10 text-muted-foreground">
+              <p>No open jobs available at the moment.</p>
+            </div>
+          ) : (
+            jobs.map((job) => {
+              const myBid = job.bids && job.bids.length > 0 ? job.bids[0] : null;
+              const hasBid = !!myBid;
+
+              return (
+                <Card key={job.id} className="flex flex-col">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg">{job.title}</CardTitle>
+                      {hasBid && (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                          Bid Placed: ${myBid.amount}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{job.description}</p>
+                  </CardHeader>
+                  <CardContent className="flex-1 space-y-4">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                        <span>{new Date(job.shootDate).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span>{job.location || 'Location TBD'}</span>
+                      </div>
+                      {job.budget && (
+                        <div className="flex items-center gap-2 font-medium text-green-700">
+                          <DollarSign className="h-4 w-4" />
+                          <span>Budget: ${job.budget}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-4 mt-auto">
+                      <Button
+                        className="w-full"
+                        variant={hasBid ? "outline" : "default"}
+                        onClick={() => handleBidClick(job)}
+                      >
+                        {hasBid ? 'Update Bid' : 'Submit Bid'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
+
+        <Dialog open={isBidDialogOpen} onOpenChange={setIsBidDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Submit Bid for {selectedJob?.title}</DialogTitle>
+              <DialogDescription>
+                Enter your rate and any notes for the client.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Your Rate ($)</label>
+                <Input
+                  type="number"
+                  value={bidAmount}
+                  onChange={(e) => setBidAmount(e.target.value)}
+                  placeholder="e.g. 500"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Notes / Cover Letter</label>
+                <Textarea
+                  value={bidNote}
+                  onChange={(e) => setBidNote(e.target.value)}
+                  placeholder="I have experience with this type of shoot..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsBidDialogOpen(false)}>Cancel</Button>
+              <Button onClick={submitBid}>Submit Bid</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  };
 
   const ShootingScheduleTab = () => {
     useEffect(() => {
@@ -1069,10 +1264,10 @@ export function VideographerDashboard() {
                     task.scheduledDate ===
                     selectedDate?.toISOString().split("T")[0]
                 ).length === 0) && (
-                <div className="text-center text-muted-foreground py-8">
-                  No shoots scheduled for this date
-                </div>
-              )}
+                  <div className="text-center text-muted-foreground py-8">
+                    No shoots scheduled for this date
+                  </div>
+                )}
             </div>
           </CardContent>
         </Card>
@@ -1225,8 +1420,11 @@ export function VideographerDashboard() {
       </div>
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="shoots" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="jobs" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="jobs" onClick={() => console.log('💼 [VIDEOGRAPHER] Switched to Job Board')}>
+            Available Jobs
+          </TabsTrigger>
           <TabsTrigger value="shoots" onClick={() => console.log('📹 [VIDEOGRAPHER] Switched to Shoots tab')}>
             Shooting Schedule
           </TabsTrigger>
@@ -1240,6 +1438,10 @@ export function VideographerDashboard() {
             Calendar
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="jobs">
+          <JobBoardTab />
+        </TabsContent>
 
         <TabsContent value="shoots">
           <ShootingScheduleTab />

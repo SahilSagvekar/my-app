@@ -567,3 +567,133 @@ export async function sendExecutiveSummaryReportEmail(data: {
   }
 }
 
+export async function sendNewJobNotificationEmail(
+  recipients: { email: string; name: string }[],
+  jobDetails: { title: string; location: string; date: string; link: string }
+) {
+  const mailOptions = {
+    from: `"E8 Jobs" <${process.env.SMTP_USER}>`,
+    subject: `🎥 New Job Opportunity: ${jobDetails.title}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; }
+            .header { background: #007bff; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { padding: 20px; }
+            .job-card { background: #f8f9fa; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0; border-radius: 4px; }
+            .button { display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
+            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2>New Job Posted! 🎬</h2>
+            </div>
+            <div class="content">
+              <p>Hello Team,</p>
+              <p>A new videography job has been posted and is open for bidding.</p>
+              
+              <div class="job-card">
+                <h3>${jobDetails.title}</h3>
+                <p><strong>📍 Location:</strong> ${jobDetails.location || 'TBD'}</p>
+                <p><strong>📅 Date:</strong> ${jobDetails.date}</p>
+              </div>
+
+              <p>Log in to the portal to view full details and submit your bid.</p>
+              
+              <div style="text-align: center; margin-top: 25px;">
+                <a href="${jobDetails.link}" class="button" style="color: white;">View Job & Bid</a>
+              </div>
+            </div>
+            <div class="footer">
+              <p>E8 Productions • Videographer Portal</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+  };
+
+  // Send individually to each recipient to avoid exposing emails
+  // Using Promise.all for parallel sending
+  const promises = recipients.map(recipient => {
+    const personalizedOptions = {
+      ...mailOptions,
+      to: recipient.email,
+    };
+    return transporter.sendMail(personalizedOptions).catch(err => {
+      console.error(`Failed to send job notification to ${recipient.email}:`, err);
+    });
+  });
+
+  try {
+    await Promise.all(promises);
+    console.log(`✅ Job notification sent to ${recipients.length} videographers.`);
+  } catch (error) {
+    console.error('❌ Error sending job notifications:', error);
+  }
+}
+
+export async function sendBidAcceptedEmail(
+  recipient: { email: string; name: string },
+  jobDetails: { title: string; date: string; amount: number; link: string }
+) {
+  const mailOptions = {
+    from: `"E8 Jobs" <${process.env.SMTP_USER}>`,
+    to: recipient.email,
+    subject: `🎉 Bid Accepted: ${jobDetails.title}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; }
+            .header { background: #28a745; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { padding: 20px; }
+            .details-box { background: #f0fdf4; padding: 15px; border: 1px solid #bbf7d0; border-radius: 8px; margin: 20px 0; }
+            .button { display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
+            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2>You're Hired! 🎉</h2>
+            </div>
+            <div class="content">
+              <p>Hi ${recipient.name},</p>
+              <p>Great news! Your bid for <strong>${jobDetails.title}</strong> has been accepted.</p>
+              
+              <div class="details-box">
+                <p><strong>Job:</strong> ${jobDetails.title}</p>
+                <p><strong>Date:</strong> ${jobDetails.date}</p>
+                <p><strong>Approved Rate:</strong> $${jobDetails.amount}</p>
+              </div>
+
+              <p>Please check the portal for further instructions regarding the shoot.</p>
+              
+              <div style="text-align: center; margin-top: 25px;">
+                <a href="${jobDetails.link}" class="button" style="color: white;">Open Job Details</a>
+              </div>
+            </div>
+            <div class="footer">
+              <p>E8 Productions • Videographer Portal</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Bid accepted email sent to ${recipient.email}`);
+  } catch (error) {
+    console.error('❌ Failed to send bid acceptance email:', error);
+  }
+}

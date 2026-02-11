@@ -52,6 +52,9 @@ model User {
   linkedClient        Client?             @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin         UserSecurityPin?
   twoFactorAuth       UserTwoFactorAuth?
+  createdJobs         Job[]               @relation("JobCreator")
+  assignedJobs        Job[]               @relation("JobAssignee")
+  bids                Bid[]
 
   @@index([email])
   @@index([role])
@@ -1010,4 +1013,56 @@ model ClientRevenue {
 
   @@unique([clientId, platform, period, source])
   @@index([clientId])
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  title        String
+  description  String
+  location     String?
+  shootDate    DateTime
+  budget       Decimal?  @db.Decimal(10, 2)
+  status       JobStatus @default(OPEN)
+  createdById  Int
+  assignedToId Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  createdBy User  @relation("JobCreator", fields: [createdById], references: [id])
+  assignee  User? @relation("JobAssignee", fields: [assignedToId], references: [id])
+  bids      Bid[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([assignedToId])
+}
+
+model Bid {
+  id        String    @id @default(cuid())
+  amount    Decimal   @db.Decimal(10, 2)
+  note      String?
+  status    BidStatus @default(PENDING)
+  jobId     String
+  userId    Int
+  createdAt DateTime  @default(now())
+
+  job          Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  videographer User @relation(fields: [userId], references: [id])
+
+  @@unique([jobId, userId])
+  @@index([jobId])
+  @@index([userId])
+}
+
+enum JobStatus {
+  OPEN
+  ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
+enum BidStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
 }
