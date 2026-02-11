@@ -318,10 +318,13 @@ model File {
   replacedAt   DateTime?
   replacedBy   String?
   revisionNote String?
-  s3Key        String?
-  version      Int            @default(1)
-  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  feedback     TaskFeedback[]
+  s3Key         String?
+  archivedToNas Boolean   @default(false)
+  nasArchivedAt DateTime?
+  nasPath       String?
+  version       Int       @default(1)
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  feedback      TaskFeedback[]
 
   @@index([taskId, folderType])
   @@index([taskId, isActive])
