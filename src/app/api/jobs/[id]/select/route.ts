@@ -73,7 +73,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
                 { email: winner.email, name: winner.name || 'Videographer' },
                 {
                     title: job.title,
-                    date: new Date(job.shootDate).toLocaleDateString(),
+                    date: new Date(job.startDate).toLocaleDateString(),
                     amount: parseFloat(selectedBid.amount.toString()),
                     link: jobLink
                 }

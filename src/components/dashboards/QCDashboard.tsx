@@ -51,6 +51,7 @@ interface EnhancedWorkflowTask {
   feedback?: string;
   files?: TaskFile[];
   monthlyDeliverable?: any;
+  oneOffDeliverableId?: string | null;
   socialMediaLinks?: string[];
   // 🔥 QC reviewer tracking
   qcResult?: string | null;
@@ -646,10 +647,15 @@ export function QCDashboard() {
 
                   {/* Card Body */}
                   <div className="p-4 flex flex-col gap-3">
-                    {/* Title */}
                     <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">
                       {task.title}
                     </h4>
+
+                    {task.oneOffDeliverableId && (
+                      <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                        One-Off
+                      </Badge>
+                    )}
 
                     {/* Editor & Date Row */}
                     <div className="flex items-center justify-between text-zinc-500 text-[11px]">
@@ -692,222 +698,225 @@ export function QCDashboard() {
         )}
       </div>
 
-      {selectedTask && (
-        <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-          <DialogContent className="max-w-4xl max-h-[85vh]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5" />
-                Review Files by Section
-              </DialogTitle>
-            </DialogHeader>
+      {
+        selectedTask && (
+          <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
+            <DialogContent className="max-w-4xl max-h-[85vh]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Eye className="h-5 w-5" />
+                  Review Files by Section
+                </DialogTitle>
+              </DialogHeader>
 
-            <div className="overflow-y-auto max-h-[65vh] pr-2">
-              {selectedTask.files && selectedTask.files.length > 0 ? (
-                <div className="space-y-4">
-                  {groupFilesByFolderType(selectedTask.files).map((group) => (
-                    <div
-                      key={group.folderType}
-                      className="border rounded-lg overflow-hidden"
-                    >
-                      {/* Section Header */}
+              <div className="overflow-y-auto max-h-[65vh] pr-2">
+                {selectedTask.files && selectedTask.files.length > 0 ? (
+                  <div className="space-y-4">
+                    {groupFilesByFolderType(selectedTask.files).map((group) => (
                       <div
-                        className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}
+                        key={group.folderType}
+                        className="border rounded-lg overflow-hidden"
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{group.info.icon}</span>
-                          <h4 className="font-semibold text-sm">
-                            {group.info.label}
-                          </h4>
-                          <Badge variant="secondary" className="text-xs">
-                            {group.files.length} file
-                            {group.files.length !== 1 ? "s" : ""}
-                          </Badge>
+                        {/* Section Header */}
+                        <div
+                          className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{group.info.icon}</span>
+                            <h4 className="font-semibold text-sm">
+                              {group.info.label}
+                            </h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {group.files.length} file
+                              {group.files.length !== 1 ? "s" : ""}
+                            </Badge>
+                          </div>
+                          {/* Show if there are multiple versions */}
+                          {group.files.some((f) => (f.version || 1) > 1) && (
+                            <Badge variant="outline" className="text-xs">
+                              Multiple versions
+                            </Badge>
+                          )}
                         </div>
-                        {/* Show if there are multiple versions */}
-                        {group.files.some((f) => (f.version || 1) > 1) && (
-                          <Badge variant="outline" className="text-xs">
-                            Multiple versions
-                          </Badge>
-                        )}
-                      </div>
 
-                      {/* Files in this section */}
-                      <div className="divide-y">
-                        {group.files.map((file, index) => (
-                          <div
-                            key={file.id}
-                            className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false
-                              ? "opacity-60 bg-muted/20"
-                              : ""
-                              }`}
-                            onClick={() => handleFileSelect(file)}
-                          >
-                            <div className="flex items-center gap-4">
-                              {/* File Icon */}
-                              <div
-                                className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith("video/")
-                                  ? "bg-blue-100"
-                                  : file.mimeType?.startsWith("image/")
-                                    ? "bg-green-100"
-                                    : "bg-gray-100"
-                                  }`}
-                              >
-                                {getFileIcon(file.mimeType)}
-                              </div>
-
-                              {/* File Info */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <p className="font-medium text-sm truncate max-w-[300px]">
-                                    {file.name}
-                                  </p>
-
-                                  {/* Version Badge */}
-                                  <Badge
-                                    variant={
-                                      file.isActive !== false
-                                        ? "default"
-                                        : "secondary"
-                                    }
-                                    className="text-xs"
-                                  >
-                                    V{file.version || 1}
-                                  </Badge>
-
-                                  {/* Active/Latest indicator */}
-                                  {file.isActive !== false && index === 0 && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs text-green-600 border-green-300"
-                                    >
-                                      <CheckCircle className="h-3 w-3 mr-1" />
-                                      Latest
-                                    </Badge>
-                                  )}
-
-                                  {/* Inactive indicator */}
-                                  {file.isActive === false && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs text-muted-foreground"
-                                    >
-                                      Replaced
-                                    </Badge>
-                                  )}
-
-                                  {/* File type */}
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs"
-                                  >
-                                    {getFileTypeLabel(file.mimeType)}
-                                  </Badge>
+                        {/* Files in this section */}
+                        <div className="divide-y">
+                          {group.files.map((file, index) => (
+                            <div
+                              key={file.id}
+                              className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false
+                                ? "opacity-60 bg-muted/20"
+                                : ""
+                                }`}
+                              onClick={() => handleFileSelect(file)}
+                            >
+                              <div className="flex items-center gap-4">
+                                {/* File Icon */}
+                                <div
+                                  className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith("video/")
+                                    ? "bg-blue-100"
+                                    : file.mimeType?.startsWith("image/")
+                                      ? "bg-green-100"
+                                      : "bg-gray-100"
+                                    }`}
+                                >
+                                  {getFileIcon(file.mimeType)}
                                 </div>
 
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                                  <span>{formatFileSize(file.size)}</span>
-                                  <span>•</span>
-                                  <span>
-                                    Uploaded{" "}
-                                    {new Date(
-                                      file.uploadedAt,
-                                    ).toLocaleDateString()}
-                                  </span>
-                                  {file.revisionNote && (
-                                    <>
-                                      <span>•</span>
-                                      <span
-                                        className="text-orange-600"
-                                        title={file.revisionNote}
+                                {/* File Info */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <p className="font-medium text-sm truncate max-w-[300px]">
+                                      {file.name}
+                                    </p>
+
+                                    {/* Version Badge */}
+                                    <Badge
+                                      variant={
+                                        file.isActive !== false
+                                          ? "default"
+                                          : "secondary"
+                                      }
+                                      className="text-xs"
+                                    >
+                                      V{file.version || 1}
+                                    </Badge>
+
+                                    {/* Active/Latest indicator */}
+                                    {file.isActive !== false && index === 0 && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs text-green-600 border-green-300"
                                       >
-                                        📝 Has revision note
-                                      </span>
-                                    </>
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        Latest
+                                      </Badge>
+                                    )}
+
+                                    {/* Inactive indicator */}
+                                    {file.isActive === false && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs text-muted-foreground"
+                                      >
+                                        Replaced
+                                      </Badge>
+                                    )}
+
+                                    {/* File type */}
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
+                                      {getFileTypeLabel(file.mimeType)}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                    <span>{formatFileSize(file.size)}</span>
+                                    <span>•</span>
+                                    <span>
+                                      Uploaded{" "}
+                                      {new Date(
+                                        file.uploadedAt,
+                                      ).toLocaleDateString()}
+                                    </span>
+                                    {file.revisionNote && (
+                                      <>
+                                        <span>•</span>
+                                        <span
+                                          className="text-orange-600"
+                                          title={file.revisionNote}
+                                        >
+                                          📝 Has revision note
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  {file.mimeType?.startsWith("video/") ? (
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleFileSelect(file);
+                                        }}
+                                      >
+                                        <Play className="h-4 w-4 mr-2" />
+                                        Review
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-9 w-9 p-0"
+                                        title="Download Video"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDownload(file);
+                                        }}
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleFileSelect(file);
+                                        }}
+                                      >
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        View
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-9 w-9 p-0"
+                                        title="Download File"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDownload(file);
+                                        }}
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                    </div>
                                   )}
                                 </div>
-                              </div>
-
-                              {/* Action Buttons */}
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {file.mimeType?.startsWith("video/") ? (
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleFileSelect(file);
-                                      }}
-                                    >
-                                      <Play className="h-4 w-4 mr-2" />
-                                      Review
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-9 w-9 p-0"
-                                      title="Download Video"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDownload(file);
-                                      }}
-                                    >
-                                      <Download className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleFileSelect(file);
-                                      }}
-                                    >
-                                      <ExternalLink className="h-4 w-4 mr-2" />
-                                      View
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-9 w-9 p-0"
-                                      title="Download File"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDownload(file);
-                                      }}
-                                    >
-                                      <Download className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                )}
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FileText className="h-16 w-16 mx-auto mb-4 opacity-40" />
-                  <p className="text-lg font-medium">
-                    No files found in this task
-                  </p>
-                  <p className="text-sm mt-1">
-                    Files will appear here once they are uploaded by the editor.
-                  </p>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="h-16 w-16 mx-auto mb-4 opacity-40" />
+                    <p className="text-lg font-medium">
+                      No files found in this task
+                    </p>
+                    <p className="text-sm mt-1">
+                      Files will appear here once they are uploaded by the editor.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )
+      }
 
-      {selectedTask &&
+      {
+        selectedTask &&
         selectedFile &&
         selectedFile.mimeType?.startsWith("video/") && (
           <FullScreenReviewModalFrameIO
@@ -934,10 +943,12 @@ export function QCDashboard() {
               version: selectedFile.version || 1,
             }}
           />
-        )}
+        )
+      }
 
       {/* In-App File Preview Modal - Full Screen Overlay */}
-      {selectedTask &&
+      {
+        selectedTask &&
         selectedFile &&
         !selectedFile.mimeType?.startsWith("video/") &&
         showFilePreview && (
@@ -1052,7 +1063,8 @@ export function QCDashboard() {
               )}
             </div>
           </div>
-        )}
-    </div>
+        )
+      }
+    </div >
   );
 }

@@ -450,20 +450,24 @@ function TaskCard({
             </Badge>
           </div>
 
-          {/* Deliverable Type + Description combined */}
-          <div className="mb-2">
+          <div className="flex flex-wrap gap-1 mb-2">
             {task.deliverableType && (
               <Badge
                 variant="outline"
-                className="text-[10px] mb-1 mr-1 px-1.5 py-0 h-4"
+                className="text-[10px] px-1.5 py-0 h-4"
               >
                 {task.deliverableType.replace(/_/g, " ")}
               </Badge>
             )}
-            <p className="text-xs text-muted-foreground line-clamp-1">
-              {task.description}
-            </p>
+            {task.id.startsWith("one-off") || (task as any).isOneOff ? (
+              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                One-Off
+              </Badge>
+            ) : null}
           </div>
+          <p className="text-xs text-muted-foreground line-clamp-1">
+            {task.description}
+          </p>
 
           {/* Compact Upload Progress for In Progress Tasks */}
           {task.status === "in_progress" && uploadValidation && (
@@ -791,11 +795,12 @@ export function EditorDashboard() {
               workflowStep: "editing",
               clientId: t.clientId,
               projectId: t.clientId,
-              deliverableType: t.monthlyDeliverable?.type,
+              deliverableType: t.monthlyDeliverable?.type || t.oneOffDeliverable?.type,
               taskNumber: extractTaskNumber(t.title),
+              isOneOff: !!t.oneOffDeliverable,
               // 🔥 NEW: Monthly deliverable info for weekly distribution
               monthlyDeliverableId: t.monthlyDeliverableId || null,
-              monthlyQuantity: t.monthlyDeliverable?.quantity || 4, // Default to 4 if not set
+              monthlyQuantity: t.monthlyDeliverable?.quantity || t.oneOffDeliverable?.quantity || 4, // Default to 4 if not set
               files: t.files || [],
               qcNotes: t.qcNotes || null,
               rejectionReason: t.rejectionReason || null,

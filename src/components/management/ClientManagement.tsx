@@ -91,7 +91,7 @@ type DeliverableType =
   | "Snapchat Episodes"
   | "Beta Short Form";
 
-type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom";
+type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom" | "one-off";
 
 interface MonthlyDeliverable {
   id: string;
@@ -103,6 +103,20 @@ interface MonthlyDeliverable {
   postingDays?: string[]; // e.g., ["Monday", "Wednesday"] or ["1st", "15th"]
   postingTimes: string[]; // e.g., ["10:00", "11:00", "14:00"] - one for each video per day
   description?: string;
+}
+
+interface OneOffDeliverable {
+  id: string;
+  type: DeliverableType;
+  quantity: number;
+  videosPerDay?: number;
+  platforms: SocialPlatform[];
+  postingSchedule: string;
+  postingDays?: string[];
+  postingTimes: string[];
+  description?: string;
+  status: "PENDING" | "GENERATED" | "COMPLETED";
+  createdAt: string;
 }
 
 interface BrandAsset {
@@ -131,6 +145,7 @@ interface Client {
   renewalDate: string;
   status: "active" | "pending" | "expired";
   monthlyDeliverables: MonthlyDeliverable[];
+  oneOffDeliverables: OneOffDeliverable[];
   currentProgress: {
     completed: number;
     total: number;
@@ -269,6 +284,7 @@ export function ClientManagement() {
     clientReviewRequired: "no",
     videographerRequired: "no",
     monthlyDeliverables: [],
+    oneOffDeliverables: [],
     brandAssets: [],
     brandGuidelines: {
       primaryColors: [],
@@ -616,12 +632,8 @@ export function ClientManagement() {
   // These call the API instantly when adding, editing, or deleting deliverables
 
   // 🔥 UPDATED: Handle both add and edit - NOW WITH INSTANT API CALLS
+  // Handle both add and edit for Deliverables (Monthly and One-Off)
   const handleAddDeliverable = async () => {
-    console.log(
-      "🔍 BEFORE VALIDATION - newDeliverable:",
-      JSON.stringify(newDeliverable, null, 2)
-    );
-
     if (!newDeliverable.quantity || newDeliverable.quantity === 0) {
       toast.error("Please enter a quantity");
       return;
@@ -632,175 +644,87 @@ export function ClientManagement() {
       return;
     }
 
-    // 🔥 Need a client ID to save to
     const clientId = editingClient?.id;
+    const isOneOff = newDeliverable.postingSchedule === 'one-off';
+    const apiPath = isOneOff ? 'one-off-deliverables' : 'deliverables';
+
     if (!clientId) {
-      // If we're creating a new client, just update local state
-      // The deliverables will be saved when the client is created
+      // Local state only (new client creation flow)
       if (editingDeliverableId) {
         setNewClient((prev) => ({
           ...prev,
-          monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
-            d.id === editingDeliverableId
-              ? {
-                ...d,
-                type: newDeliverable.type,
-                quantity: newDeliverable.quantity,
-                videosPerDay: newDeliverable.videosPerDay || 1,
-                platforms: newDeliverable.platforms,
-                postingSchedule: newDeliverable.postingSchedule,
-                postingDays: newDeliverable.postingDays || [],
-                postingTimes: newDeliverable.postingTimes || ["10:00"],
-                description: newDeliverable.description || "",
-              }
-              : d
-          ),
+          monthlyDeliverables: !isOneOff ? (prev.monthlyDeliverables || []).map(d => d.id === editingDeliverableId ? { ...d, ...newDeliverable } as any : d) : prev.monthlyDeliverables,
+          oneOffDeliverables: isOneOff ? (prev.oneOffDeliverables || []).map(d => d.id === editingDeliverableId ? { ...d, ...newDeliverable, status: 'PENDING' } as any : d) : prev.oneOffDeliverables,
         }));
-        toast.success(`Updated: ${newDeliverable.type}`);
       } else {
         const deliverable = {
-          id: `deliverable-${Date.now()}`,
-          type: newDeliverable.type,
-          quantity: newDeliverable.quantity,
-          videosPerDay: newDeliverable.videosPerDay || 1,
-          platforms: newDeliverable.platforms,
-          postingSchedule: newDeliverable.postingSchedule,
-          postingDays: newDeliverable.postingDays || [],
-          postingTimes: newDeliverable.postingTimes || ["10:00"],
-          description: newDeliverable.description || "",
+          id: `temp-${Date.now()}`,
+          ...newDeliverable,
+          status: 'PENDING' as const,
+          createdAt: new Date().toISOString()
         };
         setNewClient((prev) => ({
           ...prev,
-          monthlyDeliverables: [
-            ...(prev.monthlyDeliverables || []),
-            deliverable,
-          ],
+          monthlyDeliverables: !isOneOff ? [...(prev.monthlyDeliverables || []), deliverable] : prev.monthlyDeliverables,
+          oneOffDeliverables: isOneOff ? [...(prev.oneOffDeliverables || []), deliverable] : prev.oneOffDeliverables,
         }));
-        toast.success(`Added: ${newDeliverable.type}`);
       }
-
       setShowAddDeliverableDialog(false);
-      setEditingDeliverableId(null);
       resetDeliverableForm();
       return;
     }
 
-    // 🔥 We have a client ID - make API call
+    // API Call (existing client flow)
     try {
-      if (
-        editingDeliverableId &&
-        !editingDeliverableId.startsWith("deliverable-")
-      ) {
-        // 🔥 UPDATE existing deliverable via API
-        console.log("✏️ Updating deliverable via API:", editingDeliverableId);
+      const method = (editingDeliverableId && !editingDeliverableId.startsWith("temp-")) ? "PUT" : "POST";
+      const url = method === "PUT"
+        ? `/api/clients/${clientId}/${apiPath}/${editingDeliverableId}`
+        : `/api/clients/${clientId}/${apiPath}`;
 
-        const res = await fetch(
-          `/api/clients/${clientId}/deliverables/${editingDeliverableId}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: newDeliverable.type,
-              quantity: newDeliverable.quantity,
-              videosPerDay: newDeliverable.videosPerDay || 1,
-              platforms: newDeliverable.platforms,
-              postingSchedule: newDeliverable.postingSchedule,
-              postingDays: newDeliverable.postingDays || [],
-              postingTimes: newDeliverable.postingTimes || ["10:00"],
-              description: newDeliverable.description || "",
-            }),
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newDeliverable),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save deliverable");
+
+      // Update state
+      setClients(prev => prev.map(c => {
+        if (c.id === clientId) {
+          if (isOneOff) {
+            const list = method === "PUT"
+              ? (c.oneOffDeliverables || []).map(d => d.id === editingDeliverableId ? data.deliverable : d)
+              : [...(c.oneOffDeliverables || []), data.deliverable];
+            return { ...c, oneOffDeliverables: list };
+          } else {
+            const list = method === "PUT"
+              ? (c.monthlyDeliverables || []).map(d => d.id === editingDeliverableId ? data.deliverable : d)
+              : [...(c.monthlyDeliverables || []), data.deliverable];
+            return { ...c, monthlyDeliverables: list };
           }
-        );
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          toast.error(data.message || "Failed to update deliverable");
-          return;
         }
+        return c;
+      }));
 
-        // Update local state with the response
-        setNewClient((prev) => ({
-          ...prev,
-          monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
-            d.id === editingDeliverableId ? data.deliverable : d
-          ),
-        }));
-
-        // Also update the main clients list
-        setClients((prev) =>
-          prev.map((c) =>
-            c.id === clientId
-              ? {
-                ...c,
-                monthlyDeliverables: (c.monthlyDeliverables || []).map((d) =>
-                  d.id === editingDeliverableId ? data.deliverable : d
-                ),
-              }
-              : c
-          )
-        );
-
-        toast.success(`Updated: ${newDeliverable.type}`);
-      } else {
-        // 🔥 CREATE new deliverable via API
-        console.log("➕ Creating deliverable via API for client:", clientId);
-
-        const res = await fetch(`/api/clients/${clientId}/deliverables`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: newDeliverable.type,
-            quantity: newDeliverable.quantity,
-            videosPerDay: newDeliverable.videosPerDay || 1,
-            platforms: newDeliverable.platforms,
-            postingSchedule: newDeliverable.postingSchedule,
-            postingDays: newDeliverable.postingDays || [],
-            postingTimes: newDeliverable.postingTimes || ["10:00"],
-            description: newDeliverable.description || "",
-          }),
+      // Update selected client if open
+      if (selectedClient?.id === clientId) {
+        setSelectedClient(prev => {
+          if (!prev) return null;
+          if (isOneOff) {
+            return { ...prev, oneOffDeliverables: method === "PUT" ? (prev.oneOffDeliverables || []).map(d => d.id === editingDeliverableId ? data.deliverable : d) : [...(prev.oneOffDeliverables || []), data.deliverable] };
+          } else {
+            return { ...prev, monthlyDeliverables: method === "PUT" ? (prev.monthlyDeliverables || []).map(d => d.id === editingDeliverableId ? data.deliverable : d) : [...(prev.monthlyDeliverables || []), data.deliverable] };
+          }
         });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          toast.error(data.message || "Failed to add deliverable");
-          return;
-        }
-
-        // Update local state with the new deliverable (has real DB ID now)
-        setNewClient((prev) => ({
-          ...prev,
-          monthlyDeliverables: [
-            ...(prev.monthlyDeliverables || []),
-            data.deliverable,
-          ],
-        }));
-
-        // Also update the main clients list
-        setClients((prev) =>
-          prev.map((c) =>
-            c.id === clientId
-              ? {
-                ...c,
-                monthlyDeliverables: [
-                  ...(c.monthlyDeliverables || []),
-                  data.deliverable,
-                ],
-              }
-              : c
-          )
-        );
-
-        toast.success(`Added: ${newDeliverable.type}`);
       }
 
+      toast.success(`${method === "PUT" ? "Updated" : "Added"}: ${newDeliverable.type}`);
       setShowAddDeliverableDialog(false);
-      setEditingDeliverableId(null);
       resetDeliverableForm();
-    } catch (err) {
-      console.error("Deliverable API error:", err);
-      toast.error("Server error");
+    } catch (err: any) {
+      toast.error(err.message);
     }
   };
 
@@ -825,12 +749,11 @@ export function ClientManagement() {
     const clientId = editingClient?.id;
 
     // If it's a frontend-generated ID or no client yet, just update local state
-    if (!clientId || deliverableId.startsWith("deliverable-")) {
+    if (!clientId || deliverableId.startsWith("temp-")) {
       setNewClient((prev) => ({
         ...prev,
-        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
-          (d) => d.id !== deliverableId
-        ),
+        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(d => d.id !== deliverableId),
+        oneOffDeliverables: (prev.oneOffDeliverables || []).filter(d => d.id !== deliverableId),
       }));
       toast.success("Deliverable removed");
       return;
@@ -838,10 +761,14 @@ export function ClientManagement() {
 
     // 🔥 Make API call to delete
     try {
-      console.log("🗑️ Deleting deliverable via API:", deliverableId);
+      // Determine if it's a monthly or one-off deliverable
+      const isOneOff = (newClient.oneOffDeliverables || []).some(d => d.id === deliverableId);
+      const apiPath = isOneOff ? "one-off-deliverables" : "deliverables";
+
+      console.log(`🗑️ Deleting ${isOneOff ? 'one-off' : 'monthly'} deliverable via API:`, deliverableId);
 
       const res = await fetch(
-        `/api/clients/${clientId}/deliverables/${deliverableId}`,
+        `/api/clients/${clientId}/${apiPath}/${deliverableId}`,
         {
           method: "DELETE",
         }
@@ -857,9 +784,8 @@ export function ClientManagement() {
       // Update local state
       setNewClient((prev) => ({
         ...prev,
-        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
-          (d) => d.id !== deliverableId
-        ),
+        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(d => d.id !== deliverableId),
+        oneOffDeliverables: (prev.oneOffDeliverables || []).filter(d => d.id !== deliverableId),
       }));
 
       // Also update the main clients list
@@ -868,13 +794,21 @@ export function ClientManagement() {
           c.id === clientId
             ? {
               ...c,
-              monthlyDeliverables: (c.monthlyDeliverables || []).filter(
-                (d) => d.id !== deliverableId
-              ),
+              monthlyDeliverables: (c.monthlyDeliverables || []).filter(d => d.id !== deliverableId),
+              oneOffDeliverables: (c.oneOffDeliverables || []).filter(d => d.id !== deliverableId),
             }
             : c
         )
       );
+
+      // If viewing details, update selected client
+      if (selectedClient?.id === clientId) {
+        setSelectedClient(prev => prev ? ({
+          ...prev,
+          monthlyDeliverables: (prev.monthlyDeliverables || []).filter(d => d.id !== deliverableId),
+          oneOffDeliverables: (prev.oneOffDeliverables || []).filter(d => d.id !== deliverableId),
+        }) : null);
+      }
 
       toast.success("Deliverable deleted");
     } catch (err) {
@@ -1270,6 +1204,7 @@ export function ClientManagement() {
       const payload = {
         ...newClient,
         monthlyDeliverables: newClient.monthlyDeliverables || [],
+        oneOffDeliverables: newClient.oneOffDeliverables || [],
       };
 
       console.log("📤 Sending client data:", JSON.stringify(payload, null, 2));
@@ -1369,7 +1304,11 @@ export function ClientManagement() {
       // 🔥 Make sure we're copying the deliverables with their IDs
       monthlyDeliverables: (client.monthlyDeliverables ?? []).map((d) => ({
         ...d,
-        id: d.id, // Preserve the database ID
+        id: d.id,
+      })),
+      oneOffDeliverables: (client.oneOffDeliverables ?? []).map((d) => ({
+        ...d,
+        id: d.id,
       })),
       billing: client.billing,
       brandGuidelines: client.brandGuidelines ?? {
@@ -1483,6 +1422,43 @@ export function ClientManagement() {
     toast.success("Uploaded successfully");
   };
 
+  const handleGenerateOneOffTasks = async (deliverableId: string) => {
+    if (!selectedClient) return;
+
+    try {
+      toast.loading("Generating tasks...", { id: "gen-tasks" });
+      const res = await fetch(`/api/clients/${selectedClient.id}/one-off-deliverables/${deliverableId}/generate`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to generate tasks", { id: "gen-tasks" });
+        return;
+      }
+
+      toast.success(data.message, { id: "gen-tasks" });
+
+      // Update local state
+      const updatedOneOffs = (selectedClient.oneOffDeliverables || []).map(d =>
+        d.id === deliverableId ? { ...d, status: 'GENERATED' as const } : d
+      );
+
+      setClients(prev => prev.map(c => {
+        if (c.id === selectedClient.id) {
+          return { ...c, oneOffDeliverables: updatedOneOffs };
+        }
+        return c;
+      }));
+
+      setSelectedClient(prev => prev ? ({ ...prev, oneOffDeliverables: updatedOneOffs }) : null);
+
+    } catch (err) {
+      console.error("Generate tasks failed:", err);
+      toast.error("An error occurred while generating tasks", { id: "gen-tasks" });
+    }
+  };
+
   const ClientDetailsDialog = () => {
     if (!selectedClient) return null;
 
@@ -1508,6 +1484,7 @@ export function ClientManagement() {
               <TabsTrigger value="deliverables">
                 Monthly Deliverables
               </TabsTrigger>
+              <TabsTrigger value="oneoff">One-Off Projects</TabsTrigger>
               <TabsTrigger value="brand">Brand Assets</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
@@ -1684,6 +1661,161 @@ export function ClientManagement() {
                         No monthly deliverables configured
                       </div>
                     ))}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="oneoff" className="space-y-4">
+              <Card className="bg-white border-gray-200">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-gray-900 flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-yellow-500" />
+                      One-Off Projects / Packages
+                    </CardTitle>
+                    <p className="text-sm text-gray-600">
+                      Generate a fixed number of tasks once for a project or bundle.
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => {
+                    setEditingClient(selectedClient);
+                    setNewDeliverable({
+                      type: "Short Form Videos",
+                      quantity: 1,
+                      videosPerDay: 1,
+                      platforms: [],
+                      postingSchedule: 'one-off',
+                      postingDays: [],
+                      postingTimes: ["10:00"],
+                      description: "",
+                    });
+                    setEditingDeliverableId(null);
+                    setShowAddDeliverableDialog(true);
+                  }}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Project
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(selectedClient.oneOffDeliverables ?? []).map((deliverable) => (
+                    <div
+                      key={deliverable.id}
+                      className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          {getDeliverableTypeIcon(deliverable.type)}
+                          <div>
+                            <div className="text-gray-900 font-medium">
+                              {deliverable.type}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {deliverable.quantity} Total Tasks • Status: {deliverable.status}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {deliverable.status === 'PENDING' ? (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => handleGenerateOneOffTasks(deliverable.id)}
+                            >
+                              Generate Tasks
+                            </Button>
+                          ) : (
+                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                              Generated
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-blue-600 hover:text-blue-700"
+                            onClick={() => {
+                              setEditingClient(selectedClient);
+                              setEditingDeliverableId(deliverable.id);
+                              setNewDeliverable({
+                                type: deliverable.type,
+                                quantity: deliverable.quantity,
+                                videosPerDay: deliverable.videosPerDay,
+                                platforms: deliverable.platforms,
+                                postingSchedule: 'one-off',
+                                postingDays: deliverable.postingDays,
+                                postingTimes: deliverable.postingTimes,
+                                description: deliverable.description
+                              });
+                              setShowAddDeliverableDialog(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
+                            if (confirm("Delete this project? Tasks will remain if already generated.")) {
+                              await fetch(`/api/clients/${selectedClient.id}/one-off-deliverables/${deliverable.id}`, { method: 'DELETE' });
+                              setSelectedClient(prev => prev ? ({
+                                ...prev,
+                                oneOffDeliverables: (prev.oneOffDeliverables || []).filter(d => d.id !== deliverable.id)
+                              }) : null);
+                              // Sync with main clients state
+                              setClients(prev => prev.map(c => {
+                                if (c.id === selectedClient.id) {
+                                  return {
+                                    ...c,
+                                    oneOffDeliverables: (c.oneOffDeliverables || []).filter(d => d.id !== deliverable.id)
+                                  };
+                                }
+                                return c;
+                              }));
+                              toast.success("Deleted project");
+                            }
+                          }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {deliverable.platforms.map((platform) => (
+                          <Badge
+                            key={platform}
+                            variant="outline"
+                            className={getPlatformBadgeColor(platform)}
+                          >
+                            {platform}
+                          </Badge>
+                        ))}
+                      </div>
+
+                      {deliverable.description && (
+                        <p className="text-sm text-gray-600 mt-2 italic">
+                          "{deliverable.description}"
+                        </p>
+                      )}
+
+                      <div className="text-xs text-gray-400 mt-3 flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Created: {new Date(deliverable.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+
+                  {(!selectedClient.oneOffDeliverables || selectedClient.oneOffDeliverables.length === 0) && (
+                    <div className="text-center py-12 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
+                      <Zap className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">No one-off projects or packages found.</p>
+                      <Button variant="link" onClick={() => {
+                        setNewDeliverable({
+                          ...newDeliverable,
+                          postingSchedule: 'one-off'
+                        });
+                        setShowAddDeliverableDialog(true);
+                      }}>
+                        Create your first project bundle
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -2379,6 +2511,110 @@ export function ClientManagement() {
 
             <Separator className="bg-gray-200" />
 
+            {/* One-Off Projects */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-gray-900 flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-yellow-500" />
+                    One-Off Projects / Packages
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    One-time projects or task bundles
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setNewDeliverable({
+                      type: "Short Form Videos",
+                      quantity: 1,
+                      videosPerDay: 1,
+                      platforms: [],
+                      postingSchedule: "one-off",
+                      postingDays: [],
+                      postingTimes: ["10:00"],
+                      description: "",
+                    });
+                    setEditingDeliverableId(null);
+                    setShowAddDeliverableDialog(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Project
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {(newClient.oneOffDeliverables || []).map((deliverable) => (
+                  <div
+                    key={deliverable.id}
+                    className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {getDeliverableTypeIcon(deliverable.type)}
+                        <span className="text-gray-900 font-medium">
+                          {deliverable.type}
+                        </span>
+                        <Badge variant="outline" className="text-gray-600">
+                          {deliverable.quantity} Total
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {deliverable.platforms.join(", ")}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setNewDeliverable({
+                            type: deliverable.type,
+                            quantity: deliverable.quantity,
+                            videosPerDay: deliverable.videosPerDay,
+                            platforms: deliverable.platforms,
+                            postingSchedule: deliverable.postingSchedule as PostingSchedule,
+                            postingDays: deliverable.postingDays,
+                            postingTimes: deliverable.postingTimes,
+                            description: deliverable.description
+                          });
+                          setEditingDeliverableId(deliverable.id);
+                          setShowAddDeliverableDialog(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRemoveDeliverable(deliverable.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                {(!newClient.oneOffDeliverables ||
+                  newClient.oneOffDeliverables.length === 0) && (
+                    <div className="text-center py-6 text-gray-400 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
+                      No one-off projects added
+                    </div>
+                  )}
+              </div>
+            </div>
+
+            <Separator className="bg-gray-200" />
+
             {/* Monthly Deliverables */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -2803,13 +3039,13 @@ export function ClientManagement() {
             <DialogTitle className="text-gray-900">
               {/* 🔥 Dynamic title based on edit mode */}
               {editingDeliverableId
-                ? "Edit Monthly Deliverable"
-                : "Add Monthly Deliverable"}
+                ? (newDeliverable.postingSchedule === 'one-off' ? "Edit Project Package" : "Edit Monthly Deliverable")
+                : (newDeliverable.postingSchedule === 'one-off' ? "Add Project Package" : "Add Monthly Deliverable")}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
               {editingDeliverableId
-                ? "Update the deliverable configuration"
-                : "Configure a recurring deliverable for this client"}
+                ? "Update the configuration"
+                : (newDeliverable.postingSchedule === 'one-off' ? "Configure a one-off project or task bundle" : "Configure a recurring deliverable for this client")}
             </DialogDescription>
           </DialogHeader>
 
@@ -2864,7 +3100,7 @@ export function ClientManagement() {
 
               <div className="space-y-2">
                 <Label htmlFor="quantity" className="text-gray-700">
-                  Quantity per Month
+                  {newDeliverable.postingSchedule === 'one-off' ? "Total Quantity" : "Quantity per Month"}
                 </Label>
                 <Input
                   id="quantity"
@@ -2923,6 +3159,7 @@ export function ClientManagement() {
                     <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="custom">Custom</SelectItem>
+                    <SelectItem value="one-off">One-Off (Single Batch)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

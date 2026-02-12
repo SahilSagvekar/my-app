@@ -16,9 +16,9 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { title, description, location, shootDate, budget } = body;
+        const { title, description, location, startDate, endDate, equipment, budget, clientId } = body;
 
-        if (!title || !description || !shootDate) {
+        if (!title || !description || !startDate) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
@@ -28,9 +28,12 @@ export async function POST(req: NextRequest) {
                 title,
                 description,
                 location,
-                shootDate: new Date(shootDate),
+                startDate: new Date(startDate),
+                endDate: endDate ? new Date(endDate) : null,
+                equipment,
                 budget: budget ? parseFloat(budget) : null,
                 createdById: user.id,
+                clientId: clientId || null,
                 status: 'OPEN',
             },
         });
@@ -69,7 +72,7 @@ export async function POST(req: NextRequest) {
             {
                 title: job.title,
                 location: job.location || 'TBD',
-                date: job.shootDate.toLocaleDateString(),
+                date: job.startDate.toLocaleDateString(),
                 link: jobLink
             }
         ).catch(err => console.error('Background email sending failed:', err));

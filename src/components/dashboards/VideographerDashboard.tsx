@@ -650,7 +650,9 @@ interface Job {
   title: string;
   description: string;
   location?: string;
-  shootDate: string;
+  startDate: string;
+  endDate?: string;
+  equipment?: string;
   budget?: number; // Decimal in DB, number in JSON
   status: 'OPEN' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED';
   bids?: Bid[]; // Current user's bid (if videographer)
@@ -831,8 +833,17 @@ export function VideographerDashboard() {
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-2">
                         <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>{new Date(job.shootDate).toLocaleDateString()}</span>
+                        <span>
+                          {new Date(job.startDate).toLocaleDateString()}
+                          {job.endDate && ` - ${new Date(job.endDate).toLocaleDateString()}`}
+                        </span>
                       </div>
+                      {job.equipment && (
+                        <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs">{job.equipment}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
                         <span>{job.location || 'Location TBD'}</span>

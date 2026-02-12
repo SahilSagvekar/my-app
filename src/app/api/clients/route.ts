@@ -261,6 +261,7 @@ export async function GET() {
       orderBy: { name: "asc" },
       include: {
         monthlyDeliverables: true,
+        oneOffDeliverables: true,
         brandAssets: true,
         recurringTasks: true,
         tasks: {
@@ -295,6 +296,7 @@ export async function GET() {
         emails: c.emails ?? [],
         phones: c.phones ?? [],
         monthlyDeliverables: c.monthlyDeliverables ?? [],
+        oneOffDeliverables: c.oneOffDeliverables ?? [],
         brandAssets: c.brandAssets ?? [],
         recurringTasks: c.recurringTasks ?? [],
         brandGuidelines: c.brandGuidelines ?? {
@@ -370,6 +372,7 @@ export async function POST(req: Request) {
       companyName,
       accountManagerId,
       monthlyDeliverables,
+      oneOffDeliverables,
       brandGuidelines,
       projectSettings,
       billing,
@@ -450,6 +453,25 @@ export async function POST(req: Request) {
             postingTimes: d.postingTimes,
             platforms: d.platforms,
             description: d.description,
+          },
+        })
+      )
+    );
+
+    const createdOneOffs = await Promise.all(
+      (oneOffDeliverables || []).map((d: any) =>
+        prisma.oneOffDeliverable.create({
+          data: {
+            clientId: client.id,
+            type: d.type,
+            quantity: d.quantity,
+            videosPerDay: d.videosPerDay,
+            postingSchedule: "one-off",
+            postingDays: d.postingDays,
+            postingTimes: d.postingTimes,
+            platforms: d.platforms,
+            description: d.description,
+            status: "PENDING",
           },
         })
       )

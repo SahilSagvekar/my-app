@@ -16,6 +16,7 @@ interface Task {
   dueDate: string;
   status: string;
   createdAt: string;
+  oneOffDeliverableId?: string | null;
 }
 
 export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = false }) {
@@ -29,37 +30,37 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
   }, []);
 
   async function loadTasks() {
-  try {
-    const res = await fetch("/api/tasks");
-    const text = await res.text(); // read raw text (debug friendly)
-
-    let data: any = {};
     try {
-      data = JSON.parse(text);
-    } catch {
-      console.error("❌ Invalid JSON from /api/tasks:", text);
+      const res = await fetch("/api/tasks");
+      const text = await res.text(); // read raw text (debug friendly)
+
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("❌ Invalid JSON from /api/tasks:", text);
+        setTasks([]);
+        return;
+      }
+
+      let list = [];
+
+      if (Array.isArray(data)) list = data;
+      else if (Array.isArray(data.tasks)) list = data.tasks;
+      else if (Array.isArray(data.data)) list = data.data;
+      else {
+        console.warn("⚠ No tasks array in response:", data);
+        list = [];
+      }
+
+      setTasks(list);
+    } catch (err) {
+      console.error("❌ Failed to load tasks:", err);
       setTasks([]);
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    let list = [];
-
-    if (Array.isArray(data)) list = data;
-    else if (Array.isArray(data.tasks)) list = data.tasks;
-    else if (Array.isArray(data.data)) list = data.data;
-    else {
-      console.warn("⚠ No tasks array in response:", data);
-      list = [];
-    }
-
-    setTasks(list);
-  } catch (err) {
-    console.error("❌ Failed to load tasks:", err);
-    setTasks([]);
-  } finally {
-    setLoading(false);
   }
-}
 
 
   const formatRelativeTime = (dateString: string) => {
@@ -106,7 +107,7 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
               <p>No tasks yet</p>
             </div>
           ) : (
-            
+
             (showAll ? safeTasks : safeTasks.slice(0, 5)).map((task) => (
               <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg border">
                 <Avatar className="h-8 w-8 mt-1">
@@ -118,9 +119,16 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium">{task.title || "Untitled Task"}</h4>
-                    <Badge variant="secondary" className="text-xs">
-                      {task.status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {task.oneOffDeliverableId && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                          One-Off
+                        </Badge>
+                      )}
+                      <Badge variant="secondary" className="text-xs">
+                        {task.status}
+                      </Badge>
+                    </div>
                   </div>
 
                   <p className="text-xs text-muted-foreground">

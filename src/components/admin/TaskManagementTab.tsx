@@ -73,6 +73,7 @@ interface Task {
   videographerUser: { id: number; name: string; role: string } | null;
   client: { id: string; name: string; companyName: string | null } | null;
   monthlyDeliverable: { id: string; type: string } | null;
+  oneOffDeliverable: { id: string; type: string } | null;
 }
 
 interface FilterState {
@@ -1023,11 +1024,17 @@ export function TaskManagementTab() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="text-sm">
-                            {task.monthlyDeliverable?.type?.replace(
-                              /_/g,
-                              " "
-                            ) || "-"}
+                          <div className="text-sm flex flex-col gap-1">
+                            <span>
+                              {task.monthlyDeliverable?.type?.replace(/_/g, " ") ||
+                                task.oneOffDeliverable?.type?.replace(/_/g, " ") ||
+                                "-"}
+                            </span>
+                            {task.oneOffDeliverable && (
+                              <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                                One-Off
+                              </Badge>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4">

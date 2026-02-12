@@ -93,9 +93,16 @@ export function JobManagementSection() {
                                             </Badge>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                                            {job.client && (
+                                                <div className="flex items-center gap-1 text-primary font-medium">
+                                                    <User className="h-3.5 w-3.5" />
+                                                    {job.client.companyName || job.client.name}
+                                                </div>
+                                            )}
                                             <div className="flex items-center gap-1">
                                                 <Calendar className="h-3.5 w-3.5" />
-                                                {new Date(job.shootDate).toLocaleDateString()}
+                                                {new Date(job.startDate).toLocaleDateString()}
+                                                {job.endDate && ` - ${new Date(job.endDate).toLocaleDateString()}`}
                                             </div>
                                             <div className="flex items-center gap-1">
                                                 <MapPin className="h-3.5 w-3.5" />
@@ -106,6 +113,11 @@ export function JobManagementSection() {
                                                 {job.budget ? `$${job.budget}` : 'Negotiable'}
                                             </div>
                                         </div>
+                                        {job.equipment && (
+                                            <div className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded inline-block mt-2">
+                                                <span className="font-semibold">Equipment:</span> {job.equipment}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="text-right mr-2 hidden sm:block">

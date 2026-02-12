@@ -43,7 +43,7 @@
 //   return match ? match[1] : null;
 // }
 
-// const buildRoleWhereQuery = (role: string, userId: number): any => {
+// const buildRoleWhereQuery = (role: string | null, userId: number): any => {
 //   if (!role) {
 //     return {}; // Return empty query or default behavior
 //   }
@@ -411,6 +411,59 @@ function getCurrentMonthFolder(): string {
   return `${month}-${year}`;
 }
 
+function getDeliverableShortCode(type: string) {
+  const normalized = type.toLowerCase().trim();
+  if (normalized === "short form videos") return "SF";
+  if (normalized === "long form videos") return "LF";
+  if (normalized === "square form videos") return "SQF";
+  if (normalized === "thumbnails") return "THUMB";
+  if (normalized === "tiles") return "T";
+  if (normalized === "hard posts / graphic images") return "HP";
+  if (normalized === "snapchat episodes") return "SEP";
+  if (normalized === "beta short form") return "BSF";
+  return type.replace(/\s+/g, "");
+}
+
+function formatDateMMDDYYYY(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${month}-${day}-${year}`;
+}
+
+async function createTaskFolderStructure(
+  companyName: string,
+  taskTitle: string
+): Promise<string> {
+  // Main task folder: CompanyName/outputs/TaskTitle/
+  const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+
+  await Promise.all([
+    s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: taskFolderPath,
+      ContentType: "application/x-directory",
+    })),
+    s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: `${taskFolderPath}thumbnails/`,
+      ContentType: "application/x-directory",
+    })),
+    s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: `${taskFolderPath}tiles/`,
+      ContentType: "application/x-directory",
+    })),
+    s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: `${taskFolderPath}music-license/`,
+      ContentType: "application/x-directory",
+    }))
+  ]);
+
+  return taskFolderPath;
+}
+
 export const config = {
   api: { bodyParser: false },
 };
@@ -422,7 +475,7 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
-const buildRoleWhereQuery = (role: string, userId: number): any => {
+const buildRoleWhereQuery = (role: string | null, userId: number): any => {
   if (!role) {
     return {};
   }
@@ -628,6 +681,8 @@ export async function GET(req: any) {
         deliverableType: true,
         monthlyDeliverableId: true,
         monthlyDeliverable: true,
+        oneOffDeliverableId: true,
+        oneOffDeliverable: true,
         socialMediaLinks: true,
         updatedAt: true,
         client: {
@@ -788,6 +843,7 @@ export async function POST(req: any) {
     const clientId = form.get("clientId") as string;
     const folderType = form.get("folderType") as string;
     const monthlyDeliverableId = form.get("monthlyDeliverableId") as string;
+    const oneOffDeliverableId = form.get("oneOffDeliverableId") as string;
 
 
     if (!assignedTo || !clientId) {
@@ -813,8 +869,6 @@ export async function POST(req: any) {
         userId: true,
       },
     });
-
-
 
     if (!client)
       return NextResponse.json(
@@ -871,7 +925,8 @@ export async function POST(req: any) {
         createdBy: userId,
         clientId: clientId,
         clientUserId: client?.userId,
-        monthlyDeliverableId: monthlyDeliverableId,
+        monthlyDeliverableId: monthlyDeliverableId || null,
+        oneOffDeliverableId: oneOffDeliverableId || null,
         driveLinks: uploadedLinks,
         folderType: effectiveFolderType,
         requiresClientReview: client.requiresClientReview,
@@ -940,8 +995,46 @@ export async function POST(req: any) {
       data: { driveLinks: uploadedLinks },
     });
 
-    // 🔁 AUTO GENERATE TASKS
-    await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
+    // 🔁 AUTO GENERATE TASKS (Only if it's a monthly deliverable)
+    if (monthlyDeliverableId) {
+      await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
+    } else if (oneOffDeliverableId) {
+      // 🔥 HANDLE ONE-OFF TASK NAMING AND FOLDERS
+      const deliverable = await prisma.oneOffDeliverable.findUnique({
+        where: { id: oneOffDeliverableId }
+      });
+
+      if (deliverable) {
+        const companyName = client.companyName || client.name;
+        const companyNameSlug = companyName.replace(/\s/g, '');
+        const deliverableSlug = getDeliverableShortCode(deliverable.type);
+        const createdAtStr = formatDateMMDDYYYY(task.createdAt);
+        const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}1`;
+
+        // Create folder structure
+        const taskFolderPath = await createTaskFolderStructure(companyName, title);
+
+        // Update task with title and folder
+        const updatedOneOff = await prisma.task.update({
+          where: { id: task.id },
+          data: {
+            title,
+            outputFolderId: taskFolderPath
+          }
+        });
+
+        console.log(`✅ One-off task updated: ${title}`);
+        return NextResponse.json(updatedOneOff, { status: 201 });
+      }
+    }
+
+    // For monthly tasks, we should fetch the task again as generateMonthlyTasksFromTemplate updates it
+    if (monthlyDeliverableId) {
+      const updatedMonthly = await prisma.task.findUnique({
+        where: { id: task.id }
+      });
+      return NextResponse.json(updatedMonthly || task, { status: 201 });
+    }
 
     return NextResponse.json(task, { status: 201 });
   } catch (err: any) {

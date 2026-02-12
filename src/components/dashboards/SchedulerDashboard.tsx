@@ -190,6 +190,7 @@ export function SchedulerDashboard() {
           assignedTo: String(t.assignedSchedulerId),
           dueDate: t.dueDate,
           clientId: t.clientId,
+          oneOffDeliverableId: t.oneOffDeliverableId,
           projectId: t.clientId,
           priority: t.priority,
           feedback: t.feedback,
@@ -389,9 +390,16 @@ export function SchedulerDashboard() {
                   >
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
-                        <h4 className="font-medium text-sm">
-                          {task.title.replace('Schedule: ', '')}
-                        </h4>
+                        <div className="flex flex-col gap-1">
+                          <h4 className="font-medium text-sm">
+                            {task.title.replace('Schedule: ', '')}
+                          </h4>
+                          {(task as any).oneOffDeliverableId && (
+                            <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                              One-Off
+                            </Badge>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-2 text-xs text-muted-foreground">

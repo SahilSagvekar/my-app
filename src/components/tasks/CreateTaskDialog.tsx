@@ -574,6 +574,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     dueDate: "",
     clientId: "",
     monthlyDeliverableId: "",
+    oneOffDeliverableId: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -665,20 +666,46 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       const client = clients.find((c) => String(c.id) === String(formData.clientId));
       let allDeliverables: any[] = [];
 
-      if (client && Array.isArray(client.monthlyDeliverables)) {
-        // filter to only items with valid ids
-        allDeliverables = client.monthlyDeliverables.filter((d: any) => d && d.id && String(d.id).trim() !== "");
-      } else {
-        // fallback: fetch from API endpoint for client deliverables (if available)
+      if (client) {
+        // Collect monthly deliverables
+        if (Array.isArray(client.monthlyDeliverables)) {
+          allDeliverables = [
+            ...allDeliverables,
+            ...client.monthlyDeliverables
+              .filter((d: any) => d && d.id)
+              .map((d: any) => ({ ...d, deliverableSource: 'monthly' }))
+          ];
+        }
+        // Collect one-off deliverables
+        if (Array.isArray(client.oneOffDeliverables)) {
+          allDeliverables = [
+            ...allDeliverables,
+            ...client.oneOffDeliverables
+              .filter((d: any) => d && d.id)
+              .map((d: any) => ({ ...d, deliverableSource: 'oneoff' }))
+          ];
+        }
+      }
+
+      if (allDeliverables.length === 0) {
+        // fallback: fetch from API
         try {
           const res = await fetch(`/api/clients/${formData.clientId}/deliverables`);
           if (res.ok) {
             const payload = await res.json();
-            const list = Array.isArray(payload.monthlyDeliverables) ? payload.monthlyDeliverables : [];
-            allDeliverables = list.filter((d: any) => d && d.id && String(d.id).trim() !== "");
+            if (Array.isArray(payload.monthlyDeliverables)) {
+              allDeliverables = [...allDeliverables, ...payload.monthlyDeliverables.map((d: any) => ({ ...d, deliverableSource: 'monthly' }))];
+            }
           }
-        } catch {
-          allDeliverables = [];
+          const res2 = await fetch(`/api/clients/${formData.clientId}/one-off-deliverables`);
+          if (res2.ok) {
+            const payload2 = await res2.json();
+            if (Array.isArray(payload2.oneOffDeliverables)) {
+              allDeliverables = [...allDeliverables, ...payload2.oneOffDeliverables.map((d: any) => ({ ...d, deliverableSource: 'oneoff' }))];
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching deliverables:", err);
         }
       }
 
@@ -716,11 +743,16 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       setDeliverables(availableDeliverables);
 
       if (availableDeliverables.length === 1) {
-        setSelectedDeliverable(availableDeliverables[0].id);
-        handleInputChange("monthlyDeliverableId", availableDeliverables[0].id);
+        const d = availableDeliverables[0];
+        setSelectedDeliverable(d.id);
+        if (d.deliverableSource === 'monthly') {
+          setFormData(prev => ({ ...prev, monthlyDeliverableId: d.id, oneOffDeliverableId: "" }));
+        } else {
+          setFormData(prev => ({ ...prev, oneOffDeliverableId: d.id, monthlyDeliverableId: "" }));
+        }
       } else {
         setSelectedDeliverable("");
-        handleInputChange("monthlyDeliverableId", "");
+        setFormData(prev => ({ ...prev, monthlyDeliverableId: "", oneOffDeliverableId: "" }));
       }
     }
 
@@ -734,7 +766,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     if (!formData.assignedTo) newErrors.assignedTo = "Please assign this task";
     if (!formData.dueDate) newErrors.dueDate = "Due date is required";
     if (!formData.clientId) newErrors.clientId = "Client is required";
-    if (!formData.monthlyDeliverableId) newErrors.monthlyDeliverableId = "Choose a deliverable for this task";
+    if (!formData.monthlyDeliverableId && !formData.oneOffDeliverableId) {
+      newErrors.monthlyDeliverableId = "Choose a deliverable for this task";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -760,7 +794,8 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       formPayload.append("scheduler", String(formData.scheduler || ""));
       formPayload.append("videographer", String(formData.videographer || ""));
       formPayload.append("clientId", formData.clientId);
-      formPayload.append("monthlyDeliverableId", formData.monthlyDeliverableId);
+      formPayload.append("monthlyDeliverableId", formData.monthlyDeliverableId || "");
+      formPayload.append("oneOffDeliverableId", formData.oneOffDeliverableId || "");
 
       // 🔥 DEBUG: Log what we're sending
       console.log("📤 SENDING TO API:");
@@ -797,6 +832,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         dueDate: "",
         clientId: "",
         monthlyDeliverableId: "",
+        oneOffDeliverableId: "",
       });
 
 
@@ -875,14 +911,18 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
           </div>
 
 
-          {/* MONTHLY DELIVERABLE */}
           <div className="space-y-2">
-            <Label>Monthly Deliverable</Label>
+            <Label>Deliverable / Project</Label>
             <Select
-              value={formData.monthlyDeliverableId || selectedDeliverable || ""}
+              value={selectedDeliverable || ""}
               onValueChange={(v) => {
                 if (v === "__no_deliverables__") return;
-                handleInputChange("monthlyDeliverableId", v);
+                const selected = deliverables.find(d => d.id === v);
+                if (selected?.deliverableSource === 'monthly') {
+                  setFormData(prev => ({ ...prev, monthlyDeliverableId: v, oneOffDeliverableId: "" }));
+                } else {
+                  setFormData(prev => ({ ...prev, oneOffDeliverableId: v, monthlyDeliverableId: "" }));
+                }
                 setSelectedDeliverable(v);
               }}
             >
@@ -894,12 +934,15 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                 {deliverables.length > 0 ? (
                   deliverables.map((d) => (
                     <SelectItem key={d.id} value={String(d.id)}>
-                      {d.type} {d.quantity ? `— ${d.quantity}` : ""}
+                      <div className="flex items-center gap-2">
+                        {d.deliverableSource === 'oneoff' && <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">One-Off</Badge>}
+                        <span>{d.type} {d.quantity ? `— ${d.quantity}` : ""}</span>
+                      </div>
                     </SelectItem>
                   ))
                 ) : (
                   <SelectItem value="__no_deliverables__" disabled>
-                    All deliverable assigned for selected client
+                    No available deliverables found for this client
                   </SelectItem>
                 )}
               </SelectContent>
@@ -976,7 +1019,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 }
 
 function RoleAssign({ title, role, field, formData, update, availableMembers, error }: any) {
-  const members = availableMembers.filter((m) => m.role === role);
+  const members = availableMembers.filter((m: any) => m.role === role);
 
   return (
     <div className="space-y-2">

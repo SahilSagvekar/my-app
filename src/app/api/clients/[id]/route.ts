@@ -16,6 +16,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
       where: { id: id },
       include: {
         monthlyDeliverables: true,
+        oneOffDeliverables: true,
         brandAssets: true,
         recurringTasks: true,
         tasks: {
@@ -53,6 +54,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
       emails: client.emails ?? [],
       phones: client.phones ?? [],
       monthlyDeliverables: client.monthlyDeliverables ?? [],
+      oneOffDeliverables: client.oneOffDeliverables ?? [],
       brandAssets: client.brandAssets ?? [],
       recurringTasks: client.recurringTasks ?? [],
       brandGuidelines: client.brandGuidelines ?? {
@@ -122,6 +124,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       clientReviewRequired,
       videographerRequired,
       monthlyDeliverables = [],
+      oneOffDeliverables = [],
     } = data;
 
     if (clientReviewRequired === "yes") {
@@ -228,11 +231,72 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       }
     }
 
+    // 🔥 Handle one-off deliverables
+    console.log("📦 Processing oneOffDeliverables:", oneOffDeliverables.length, "items");
+
+    const existingOneOffs = await prisma.oneOffDeliverable.findMany({
+      where: { clientId: id },
+    });
+
+    const existingOneOffIds = existingOneOffs.map((o) => o.id);
+
+    // Filter out temporary IDs (starting with "temp-")
+    const incomingOneOffDbIds = oneOffDeliverables
+      .map((o: any) => o.id)
+      .filter((oid: string) => oid && !oid.startsWith("temp-"));
+
+    // Delete removed one-offs
+    const toDeleteOneOffs = existingOneOffIds.filter((oid) => !incomingOneOffDbIds.includes(oid));
+
+    if (toDeleteOneOffs.length > 0) {
+      await prisma.oneOffDeliverable.deleteMany({
+        where: { id: { in: toDeleteOneOffs } },
+      });
+    }
+
+    // Update or create one-offs
+    for (const o of oneOffDeliverables) {
+      const isExisting = o.id && existingOneOffIds.includes(o.id);
+
+      if (isExisting) {
+        await prisma.oneOffDeliverable.update({
+          where: { id: o.id },
+          data: {
+            type: o.type,
+            quantity: o.quantity,
+            videosPerDay: o.videosPerDay || 1,
+            postingSchedule: "one-off",
+            postingDays: o.postingDays || [],
+            postingTimes: o.postingTimes || [],
+            platforms: o.platforms || [],
+            description: o.description || "",
+            status: o.status || "PENDING",
+          }
+        });
+      } else {
+        await prisma.oneOffDeliverable.create({
+          data: {
+            clientId: id,
+            type: o.type,
+            quantity: o.quantity,
+            videosPerDay: o.videosPerDay || 1,
+            postingSchedule: "one-off",
+            postingDays: o.postingDays || [],
+            postingTimes: o.postingTimes || [],
+            platforms: o.platforms || [],
+            description: o.description || "",
+            status: "PENDING",
+          }
+        });
+      }
+    }
+
     // 🔥 Fetch the updated client with all relations to return
     const finalClient = await prisma.client.findUnique({
       where: { id },
       include: {
         monthlyDeliverables: true,
+        oneOffDeliverables: true,
         brandAssets: true,
         recurringTasks: true,
       },
@@ -326,6 +390,10 @@ export async function DELETE(
         where: { id: { in: deliverableIds } },
       });
     }
+
+    await prisma.oneOffDeliverable.deleteMany({
+      where: { clientId: id },
+    });
 
     await prisma.brandAsset.deleteMany({
       where: { clientId: id },

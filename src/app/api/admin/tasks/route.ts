@@ -429,6 +429,12 @@ export async function GET(req: Request) {
                             type: true,
                         },
                     },
+                    oneOffDeliverable: {
+                        select: {
+                            id: true,
+                            type: true,
+                        },
+                    },
                     deliverableType: true,
                 },
             }),

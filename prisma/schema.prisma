@@ -150,6 +150,8 @@ model Task {
   client               Client?             @relation(fields: [clientId], references: [id])
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
   monthlyDeliverable   MonthlyDeliverable? @relation(fields: [monthlyDeliverableId], references: [id])
+  oneOffDeliverable    OneOffDeliverable?  @relation(fields: [oneOffDeliverableId], references: [id])
+  oneOffDeliverableId  String?
   qcReviewer           User?               @relation("QCReviewedTasks", fields: [qcReviewedBy], references: [id])
   taskFeedback         TaskFeedback[]
   titlingJob           TitlingJob?
@@ -261,6 +263,7 @@ model Client {
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
   monthlyDeliverables  MonthlyDeliverable[]
+  oneOffDeliverables   OneOffDeliverable[]
   monthlyRuns          MonthlyRun[]
   recurringTasks       RecurringTask[]
   socialLogins         SocialLogin[]
@@ -271,6 +274,7 @@ model Client {
   metaAccount          MetaAccount?
   metaSnapshots        MetaSnapshot[]
   revenues             ClientRevenue[]
+  jobs                 Job[]
 
   @@index([status])
 }
@@ -290,6 +294,24 @@ model MonthlyDeliverable {
   updatedAt       DateTime        @updatedAt
   client          Client          @relation(fields: [clientId], references: [id])
   recurringTasks  RecurringTask[]
+  tasks           Task[]
+}
+
+model OneOffDeliverable {
+  id              String    @id @default(cuid())
+  clientId        String
+  type            String
+  quantity        Int
+  videosPerDay    Int
+  postingSchedule String
+  postingDays     String[]
+  postingTimes    String[]
+  platforms       String[]
+  description     String?
+  status          String    @default("PENDING") // PENDING, GENERATED, COMPLETED
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  client          Client    @relation(fields: [clientId], references: [id])
   tasks           Task[]
 }
 
@@ -827,28 +849,28 @@ enum FeedbackStatus {
 //   channelId     String   @unique
 //   channelTitle  String?
 //   channelAvatar String?
-  
+
 //   accessToken   String   @db.Text
 //   refreshToken  String   @db.Text
 //   tokenExpiry   DateTime
 //   scope         String?
-  
+
 //   subscriberCount   Int       @default(0)
 //   totalViews        BigInt    @default(0)
 //   totalVideos       Int       @default(0)
-  
+
 //   lastSyncedAt      DateTime?
 //   syncStatus        SyncStatus @default(PENDING)
 //   syncError         String?
-  
+
 //   isActive          Boolean  @default(true)
 //   connectedAt       DateTime @default(now())
 //   updatedAt         DateTime @updatedAt
-  
+
 //   client            Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 //   snapshots         YouTubeSnapshot[]
 //   videoStats        YouTubeVideoStat[]
-  
+
 //   @@index([clientId])
 //   @@index([channelId])
 //   @@index([syncStatus])
@@ -858,38 +880,38 @@ enum FeedbackStatus {
 //   id              String   @id @default(cuid())
 //   channelId       String
 //   clientId        String
-  
+
 //   // Date range this snapshot represents (e.g., "7d", "28d", "90d", "365d")
 //   dateRange       String   @default("28d")
-  
+
 //   subscriberCount   Int      @default(0)
 //   views             BigInt   @default(0)
 //   watchTimeHours    Float    @default(0)
 //   estimatedRevenue  Float?
-  
+
 //   likes             Int      @default(0)
 //   comments          Int      @default(0)
 //   shares            Int      @default(0)
 //   impressions       BigInt   @default(0)
 //   impressionsCtr    Float?
 //   avgViewDuration   Float?
-  
+
 //   subscribersGained Int      @default(0)
 //   subscribersLost   Int      @default(0)
-  
+
 //   // Audience Demographics (JSON arrays of distributions)
 //   geographyData     Json?
 //   deviceData        Json?
-  
+
 //   periodStart       DateTime
 //   periodEnd         DateTime
 //   periodType        PeriodType @default(DAILY)
-  
+
 //   snapshotDate      DateTime @default(now())
-  
+
 //   channel           YouTubeChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 //   client            Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
+
 //   // One cached snapshot per channel per date range
 //   @@unique([channelId, dateRange])
 //   @@index([channelId])
@@ -902,25 +924,25 @@ enum FeedbackStatus {
 //   id            String   @id @default(cuid())
 //   channelId     String
 //   videoId       String
-  
+
 //   title         String
 //   publishedAt   DateTime
 //   thumbnailUrl  String?
 //   duration      Int?
-  
+
 //   views         BigInt   @default(0)
 //   likes         Int      @default(0)
 //   comments      Int      @default(0)
 //   shares        Int      @default(0)
 //   watchTimeHours Float   @default(0)
 //   avgViewDuration Float?
-  
+
 //   estimatedRevenue Float?
-  
+
 //   lastUpdated   DateTime @default(now())
-  
+
 //   channel       YouTubeChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  
+
 //   @@unique([channelId, videoId])
 //   @@index([channelId])
 //   @@index([videoId])
@@ -946,25 +968,25 @@ enum PeriodType {
 // ============================================================================
 
 model MetaAccount {
-  id              String   @id @default(cuid())
-  clientId        String   @unique
-  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  instagramId     String?  @unique
-  facebookPageId  String?
-  username        String?
-  profilePicture  String?
-  accessToken     String   @db.Text
-  tokenExpiry     DateTime
-  followerCount   Int      @default(0)
-  followingCount  Int      @default(0)
-  mediaCount      Int      @default(0)
-  lastSyncedAt    DateTime?
-  syncStatus      SyncStatus @default(PENDING)
-  syncError       String?
-  isActive        Boolean  @default(true)
-  connectedAt     DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  snapshots       MetaSnapshot[]
+  id             String         @id @default(cuid())
+  clientId       String         @unique
+  client         Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  instagramId    String?        @unique
+  facebookPageId String?
+  username       String?
+  profilePicture String?
+  accessToken    String         @db.Text
+  tokenExpiry    DateTime
+  followerCount  Int            @default(0)
+  followingCount Int            @default(0)
+  mediaCount     Int            @default(0)
+  lastSyncedAt   DateTime?
+  syncStatus     SyncStatus     @default(PENDING)
+  syncError      String?
+  isActive       Boolean        @default(true)
+  connectedAt    DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  snapshots      MetaSnapshot[]
 
   @@index([clientId])
   @@index([instagramId])
@@ -972,24 +994,24 @@ model MetaAccount {
 }
 
 model MetaSnapshot {
-  id                String      @id @default(cuid())
-  metaAccountId     String
-  clientId          String
-  impressions       BigInt      @default(0)
-  reach             BigInt      @default(0)
-  profileViews      Int         @default(0)
-  websiteClicks     Int         @default(0)
-  followerCount     Int         @default(0)
-  followersGained   Int         @default(0)
-  engagement        Int         @default(0)
-  topPosts          Json?
-  demographics      Json?
-  periodStart       DateTime
-  periodEnd         DateTime
-  dateRange         String      @default("28d")
-  snapshotDate      DateTime    @default(now())
-  metaAccount       MetaAccount @relation(fields: [metaAccountId], references: [id], onDelete: Cascade)
-  client            Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id              String      @id @default(cuid())
+  metaAccountId   String
+  clientId        String
+  impressions     BigInt      @default(0)
+  reach           BigInt      @default(0)
+  profileViews    Int         @default(0)
+  websiteClicks   Int         @default(0)
+  followerCount   Int         @default(0)
+  followersGained Int         @default(0)
+  engagement      Int         @default(0)
+  topPosts        Json?
+  demographics    Json?
+  periodStart     DateTime
+  periodEnd       DateTime
+  dateRange       String      @default("28d")
+  snapshotDate    DateTime    @default(now())
+  metaAccount     MetaAccount @relation(fields: [metaAccountId], references: [id], onDelete: Cascade)
+  client          Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([metaAccountId, dateRange])
   @@index([metaAccountId])
@@ -1020,21 +1042,26 @@ model Job {
   title        String
   description  String
   location     String?
-  shootDate    DateTime
+  startDate    DateTime
+  endDate      DateTime?
+  equipment    String?
   budget       Decimal?  @db.Decimal(10, 2)
   status       JobStatus @default(OPEN)
   createdById  Int
   assignedToId Int?
+  clientId     String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  createdBy User  @relation("JobCreator", fields: [createdById], references: [id])
-  assignee  User? @relation("JobAssignee", fields: [assignedToId], references: [id])
+  createdBy User    @relation("JobCreator", fields: [createdById], references: [id])
+  assignee  User?   @relation("JobAssignee", fields: [assignedToId], references: [id])
+  client    Client? @relation(fields: [clientId], references: [id])
   bids      Bid[]
 
   @@index([status])
   @@index([createdById])
   @@index([assignedToId])
+  @@index([clientId])
 }
 
 model Bid {

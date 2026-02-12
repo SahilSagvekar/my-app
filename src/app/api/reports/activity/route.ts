@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
             sendEmail: true
         });
 
+        console.log('Report data:', report);
+
         // Handle case where no logs found
         if (!report) {
             return NextResponse.json(

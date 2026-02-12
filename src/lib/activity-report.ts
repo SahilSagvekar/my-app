@@ -17,7 +17,9 @@ interface ReportOptions {
 export async function generateDailyActivityReport(options: ReportOptions = {}) {
     // 🔥 FIX: If this runs exactly at 7 PM EST (which is midnight UTC next day), 
     // we need to make sure we target the day that just finished.
-    let { targetDate = subSeconds(new Date(), 60), sendEmail = false } = options;
+    const { targetDate = subSeconds(new Date(), 60), sendEmail = false } = options;
+
+    console.log(`📅 Generating Daily Activity Report for ${format(targetDate, 'yyyy-MM-dd')} (Triggered by: ${sendEmail ? 'Cron Job' : 'Manual'})`);
 
     try {
         // 1. Calculate the time range in EST (UTC-5)
@@ -25,9 +27,16 @@ export async function generateDailyActivityReport(options: ReportOptions = {}) {
         const estStartOfDay = startOfDay(targetDate);
         const utcStartRange = addHours(estStartOfDay, estOffset);
 
+        console.log(`⏰ Target Date (EST): ${format(estStartOfDay, 'yyyy-MM-dd HH:mm:ss')}`);
+        console.log(`⏰ Target Date (UTC): ${format(utcStartRange, 'yyyy-MM-dd HH:mm:ss')}`);   
+
+
         // 7 PM EST on target date converted to UTC
         const estEndTime = addHours(estStartOfDay, 19);
         const utcEndRange = addHours(estEndTime, estOffset);
+
+        console.log(`⏰ End Time (EST): ${format(estEndTime, 'yyyy-MM-dd HH:mm:ss')}`);
+        console.log(`⏰ End Time (UTC): ${format(utcEndRange, 'yyyy-MM-dd HH:mm:ss')}`);
 
         console.log(`📊 Generating report for range (UTC): ${utcStartRange.toISOString()} to ${utcEndRange.toISOString()}`);
 
@@ -48,6 +57,8 @@ export async function generateDailyActivityReport(options: ReportOptions = {}) {
             }
         });
 
+        console.log(`🔍 Total audit logs found in range: ${auditLogs.length}`);
+
         if (auditLogs.length === 0) {
             console.log("ℹ️ No activity logs found for this period.");
             return null;
@@ -57,6 +68,8 @@ export async function generateDailyActivityReport(options: ReportOptions = {}) {
         const employeeLogs = auditLogs.filter(log =>
             log.User && !['admin'].includes(log.User.role as string)
         );
+
+        console.log(`👥 Employee-related logs count: ${employeeLogs.length}`);
 
         // 4. Aggregate stats for the "Executive Summary" (Simplified)
         const userStats: Record<number, any> = {};
@@ -83,6 +96,8 @@ export async function generateDailyActivityReport(options: ReportOptions = {}) {
             const metadata = log.metadata as any;
             const newStatus = metadata?.newStatus;
             const role = log.User.role?.toLowerCase();
+
+            console.log(`Processing log: User=${stats.userName} (${role}), Action=${log.action}, NewStatus=${newStatus}`);
 
             // Logic to catch status changes
             if (log.action === 'TASK_UPDATED' || log.action === 'TASK_STATUS_CHANGED') {
@@ -153,6 +168,8 @@ export async function generateDailyActivityReport(options: ReportOptions = {}) {
             mimeType: 'text/csv'
         });
 
+        console.log(`📊 Executive summary uploaded: ${summaryUpload.url}`);
+
         // 7. Save detailed report to S3
         const fileName = `Detailed_Activity_Report_${format(targetDate, 'yyyy-MM-dd')}_7PM_EST.csv`;
         const buffer = Buffer.from(csvContent);
@@ -163,6 +180,8 @@ export async function generateDailyActivityReport(options: ReportOptions = {}) {
             folderPrefix: 'reports/daily-activity/',
             mimeType: 'text/csv'
         });
+
+        console.log(`📊 Detailed report uploaded: ${uploadResult.url}`);
 
         // 8. Record in database (linking both)
         const report = await prisma.activityReport.create({
@@ -179,8 +198,12 @@ export async function generateDailyActivityReport(options: ReportOptions = {}) {
             }
         });
 
+        console.log(`✅ Reports generated. Detailed: ${fileName}, Summary: ${summaryFileName}`);
+
         // 9. Only send email if triggered by cron job (sendEmail = true)
         if (sendEmail) {
+
+            console.log(`📧 sendEmail: ${sendEmail}`);
             // Generate a SIGNED long-lasting URL for the email (so its one-click for the boss)
             const { generateSignedUrl } = await import('./s3');
             const longLastingSignedUrl = await generateSignedUrl(summaryUpload.key, 604800); // 7 days
