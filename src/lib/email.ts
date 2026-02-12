@@ -697,3 +697,62 @@ export async function sendBidAcceptedEmail(
     console.error('❌ Failed to send bid acceptance email:', error);
   }
 }
+export async function sendScreenshotAlertEmail(data: {
+  email: string | null;
+  userAgent: string;
+  ip: string;
+  timestamp: string;
+}) {
+  const mailOptions = {
+    from: `"E8 Security Alert" <${process.env.SMTP_USER}>`,
+    to: "Eric@e8productions.com",
+    subject: `🚨 Security Alert: Login Screen Screenshot Detected`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 2px solid #ef4444; border-radius: 10px; }
+            .header { background: #fee2e2; color: #991b1b; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { padding: 20px; }
+            .info-box { background: #f9fafb; padding: 15px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 20px 0; }
+            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2>🚨 Screenshot Detected!</h2>
+            </div>
+            <div class="content">
+              <p>Hello Admin,</p>
+              <p>A potential screenshot attempt was detected on the login screen by a user.</p>
+              
+              <div class="info-box">
+                <p><strong>📧 User Email (if entered):</strong> ${data.email || 'Not provided'}</p>
+                <p><strong>🌐 IP Address:</strong> ${data.ip}</p>
+                <p><strong>📱 Device Info:</strong> ${data.userAgent}</p>
+                <p><strong>⏰ Timestamp:</strong> ${data.timestamp}</p>
+              </div>
+
+              <p>This is an automated security notification. If this activity is unexpected, please investigate further.</p>
+            </div>
+            <div class="footer">
+              <p>E8 Productions Security System</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Screenshot alert email sent to Eric`);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Failed to send screenshot alert email:', error);
+    return { success: false, error };
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { signIn } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -41,6 +41,62 @@ export function LoginScreen({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const lastNotificationRef = useRef<number>(0);
+
+  useEffect(() => {
+    const notifyAdmin = async () => {
+      const now = Date.now();
+      // Throttle notifications to every 10 seconds to avoid spam
+      if (now - lastNotificationRef.current < 10000) return;
+      lastNotificationRef.current = now;
+
+      try {
+        await fetch("/api/notify/screenshot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email || "User on login screen" }),
+        });
+      } catch (err) {
+        console.error("Failed to notify admin of screenshot:", err);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // PrintScreen key (doesn't work on all browsers/OS)
+      if (e.key === 'PrintScreen' || e.keyCode === 44) {
+        notifyAdmin();
+      }
+
+      // Mac Screenshot shortcuts: CMD + SHIFT + 3/4/5
+      if (e.shiftKey && (e.metaKey || e.ctrlKey) && (e.key === '3' || e.key === '4' || e.key === '5')) {
+        notifyAdmin();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      // Heuristic: Screenshots on some mobile browsers trigger a visibility change
+      if (document.visibilityState === 'hidden') {
+        notifyAdmin();
+      }
+    };
+
+    const handleBlur = () => {
+      // Heuristic: Screenshot UI overlay often blurs the window
+      notifyAdmin();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyDown);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyDown);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [email]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
