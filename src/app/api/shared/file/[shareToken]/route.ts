@@ -5,10 +5,10 @@ import { generateSignedUrl } from '@/lib/s3';
 // GET /api/shared/file/[shareToken] - Access a shared file
 export async function GET(
     req: NextRequest,
-    { params }: { params: { shareToken: string } }
+    { params }: { params: Promise<{ shareToken: string }> }
 ) {
     try {
-        const { shareToken } = params;
+        const { shareToken } = await params;
 
         if (!shareToken) {
             return NextResponse.json({ error: 'Share token required' }, { status: 400 });

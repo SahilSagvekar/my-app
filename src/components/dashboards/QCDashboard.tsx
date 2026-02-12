@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn } from 'lucide-react';
+import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn } from 'lucide-react';
+import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
@@ -127,6 +128,13 @@ export function QCDashboard() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
+
+  // 🔥 Share states
+  const [shareLink, setShareLink] = useState("");
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const { user } = useAuth();
 
   const getMimeType = (file: TaskFile | null) => {
@@ -488,6 +496,39 @@ export function QCDashboard() {
     setShowFileSelector(true);
   };
 
+  const handleShare = async (e: React.MouseEvent, task: EnhancedWorkflowTask) => {
+    e.stopPropagation();
+    setIsSharing(true);
+    setCopied(false);
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expiresAt: null, // Never expires by default
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate share link");
+
+      const data = await res.json();
+      setShareLink(data.shareUrl);
+      setShowShareDialog(true);
+
+      // Auto-copy
+      await navigator.clipboard.writeText(data.shareUrl);
+      setCopied(true);
+      toast.success("Share link created and copied to clipboard");
+      setTimeout(() => setCopied(false), 3000);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate share link");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const handleDownload = async (file: TaskFile) => {
     try {
       toast.loading('Preparing download...', { id: 'download-file' });
@@ -630,6 +671,18 @@ export function QCDashboard() {
                         <Clock className="h-3 w-3" />
                       </div>
                     </div> */}
+
+                    {/* Share Button - Top Left */}
+                    <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="secondary"
+                        className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-primary"
+                        onClick={(e) => handleShare(e, task)}
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
 
                     {/* File Count - Top Right */}
                     <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm">

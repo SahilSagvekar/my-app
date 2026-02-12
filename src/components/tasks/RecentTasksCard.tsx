@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
-import { Clock, User } from "lucide-react";
+import { Clock, User, Share2 } from "lucide-react";
 import { Button } from "../ui/button";
+import { ShareDialog } from "../review/ShareDialog";
+import { toast } from "sonner";
 
 interface Task {
   id: string;
@@ -23,6 +25,13 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
+
+  // 🔥 Share states
+  const [shareLink, setShareLink] = useState("");
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const safeTasks = Array.isArray(tasks) ? tasks : [];
 
   useEffect(() => {
@@ -61,6 +70,38 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
       setLoading(false);
     }
   }
+
+  const handleShare = async (taskId: string) => {
+    setIsSharing(true);
+    setCopied(false);
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expiresAt: null, // Never expires by default
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate share link");
+
+      const data = await res.json();
+      setShareLink(data.shareUrl);
+      setShowShareDialog(true);
+
+      // Auto-copy
+      await navigator.clipboard.writeText(data.shareUrl);
+      setCopied(true);
+      toast.success("Share link created and copied to clipboard");
+      setTimeout(() => setCopied(false), 3000);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate share link");
+    } finally {
+      setIsSharing(false);
+    }
+  };
 
 
   const formatRelativeTime = (dateString: string) => {
@@ -125,9 +166,19 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
                           One-Off
                         </Badge>
                       )}
-                      <Badge variant="secondary" className="text-xs">
-                        {task.status}
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-primary"
+                          onClick={() => handleShare(task.id)}
+                        >
+                          <Share2 className="h-3 w-3" />
+                        </Button>
+                        <Badge variant="secondary" className="text-xs">
+                          {task.status}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
 
@@ -148,6 +199,19 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
           )}
         </div>
       </CardContent>
+
+      <ShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        shareLink={shareLink}
+        onCopy={() => {
+          navigator.clipboard.writeText(shareLink);
+          setCopied(true);
+          toast.success("Link copied to clipboard");
+          setTimeout(() => setCopied(false), 2000);
+        }}
+        copied={copied}
+      />
     </Card>
   );
 }

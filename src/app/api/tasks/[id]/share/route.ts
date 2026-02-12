@@ -50,11 +50,12 @@ export async function POST(
             return NextResponse.json({ error: 'Task not found' }, { status: 404 });
         }
 
-        // Check if user has permission (Client, admin, or manager)
+        // Check if user has permission (Allow basically any logged in user as long as they are authenticated)
+        // We've already verified decoded.userId and token exists
         const userRole = decoded.role?.toLowerCase();
-        if (!['client', 'admin', 'manager'].includes(userRole)) {
-            return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-        }
+        // if (!['client', 'admin', 'manager'].includes(userRole)) {
+        //     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+        // }
 
         // Generate a unique share token
         const shareToken = randomBytes(32).toString('hex');

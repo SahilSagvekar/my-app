@@ -27,10 +27,13 @@ import {
   Filter,
   GripVertical,
   Clock,
+  Share2,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
 import { FilePreviewModal } from "../FileViewerModal";
+import { ShareDialog } from "../review/ShareDialog";
+import { toast } from "sonner";
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -407,6 +410,7 @@ function TaskCard({
   onDragStart,
   isDragging,
   onPreview,
+  onShare,
 }: {
   task: WorkflowTask;
   onUploadComplete: (taskId: string, files: any[]) => void;
@@ -414,6 +418,7 @@ function TaskCard({
   onDragStart: (e: DragEvent<HTMLDivElement>, task: WorkflowTask) => void;
   isDragging: boolean;
   onPreview: (file: TaskFile) => void;
+  onShare: (task: WorkflowTask) => void;
 }) {
   const [showFiles, setShowFiles] = useState(false);
   const isOverdue = new Date(task.dueDate) < new Date();
@@ -442,12 +447,25 @@ function TaskCard({
               <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
               <h4 className="font-medium text-xs whitespace-normal break-words">{task.title}</h4>
             </div>
-            <Badge
-              variant={task.status === "completed" ? "default" : "secondary"}
-              className="text-[10px] flex-shrink-0 ml-1 px-1.5 py-0 h-4"
-            >
-              {task.status.replace("_", " ").toUpperCase()}
-            </Badge>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShare(task);
+                }}
+              >
+                <Share2 className="h-3 w-3" />
+              </Button>
+              <Badge
+                variant={task.status === "completed" ? "default" : "secondary"}
+                className="text-[10px] px-1.5 py-0 h-4"
+              >
+                {task.status.replace("_", " ").toUpperCase()}
+              </Badge>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-1 mb-2">
@@ -649,6 +667,7 @@ interface ColumnProps {
   onUploadComplete: (taskId: string, files: any[]) => void;
   onStartTask: (taskId: string) => void;
   onPreview: (file: TaskFile) => void;
+  onShare: (task: WorkflowTask) => void;
 }
 
 function DroppableColumn({
@@ -667,6 +686,7 @@ function DroppableColumn({
   onUploadComplete,
   onStartTask,
   onPreview,
+  onShare,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -709,6 +729,7 @@ function DroppableColumn({
             onDragStart={onDragStart}
             isDragging={draggingTaskId === task.id}
             onPreview={onPreview}
+            onShare={onShare}
           />
         ))}
 
@@ -747,6 +768,13 @@ export function EditorDashboard() {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // 🔥 Share states
+  const [shareLink, setShareLink] = useState("");
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const { user } = useAuth();
 
   const currentUser = {
@@ -1192,6 +1220,38 @@ export function EditorDashboard() {
     setIsPreviewOpen(true);
   }, []);
 
+  const handleShare = useCallback(async (task: WorkflowTask) => {
+    setIsSharing(true);
+    setCopied(false);
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expiresAt: null, // Never expires by default
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate share link");
+
+      const data = await res.json();
+      setShareLink(data.shareUrl);
+      setShowShareDialog(true);
+
+      // Auto-copy
+      await navigator.clipboard.writeText(data.shareUrl);
+      setCopied(true);
+      toast.success("Share link created and copied to clipboard");
+      setTimeout(() => setCopied(false), 3000);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate share link");
+    } finally {
+      setIsSharing(false);
+    }
+  }, []);
+
   /* ----------------------------- CLEAR FILTERS ----------------------------- */
 
   function clearAllFilters() {
@@ -1356,6 +1416,7 @@ export function EditorDashboard() {
             onUploadComplete={handleUploadComplete}
             onStartTask={startTask}
             onPreview={handlePreview}
+            onShare={handleShare}
           />
         ))}
       </div>
@@ -1364,6 +1425,20 @@ export function EditorDashboard() {
         file={previewFile}
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
+      />
+
+      {/* Share Dialog */}
+      <ShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        shareLink={shareLink}
+        onCopy={() => {
+          navigator.clipboard.writeText(shareLink);
+          setCopied(true);
+          toast.success("Link copied to clipboard");
+          setTimeout(() => setCopied(false), 2000);
+        }}
+        copied={copied}
       />
     </div>
   );

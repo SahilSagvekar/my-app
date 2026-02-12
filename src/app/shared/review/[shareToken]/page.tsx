@@ -4,11 +4,21 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { FullScreenReviewModalFrameIO } from '@/components/client/FullScreenReviewModalFrameIO';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, Lock, Clock, Eye } from 'lucide-react';
+import { AlertCircle, Lock, Clock, Eye, Link, ExternalLink, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SharedReviewData {
-    task: any;
+    task: {
+        id: string;
+        title: string;
+        description: string;
+        driveLinks: string[];
+        files: any[];
+        client?: any;
+        monthlyDeliverable?: any;
+        createdAt: string;
+        socialMediaLinks?: any;
+    };
     shareInfo: {
         viewCount: number;
         expiresAt: string | null;
@@ -284,8 +294,43 @@ export default function SharedReviewPage() {
                                 onClick={() => setShowReview(true)}
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-8"
                             >
-                                Open Review
+                                Open Visual Review
                             </Button>
+
+                            {reviewData && reviewData.task.driveLinks && reviewData.task.driveLinks.length > 0 && (
+                                <div className="mt-12 text-left">
+                                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4 border-b border-gray-700 pb-2 flex items-center gap-2">
+                                        <Link className="h-4 w-4" />
+                                        Resource Links
+                                    </h3>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {reviewData.task.driveLinks.map((link, idx) => (
+                                            <a
+                                                key={idx}
+                                                href={link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center justify-between p-4 bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/50 rounded-xl transition-all group"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+                                                        <ExternalLink className="h-5 w-5 text-blue-400" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-white font-medium text-sm truncate max-w-[400px]">
+                                                            {link.split('/').pop()?.split('?')[0] || 'External Resource'}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {new URL(link).hostname}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="mt-8 pt-8 border-t border-gray-700">
                                 <p className="text-xs text-gray-500">
