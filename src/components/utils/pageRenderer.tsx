@@ -90,6 +90,7 @@ export function renderPage(role: string, page: string): React.ReactElement {
       case "reports":
       case "audit":
       case "finance":
+      case "permissions":
         return <AdminDashboard currentPage={page} />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;

@@ -778,6 +778,14 @@ model YouTubeVideoStat {
   @@index([views])
 }
 
+model RolePermission {
+  id              String   @id @default(cuid())
+  role            Role     @unique
+  navigationItems Json // Array of strings (item IDs)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 enum Role {
   admin
   manager

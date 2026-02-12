@@ -59,6 +59,11 @@ const ActivityLogReportTab = dynamic(() => import('../admin/ActivityLogReportTab
   ssr: false,
 });
 
+const PermissionsTab = dynamic(() => import('../admin/PermissionsTab').then(mod => ({ default: mod.PermissionsTab })), {
+  loading: () => <DashboardLoadingFallback componentName="Permissions" />,
+  ssr: false,
+});
+
 const JobManagementSection = dynamic(() => import('../jobs/JobManagementSection').then(mod => ({ default: mod.JobManagementSection })), {
   loading: () => <DashboardLoadingFallback componentName="Job Management" />,
   ssr: false,
@@ -198,7 +203,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
       const data = await res.json();
 
       const sorted = (data.tasks || [])
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 10);
 
       setRecentTasks(sorted);
@@ -720,6 +725,22 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
       case 'finance':
         console.log('📑 [ADMIN] Switching to Finance tab');
         return <FinanceTab />;
+
+      case 'permissions':
+        console.log('📑 [ADMIN] Switching to Permissions tab');
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <p className="text-muted-foreground mt-2">
+                  Configure sidebar visibility and role-based access for all team members
+                </p>
+              </div>
+            </div>
+            <PermissionsTab />
+          </div>
+        );
 
       case 'leaves':
         console.log('📑 [ADMIN] Switching to Leaves tab');

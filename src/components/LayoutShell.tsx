@@ -24,6 +24,7 @@ import {
   X,
   Settings as SettingsIcon,
   ArrowLeftRight,
+  FileText
 } from 'lucide-react';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
@@ -55,6 +56,8 @@ export function LayoutShell({
 }: LayoutShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [permittedItems, setPermittedItems] = useState<any[]>([]);
+  const [navLoading, setNavLoading] = useState(true);
   const { user: authUser } = useAuth();
 
   // 🔥 Role switching feature
@@ -67,7 +70,31 @@ export function LayoutShell({
     : 'User';
 
   // UPDATED: Handle null role
-  const items = currentRole ? (NAVIGATION_ITEMS[currentRole as NavigationRole] || []) : [];
+  // UPDATED: Fetch permitted navigation items
+  useEffect(() => {
+    const fetchNavItems = async () => {
+      if (!currentRole) return;
+      try {
+        setNavLoading(true);
+        const res = await fetch("/api/user/navigation");
+        if (res.ok) {
+          const data = await res.json();
+          setPermittedItems(data);
+        } else {
+          // Fallback to defaults if API fails
+          setPermittedItems([...(NAVIGATION_ITEMS[currentRole as NavigationRole] || [])]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch navigation:", err);
+        setPermittedItems([...(NAVIGATION_ITEMS[currentRole as NavigationRole] || [])]);
+      } finally {
+        setNavLoading(false);
+      }
+    };
+    fetchNavItems();
+  }, [currentRole]);
+
+  const items = permittedItems;
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -141,8 +168,8 @@ export function LayoutShell({
                 size="sm"
                 onClick={toggleRole}
                 className={`flex items-center gap-2 ${isViewingAsOther
-                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                    : 'border-gray-300 hover:bg-gray-100'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                  : 'border-gray-300 hover:bg-gray-100'
                   }`}
               >
                 <ArrowLeftRight className="h-4 w-4" />
@@ -258,8 +285,14 @@ export function LayoutShell({
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-            {items.map((item) => {
-              const Icon = item.icon;
+            {navLoading ? (
+              <div className="space-y-3 px-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-9 bg-gray-100 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : items.map((item) => {
+              const Icon = NAVIGATION_ITEMS[currentRole as NavigationRole]?.find(i => i.id === item.id)?.icon || FileText;
               const isActive = currentPage === item.id;
 
               return (
