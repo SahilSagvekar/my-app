@@ -758,65 +758,40 @@ export function UserManagementTab() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Employees</p>
-                <h3 className="mt-2">{employeesList.length}</h3>
-              </div>
-              <Users className="h-8 w-8 text-blue-600" />
-            </div>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <Users className="h-8 w-8 text-blue-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Total Employees</p>
+            <h3 className="text-3xl font-bold mt-1">{employeesList.length}</h3>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Users</p>
-                <h3 className="mt-2">
-                  {
-                    employeesList.filter((emp) => emp.status === "active")
-                      .length
-                  }
-                </h3>
-              </div>
-              <UserCheck className="h-8 w-8 text-black" />
-            </div>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <UserCheck className="h-8 w-8 text-green-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Active Users</p>
+            <h3 className="text-3xl font-bold mt-1">
+              {employeesList.filter((emp) => emp.status === "active").length}
+            </h3>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">On Leave</p>
-                <h3 className="mt-2">
-                  {
-                    employeesList.filter((emp) => emp.status === "on-leave")
-                      .length
-                  }
-                </h3>
-              </div>
-              <Calendar className="h-8 w-8 text-yellow-600" />
-            </div>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <Calendar className="h-8 w-8 text-orange-600 mb-4" />
+            <p className="text-sm text-muted-foreground">On Leave</p>
+            <h3 className="text-3xl font-bold mt-1">
+              {employeesList.filter((emp) => emp.status === "on-leave").length}
+            </h3>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Inactive</p>
-                <h3 className="mt-2">
-                  {
-                    employeesList.filter((emp) => emp.status === "inactive")
-                      .length
-                  }
-                </h3>
-              </div>
-              <UserX className="h-8 w-8 text-red-600" />
-            </div>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <UserX className="h-8 w-8 text-red-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Inactive</p>
+            <h3 className="text-3xl font-bold mt-1">
+              {employeesList.filter((emp) => emp.status === "inactive").length}
+            </h3>
           </CardContent>
         </Card>
       </div>
