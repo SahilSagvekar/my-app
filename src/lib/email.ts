@@ -767,7 +767,7 @@ export async function sendDailySummaryReportEmail(report: {
   users: any[];
   totalTasksMoved: number;
   totalTeamMembers: number;
-}) {
+}, csvDownloadUrl?: string) {
   const formattedDate = new Date(report.date + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -867,6 +867,24 @@ export async function sendDailySummaryReportEmail(report: {
       `);
     }
 
+    if (user.filesUploaded > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #0284c7;">${user.filesUploaded}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Files Uploaded</div>
+        </div>
+      `);
+    }
+
+    if (user.tasksCreated > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #7c3aed;">${user.tasksCreated}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Tasks Created</div>
+        </div>
+      `);
+    }
+
     // Build login/logout timeline HTML
     let loginLogoutHtml = '';
     const events = user.loginLogoutEvents || [];
@@ -898,7 +916,8 @@ export async function sendDailySummaryReportEmail(report: {
     // Show "No task activity" message if user only has login/logout but no task metrics
     const hasTaskActivity = (user.tasksMovedToInProgress || 0) + (user.tasksMovedToReadyForQC || 0) +
       (user.tasksQCApproved || 0) + (user.tasksQCRejected || 0) + (user.tasksScheduled || 0) +
-      (user.tasksClientApproved || 0) + (user.tasksClientRejected || 0) > 0;
+      (user.tasksClientApproved || 0) + (user.tasksClientRejected || 0) +
+      (user.filesUploaded || 0) + (user.tasksCreated || 0) > 0;
 
     const noTaskActivityMsg = !hasTaskActivity && events.length > 0
       ? '<div style="text-align: center; color: #94a3b8; font-size: 13px; font-style: italic; padding: 8px 0;">No task activity — session only</div>'
@@ -962,6 +981,14 @@ export async function sendDailySummaryReportEmail(report: {
               </table>
             </div>
 
+            <!-- Download Button -->
+            ${csvDownloadUrl ? `
+            <div style="background: #ffffff; padding: 20px 30px; text-align: center; border-bottom: 1px solid #e2e8f0;">
+              <a href="${csvDownloadUrl}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.3px; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);">📥 Download Full CSV Report</a>
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #94a3b8;">CSV file includes team summary, login/logout activity, and detailed task history</p>
+            </div>
+            ` : ''}
+
             <!-- User Cards -->
             <div style="background: #f8fafc; padding: 25px 20px; border-radius: 0 0 16px 16px;">
               <h2 style="margin: 0 0 20px 0; font-size: 18px; color: #1e293b; padding-left: 5px;">Team Activity Breakdown</h2>
@@ -971,6 +998,7 @@ export async function sendDailySummaryReportEmail(report: {
 
             <!-- Footer -->
             <div style="text-align: center; margin-top: 25px; padding: 15px;">
+              ${csvDownloadUrl ? `<p style="font-size: 12px; margin: 0 0 8px 0;"><a href="${csvDownloadUrl}" style="color: #3b82f6; text-decoration: underline;">📥 Download CSV Report</a> (link valid for 7 days)</p>` : ''}
               <p style="font-size: 12px; color: #94a3b8; margin: 0;">Automated Daily Report by E8 Productions Management System</p>
               <p style="font-size: 11px; color: #cbd5e1; margin: 5px 0 0 0;">© ${new Date().getFullYear()} E8 Productions. Report generated at ${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</p>
             </div>

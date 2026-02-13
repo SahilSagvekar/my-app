@@ -30,6 +30,9 @@ interface UserDailySummary {
     // Client metrics
     tasksClientApproved: number;   // Client moved to COMPLETED
     tasksClientRejected: number;   // Client moved to REJECTED
+    // Other metrics
+    filesUploaded: number;
+    tasksCreated: number;
     // Login/Logout
     loginLogoutEvents: LoginLogoutEvent[];
     // General
@@ -88,7 +91,7 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
         console.log(`⏰ Report Window (EST): 12:00 AM → 7:00 PM`);
         console.log(`⏰ Report Window (UTC): ${utcStartRange.toISOString()} → ${utcEndRange.toISOString()}`);
 
-        // === 1. Fetch task-related audit logs ===
+        // === 1. Fetch task-related audit logs (broad query to catch everything) ===
         const taskAuditLogs = await prisma.auditLog.findMany({
             where: {
                 timestamp: {
@@ -96,7 +99,7 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                     lte: utcEndRange,
                 },
                 action: {
-                    in: ['TASK_UPDATED', 'TASK_STATUS_CHANGED', 'TASK_COMPLETED', 'TASK_QC_APPROVED', 'TASK_QC_REJECTED']
+                    in: ['TASK_UPDATED', 'TASK_STATUS_CHANGED', 'TASK_COMPLETED', 'TASK_QC_APPROVED', 'TASK_QC_REJECTED', 'TASK_CREATED', 'TASK_ASSIGNED', 'FILE_UPLOADED']
                 }
             },
             include: {
@@ -163,6 +166,8 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                     tasksScheduled: 0,
                     tasksClientApproved: 0,
                     tasksClientRejected: 0,
+                    filesUploaded: 0,
+                    tasksCreated: 0,
                     loginLogoutEvents: [],
                     totalActions: 0,
                     taskDetails: [],
@@ -250,6 +255,18 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                 taskDetail.action = 'Scheduled/Posted';
             }
 
+            // === File uploads ===
+            if (log.action === 'FILE_UPLOADED') {
+                userSummary.filesUploaded++;
+                taskDetail.action = 'Uploaded File';
+            }
+
+            // === Task creation ===
+            if (log.action === 'TASK_CREATED') {
+                userSummary.tasksCreated++;
+                taskDetail.action = 'Created Task';
+            }
+
             userSummary.taskDetails.push(taskDetail);
         }
 
@@ -297,6 +314,8 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
             u.tasksScheduled > 0 ||
             u.tasksClientApproved > 0 ||
             u.tasksClientRejected > 0 ||
+            u.filesUploaded > 0 ||
+            u.tasksCreated > 0 ||
             u.loginLogoutEvents.length > 0
         );
 
@@ -306,8 +325,9 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
         }
 
         // === 5. Build the report ===
+        const reportDate = format(targetDate, 'yyyy-MM-dd');
         const report: DailySummaryReport = {
-            date: format(targetDate, 'yyyy-MM-dd'),
+            date: reportDate,
             periodStart: '12:00 AM EST',
             periodEnd: '7:00 PM EST',
             users: activeUsers,
@@ -321,11 +341,135 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
 
         console.log(`✅ [Daily Summary] Report generated: ${report.totalTeamMembers} team members, ${report.totalTasksMoved} total actions`);
 
-        // === 6. Send email if requested ===
+        // === 6. Generate CSV and upload to S3 ===
+        let csvDownloadUrl: string | undefined;
+
+        try {
+            // --- CSV Section 1: Team Summary ---
+            const summaryHeaders = ['Name', 'Role', 'Started / In Progress', 'Sent to QC', 'QC Approved', 'QC Rejected', 'Scheduled / Posted', 'Client Approved', 'Client Revisions', 'Files Uploaded', 'Tasks Created', 'Total Actions'];
+            const summaryRows = activeUsers.map(u => [
+                u.userName,
+                u.role,
+                u.tasksMovedToInProgress,
+                u.tasksMovedToReadyForQC,
+                u.tasksQCApproved,
+                u.tasksQCRejected,
+                u.tasksScheduled,
+                u.tasksClientApproved,
+                u.tasksClientRejected,
+                u.filesUploaded,
+                u.tasksCreated,
+                u.totalActions,
+            ]);
+
+            // --- CSV Section 2: Login/Logout Activity ---
+            const loginHeaders = ['Name', 'Role', 'Action', 'Time (EST)', 'Location'];
+            const loginRows: any[][] = [];
+            for (const u of activeUsers) {
+                for (const evt of u.loginLogoutEvents) {
+                    const timeStr = new Date(evt.time).toLocaleString('en-US', {
+                        timeZone: 'America/New_York',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                    });
+                    loginRows.push([
+                        u.userName,
+                        u.role,
+                        evt.action === 'login' ? 'Logged In' : 'Logged Out',
+                        timeStr + ' EST',
+                        evt.location || '',
+                    ]);
+                }
+            }
+
+            // --- CSV Section 3: Detailed Task Activity ---
+            const detailHeaders = ['Name', 'Role', 'Action', 'Task', 'Previous Status', 'New Status', 'Time (EST)'];
+            const detailRows: any[][] = [];
+            for (const u of activeUsers) {
+                for (const d of u.taskDetails) {
+                    const timeStr = new Date(d.timestamp).toLocaleString('en-US', {
+                        timeZone: 'America/New_York',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                    });
+                    detailRows.push([
+                        u.userName,
+                        u.role,
+                        d.action,
+                        d.taskTitle,
+                        d.previousStatus || '',
+                        d.newStatus || '',
+                        timeStr + ' EST',
+                    ]);
+                }
+            }
+
+            // Helper to escape CSV values
+            const escCsv = (val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+            // Combine all sections into one CSV
+            const csvLines: string[] = [];
+
+            csvLines.push(`"Daily Team Summary Report - ${reportDate}"`);
+            csvLines.push(`"Report Period: 12:00 AM to 7:00 PM EST"`);
+            csvLines.push(`"Generated: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST"`);
+            csvLines.push('');
+
+            csvLines.push('"=== TEAM SUMMARY ==="');
+            csvLines.push(summaryHeaders.map(escCsv).join(','));
+            summaryRows.forEach(row => csvLines.push(row.map(escCsv).join(',')));
+            csvLines.push('');
+
+            if (loginRows.length > 0) {
+                csvLines.push('"=== LOGIN / LOGOUT ACTIVITY ==="');
+                csvLines.push(loginHeaders.map(escCsv).join(','));
+                loginRows.forEach(row => csvLines.push(row.map(escCsv).join(',')));
+                csvLines.push('');
+            }
+
+            if (detailRows.length > 0) {
+                csvLines.push('"=== DETAILED TASK ACTIVITY ==="');
+                csvLines.push(detailHeaders.map(escCsv).join(','));
+                detailRows.forEach(row => csvLines.push(row.map(escCsv).join(',')));
+            }
+
+            const csvContent = csvLines.join('\n');
+            const csvBuffer = Buffer.from(csvContent, 'utf-8');
+            const csvFileName = `Daily_Team_Summary_${reportDate}.csv`;
+
+            // Upload to S3
+            const { uploadBufferToS3, generateSignedUrl } = await import('./s3');
+
+            const uploadResult = await uploadBufferToS3({
+                buffer: csvBuffer,
+                filename: csvFileName,
+                folderPrefix: 'reports/daily-summary/',
+                mimeType: 'text/csv',
+            });
+
+            console.log(`📊 CSV uploaded to S3: ${uploadResult.url}`);
+
+            // Generate a signed download URL (valid for 7 days)
+            csvDownloadUrl = await generateSignedUrl(uploadResult.key, 604800);
+            console.log(`🔗 Signed download URL generated (7-day expiry)`);
+
+        } catch (s3Error) {
+            console.error('⚠️ Failed to upload CSV to S3 (email will still be sent without download link):', s3Error);
+        }
+
+        // === 7. Send email if requested ===
         if (sendEmail) {
             console.log('📧 Sending daily summary email...');
             const { sendDailySummaryReportEmail } = await import('./email');
-            await sendDailySummaryReportEmail(report);
+            await sendDailySummaryReportEmail(report, csvDownloadUrl);
             console.log('📧 Daily summary email sent!');
         }
 
