@@ -317,17 +317,13 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
             const Icon = kpi.icon;
             return (
               <Card key={index}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">{kpi.title}</p>
-                      <h3 className="text-2xl font-bold mt-2">{kpi.value}</h3>
-                      <p className={`text-sm mt-1 ${kpi.color}`}>
-                        {kpi.change} from last month
-                      </p>
-                    </div>
-                    <Icon className={`h-8 w-8 ${kpi.color}`} />
-                  </div>
+                <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+                  <Icon className={`h-8 w-8 mb-4 ${kpi.color}`} />
+                  <p className="text-sm text-muted-foreground">{kpi.title}</p>
+                  <h3 className="text-3xl font-bold mt-1">{kpi.value}</h3>
+                  <p className={`text-xs mt-2 px-2 py-0.5 rounded-full bg-muted ${kpi.color}`}>
+                    {kpi.change} from last month
+                  </p>
                 </CardContent>
               </Card>
             );

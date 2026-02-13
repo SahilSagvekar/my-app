@@ -743,7 +743,7 @@ export function FinanceTab() {
     <>
       <div className="space-y-6">
         {/* Page Header */}
-        <div>
+        {/* <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <DollarSign className="h-8 w-8 text-green-600" />
             Financials
@@ -751,7 +751,7 @@ export function FinanceTab() {
           <p className="text-muted-foreground mt-2">
             Manage invoices, employee payroll, and financial tracking
           </p>
-        </div>
+        </div> */}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

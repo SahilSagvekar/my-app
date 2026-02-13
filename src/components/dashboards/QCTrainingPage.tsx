@@ -823,13 +823,13 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
+      {/* <div>
         <h1>Training & Certification</h1>
         <p className="text-muted-foreground mt-2">
           Complete all modules and pass the final exam to become a Certified QC
           Reviewer
         </p>
-      </div>
+      </div> */}
 
       {/* Progress Overview */}
       <Card>
