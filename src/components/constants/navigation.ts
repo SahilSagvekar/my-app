@@ -32,13 +32,11 @@ export const NAVIGATION_ITEMS = {
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'analytics', label: 'Client Analytics', icon: BarChart3 },
-    { id: 'instagram-analytics', label: 'Instagram Analytics', icon: Instagram },
     { id: 'leaves', label: 'User Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
-    { id: 'activity_logs', label: 'Activity Reports', icon: FileText },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   editor: [

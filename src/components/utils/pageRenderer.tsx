@@ -69,14 +69,6 @@ export function renderPage(role: string, page: string, onPageChange?: (page: str
     return <PostedContentSidebar />;
   }
 
-  if (page === "youtube-analytics") {
-    return <YouTubeAnalyticsWrapper />;
-  }
-
-  if (page === "meta-analytics" || page === "instagram-analytics") {
-    return <MetaAnalyticsWrapper />;
-  }
-
   if (page === "activity_logs") {
     return <ActivityLogReportTab />;
   }
@@ -150,35 +142,8 @@ export function renderPage(role: string, page: string, onPageChange?: (page: str
             <DriveExplorer role={role} />
           </div>
         );
-      case "youtube-analytics":
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">YouTube Analytics</h1>
-                <p className="text-muted-foreground mt-2">
-                  Aggregated performance data and insights for connected YouTube channels
-                </p>
-              </div>
-            </div>
-            <YouTubeAnalyticsWrapper />
-          </div>
-        );
-      case "meta-analytics":
-      case "instagram-analytics":
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Instagram Analytics</h1>
-                <p className="text-muted-foreground mt-2">
-                  Insights and reach metrics across connected Instagram business accounts
-                </p>
-              </div>
-            </div>
-            <MetaAnalyticsWrapper />
-          </div>
-        );
+      case "activity_logs":
+        return <ActivityLogReportTab />;
       default:
         return <AdminDashboard currentPage="dashboard" onPageChange={onPageChange} />;
     }
