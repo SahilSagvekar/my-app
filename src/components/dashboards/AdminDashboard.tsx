@@ -5,11 +5,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
-import { TrendingUp, Users, FileText, Clock, DollarSign, Plus, RefreshCw, Loader } from 'lucide-react';
+import { Button } from '../ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { useEffect, useState } from "react";
+import {
+  TrendingUp,
+  Users,
+  FileText,
+  Clock,
+  DollarSign,
+  Plus,
+  RefreshCw,
+  Loader,
+  ChevronDown,
+  ShieldCheck,
+  Settings as SettingsIcon
+} from 'lucide-react';
+
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { RecentTasksCard } from '../tasks/RecentTasksCard';
-import { Button } from '../ui/button';
-import { useEffect, useState } from "react";
 
 // ============================================
 // LAZY LOAD SUB-COMPONENTS
@@ -164,9 +183,10 @@ interface SystemStatusData {
 
 interface AdminDashboardProps {
   currentPage?: string;
+  onPageChange?: (page: string) => void;
 }
 
-export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProps) {
+export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: AdminDashboardProps) {
   const [tasks, setTasks] = useState([]);
   const [recentTasks, setRecentTasks] = useState([]);
 
@@ -600,6 +620,30 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                   <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                   Refresh
                 </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      Manage <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => onPageChange?.('users')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Users className="h-4 w-4" />
+                      Users
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onPageChange?.('permissions')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <SettingsIcon className="h-4 w-4" />
+                      Permissions
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <CreateTaskDialog
                   onTaskCreated={handleTaskCreated}
                   trigger={
@@ -669,6 +713,31 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                   Manage team members, roles, permissions, and employee information
                 </p>
               </div>
+              <div className="flex items-center gap-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      Manage <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => onPageChange?.('users')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Users className="h-4 w-4" />
+                      Users
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onPageChange?.('permissions')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <SettingsIcon className="h-4 w-4" />
+                      Permissions
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
             <UserManagementTab />
           </div>
@@ -737,6 +806,31 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                   Configure sidebar visibility and role-based access for all team members
                 </p>
               </div>
+              <div className="flex items-center gap-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      Manage <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => onPageChange?.('users')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Users className="h-4 w-4" />
+                      Users
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onPageChange?.('permissions')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <SettingsIcon className="h-4 w-4" />
+                      Permissions
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
             <PermissionsTab />
           </div>
@@ -777,6 +871,30 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
                   <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                   Refresh
                 </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      Manage <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => onPageChange?.('users')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Users className="h-4 w-4" />
+                      Users
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onPageChange?.('permissions')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <SettingsIcon className="h-4 w-4" />
+                      Permissions
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <CreateTaskDialog
                   onTaskCreated={handleTaskCreated}
                   trigger={

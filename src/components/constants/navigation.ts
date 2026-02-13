@@ -37,11 +37,9 @@ export const NAVIGATION_ITEMS = {
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
-    { id: 'users', label: 'Users', icon: Users },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'activity_logs', label: 'Activity Reports', icon: FileText },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'permissions', label: 'Permissions', icon: SettingsIcon },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },

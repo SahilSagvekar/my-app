@@ -96,12 +96,12 @@ export function PermissionsTab() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <div>
+                {/* <div>
                     <h2 className="text-2xl font-bold tracking-tight">Permissions Control</h2>
                     <p className="text-muted-foreground">
                         Manage which sidebar menu items are visible for each user role.
                     </p>
-                </div>
+                </div> */}
                 <Button variant="outline" size="sm" onClick={fetchPermissions}>
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Refresh

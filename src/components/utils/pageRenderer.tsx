@@ -38,7 +38,7 @@ const ComingSoonPage = ({ title }: { title: string }) => (
   </div>
 );
 
-export function renderPage(role: string, page: string): React.ReactElement {
+export function renderPage(role: string, page: string, onPageChange?: (page: string) => void): React.ReactElement {
   console.log(`Rendering page for role: ${role}, page: ${page}`);
 
   if (page === "forgot-password") {
@@ -93,7 +93,7 @@ export function renderPage(role: string, page: string): React.ReactElement {
       case "permissions":
       case "leaves":
       case "activity_logs":
-        return <AdminDashboard currentPage={page} />;
+        return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
       case "feedback":
         return (
           <div className="space-y-6">
@@ -180,7 +180,7 @@ export function renderPage(role: string, page: string): React.ReactElement {
           </div>
         );
       default:
-        return <AdminDashboard currentPage="dashboard" />;
+        return <AdminDashboard currentPage="dashboard" onPageChange={onPageChange} />;
     }
   }
 
