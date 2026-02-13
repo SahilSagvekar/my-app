@@ -333,97 +333,40 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           })}
         </div>
 
+        {/* Pipeline Chart — full width */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Workflow Pipeline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pipelineData && pipelineData.length > 0 ? (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pipelineData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar
+                      dataKey="projects"
+                      fill="hsl(var(--primary))"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-80 flex items-center justify-center text-muted-foreground">
+                No pipeline data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity + Recent Tasks — side by side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Pipeline Chart */}
-          <Card className="col-span-1 lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Workflow Pipeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {pipelineData && pipelineData.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={pipelineData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar
-                        dataKey="projects"
-                        fill="hsl(var(--primary))"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-80 flex items-center justify-center text-muted-foreground">
-                  No pipeline data available
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Project Health */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Project Health</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {projectHealthData && projectHealthData.length > 0 ? (
-                <>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={projectHealthData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={80}
-                          dataKey="value"
-                          label
-                        >
-                          {projectHealthData.map((entry, index) => (
-                            <Cell key={index} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-2 mt-4">
-                    {projectHealthData.map((item, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <span>{item.name}</span>
-                        </div>
-                        <span className="font-medium">
-                          {item.value}% ({item.count})
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="h-48 flex items-center justify-center text-muted-foreground">
-                  No project health data
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Recent Activity */}
-          <Card className="col-span-1 lg:col-span-2">
+          <Card>
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
             </CardHeader>
@@ -462,15 +405,16 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Recent Tasks */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Recently Assigned Tasks */}
           <RecentTasksCard
             title="Recently Assigned Tasks"
             showCreateButton={true}
           />
+        </div>
 
+        {/* System Status + Job Management — side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle>System Status</CardTitle>
@@ -592,9 +536,9 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               )}
             </CardContent>
           </Card>
-        </div>
 
-        <JobManagementSection />
+          <JobManagementSection />
+        </div>
       </div>
     );
   };
