@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
+import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 
 function getTokenFromCookies(req: Request) {
     const cookieHeader = req.headers.get("cookie");
@@ -20,7 +21,7 @@ export async function PATCH(
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        const { role } = decoded;
+        const { role, userId } = decoded;
         if (
             !["scheduler", "manager", "admin"].includes((role || "").toLowerCase())
         ) {
@@ -48,6 +49,22 @@ export async function PATCH(
             data: {
                 status: newStatus,
                 updatedAt: new Date(),
+            },
+        });
+
+        // 📝 Audit log for un-scheduling
+        await createAuditLog({
+            userId: userId,
+            action: AuditAction.TASK_STATUS_CHANGED,
+            entity: "Task",
+            entityId: id,
+            details: `Task unscheduled by ${role}, moved back to ${newStatus}`,
+            metadata: {
+                taskId: id,
+                taskTitle: task.title || task.description,
+                previousStatus: task.status,
+                newStatus: newStatus,
+                role: role,
             },
         });
 

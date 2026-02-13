@@ -150,10 +150,7 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
           <p>Hi ${task.client.name},</p>
           <p>Your task <strong>${task.title || 'Untitled Task'}</strong> is now ready for your review!</p>
           <p>Please log in to your dashboard to review the files and provide feedback.</p>
-          <div style="margin: 30px 0;">
-            <a href="${dashboardUrl}" style="background-color: #0070f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Go to Dashboard</a>
-          </div>
-          <p><a href="https://e8productions.com" style="color: #0070f3; text-decoration: none;">e8productions.com</a></p>
+          <p><a href="${dashboardUrl}" style="color: #0070f3; text-decoration: none;">Go to Dashboard</a></p>
           <br />
           <p>Best regards,</p>
           <p><strong>E8 Productions Team</strong></p>
