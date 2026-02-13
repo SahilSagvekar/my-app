@@ -361,89 +361,73 @@ export function ReportsTab() {
       {/* Summary Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Tasks Uploaded</p>
-                <h3 className="text-2xl font-bold mt-2">{totalMetrics.tasksUploaded.value}</h3>
-                <div className="flex items-center gap-1 mt-1">
-                  {totalMetrics.tasksUploaded.change.startsWith('+') ? (
-                    <TrendingUp className="h-3 w-3 text-green-600" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 text-red-600" />
-                  )}
-                  <span className={`text-xs ${totalMetrics.tasksUploaded.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
-                    {totalMetrics.tasksUploaded.change}
-                  </span>
-                </div>
-              </div>
-              <FileText className="h-8 w-8 text-blue-600" />
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <FileText className="h-8 w-8 text-blue-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Tasks Uploaded</p>
+            <h3 className="text-3xl font-bold mt-1">{totalMetrics.tasksUploaded.value}</h3>
+            <div className="flex items-center gap-1 mt-2">
+              {totalMetrics.tasksUploaded.change.startsWith('+') ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              )}
+              <span className={`text-xs ${totalMetrics.tasksUploaded.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                {totalMetrics.tasksUploaded.change}
+              </span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Tasks Approved</p>
-                <h3 className="text-2xl font-bold mt-2">{totalMetrics.tasksApproved.value}</h3>
-                <div className="flex items-center gap-1 mt-1">
-                  {totalMetrics.tasksApproved.change.startsWith('+') ? (
-                    <TrendingUp className="h-3 w-3 text-green-600" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 text-red-600" />
-                  )}
-                  <span className={`text-xs ${totalMetrics.tasksApproved.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
-                    {totalMetrics.tasksApproved.change}
-                  </span>
-                </div>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <CheckCircle className="h-8 w-8 text-green-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Tasks Approved</p>
+            <h3 className="text-3xl font-bold mt-1">{totalMetrics.tasksApproved.value}</h3>
+            <div className="flex items-center gap-1 mt-2">
+              {totalMetrics.tasksApproved.change.startsWith('+') ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              )}
+              <span className={`text-xs ${totalMetrics.tasksApproved.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                {totalMetrics.tasksApproved.change}
+              </span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">QC Checks</p>
-                <h3 className="text-2xl font-bold mt-2">{totalMetrics.qcChecks.value}</h3>
-                <div className="flex items-center gap-1 mt-1">
-                  {totalMetrics.qcChecks.change.startsWith('+') ? (
-                    <TrendingUp className="h-3 w-3 text-green-600" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 text-red-600" />
-                  )}
-                  <span className={`text-xs ${totalMetrics.qcChecks.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
-                    {totalMetrics.qcChecks.change}
-                  </span>
-                </div>
-              </div>
-              <Clock className="h-8 w-8 text-orange-600" />
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <Clock className="h-8 w-8 text-orange-600 mb-4" />
+            <p className="text-sm text-muted-foreground">QC Checks</p>
+            <h3 className="text-3xl font-bold mt-1">{totalMetrics.qcChecks.value}</h3>
+            <div className="flex items-center gap-1 mt-2">
+              {totalMetrics.qcChecks.change.startsWith('+') ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              )}
+              <span className={`text-xs ${totalMetrics.qcChecks.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                {totalMetrics.qcChecks.change}
+              </span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Scheduling Tasks</p>
-                <h3 className="text-2xl font-bold mt-2">{totalMetrics.schedulingTasks.value}</h3>
-                <div className="flex items-center gap-1 mt-1">
-                  {totalMetrics.schedulingTasks.change.startsWith('+') ? (
-                    <TrendingUp className="h-3 w-3 text-green-600" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 text-red-600" />
-                  )}
-                  <span className={`text-xs ${totalMetrics.schedulingTasks.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
-                    {totalMetrics.schedulingTasks.change}
-                  </span>
-                </div>
-              </div>
-              <Calendar className="h-8 w-8 text-purple-600" />
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <Calendar className="h-8 w-8 text-purple-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Scheduling Tasks</p>
+            <h3 className="text-3xl font-bold mt-1">{totalMetrics.schedulingTasks.value}</h3>
+            <div className="flex items-center gap-1 mt-2">
+              {totalMetrics.schedulingTasks.change.startsWith('+') ? (
+                <TrendingUp className="h-3 w-3 text-green-600" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-red-600" />
+              )}
+              <span className={`text-xs ${totalMetrics.schedulingTasks.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                {totalMetrics.schedulingTasks.change}
+              </span>
             </div>
           </CardContent>
         </Card>
