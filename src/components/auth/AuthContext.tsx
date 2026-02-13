@@ -63,43 +63,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Global fetch interceptor for JWT expiration
   useEffect(() => {
+    // 🛑 Prevent double wrapping if multiple instances are mounted
+    if ((window.fetch as any).__isE8Wrapped) {
+      console.warn('⚠️ Fetch is already wrapped, skipping to prevent recursion');
+      return;
+    }
+
     const originalFetch = window.fetch;
 
-    window.fetch = async (...args) => {
-      const response = await originalFetch(...args);
+    const wrappedFetch = async (...args: any[]) => {
+      // Execute the actual fetch using apply to handle arguments correctly
+      const response = await (originalFetch as any).apply(window, args);
 
-      // 🔥 Skip S3/AWS URLs - don't intercept file uploads
+      // 🔥 Skip S3/AWS URLs - don't intercept file uploads or guest/public APIs
       const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url || '';
-      if (url.includes('s3.amazonaws.com') ||
+      const isPublicUrl =
+        url.includes('s3.amazonaws.com') ||
         url.includes('amazonaws.com') ||
         url.includes('X-Amz-') ||
         url.includes('.s3.') ||
-        url.includes('/api/shared/') || // 🔥 Public shared link API
-        (url.includes('/api/tasks/') && (url.includes('/feedback') || url.includes('/status'))) // 🔥 Guest actions
-      ) {
+        url.includes('/api/shared/') ||
+        (url.includes('/api/tasks/') && (url.includes('/feedback') || url.includes('/status')));
+
+      if (isPublicUrl) {
         return response;
       }
 
       // Clone response to read it without consuming the stream
-      const clonedResponse = response.clone();
-
       try {
-        const contentType = clonedResponse.headers.get("content-type");
+        const contentType = response.headers.get("content-type");
 
         // Only parse JSON responses
         if (contentType && contentType.includes("application/json")) {
+          const clonedResponse = response.clone();
           const data = await clonedResponse.json();
 
-          // Check for JWT expiration errors
+          // Check for JWT expiration errors (401 Unauthorized or 500 with specific message)
           if (
             (response.status === 401 || response.status === 500) &&
-            (data.message?.includes('jwt expired') ||
-              data.message?.includes('Token expired') ||
-              data.message?.includes('TokenExpiredError') ||
-              data.error?.includes('jwt expired'))
+            (data.message?.toLowerCase().includes('jwt expired') ||
+              data.message?.toLowerCase().includes('token expired') ||
+              data.error?.toLowerCase().includes('jwt expired'))
           ) {
-            // Only show modal if user WAS authenticated and it's a specific token error
-            if (authStateRef.current.isAuthenticated) {
+            // Only show modal if user WAS authenticated
+            if (authStateRef.current.isAuthenticated && !showSessionExpired) {
+              console.log('🚨 Session expired detected in fetch interceptor');
               setShowSessionExpired(true);
             }
           }
@@ -110,6 +118,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return response;
     };
+
+    // Mark it to prevent double wrapping
+    (wrappedFetch as any).__isE8Wrapped = true;
+    window.fetch = wrappedFetch;
 
     // Cleanup: restore original fetch
     return () => {

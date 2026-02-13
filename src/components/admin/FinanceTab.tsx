@@ -61,7 +61,7 @@ interface Invoice {
   amount: number;
   dueDate: string;
   issueDate: string;
-  status: "Draft" | "Sent" | "Paid" | "Overdue" | "Cancelled";
+  status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
   description: string;
   items: InvoiceItem[];
   paymentDate?: string;
@@ -744,7 +744,10 @@ export function FinanceTab() {
       <div className="space-y-6">
         {/* Page Header */}
         <div>
-          <h1 className="text-3xl font-bold">Financials</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <DollarSign className="h-8 w-8 text-green-600" />
+            Financials
+          </h1>
           <p className="text-muted-foreground mt-2">
             Manage invoices, employee payroll, and financial tracking
           </p>

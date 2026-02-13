@@ -215,12 +215,10 @@ function AuthenticationFlow() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <UploadProvider>
-        <div className="min-h-screen bg-background font-sans">
-          <AuthenticationFlow />
-        </div>
-      </UploadProvider>
-    </AuthProvider>
+    <UploadProvider>
+      <div className="min-h-screen bg-background font-sans">
+        <AuthenticationFlow />
+      </div>
+    </UploadProvider>
   );
 }

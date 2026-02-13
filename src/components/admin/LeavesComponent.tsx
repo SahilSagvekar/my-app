@@ -1413,7 +1413,10 @@ export default function LeavesComponent() {
       {/* Leave Management Section */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Leave Management</h2>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-orange-600" />
+            Leave Management
+          </h2>
           <p className="text-sm text-muted-foreground">
             Review and approve employee leave requests.
           </p>

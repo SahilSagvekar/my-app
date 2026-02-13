@@ -44,11 +44,11 @@ interface SummaryMetric {
 
 export function ReportsTab() {
   const [selectedEmployee, setSelectedEmployee] = useState('all');
- const [dateRange, setDateRange] = useState<{from?: Date; to?: Date}>({
-  from: new Date(new Date().setDate(new Date().getDate() - 30)),
-  to: new Date()
-});
-  
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({
+    from: new Date(new Date().setDate(new Date().getDate() - 30)),
+    to: new Date()
+  });
+
   // Data states
   const [dailyOutputData, setDailyOutputData] = useState<DailyReport[]>([]);
   const [employeePerformance, setEmployeePerformance] = useState<EmployeePerformance[]>([]);
@@ -59,7 +59,7 @@ export function ReportsTab() {
     qcChecks: SummaryMetric;
     schedulingTasks: SummaryMetric;
   } | null>(null);
-  
+
   // Loading states
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,7 +81,7 @@ export function ReportsTab() {
     try {
       const res = await fetch('/api/employee/list?status=ACTIVE');
       const data = await res.json();
-      
+
       if (data.ok) {
         const employeeList = data.employees.map((emp: any) => ({
           id: emp.id.toString(),
@@ -95,113 +95,113 @@ export function ReportsTab() {
   }
 
   async function loadAllReports() {
-  try {
-    setLoading(true);
-    
-    const startDate = dateRange.from?.toISOString().split('T')[0];
-    const endDate = dateRange.to?.toISOString().split('T')[0];
+    try {
+      setLoading(true);
 
-    console.log('Loading reports with:', { startDate, endDate, selectedEmployee });
+      const startDate = dateRange.from?.toISOString().split('T')[0];
+      const endDate = dateRange.to?.toISOString().split('T')[0];
 
-    // Fetch all data in parallel
-    const [dailyRes, performanceRes, weeklyRes, summaryRes] = await Promise.all([
-      fetch(`/api/admin/reports/daily?employeeId=${selectedEmployee}&startDate=${startDate}&endDate=${endDate}`),
-      fetch(`/api/admin/reports/performance?startDate=${startDate}&endDate=${endDate}`),
-      fetch(`/api/admin/reports/weekly-trends?weeks=4`),
-      fetch(`/api/admin/reports/summary?startDate=${startDate}&endDate=${endDate}`)
-    ]);
+      console.log('Loading reports with:', { startDate, endDate, selectedEmployee });
 
-    console.log('Response statuses:', {
-      daily: dailyRes.status,
-      performance: performanceRes.status,
-      weekly: weeklyRes.status,
-      summary: summaryRes.status
-    });
+      // Fetch all data in parallel
+      const [dailyRes, performanceRes, weeklyRes, summaryRes] = await Promise.all([
+        fetch(`/api/admin/reports/daily?employeeId=${selectedEmployee}&startDate=${startDate}&endDate=${endDate}`),
+        fetch(`/api/admin/reports/performance?startDate=${startDate}&endDate=${endDate}`),
+        fetch(`/api/admin/reports/weekly-trends?weeks=4`),
+        fetch(`/api/admin/reports/summary?startDate=${startDate}&endDate=${endDate}`)
+      ]);
 
-    // Check if responses are OK
-    if (!dailyRes.ok) {
-      const errorText = await dailyRes.text();
-      console.error('Daily report error:', errorText);
-      throw new Error(`Daily report failed: ${dailyRes.status}`);
+      console.log('Response statuses:', {
+        daily: dailyRes.status,
+        performance: performanceRes.status,
+        weekly: weeklyRes.status,
+        summary: summaryRes.status
+      });
+
+      // Check if responses are OK
+      if (!dailyRes.ok) {
+        const errorText = await dailyRes.text();
+        console.error('Daily report error:', errorText);
+        throw new Error(`Daily report failed: ${dailyRes.status}`);
+      }
+
+      if (!performanceRes.ok) {
+        const errorText = await performanceRes.text();
+        console.error('Performance report error:', errorText);
+        throw new Error(`Performance report failed: ${performanceRes.status}`);
+      }
+
+      if (!weeklyRes.ok) {
+        const errorText = await weeklyRes.text();
+        console.error('Weekly trends error:', errorText);
+        throw new Error(`Weekly trends failed: ${weeklyRes.status}`);
+      }
+
+      if (!summaryRes.ok) {
+        const errorText = await summaryRes.text();
+        console.error('Summary error:', errorText);
+        throw new Error(`Summary failed: ${summaryRes.status}`);
+      }
+
+      // Parse JSON responses
+      const [dailyData, performanceData, weeklyData, summaryData] = await Promise.all([
+        dailyRes.json(),
+        performanceRes.json(),
+        weeklyRes.json(),
+        summaryRes.json()
+      ]);
+
+      console.log('Parsed data:', {
+        daily: dailyData,
+        performance: performanceData,
+        weekly: weeklyData,
+        summary: summaryData
+      });
+
+      if (dailyData.ok) {
+        setDailyOutputData(dailyData.reports || []);
+      } else {
+        console.error('Daily data error:', dailyData.message);
+      }
+
+      if (performanceData.ok) {
+        setEmployeePerformance(performanceData.performance || []);
+      } else {
+        console.error('Performance data error:', performanceData.message);
+      }
+
+      if (weeklyData.ok) {
+        setWeeklyTrendData(weeklyData.trends || []);
+      } else {
+        console.error('Weekly data error:', weeklyData.message);
+      }
+
+      if (summaryData.ok) {
+        setSummaryMetrics(summaryData.summary);
+      } else {
+        console.error('Summary data error:', summaryData.message);
+      }
+
+    } catch (error: any) {
+      console.error('Failed to load reports:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
+
+      // Show user-friendly error
+      alert(`Failed to load reports: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-
-    if (!performanceRes.ok) {
-      const errorText = await performanceRes.text();
-      console.error('Performance report error:', errorText);
-      throw new Error(`Performance report failed: ${performanceRes.status}`);
-    }
-
-    if (!weeklyRes.ok) {
-      const errorText = await weeklyRes.text();
-      console.error('Weekly trends error:', errorText);
-      throw new Error(`Weekly trends failed: ${weeklyRes.status}`);
-    }
-
-    if (!summaryRes.ok) {
-      const errorText = await summaryRes.text();
-      console.error('Summary error:', errorText);
-      throw new Error(`Summary failed: ${summaryRes.status}`);
-    }
-
-    // Parse JSON responses
-    const [dailyData, performanceData, weeklyData, summaryData] = await Promise.all([
-      dailyRes.json(),
-      performanceRes.json(),
-      weeklyRes.json(),
-      summaryRes.json()
-    ]);
-
-    console.log('Parsed data:', {
-      daily: dailyData,
-      performance: performanceData,
-      weekly: weeklyData,
-      summary: summaryData
-    });
-
-    if (dailyData.ok) {
-      setDailyOutputData(dailyData.reports || []);
-    } else {
-      console.error('Daily data error:', dailyData.message);
-    }
-
-    if (performanceData.ok) {
-      setEmployeePerformance(performanceData.performance || []);
-    } else {
-      console.error('Performance data error:', performanceData.message);
-    }
-
-    if (weeklyData.ok) {
-      setWeeklyTrendData(weeklyData.trends || []);
-    } else {
-      console.error('Weekly data error:', weeklyData.message);
-    }
-
-    if (summaryData.ok) {
-      setSummaryMetrics(summaryData.summary);
-    } else {
-      console.error('Summary data error:', summaryData.message);
-    }
-
-  } catch (error: any) {
-    console.error('Failed to load reports:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack
-    });
-    
-    // Show user-friendly error
-    alert(`Failed to load reports: ${error.message}`);
-  } finally {
-    setLoading(false);
   }
-}
 
   async function handleRefresh() {
     setRefreshing(true);
     await loadAllReports();
     setRefreshing(false);
-    
-   console.log("Reports refreshed successfully");
+
+    console.log("Reports refreshed successfully");
   }
 
   async function handleExport(format: 'csv' | 'pdf') {
@@ -255,8 +255,8 @@ export function ReportsTab() {
     }
   }
 
-  const filteredData = selectedEmployee === 'all' 
-    ? dailyOutputData 
+  const filteredData = selectedEmployee === 'all'
+    ? dailyOutputData
     : dailyOutputData.filter(record => record.employee.toLowerCase().includes(selectedEmployee));
 
   const totalMetrics = summaryMetrics || {
@@ -268,7 +268,7 @@ export function ReportsTab() {
 
   const getDayData = () => {
     const dayTotals: { [key: string]: any } = {};
-    
+
     filteredData.forEach(record => {
       if (!dayTotals[record.date]) {
         dayTotals[record.date] = {
@@ -279,13 +279,13 @@ export function ReportsTab() {
           schedulingTasks: 0
         };
       }
-      
+
       dayTotals[record.date].tasksUploaded += record.tasksUploaded;
       dayTotals[record.date].tasksApproved += record.tasksApproved;
       dayTotals[record.date].qcChecks += record.qcChecks;
       dayTotals[record.date].schedulingTasks += record.schedulingTasks;
     });
-    
+
     return Object.values(dayTotals).sort((a: any, b: any) => a.date.localeCompare(b.date));
   };
 
@@ -310,8 +310,8 @@ export function ReportsTab() {
               <BarChart3 className="h-5 w-5" />
               Daily Output Reports
             </CardTitle>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={handleRefresh}
               disabled={refreshing}
@@ -359,7 +359,7 @@ export function ReportsTab() {
       </Card>
 
       {/* Summary Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -464,39 +464,39 @@ export function ReportsTab() {
                   <XAxis dataKey="date" />
                   <YAxis />
                   <Tooltip />
-                  <Area 
-                    type="monotone" 
-                    dataKey="tasksUploaded" 
+                  <Area
+                    type="monotone"
+                    dataKey="tasksUploaded"
                     stackId="1"
-                    stroke="#3b82f6" 
-                    fill="#3b82f6" 
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
                     fillOpacity={0.6}
                     name="Tasks Uploaded"
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="tasksApproved" 
+                  <Area
+                    type="monotone"
+                    dataKey="tasksApproved"
                     stackId="1"
-                    stroke="#10b981" 
-                    fill="#10b981" 
+                    stroke="#10b981"
+                    fill="#10b981"
                     fillOpacity={0.6}
                     name="Tasks Approved"
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="qcChecks" 
+                  <Area
+                    type="monotone"
+                    dataKey="qcChecks"
                     stackId="1"
-                    stroke="#f59e0b" 
-                    fill="#f59e0b" 
+                    stroke="#f59e0b"
+                    fill="#f59e0b"
                     fillOpacity={0.6}
                     name="QC Checks"
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="schedulingTasks" 
+                  <Area
+                    type="monotone"
+                    dataKey="schedulingTasks"
                     stackId="1"
-                    stroke="#8b5cf6" 
-                    fill="#8b5cf6" 
+                    stroke="#8b5cf6"
+                    fill="#8b5cf6"
                     fillOpacity={0.6}
                     name="Scheduling"
                   />
@@ -519,17 +519,17 @@ export function ReportsTab() {
                   <XAxis dataKey="week" />
                   <YAxis />
                   <Tooltip />
-                  <Line 
-                    type="monotone" 
-                    dataKey="tasksUploaded" 
-                    stroke="#3b82f6" 
+                  <Line
+                    type="monotone"
+                    dataKey="tasksUploaded"
+                    stroke="#3b82f6"
                     strokeWidth={2}
                     name="Tasks Uploaded"
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="qcChecks" 
-                    stroke="#f59e0b" 
+                  <Line
+                    type="monotone"
+                    dataKey="qcChecks"
+                    stroke="#f59e0b"
                     strokeWidth={2}
                     name="QC Checks"
                   />
@@ -602,8 +602,8 @@ export function ReportsTab() {
                       <div className="flex items-center gap-2">
                         <span>{employee.efficiency}%</span>
                         <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-green-500" 
+                          <div
+                            className="h-full bg-green-500"
                             style={{ width: `${employee.efficiency}%` }}
                           />
                         </div>

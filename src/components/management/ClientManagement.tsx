@@ -979,7 +979,7 @@ export function ClientManagement() {
     clientName: string,
     deliverables: MonthlyDeliverable[]
   ) => {
-    const taskManager = GlobalTaskManager.getInstance();
+    const taskManager = globalTaskManager;
     let tasksCreated = 0;
     const today = new Date();
     const currentMonth = today.getMonth();
@@ -1024,7 +1024,7 @@ export function ClientManagement() {
         const taskType =
           deliverable.type === "Long Form Videos" ||
             deliverable.type === "Square Form Videos" ||
-            deliverable.type === "Snapchat Show Episode"
+            deliverable.type === "Snapchat Episodes"
             ? "video"
             : "design";
 
@@ -1032,14 +1032,14 @@ export function ClientManagement() {
         const estimatedHours =
           deliverable.type === "Long Form Videos"
             ? "4"
-            : deliverable.type === "Snapchat Show Episode"
+            : deliverable.type === "Snapchat Episodes"
               ? "3"
               : "2";
 
         // Create the initial editor task
         const platformsText = deliverable.platforms.join(", ");
         const task = taskManager.createTask({
-          title: `${deliverable.type} #${i + 1} - ${clientName}`,
+          title: `${deliverable.type} #${dayIndex + 1} - ${clientName}`,
           description: `${deliverable.type
             } deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${deliverable.postingSchedule
             }\\n\\n${deliverable.description || "No additional notes"}`,
@@ -2054,7 +2054,7 @@ export function ClientManagement() {
       {/* Filters */}
       <Card className="bg-white border-gray-200">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -2095,7 +2095,7 @@ export function ClientManagement() {
       </Card>
 
       {/* Client List */}
-      <div className="grid gap-4">
+      <div className="grid gap-6">
         {filteredClients.map((client) => (
           <Card
             key={client.id}

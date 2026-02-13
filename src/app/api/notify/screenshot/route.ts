@@ -10,12 +10,12 @@ export async function POST(req: NextRequest) {
         const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'Unknown';
         const timestamp = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
 
-        await sendScreenshotAlertEmail({
-            email: email || null,
-            userAgent,
-            ip: String(ip),
-            timestamp,
-        });
+        // await sendScreenshotAlertEmail({
+        //     email: email || null,
+        //     userAgent,
+        //     ip: String(ip),
+        //     timestamp,
+        // });
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

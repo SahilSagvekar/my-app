@@ -670,9 +670,9 @@ export function UserManagementTab() {
             const initials =
               u.name && u.name.trim() !== ""
                 ? u.name
-                    .split(" ")
-                    .map((n: string) => n[0])
-                    .join("")
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .join("")
                 : "U";
 
             return {
@@ -685,8 +685,8 @@ export function UserManagementTab() {
                 u.employeeStatus === "ACTIVE"
                   ? "active"
                   : u.employeeStatus === "INACTIVE"
-                  ? "inactive"
-                  : "active",
+                    ? "inactive"
+                    : "active",
               joinDate: u.joinedAt || "",
               lastActive: "N/A",
               tasksCompleted: 0,
@@ -756,7 +756,7 @@ export function UserManagementTab() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">

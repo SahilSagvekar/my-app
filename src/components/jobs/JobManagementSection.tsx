@@ -80,166 +80,166 @@ export function JobManagementSection() {
     }
 
     return (
-        <Card className="mt-8 border-t-4 border-t-primary shadow-lg overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div className="space-y-1">
-                    <CardTitle className="text-2xl font-bold">Job Postings & Bids</CardTitle>
+                    <CardTitle>Job Postings & Bids</CardTitle>
                     <CardDescription>Post new opportunities and manage videographer applications.</CardDescription>
                 </div>
                 <CreateJobDialog onJobCreated={fetchJobs} />
             </CardHeader>
             <CardContent>
                 {jobs.length === 0 ? (
-                    <div className="text-center py-10 bg-slate-50 rounded-lg border-2 border-dashed">
-                        <p className="text-muted-foreground">No jobs posted yet. Start by posting a new job for videographers!</p>
+                    <div className="text-center py-10 bg-muted/30 rounded-lg border-2 border-dashed">
+                        <p className="text-muted-foreground text-sm">No jobs posted yet. Start by posting a new job for videographers!</p>
                     </div>
                 ) : (
                     <div className="space-y-4">
                         {jobs.map((job) => (
-                            <div key={job.id} className="border rounded-xl bg-card hover:shadow-md transition-all">
-                                <div className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                    <div className="space-y-2 flex-1">
+                            <div key={job.id} className="border rounded-lg bg-card hover:border-primary/50 transition-colors overflow-hidden">
+                                <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="space-y-1 flex-1">
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-lg font-semibold">{job.title}</h3>
-                                            <Badge variant={job.status === 'OPEN' ? 'default' : 'secondary'}>
+                                            <h3 className="font-semibold text-sm">{job.title}</h3>
+                                            <Badge variant={job.status === 'OPEN' ? 'default' : 'secondary'} className="text-[10px] h-4">
                                                 {job.status}
                                             </Badge>
                                         </div>
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                             {job.client && (
                                                 <div className="flex items-center gap-1 text-primary font-medium">
-                                                    <User className="h-3.5 w-3.5" />
+                                                    <User className="h-3 w-3" />
                                                     {job.client.companyName || job.client.name}
                                                 </div>
                                             )}
                                             <div className="flex items-center gap-1">
-                                                <Calendar className="h-3.5 w-3.5" />
+                                                <Calendar className="h-3 w-3" />
                                                 {new Date(job.startDate).toLocaleDateString()}
-                                                {job.endDate && ` - ${new Date(job.endDate).toLocaleDateString()}`}
                                             </div>
                                             <div className="flex items-center gap-1">
-                                                <MapPin className="h-3.5 w-3.5" />
+                                                <MapPin className="h-3 w-3" />
                                                 {job.location}
                                             </div>
                                             <div className="flex items-center gap-1">
-                                                <DollarSign className="h-3.5 w-3.5" />
+                                                <DollarSign className="h-3 w-3" />
                                                 {job.budget ? `$${job.budget}` : 'Negotiable'}
                                             </div>
                                         </div>
-                                        {job.equipment && (
-                                            <div className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded inline-block mt-2">
-                                                <span className="font-semibold">Equipment:</span> {job.equipment}
-                                            </div>
-                                        )}
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="text-right mr-2 hidden sm:block">
-                                            <p className="text-sm font-medium">{job.bids?.length || 0} Bids</p>
-                                            <p className="text-xs text-muted-foreground">Applications</p>
+                                            <p className="text-xs font-medium">{job.bids?.length || 0} Bids</p>
                                         </div>
                                         <Button
-                                            variant="outline"
+                                            variant="ghost"
                                             size="sm"
                                             onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
-                                            className="w-full sm:w-auto"
+                                            className="h-8 gap-1"
                                         >
-                                            {expandedJobId === job.id ? <ChevronUp className="h-4 w-4 mr-2" /> : <ChevronDown className="h-4 w-4 mr-2" />}
-                                            {expandedJobId === job.id ? 'Hide Bids' : 'View Bids'}
+                                            {expandedJobId === job.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                            <span className="text-xs">{expandedJobId === job.id ? 'Hide' : 'Bids'}</span>
                                         </Button>
                                     </div>
                                 </div>
 
                                 {expandedJobId === job.id && (
-                                    <div className="border-t bg-slate-50/50 p-4 sm:p-6 animate-in slide-in-from-top-2">
+                                    <div className="border-t bg-muted/20 p-4 animate-in fade-in duration-300">
                                         {/* 🔥 Job Technical Summary */}
-                                        <div className="mb-8 bg-white p-5 rounded-xl border-2 border-slate-100 shadow-sm">
-                                            <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-800 mb-4 pb-2 border-b border-slate-100">
-                                                <Settings className="h-4 w-4 text-primary" /> Job Technical Summary
+                                        <div className="mb-6 bg-background p-4 rounded-lg border shadow-sm">
+                                            <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-4 pb-2 border-b">
+                                                <Settings className="h-3 w-3" /> Technical Specs
                                             </h4>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 <div className="space-y-1">
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Preferred Camera</p>
-                                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                                                        <Camera className="h-3.5 w-3.5 text-primary" />
-                                                        {job.camera || 'Any Professional Camera'}
+                                                    <p className="text-[9px] uppercase font-medium text-muted-foreground">Camera</p>
+                                                    <div className="flex items-center gap-1.5 text-xs font-medium">
+                                                        <Camera className="h-3 w-3 text-primary" />
+                                                        {job.camera || 'Any Professional'}
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Target Specs</p>
-                                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                                                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">{job.quality || '4K'}</Badge>
-                                                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">{job.frameRate || '24fps'}</Badge>
+                                                    <p className="text-[9px] uppercase font-medium text-muted-foreground">Specs</p>
+                                                    <div className="flex items-center gap-1.5 text-xs font-medium">
+                                                        <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px]">{job.quality || '4K'}</span>
+                                                        <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px]">{job.frameRate || '24fps'}</span>
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Lighting Requirements</p>
-                                                    <p className="text-sm font-semibold text-slate-700">{job.lighting || 'TBD with Videographer'}</p>
+                                                    <p className="text-[9px] uppercase font-medium text-muted-foreground">Lighting</p>
+                                                    <p className="text-xs font-medium truncate">{job.lighting || 'TBD'}</p>
                                                 </div>
                                             </div>
 
                                             {job.exclusions && (
-                                                <div className="mt-4 p-3 bg-red-50/30 rounded-lg border border-red-100">
-                                                    <p className="text-[10px] uppercase font-bold text-red-600 mb-1 flex items-center gap-1">
-                                                        <XCircle className="h-3 w-3" /> Exclusions (Avoid Capturing)
+                                                <div className="mt-3 p-2 bg-red-500/5 rounded border border-red-500/10">
+                                                    <p className="text-[9px] uppercase font-bold text-red-500 mb-1 flex items-center gap-1">
+                                                        <XCircle className="h-2.5 w-2.5" /> Exclusions
                                                     </p>
-                                                    <p className="text-xs text-red-800 italic">{job.exclusions}</p>
+                                                    <p className="text-[11px] text-muted-foreground italic leading-tight">{job.exclusions}</p>
                                                 </div>
                                             )}
 
                                             {job.referenceLinks && job.referenceLinks.length > 0 && (
-                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                <div className="mt-3 flex flex-wrap gap-1.5">
                                                     {job.referenceLinks.map((link: string, i: number) => (
                                                         <a
                                                             key={i}
                                                             href={link.startsWith('http') ? link : `https://${link}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="flex items-center gap-1.5 text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-full hover:bg-blue-100 transition-colors border border-blue-200"
+                                                            className="flex items-center gap-1 text-[10px] bg-primary/5 text-primary px-2 py-0.5 rounded-full hover:bg-primary/10 border border-primary/10 transition-colors"
                                                         >
-                                                            <Link className="h-2.5 w-2.5" /> Reference {i + 1}
+                                                            <Link className="h-2.5 w-2.5" /> Ref {i + 1}
                                                         </a>
                                                     ))}
                                                 </div>
                                             )}
                                         </div>
 
-                                        <h4 className="text-sm font-semibold mb-4 uppercase tracking-wider text-muted-foreground">Bids Received</h4>
+                                        <div className="flex items-center justify-between mb-3 px-1">
+                                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Received Bids</h4>
+                                            <span className="text-[10px] text-muted-foreground">{job.bids?.length || 0} Total</span>
+                                        </div>
+
                                         {job.bids?.length === 0 ? (
-                                            <p className="text-sm text-center text-muted-foreground py-4">No bids received yet for this job.</p>
+                                            <p className="text-xs text-center text-muted-foreground py-4 bg-background/50 rounded-lg border border-dashed">No bids received yet.</p>
                                         ) : (
-                                            <div className="grid grid-cols-1 gap-3">
+                                            <div className="space-y-2">
                                                 {job.bids.map((bid: any) => (
-                                                    <div key={bid.id} className="bg-white border p-4 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-primary/30 transition-colors">
-                                                        <div className="flex items-start gap-4 flex-1">
-                                                            <Avatar className="h-10 w-10 border">
+                                                    <div key={bid.id} className="bg-background border p-3 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:border-primary/30 transition-colors">
+                                                        <div className="flex items-center gap-3 flex-1">
+                                                            <Avatar className="h-8 w-8 border">
                                                                 <AvatarImage src={bid.videographer?.image} />
-                                                                <AvatarFallback><User /></AvatarFallback>
+                                                                <AvatarFallback className="text-[10px]"><User className="h-4 w-4" /></AvatarFallback>
                                                             </Avatar>
-                                                            <div className="space-y-1">
+                                                            <div className="min-w-0">
                                                                 <div className="flex items-center gap-2">
-                                                                    <p className="font-semibold text-sm">{bid.videographer?.name || 'Unknown Videographer'}</p>
+                                                                    <p className="font-semibold text-xs truncate">{bid.videographer?.name || 'Unknown'}</p>
                                                                     {bid.status === 'ACCEPTED' && (
-                                                                        <Badge className="bg-green-100 text-green-700 border-green-200">Selected</Badge>
+                                                                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] h-3.5 px-1">Selected</Badge>
                                                                     )}
                                                                 </div>
-                                                                <p className="text-sm font-bold text-primary">${bid.amount}</p>
-                                                                {bid.note && <p className="text-xs text-muted-foreground italic mt-1 bg-slate-50 p-2 rounded">"{bid.note}"</p>}
+                                                                <p className="text-xs font-bold text-primary">${bid.amount}</p>
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 pt-3 sm:pt-0">
-                                                            <div className="text-xs text-muted-foreground sm:mr-2">
-                                                                Posted {new Date(bid.createdAt).toLocaleDateString()}
+
+                                                        {bid.note && (
+                                                            <div className="flex-1 min-w-0 sm:max-w-[150px]">
+                                                                <p className="text-[10px] text-muted-foreground italic line-clamp-1 bg-muted/30 px-2 py-1 rounded">"{bid.note}"</p>
                                                             </div>
+                                                        )}
+
+                                                        <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0">
+                                                            <span className="text-[9px] text-muted-foreground">{new Date(bid.createdAt).toLocaleDateString()}</span>
                                                             {job.status === 'OPEN' && (
                                                                 <Button
                                                                     size="sm"
-                                                                    variant="default"
-                                                                    className="bg-green-600 hover:bg-green-700"
+                                                                    className="h-7 text-[10px] px-3 bg-emerald-600 hover:bg-emerald-700"
                                                                     disabled={processingBid === bid.id}
                                                                     onClick={() => handleSelectVideographer(job.id, bid.id)}
                                                                 >
-                                                                    {processingBid === bid.id ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <CheckCircle2 className="h-3 w-3 mr-2" />}
+                                                                    {processingBid === bid.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
                                                                     Hire
                                                                 </Button>
                                                             )}

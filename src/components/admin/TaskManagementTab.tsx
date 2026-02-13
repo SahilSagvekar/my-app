@@ -674,7 +674,7 @@ export function TaskManagementTab() {
             )} */}
 
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
               <div className="text-sm text-blue-600 dark:text-blue-400">Total Tasks</div>

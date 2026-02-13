@@ -25,7 +25,8 @@ import {
   ChevronDown,
   ShieldCheck,
   LayoutDashboard,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  BarChart3,
 } from 'lucide-react';
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
@@ -336,7 +337,10 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         {/* Pipeline Chart — full width */}
         <Card>
           <CardHeader>
-            <CardTitle>Workflow Pipeline</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Workflow Pipeline
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {pipelineData && pipelineData.length > 0 ? (
@@ -368,7 +372,10 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Recent Activity
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -416,8 +423,11 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         {/* System Status + Job Management — side by side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
-            <CardHeader>
-              <CardTitle>System Status</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5" />
+                System Status
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {systemStatus ? (
