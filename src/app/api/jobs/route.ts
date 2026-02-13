@@ -16,7 +16,11 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { title, description, location, startDate, endDate, equipment, budget, clientId } = body;
+        const {
+            title, description, location, startDate, endDate,
+            equipment, camera, quality, frameRate, lighting,
+            exclusions, referenceLinks, budget, clientId
+        } = body;
 
         if (!title || !description || !startDate) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -31,6 +35,12 @@ export async function POST(req: NextRequest) {
                 startDate: new Date(startDate),
                 endDate: endDate ? new Date(endDate) : null,
                 equipment,
+                camera,
+                quality,
+                frameRate,
+                lighting,
+                exclusions,
+                referenceLinks: Array.isArray(referenceLinks) ? referenceLinks : [],
                 budget: budget ? parseFloat(budget) : null,
                 createdById: user.id,
                 clientId: clientId || null,
@@ -107,6 +117,9 @@ export async function GET(req: NextRequest) {
             include: {
                 _count: {
                     select: { bids: true }
+                },
+                client: {
+                    select: { id: true, name: true, companyName: true }
                 },
                 bids: user.role === 'admin' || user.role === 'manager'
                     ? { include: { videographer: { select: { name: true, email: true, image: true } } } }

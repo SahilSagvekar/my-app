@@ -509,7 +509,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Camera, Link } from "lucide-react";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -522,6 +522,7 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import {
   Select,
@@ -869,6 +870,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
               Creating as: {user.name} ({user.role})
             </div>
           )} */}
+
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -965,16 +967,6 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
 
           <RoleAssign
-            title="Assign Videographer"
-            role="videographer"
-            field="videographer"
-            formData={formData}
-            update={handleInputChange}
-            availableMembers={availableMembers}
-            error={errors.assignedTo}
-          />
-
-          <RoleAssign
             title="Assign Editor"
             role="editor"
             field="assignedTo"
@@ -998,6 +990,16 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
             title="Assign Scheduler"
             role="scheduler"
             field="scheduler"
+            formData={formData}
+            update={handleInputChange}
+            availableMembers={availableMembers}
+            error={errors.assignedTo}
+          />
+
+          <RoleAssign
+            title="Assign Videographer"
+            role="videographer"
+            field="videographer"
             formData={formData}
             update={handleInputChange}
             availableMembers={availableMembers}

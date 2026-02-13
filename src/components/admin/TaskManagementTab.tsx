@@ -74,6 +74,16 @@ interface Task {
   client: { id: string; name: string; companyName: string | null } | null;
   monthlyDeliverable: { id: string; type: string } | null;
   oneOffDeliverable: { id: string; type: string } | null;
+  shootDetail?: {
+    location?: string;
+    camera?: string;
+    quality?: string;
+    frameRate?: string;
+    lighting?: string;
+    exclusions?: string;
+    referenceLinks?: string[];
+    videographerNotes?: string;
+  } | null;
 }
 
 interface FilterState {

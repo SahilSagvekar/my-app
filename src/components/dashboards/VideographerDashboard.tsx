@@ -601,6 +601,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
@@ -625,7 +626,9 @@ import {
   MoreHorizontal,
   Loader,
   DollarSign,
-  FileText
+  FileText,
+  XCircle,
+  Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -653,6 +656,12 @@ interface Job {
   startDate: string;
   endDate?: string;
   equipment?: string;
+  camera?: string;
+  quality?: string;
+  frameRate?: string;
+  lighting?: string;
+  exclusions?: string;
+  referenceLinks?: string[];
   budget?: number; // Decimal in DB, number in JSON
   status: 'OPEN' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED';
   bids?: Bid[]; // Current user's bid (if videographer)
@@ -688,13 +697,30 @@ export function VideographerDashboard() {
     title: '',
     notes: ''
   });
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   useEffect(() => {
-    console.log(`📄 [VIDEOGRAPHER DASHBOARD] Mounted`);
-    return () => {
-      console.log(`📄 [VIDEOGRAPHER DASHBOARD] Unmounted`);
-    };
+    fetchTasks();
   }, []);
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/tasks');
+      if (res.ok) {
+        const data = await res.json();
+        const taskList = Array.isArray(data) ? data : (data.tasks || []);
+        setTasks(taskList);
+      }
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStartUpload = () => {
     console.log('📁 [VIDEOGRAPHER] Starting upload:', newUpload);
@@ -714,16 +740,45 @@ export function VideographerDashboard() {
     setNewUpload({ projectId: '', title: '', notes: '' });
   };
 
-  const handleMarkAsCompleted = (taskId: string) => {
-    console.log(`✅ [VIDEOGRAPHER] Marking task ${taskId} as completed`);
-    toast('✅ Shoot Completed', {
-      description: 'Task marked as completed. Upload footage when ready.'
-    });
+  const handleMarkAsCompleted = async (taskId: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'COMPLETED' })
+      });
+
+      if (res.ok) {
+        toast('✅ Shoot Completed', {
+          description: 'Task marked as completed. Upload footage when ready.'
+        });
+        fetchTasks();
+      }
+    } catch (error) {
+      toast.error('Failed to update status');
+    }
   };
 
-  const upcomingTasks = mockShootingTasks.filter(task => task.status === 'upcoming');
-  const inProgressTasks = mockShootingTasks.filter(task => task.status === 'in-progress');
-  const completedTasks = mockShootingTasks.filter(task => task.status === 'completed');
+  const handleSaveShootNotes = async (taskId: string, notes: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/shoot-notes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+      });
+
+      if (res.ok) {
+        toast.success('Notes saved successfully');
+        fetchTasks();
+      }
+    } catch (error) {
+      toast.error('Failed to save notes');
+    }
+  };
+
+  const upcomingTasks = tasks.filter(task => task.status === 'VIDEOGRAPHER_ASSIGNED' || task.status === 'PENDING');
+  const inProgressTasks = tasks.filter(task => task.status === 'IN_PROGRESS' || task.status === 'SHOOTING');
+  const completedTasks = tasks.filter(task => task.status === 'COMPLETED');
 
   console.log(`📊 [VIDEOGRAPHER] Dashboard state - Upcoming: ${upcomingTasks.length}, In Progress: ${inProgressTasks.length}, Completed: ${completedTasks.length}`);
 
@@ -854,6 +909,13 @@ export function VideographerDashboard() {
                           <span>Budget: ${job.budget}</span>
                         </div>
                       )}
+
+                      {(job.camera || job.quality) && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {job.camera && <Badge variant="secondary" className="text-[10px] bg-slate-100">{job.camera}</Badge>}
+                          {job.quality && <Badge variant="secondary" className="text-[10px] bg-slate-100">{job.quality}</Badge>}
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-4 mt-auto">
@@ -875,11 +937,49 @@ export function VideographerDashboard() {
         <Dialog open={isBidDialogOpen} onOpenChange={setIsBidDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Submit Bid for {selectedJob?.title}</DialogTitle>
+              <DialogTitle className="text-xl">Bid for {selectedJob?.title}</DialogTitle>
               <DialogDescription>
-                Enter your rate and any notes for the client.
+                Detailed technical requirements are listed below.
               </DialogDescription>
             </DialogHeader>
+
+            {selectedJob && (
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 my-2 text-sm">
+                <div className="flex items-center gap-2 font-bold text-slate-700 uppercase font-xs tracking-wider">
+                  <Settings className="h-4 w-4" /> Technical Requirements
+                </div>
+                <div className="grid grid-cols-2 gap-y-2">
+                  <div className="text-muted-foreground text-xs">Preferred Camera:</div>
+                  <div className="font-medium">{selectedJob.camera || 'Not specified'}</div>
+
+                  <div className="text-muted-foreground text-xs">Quality Specs:</div>
+                  <div className="font-medium flex gap-1 items-center">
+                    <Badge variant="outline" className="px-1 text-[10px]">{selectedJob.quality || 'Standard'}</Badge>
+                    <Badge variant="outline" className="px-1 text-[10px]">{selectedJob.frameRate || '30fps'}</Badge>
+                  </div>
+
+                  <div className="text-muted-foreground text-xs">Lighting Setup:</div>
+                  <div className="font-medium">{selectedJob.lighting || 'TBD'}</div>
+                </div>
+
+                {selectedJob.exclusions && (
+                  <div className="pt-2 border-t border-slate-200">
+                    <p className="text-xs font-bold text-red-600 mb-1">DONT CAPTURE:</p>
+                    <p className="text-xs text-red-700 italic">{selectedJob.exclusions}</p>
+                  </div>
+                )}
+
+                {selectedJob.referenceLinks && selectedJob.referenceLinks.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-2">
+                    {selectedJob.referenceLinks.map((link, i) => (
+                      <a key={i} href={link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-blue-600 hover:underline">
+                        <Link className="h-3 w-3" /> Reference {i + 1}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Your Rate ($)</label>
@@ -910,158 +1010,217 @@ export function VideographerDashboard() {
   };
 
   const ShootingScheduleTab = () => {
-    useEffect(() => {
-      console.log('📹 [VIDEOGRAPHER] Shooting Schedule tab mounted');
-      return () => console.log('📹 [VIDEOGRAPHER] Shooting Schedule tab unmounted');
-    }, []);
-
     return (
       <div className="space-y-6">
         <div className="grid gap-6">
-          {/* In Progress Shoots */}
-          {inProgressTasks.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Camera className="h-5 w-5" />
-                  Active Shoots
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {inProgressTasks.map((task) => (
-                    <div key={task.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-3">
-                            <h4 className="font-medium">{task.title}</h4>
-                            <Badge className={statusColors[task.status]}>
-                              {task.status.replace("-", " ")}
-                            </Badge>
-                            <Badge
-                              variant="outline"
-                              className={
-                                task.priority === "high"
-                                  ? "border-red-500 text-red-700"
-                                  : "border-orange-500 text-orange-700"
-                              }
-                            >
+          <Card>
+            <CardHeader className="bg-orange-50/30 border-b border-orange-100/50">
+              <CardTitle className="flex items-center gap-2 text-orange-900">
+                <Camera className="h-5 w-5" />
+                Active & Upcoming Shoots
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                {tasks.filter(t => t.status !== 'COMPLETED').map((task) => (
+                  <div key={task.id} className="border border-gray-100 rounded-xl p-5 hover:shadow-md transition-shadow bg-white">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      <div className="space-y-3 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-bold text-lg">{task.title || "Untitled Shoot"}</h4>
+                          <Badge className="bg-blue-100 text-blue-800">
+                            {task.status.replace(/_/g, " ")}
+                          </Badge>
+                          {task.priority && (
+                            <Badge variant="outline" className={task.priority === "high" ? "border-red-200 text-red-700 bg-red-50" : "border-slate-200 text-slate-600 bg-slate-50"}>
                               {task.priority} priority
                             </Badge>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                            <User className="h-4 w-4 text-primary" />
+                            <span className="font-medium text-slate-900">{task.client?.companyName || task.client?.name || 'No Client'}</span>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <User className="h-4 w-4" />
-                              {task.client}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
-                              {task.location}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
-                              {task.duration}
-                            </div>
+                          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                            <CalendarIcon className="h-4 w-4 text-primary" />
+                            <span className="font-medium text-slate-900">
+                              {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}
+                            </span>
                           </div>
-                          <div className="text-sm">
-                            <strong>Shot List:</strong>{" "}
-                            {task.shotList.join(", ")}
-                          </div>
-                          <div className="text-sm">
-                            <strong>Equipment:</strong>{" "}
-                            {task.equipment.join(", ")}
-                          </div>
-                          {task.notes && (
-                            <div className="text-sm text-muted-foreground">
-                              <strong>Notes:</strong> {task.notes}
+                          {task.shootDetail?.location && (
+                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                              <MapPin className="h-4 w-4 text-primary" />
+                              <span className="font-medium truncate text-slate-900" title={task.shootDetail.location}>
+                                {task.shootDetail.location}
+                              </span>
                             </div>
                           )}
                         </div>
-                        <Button
-                          onClick={() => handleMarkAsCompleted(task.id)}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Complete Shoot
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Upcoming Shoots */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" />
-                Upcoming Shoots
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {upcomingTasks.map((task) => (
-                  <div key={task.id} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          <h4 className="font-medium">{task.title}</h4>
-                          <Badge className={statusColors[task.status]}>
-                            {task.status.replace("-", " ")}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={
-                              task.priority === "high"
-                                ? "border-red-500 text-red-700"
-                                : "border-blue-500 text-blue-700"
-                            }
-                          >
-                            {task.priority} priority
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <User className="h-4 w-4" />
-                            {task.client}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-4 w-4" />
-                            {task.scheduledDate} at {task.scheduledTime}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-4 w-4" />
-                            {task.location}
-                          </div>
-                        </div>
-                        <div className="text-sm">
-                          <strong>Shot List:</strong>{" "}
-                          {task.shotList.join(", ")}
-                        </div>
-                        <div className="text-sm">
-                          <strong>Required Equipment:</strong>{" "}
-                          {task.equipment.join(", ")}
-                        </div>
-                        {task.notes && (
-                          <div className="text-sm text-muted-foreground">
-                            <strong>Notes:</strong> {task.notes}
+                        {task.description && (
+                          <div className="text-sm text-muted-foreground bg-gray-50/50 p-3 rounded-lg italic line-clamp-2">
+                            {task.description}
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
+
+                      <div className="flex flex-row md:flex-col gap-2 shrink-0">
+                        <Button
+                          variant="default"
+                          className="bg-primary hover:bg-primary/90 shadow-sm shadow-primary/20"
+                          onClick={() => {
+                            setSelectedTask(task);
+                            setIsDetailsOpen(true);
+                          }}
+                        >
                           <Eye className="h-4 w-4 mr-2" />
-                          View Details
+                          View Brief
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="border-green-200 hover:bg-green-50 text-green-700 hover:text-green-800"
+                          onClick={() => handleMarkAsCompleted(task.id)}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Mark Finished
                         </Button>
                       </div>
                     </div>
                   </div>
                 ))}
+
+                {tasks.filter(t => t.status !== 'COMPLETED').length === 0 && (
+                  <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <Camera className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500 font-medium">No active shoots found in your schedule.</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Shoot Details Modal */}
+        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+          <DialogContent className="max-w-2xl bg-white p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+            {selectedTask && (
+              <div className="flex flex-col h-full">
+                <div className="bg-primary p-6 text-primary-foreground">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+                      <Camera className="h-6 w-6" /> Shoot Briefing
+                    </DialogTitle>
+                    <DialogDescription className="text-primary-foreground/80 font-medium">
+                      {selectedTask.title || "Untitled Task"} — ID: {selectedTask.id}
+                    </DialogDescription>
+                  </DialogHeader>
+                </div>
+
+                <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh]">
+                  {/* Location & Time */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="uppercase tracking-wider text-xs font-bold text-muted-foreground">Location</Label>
+                      <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <MapPin className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-slate-900">{selectedTask.shootDetail?.location || "TBD"}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="uppercase tracking-wider text-xs font-bold text-muted-foreground">Date</Label>
+                      <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <CalendarIcon className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-slate-900">
+                          {selectedTask.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "Not Set"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Criteria Grid */}
+                  <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                    <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-200 pb-2">
+                      <Settings className="h-4 w-4" /> Technical Specifications
+                    </h4>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Camera</p>
+                        <p className="font-bold text-slate-900">{selectedTask.shootDetail?.camera || "-"}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Quality</p>
+                        <p className="font-bold text-slate-900">{selectedTask.shootDetail?.quality || "-"}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Frame Rate</p>
+                        <p className="font-bold text-slate-900">{selectedTask.shootDetail?.frameRate || "-"}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Lighting</p>
+                        <p className="font-bold text-slate-900">{selectedTask.shootDetail?.lighting || "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Exclusions */}
+                  {selectedTask.shootDetail?.exclusions && (
+                    <div className="bg-red-50/50 p-6 rounded-2xl border border-red-100">
+                      <h4 className="font-extrabold text-red-800 mb-2 flex items-center gap-2">
+                        <XCircle className="h-4 w-4" /> EXCLUSIONS (Do NOT Film)
+                      </h4>
+                      <p className="text-sm text-red-900 font-medium leading-relaxed">
+                        {selectedTask.shootDetail.exclusions}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Reference Videos */}
+                  {((selectedTask.shootDetail?.referenceLinks && selectedTask.shootDetail.referenceLinks.length > 0) || (selectedTask.driveLinks && selectedTask.driveLinks.length > 0)) && (
+                    <div className="space-y-4">
+                      <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                        <Eye className="h-4 w-4" /> Examples & References
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedTask.shootDetail?.referenceLinks?.map((link: string, i: number) => (
+                          <a key={i} href={link} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors group">
+                            <Eye className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                            <span className="text-xs font-bold truncate underline decoration-2 underline-offset-4">{link}</span>
+                          </a>
+                        ))}
+                        {selectedTask.driveLinks?.map((link: string, i: number) => (
+                          <a key={i} href={link} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 transition-colors group">
+                            <Download className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                            <span className="text-xs font-bold truncate underline decoration-2 underline-offset-4">Reference File #{i + 1}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Videographer Post-Shoot Notes */}
+                  <div className="pt-6 border-t border-slate-100">
+                    <Label className="text-sm font-bold text-slate-800 mb-3 block">Post-Shoot Report & Notes</Label>
+                    <Textarea
+                      placeholder="Briefly describe how the shoot went, any issues faced, or specific details for the editor..."
+                      className="bg-gray-50 border-gray-200 focus:bg-white min-h-[120px] rounded-xl font-medium"
+                      defaultValue={selectedTask.shootDetail?.videographerNotes || ""}
+                      onBlur={(e) => handleSaveShootNotes(selectedTask.id, e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-2 font-medium italic">* Changes are auto-saved when you click away</p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-slate-50 border-t flex justify-end">
+                  <Button onClick={() => setIsDetailsOpen(false)} className="px-8 rounded-xl font-bold">
+                    Got it, thanks!
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     );
   };

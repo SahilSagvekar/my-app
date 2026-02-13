@@ -635,7 +635,7 @@ export async function GET(req: any) {
       }
     }
 
-    const tasks = await prisma.task.findMany({
+    const tasks = await (prisma.task as any).findMany({
       where,
       // take: limit,
       // skip: (page - 1) * limit,
@@ -677,6 +677,7 @@ export async function GET(req: any) {
         folderType: true,
         qcNotes: true,
         feedback: true,
+        shootDetail: true,
         // files: true,
         deliverableType: true,
         monthlyDeliverableId: true,
@@ -845,6 +846,16 @@ export async function POST(req: any) {
     const monthlyDeliverableId = form.get("monthlyDeliverableId") as string;
     const oneOffDeliverableId = form.get("oneOffDeliverableId") as string;
 
+    // 🔥 SHOOT SPECIFIC FIELDS
+    const shootLocation = form.get("shootLocation") as string;
+    const shootDate = form.get("shootDate") as string;
+    const shootCamera = form.get("shootCamera") as string;
+    const shootQuality = form.get("shootQuality") as string;
+    const shootFrameRate = form.get("shootFrameRate") as string;
+    const shootLighting = form.get("shootLighting") as string;
+    const shootExclusions = form.get("shootExclusions") as string;
+    const shootReferenceLinks = form.get("shootReferenceLinks") as string;
+
 
     if (!assignedTo || !clientId) {
       return NextResponse.json(
@@ -930,7 +941,7 @@ export async function POST(req: any) {
         driveLinks: uploadedLinks,
         folderType: effectiveFolderType,
         requiresClientReview: client.requiresClientReview,
-        status: client.requiresVideographer
+        status: (client.requiresVideographer || shootLocation || shootCamera)
           ? "VIDEOGRAPHER_ASSIGNED"
           : "PENDING",
       },
@@ -994,6 +1005,28 @@ export async function POST(req: any) {
       where: { id: task.id },
       data: { driveLinks: uploadedLinks },
     });
+
+    // 🔥 CREATE SHOOT DETAIL IF PROVIDED
+    if (shootLocation || shootDate || shootCamera || shootReferenceLinks) {
+      const referenceLinksArray = shootReferenceLinks
+        ? shootReferenceLinks.split(',').map(l => l.trim()).filter(Boolean)
+        : [];
+
+      await (prisma as any).shootDetail.create({
+        data: {
+          taskId: task.id,
+          location: shootLocation || null,
+          shootDate: shootDate ? new Date(shootDate) : null,
+          camera: shootCamera || null,
+          quality: shootQuality || null,
+          frameRate: shootFrameRate || null,
+          lighting: shootLighting || null,
+          exclusions: shootExclusions || null,
+          referenceLinks: referenceLinksArray,
+          videographerId: videographer || null
+        }
+      });
+    }
 
     // 🔁 AUTO GENERATE TASKS (Only if it's a monthly deliverable)
     if (monthlyDeliverableId) {

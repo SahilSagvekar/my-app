@@ -48,6 +48,7 @@ model User {
   assignedTasks       Task[]              @relation("AssignedTasks")
   clientTasks         Task[]              @relation("ClientUserTasks")
   qcReviewedTasks     Task[]              @relation("QCReviewedTasks")
+  shootDetails        ShootDetail[]       @relation("VideographerShootDetails")
   taskFeedback        TaskFeedback[]      @relation("TaskFeedbackAuthor")
   linkedClient        Client?             @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin         UserSecurityPin?
@@ -146,6 +147,7 @@ model Task {
   transcriptSummary    String?
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
+  shootDetail          ShootDetail?
   user                 User                @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client               Client?             @relation(fields: [clientId], references: [id])
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
@@ -168,6 +170,31 @@ model Task {
   @@index([clientId, status])
   @@index([dueDate, status])
   @@index([qcReviewedBy])
+}
+
+model ShootDetail {
+  id                String   @id @default(cuid())
+  taskId            String   @unique
+  location          String?
+  shootDate         DateTime?
+  referenceLinks    String[] // YouTube/Drive links
+  referenceFiles    Json?    // S3 keys/metadata for uploaded examples
+  
+  // Criteria
+  camera            String?
+  quality           String?
+  frameRate         String?
+  lighting          String?
+  
+  exclusions        String?  // Stuff not to take videos of
+  videographerNotes String?  // Added after shoot
+  
+  videographerId    Int?
+  
+  task              Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  videographer      User?    @relation("VideographerShootDetails", fields: [videographerId], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model TitlingJob {
@@ -1053,6 +1080,12 @@ model Job {
   startDate    DateTime
   endDate      DateTime?
   equipment    String?
+  camera       String?
+  quality      String?
+  frameRate    String?
+  lighting     String?
+  exclusions   String?
+  referenceLinks String[]
   budget       Decimal?  @db.Decimal(10, 2)
   status       JobStatus @default(OPEN)
   createdById  Int

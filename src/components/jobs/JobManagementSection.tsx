@@ -5,7 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Calendar, MapPin, DollarSign, CheckCircle2, ChevronDown, ChevronUp, User } from 'lucide-react';
+import {
+    Loader2,
+    Calendar,
+    MapPin,
+    DollarSign,
+    CheckCircle2,
+    ChevronDown,
+    ChevronUp,
+    User,
+    Settings,
+    Camera,
+    XCircle,
+    Link
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateJobDialog } from './CreateJobDialog';
 
@@ -138,6 +151,59 @@ export function JobManagementSection() {
 
                                 {expandedJobId === job.id && (
                                     <div className="border-t bg-slate-50/50 p-4 sm:p-6 animate-in slide-in-from-top-2">
+                                        {/* 🔥 Job Technical Summary */}
+                                        <div className="mb-8 bg-white p-5 rounded-xl border-2 border-slate-100 shadow-sm">
+                                            <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-800 mb-4 pb-2 border-b border-slate-100">
+                                                <Settings className="h-4 w-4 text-primary" /> Job Technical Summary
+                                            </h4>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="space-y-1">
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Preferred Camera</p>
+                                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                                        <Camera className="h-3.5 w-3.5 text-primary" />
+                                                        {job.camera || 'Any Professional Camera'}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Target Specs</p>
+                                                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">{job.quality || '4K'}</Badge>
+                                                        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">{job.frameRate || '24fps'}</Badge>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tighter">Lighting Requirements</p>
+                                                    <p className="text-sm font-semibold text-slate-700">{job.lighting || 'TBD with Videographer'}</p>
+                                                </div>
+                                            </div>
+
+                                            {job.exclusions && (
+                                                <div className="mt-4 p-3 bg-red-50/30 rounded-lg border border-red-100">
+                                                    <p className="text-[10px] uppercase font-bold text-red-600 mb-1 flex items-center gap-1">
+                                                        <XCircle className="h-3 w-3" /> Exclusions (Avoid Capturing)
+                                                    </p>
+                                                    <p className="text-xs text-red-800 italic">{job.exclusions}</p>
+                                                </div>
+                                            )}
+
+                                            {job.referenceLinks && job.referenceLinks.length > 0 && (
+                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                    {job.referenceLinks.map((link: string, i: number) => (
+                                                        <a
+                                                            key={i}
+                                                            href={link.startsWith('http') ? link : `https://${link}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-1.5 text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-full hover:bg-blue-100 transition-colors border border-blue-200"
+                                                        >
+                                                            <Link className="h-2.5 w-2.5" /> Reference {i + 1}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <h4 className="text-sm font-semibold mb-4 uppercase tracking-wider text-muted-foreground">Bids Received</h4>
                                         {job.bids?.length === 0 ? (
                                             <p className="text-sm text-center text-muted-foreground py-4">No bids received yet for this job.</p>
