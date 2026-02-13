@@ -1,7 +1,7 @@
 // src/app/api/meta/analytics/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser2 } from "@/lib/auth";
+import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 import { MetaAnalyticsData } from "@/types/meta";
 
 export async function GET(req: NextRequest) {
@@ -16,11 +16,9 @@ export async function GET(req: NextRequest) {
         const range = searchParams.get("range") || "28d";
 
         if (user.role === 'client') {
-            const client = await prisma.client.findUnique({
-                where: { userId: user.id },
-                select: { id: true },
-            });
-            clientId = client?.id || null;
+            // 🔥 FIX: Use resolveClientIdForUser for multi-user client support
+            const resolvedClientId = await resolveClientIdForUser(user.id);
+            clientId = resolvedClientId;
         }
 
         if (!clientId) {

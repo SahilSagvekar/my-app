@@ -1,7 +1,7 @@
 // src/app/api/meta/revenue/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser2 } from "@/lib/auth";
+import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
     try {
@@ -63,11 +63,9 @@ export async function GET(req: NextRequest) {
         let clientId = searchParams.get("clientId");
 
         if (user.role === 'client') {
-            const client = await prisma.client.findUnique({
-                where: { userId: user.id },
-                select: { id: true },
-            });
-            clientId = client?.id || null;
+            // 🔥 FIX: Use resolveClientIdForUser for multi-user client support
+            const resolvedClientId = await resolveClientIdForUser(user.id);
+            clientId = resolvedClientId;
         }
 
         if (!clientId) return NextResponse.json({ error: "clientId is required" }, { status: 400 });

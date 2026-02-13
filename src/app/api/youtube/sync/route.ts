@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncYouTubeChannel } from "@/lib/youtube-sync-service";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser2 } from "@/lib/auth";
+import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,18 +15,16 @@ export async function POST(req: NextRequest) {
 
     // If user is a client, they can only sync their own data
     if (user.role === 'client') {
-      const client = await prisma.client.findUnique({
-        where: { userId: user.id },
-        select: { id: true },
-      });
+      // 🔥 FIX: Use resolveClientIdForUser for multi-user client support
+      const resolvedClientId = await resolveClientIdForUser(user.id);
 
-      if (!client) {
+      if (!resolvedClientId) {
         return NextResponse.json(
           { error: "Client profile not found" },
           { status: 404 }
         );
       }
-      clientId = client.id;
+      clientId = resolvedClientId;
     }
 
     if (!clientId) {

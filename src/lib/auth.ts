@@ -204,4 +204,34 @@ export function isEmployee(user: { role: string } | null) {
   return user.role !== 'admin' && user.role !== 'client';
 }
 
+/**
+ * Resolves the Client ID for a given user.
+ * 
+ * Strategy (with backward compatibility):
+ *   1. Check user.linkedClientId (new multi-user method)
+ *   2. Fallback: Check Client.userId (old 1:1 method)
+ * 
+ * This ensures ALL users linked to the same client resolve to the same clientId,
+ * regardless of which linking method was used.
+ */
+export async function resolveClientIdForUser(userId: number): Promise<string | null> {
+  // Method 1: Check linkedClientId on the User record (preferred, supports multi-user)
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { linkedClientId: true },
+  });
+
+  if (user?.linkedClientId) {
+    return user.linkedClientId;
+  }
+
+  // Method 2: Fallback to old Client.userId (1:1 relation, backward compat)
+  const clientByUserId = await prisma.client.findFirst({
+    where: { userId: userId },
+    select: { id: true },
+  });
+
+  return clientByUserId?.id || null;
+}
+
 

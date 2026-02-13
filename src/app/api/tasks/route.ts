@@ -475,7 +475,7 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
-const buildRoleWhereQuery = (role: string | null, userId: number): any => {
+const buildRoleWhereQuery = async (role: string | null, userId: number): Promise<any> => {
   if (!role) {
     return {};
   }
@@ -522,7 +522,26 @@ const buildRoleWhereQuery = (role: string | null, userId: number): any => {
         ],
       };
 
-    case "client":
+    case "client": {
+      // 🔥 FIX: Resolve the actual clientId (via linkedClientId or fallback)
+      // so ALL users linked to the same client see the same tasks
+      const resolvedClientId = await resolveClientIdForUser(userId);
+
+      if (resolvedClientId) {
+        // Filter by clientId — all users linked to this client see the same tasks
+        return {
+          AND: [
+            { clientId: resolvedClientId },
+            {
+              status: {
+                in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED],
+              },
+            },
+          ],
+        };
+      }
+
+      // Fallback: if no client link found, use old clientUserId filter (safety net)
       return {
         AND: [
           { clientUserId: Number(userId) },
@@ -533,6 +552,7 @@ const buildRoleWhereQuery = (role: string | null, userId: number): any => {
           },
         ],
       };
+    }
 
     case "videographer":
       return {
@@ -565,7 +585,7 @@ const WEEKDAY_MAP: Record<string, number> = {
   Saturday: 6,
 };
 
-import { getCurrentUser2 } from "@/lib/auth";
+import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 export async function GET(req: any) {
   try {
@@ -583,7 +603,7 @@ export async function GET(req: any) {
     const clientIdFilter = searchParams.get("clientId") as string | null; // 🔥 NEW: Client filter
 
     // Build role-based where query
-    let where: any = buildRoleWhereQuery(role, Number(userId));
+    let where: any = await buildRoleWhereQuery(role, Number(userId));
 
     // 🔥 ADD CLIENT FILTER - For filtering tasks by client
     if (clientIdFilter) {
