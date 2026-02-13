@@ -91,15 +91,94 @@ export function renderPage(role: string, page: string): React.ReactElement {
       case "audit":
       case "finance":
       case "permissions":
+      case "leaves":
+      case "activity_logs":
         return <AdminDashboard currentPage={page} />;
       case "feedback":
-        return <FeedbackSystem currentRole={role} />;
-      case "leaves":
-        return <LeavesComponent />;
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Feedback</h1>
+                <p className="text-muted-foreground mt-2">
+                  View and respond to feedback from team members and clients
+                </p>
+              </div>
+            </div>
+            <FeedbackSystem currentRole={role} />
+          </div>
+        );
       case "training":
-        return <QCTrainingPage currentRole={role} />;
-      case "activity_logs":
-        return <ActivityLogReportTab />;
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Training Management</h1>
+                <p className="text-muted-foreground mt-2">
+                  Oversee employee training modules, certifications, and progress
+                </p>
+              </div>
+            </div>
+            <QCTrainingPage currentRole={role} />
+          </div>
+        );
+      case "logins":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Social Logins</h1>
+                <p className="text-muted-foreground mt-2">
+                  Securely manage social media credentials and account access
+                </p>
+              </div>
+            </div>
+            <SocialLogins />
+          </div>
+        );
+      case "drive":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Files & Drive</h1>
+                <p className="text-muted-foreground mt-2">
+                  Centralized storage for assets, project files, and shared documents
+                </p>
+              </div>
+            </div>
+            <DriveExplorer role={role} />
+          </div>
+        );
+      case "youtube-analytics":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">YouTube Analytics</h1>
+                <p className="text-muted-foreground mt-2">
+                  Aggregated performance data and insights for connected YouTube channels
+                </p>
+              </div>
+            </div>
+            <YouTubeAnalyticsWrapper />
+          </div>
+        );
+      case "meta-analytics":
+      case "instagram-analytics":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Instagram Analytics</h1>
+                <p className="text-muted-foreground mt-2">
+                  Insights and reach metrics across connected Instagram business accounts
+                </p>
+              </div>
+            </div>
+            <MetaAnalyticsWrapper />
+          </div>
+        );
       default:
         return <AdminDashboard currentPage="dashboard" />;
     }

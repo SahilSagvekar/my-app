@@ -69,15 +69,7 @@ export default function AdminMetaAnalytics({ onSelectClient }: { onSelectClient:
     return (
         <div className="space-y-6">
             {/* Page Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                        Instagram Global Overview
-                    </h2>
-                    <p className="text-muted-foreground mt-1">
-                        Aggregated performance across {summary.connectedCount} connected client accounts.
-                    </p>
-                </div>
+            <div className="flex flex-col md:flex-row justify-end items-start md:items-center gap-4">
                 <Button variant="outline" size="sm" onClick={() => refetch()} className="hover:bg-pink-50">
                     <RefreshCw className="w-4 h-4 mr-2" /> Refresh Global Data
                 </Button>

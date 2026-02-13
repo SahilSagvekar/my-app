@@ -377,10 +377,10 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
       setSelectedFeedback((prev) =>
         prev
           ? {
-              ...prev,
-              responses: [...(prev.responses || []), response],
-              status: "acknowledged",
-            }
+            ...prev,
+            responses: [...(prev.responses || []), response],
+            status: "acknowledged",
+          }
           : null
       );
 
@@ -460,14 +460,7 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
       <div className="space-y-4 sm:space-y-6">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl">Feedback</h1>
-            <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-              {currentRole === "admin" || currentRole === "manager"
-                ? "View and respond to feedback from team members"
-                : "Send feedback to admin and managers, or view responses"}
-            </p>
-          </div>
+          <div className="flex-1"></div>
           <Dialog
             open={showNewFeedbackDialog}
             onOpenChange={setShowNewFeedbackDialog}

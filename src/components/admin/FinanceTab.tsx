@@ -744,7 +744,7 @@ export function FinanceTab() {
       <div className="space-y-6">
         {/* Page Header */}
         <div>
-          <h1>Admin Portal</h1>
+          <h1 className="text-3xl font-bold">Financials</h1>
           <p className="text-muted-foreground mt-2">
             Manage invoices, employee payroll, and financial tracking
           </p>

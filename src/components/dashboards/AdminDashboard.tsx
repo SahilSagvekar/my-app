@@ -586,7 +586,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Dashboard</h1>
                 <p className="text-muted-foreground mt-2">
                   Overview of system performance, recent activity, and key metrics
                 </p>
@@ -621,7 +621,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Client Analytics</h1>
                 <p className="text-muted-foreground mt-2">
                   Social media performance analytics across all clients and platforms
                 </p>
@@ -637,7 +637,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Clients</h1>
                 <p className="text-muted-foreground mt-2">
                   Manage client accounts, brand assets, guidelines, and team assignments
                 </p>
@@ -664,7 +664,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Users</h1>
                 <p className="text-muted-foreground mt-2">
                   Manage team members, roles, permissions, and employee information
                 </p>
@@ -680,7 +680,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Task Management</h1>
                 <p className="text-muted-foreground mt-2">
                   Manage all tasks, assignments, and track team workload
                 </p>
@@ -696,7 +696,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Audit Log</h1>
                 <p className="text-muted-foreground mt-2">
                   Complete audit trail of all admin actions and system events
                 </p>
@@ -712,7 +712,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Activity Reports</h1>
                 <p className="text-muted-foreground mt-2">
                   Access and download daily employee activity reports (generated at 7 PM EST)
                 </p>
@@ -732,7 +732,7 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Permissions</h1>
                 <p className="text-muted-foreground mt-2">
                   Configure sidebar visibility and role-based access for all team members
                 </p>
@@ -744,14 +744,26 @@ export function AdminDashboard({ currentPage = 'dashboard' }: AdminDashboardProp
 
       case 'leaves':
         console.log('📑 [ADMIN] Switching to Leaves tab');
-        return <LeavesComponent />;
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">User Management</h1>
+                <p className="text-muted-foreground mt-2">
+                  Manage employee leaves, assignments, and team availability
+                </p>
+              </div>
+            </div>
+            <LeavesComponent />
+          </div>
+        );
 
       default:
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-3xl font-bold">Admin Portal</h1>
+                <h1 className="text-3xl font-bold">Dashboard</h1>
                 <p className="text-muted-foreground mt-2">
                   Overview of system performance, recent activity, and key metrics
                 </p>
