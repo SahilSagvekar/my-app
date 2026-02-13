@@ -33,7 +33,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'analytics', label: 'Client Analytics', icon: BarChart3 },
     { id: 'instagram-analytics', label: 'Instagram Analytics', icon: Instagram },
-    { id: 'leaves', label: 'Employee Management', icon: Users },
+    { id: 'leaves', label: 'User Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
