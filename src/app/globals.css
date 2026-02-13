@@ -118,6 +118,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 @layer base {
@@ -127,6 +129,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
 }
 
@@ -229,7 +232,7 @@ html {
 }
 
 /* Hide default dialog close button */
-.fullscreen-dialog > button:last-child {
+.fullscreen-dialog>button:last-child {
   display: none !important;
 }
 
@@ -555,6 +558,7 @@ html {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -566,6 +570,7 @@ html {
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -621,31 +626,6 @@ html {
 }
 
 
-/* :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-} */
-
 /* Add to your globals.css or a component-level style */
 .rdp {
   --rdp-cell-size: 40px;
@@ -666,6 +646,7 @@ body {
   width: var(--rdp-cell-size);
   height: var(--rdp-cell-size);
 }
+
 /* Date Range Picker Calendar Fixes */
 .rdp {
   --rdp-cell-size: 40px;

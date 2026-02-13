@@ -185,7 +185,7 @@ function AuthenticationFlow() {
   if (currentScreen === "reset-password") {
     return (
       <ResetPasswordScreen
-        onResetPassword={() => console.log("Direct reset not implemented")}
+        onResetPassword={async () => console.log("Direct reset not implemented")}
         token={resetToken}
         loading={loading}
         error={authError}
@@ -217,7 +217,7 @@ export default function App() {
   return (
     <AuthProvider>
       <UploadProvider>
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-background font-sans">
           <AuthenticationFlow />
         </div>
       </UploadProvider>
