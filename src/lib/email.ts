@@ -756,3 +756,263 @@ export async function sendScreenshotAlertEmail(data: {
     return { success: false, error };
   }
 }
+
+// ============================================================================
+// DAILY SUMMARY REPORT EMAIL
+// ============================================================================
+export async function sendDailySummaryReportEmail(report: {
+  date: string;
+  periodStart: string;
+  periodEnd: string;
+  users: any[];
+  totalTasksMoved: number;
+  totalTeamMembers: number;
+}, csvDownloadUrl?: string) {
+  const formattedDate = new Date(report.date + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  // Helper: Get role emoji
+  const getRoleEmoji = (role: string) => {
+    const r = role?.toLowerCase();
+    if (r === 'editor') return '✂️';
+    if (r === 'qc') return '🔍';
+    if (r === 'scheduler') return '📅';
+    if (r === 'client') return '👤';
+    if (r === 'admin') return '🛡️';
+    if (r === 'manager') return '📋';
+    if (r === 'videographer') return '🎥';
+    return '👤';
+  };
+
+  // Helper: Get role card border color
+  const getRoleBorderColor = (role: string) => {
+    const r = role?.toLowerCase();
+    if (r === 'editor') return '#3b82f6';      // blue
+    if (r === 'qc') return '#8b5cf6';          // purple
+    if (r === 'scheduler') return '#f59e0b';   // amber
+    if (r === 'client') return '#10b981';      // green
+    if (r === 'admin') return '#ef4444';       // red
+    if (r === 'manager') return '#06b6d4';     // cyan
+    return '#6b7280';                           // gray
+  };
+
+  // Build user cards HTML
+  const userCardsHtml = report.users.map(user => {
+    const metrics: string[] = [];
+
+    if (user.tasksMovedToInProgress > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #2563eb;">${user.tasksMovedToInProgress}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Started / In Progress</div>
+        </div>
+      `);
+    }
+
+    if (user.tasksMovedToReadyForQC > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #fefce8; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #ca8a04;">${user.tasksMovedToReadyForQC}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Sent to QC</div>
+        </div>
+      `);
+    }
+
+    if (user.tasksQCApproved > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #16a34a;">${user.tasksQCApproved}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">QC Approved</div>
+        </div>
+      `);
+    }
+
+    if (user.tasksQCRejected > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #dc2626;">${user.tasksQCRejected}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">QC Rejected</div>
+        </div>
+      `);
+    }
+
+    if (user.tasksScheduled > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #ea580c;">${user.tasksScheduled}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Scheduled / Posted</div>
+        </div>
+      `);
+    }
+
+    if (user.tasksClientApproved > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #059669;">${user.tasksClientApproved}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Client Approved</div>
+        </div>
+      `);
+    }
+
+    if (user.tasksClientRejected > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #dc2626;">${user.tasksClientRejected}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Client Revisions</div>
+        </div>
+      `);
+    }
+
+    if (user.filesUploaded > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #0284c7;">${user.filesUploaded}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Files Uploaded</div>
+        </div>
+      `);
+    }
+
+    if (user.tasksCreated > 0) {
+      metrics.push(`
+        <div style="display: inline-block; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 6px; padding: 8px 14px; margin: 4px;">
+          <div style="font-size: 22px; font-weight: 700; color: #7c3aed;">${user.tasksCreated}</div>
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Tasks Created</div>
+        </div>
+      `);
+    }
+
+    // Build login/logout timeline HTML
+    let loginLogoutHtml = '';
+    const events = user.loginLogoutEvents || [];
+    if (events.length > 0) {
+      const eventRows = events.map((evt: any) => {
+        const icon = evt.action === 'login' ? '🟢' : '🔴';
+        const label = evt.action === 'login' ? 'Logged In' : 'Logged Out';
+        const timeStr = new Date(evt.time).toLocaleTimeString('en-US', {
+          timeZone: 'America/New_York',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
+        const locationStr = evt.location ? ` — ${evt.location}` : '';
+        return `<div style="padding: 4px 0; font-size: 13px; color: #475569;">${icon} <strong>${label}</strong> at ${timeStr} EST${locationStr}</div>`;
+      }).join('');
+
+      loginLogoutHtml = `
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e2e8f0;">
+          <div style="font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Session Activity</div>
+          ${eventRows}
+        </div>
+      `;
+    }
+
+    const borderColor = getRoleBorderColor(user.role);
+    const roleEmoji = getRoleEmoji(user.role);
+
+    // Show "No task activity" message if user only has login/logout but no task metrics
+    const hasTaskActivity = (user.tasksMovedToInProgress || 0) + (user.tasksMovedToReadyForQC || 0) +
+      (user.tasksQCApproved || 0) + (user.tasksQCRejected || 0) + (user.tasksScheduled || 0) +
+      (user.tasksClientApproved || 0) + (user.tasksClientRejected || 0) +
+      (user.filesUploaded || 0) + (user.tasksCreated || 0) > 0;
+
+    const noTaskActivityMsg = !hasTaskActivity && events.length > 0
+      ? '<div style="text-align: center; color: #94a3b8; font-size: 13px; font-style: italic; padding: 8px 0;">No task activity — session only</div>'
+      : '';
+
+    return `
+      <div style="background: #ffffff; border-radius: 10px; padding: 20px; margin-bottom: 16px; border-left: 5px solid ${borderColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+        <div style="margin-bottom: 12px;">
+          <span style="font-size: 18px; font-weight: 700; color: #1e293b;">${roleEmoji} ${user.userName}</span>
+          <span style="display: inline-block; background: ${borderColor}15; color: ${borderColor}; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.5px;">${user.role}</span>
+        </div>
+        <div style="text-align: center;">
+          ${metrics.join('')}
+        </div>
+        ${noTaskActivityMsg}
+        ${loginLogoutHtml}
+      </div>
+    `;
+  }).join('');
+
+  // No-activity message
+  const noActivityHtml = report.users.length === 0
+    ? '<p style="text-align: center; color: #94a3b8; font-style: italic; padding: 30px;">No task activity recorded for this period.</p>'
+    : '';
+
+  const mailOptions = {
+    from: `"E8 Production Robot" <${process.env.SMTP_USER}>`,
+    to: "Eric@e8productions.com",
+    // to: "sahilsagvekar230@gmail.com",
+    subject: `📋 Daily Team Summary - ${formattedDate}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
+          <div style="max-width: 700px; margin: 0 auto; padding: 30px 20px;">
+            
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%); color: white; padding: 35px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+              <h1 style="margin: 0 0 8px 0; font-size: 26px; font-weight: 700;">📋 Daily Team Summary</h1>
+              <p style="margin: 0; opacity: 0.85; font-size: 15px;">${formattedDate}</p>
+              <p style="margin: 8px 0 0 0; opacity: 0.7; font-size: 13px;">Report Period: ${report.periodStart} → ${report.periodEnd}</p>
+            </div>
+
+            <!-- Stats Bar -->
+            <div style="background: #ffffff; padding: 20px 30px; display: flex; border-bottom: 1px solid #e2e8f0;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                <tr>
+                  <td width="50%" style="text-align: center; padding: 10px;">
+                    <div style="font-size: 32px; font-weight: 800; color: #1e293b;">${report.totalTeamMembers}</div>
+                    <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Active Team Members</div>
+                  </td>
+                  <td width="50%" style="text-align: center; padding: 10px; border-left: 1px solid #e2e8f0;">
+                    <div style="font-size: 32px; font-weight: 800; color: #3b82f6;">${report.totalTasksMoved}</div>
+                    <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Total Task Actions</div>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- Download Button -->
+            ${csvDownloadUrl ? `
+            <div style="background: #ffffff; padding: 20px 30px; text-align: center; border-bottom: 1px solid #e2e8f0;">
+              <a href="${csvDownloadUrl}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.3px; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);">📥 Download Full CSV Report</a>
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #94a3b8;">CSV file includes team summary, login/logout activity, and detailed task history</p>
+            </div>
+            ` : ''}
+
+            <!-- User Cards -->
+            <div style="background: #f8fafc; padding: 25px 20px; border-radius: 0 0 16px 16px;">
+              <h2 style="margin: 0 0 20px 0; font-size: 18px; color: #1e293b; padding-left: 5px;">Team Activity Breakdown</h2>
+              ${noActivityHtml}
+              ${userCardsHtml}
+            </div>
+
+            <!-- Footer -->
+            <div style="text-align: center; margin-top: 25px; padding: 15px;">
+              ${csvDownloadUrl ? `<p style="font-size: 12px; margin: 0 0 8px 0;"><a href="${csvDownloadUrl}" style="color: #3b82f6; text-decoration: underline;">📥 Download CSV Report</a> (link valid for 7 days)</p>` : ''}
+              <p style="font-size: 12px; color: #94a3b8; margin: 0;">Automated Daily Report by E8 Productions Management System</p>
+              <p style="font-size: 11px; color: #cbd5e1; margin: 5px 0 0 0;">© ${new Date().getFullYear()} E8 Productions. Report generated at ${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Daily summary report sent to Eric@e8productions.com`);
+  } catch (error) {
+    console.error('❌ Failed to send daily summary report email:', error);
+    throw error;
+  }
+}

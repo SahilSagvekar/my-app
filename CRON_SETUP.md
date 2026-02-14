@@ -8,6 +8,7 @@ The scheduled tasks for E8 Productions are managed by two separate TypeScript sc
 Handles low-volume, critical production tasks:
 *   **Monthly Task Generation**: Daily at 1 AM EST
 *   **Daily Activity Report**: Daily at 7 PM EST
+*   **Daily Team Summary Report**: Daily at 7:05 PM EST (emailed summary of team activity)
 *   **Meta Analytics Sync**: Daily at 2 AM EST
 *   **YouTube Analytics Sync**: Daily at 3 AM EST
 
@@ -32,6 +33,7 @@ Instead of one long log file, every job now has its own dedicated log file for e
 Find logs at:
 *   `logs/jobs/ai-titling-check.log`
 *   `logs/jobs/daily-activity-report.log`
+*   `logs/jobs/daily-team-summary.log`
 *   `logs/jobs/meta-daily-sync.log`
 *   `logs/jobs/youtube-daily-sync.log`
 
@@ -45,5 +47,6 @@ tail -f logs/jobs/daily-activity-report.log
 If you need to force a job to run manually, you can use the API endpoints with your `CRON_SECRET` in the `x-cron-secret` header:
 
 *   **Activity Report**: `POST /api/reports/activity`
+*   **Team Summary**: `POST /api/reports/daily-summary`
 *   **Recurring Tasks**: `POST /api/tasks/recurring/run`
 *   **YouTube Sync**: `POST /api/cron/youtube-sync`

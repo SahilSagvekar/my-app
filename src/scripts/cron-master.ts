@@ -189,8 +189,17 @@ cron.schedule('0 1 * * *', async () => {
 // ==========================================
 // 3. Daily Activity Report (Daily at 7 PM EST)
 // ==========================================
-cron.schedule('0 19 * * *', () => {
-    triggerJob('Daily Activity Report', '/api/reports/activity', 'POST');
+// cron.schedule('0 19 * * *', () => {
+//     triggerJob('Daily Activity Report', '/api/reports/activity', 'POST');
+// }, { timezone: 'America/New_York' });
+
+// ==========================================
+// 3b. Daily Team Summary Report (Daily at 7:05 PM EST)
+// Sends a formatted summary email to admin showing
+// what each editor, QC, scheduler, etc. did today.
+// ==========================================
+cron.schedule('5 19 * * *', () => {
+    triggerJob('Daily Team Summary', '/api/reports/daily-summary', 'POST');
 }, { timezone: 'America/New_York' });
 
 // ==========================================
@@ -228,6 +237,7 @@ console.log(' - Monthly Tasks: Daily at 1 AM');
 console.log(' - Meta Sync: Daily at 2 AM');
 console.log(' - YouTube Sync: Daily at 3 AM');
 console.log(' - Activity Report: Daily at 7 PM');
+console.log(' - Team Summary Report: Daily at 7:05 PM');
 console.log(' - Maintenance: Every 2 hours');
 console.log(' - Heartbeat: Every hour');
 console.log('---------------------------------------------');
