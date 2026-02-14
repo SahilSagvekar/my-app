@@ -28,6 +28,8 @@ model User {
   monthlyRate         Int?
   linkedClientId      String?
   emailNotifications  Boolean             @default(true)
+  slackUserId         String?             
+  slackNotifications  Boolean             @default(false)
   accounts            Account[]
   auditLogs           AuditLog[]
   bonuses             Bonus[]
@@ -1133,4 +1135,13 @@ enum BidStatus {
   PENDING
   ACCEPTED
   REJECTED
+}
+
+model SlackConfig {
+  id          String   @id @default(cuid())
+  webhookUrl  String
+  channelName String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

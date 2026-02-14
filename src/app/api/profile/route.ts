@@ -97,6 +97,8 @@ export async function GET(req: any) {
         hoursPerWeek: true,
         monthlyBaseHours: true,
         emailNotifications: true,
+        slackUserId: true,
+        slackNotifications: true,
       },
     });
 

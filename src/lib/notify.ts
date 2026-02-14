@@ -1,6 +1,7 @@
 // src/lib/notify.ts
 import { prisma } from "@/lib/prisma";
 import { broadcastNotification } from "@/lib/notifications-bus";
+import { deliverSlackNotification } from "@/lib/slack";
 
 export type NotifyOpts = {
   userId: string | number | null;    // recipient userId (null => broadcast)
@@ -13,6 +14,7 @@ export type NotifyOpts = {
 
 /**
  * Creates notification in DB and broadcasts to SSE clients.
+ * Also delivers to Slack (webhook + DM) if configured.
  * Use this from server-side logic (not the client).
  */
 export async function notifyUser(opts: NotifyOpts) {
@@ -39,8 +41,14 @@ export async function notifyUser(opts: NotifyOpts) {
     console.warn("SSE broadcast failed:", err);
   }
 
-  // NOTE: External channel delivery (Slack/email) can be added here
-  // or via a background job if bullmq is added later.
+  // Deliver to Slack (webhook + DM) — fire-and-forget
+  deliverSlackNotification({
+    type,
+    title,
+    body,
+    payload,
+    userId: userIdValue,
+  }).catch((err) => console.warn("[Slack] delivery error:", err));
 
   return notification;
 }
