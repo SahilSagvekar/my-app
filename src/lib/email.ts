@@ -945,8 +945,8 @@ export async function sendDailySummaryReportEmail(report: {
 
   const mailOptions = {
     from: `"E8 Production Robot" <${process.env.SMTP_USER}>`,
-    // to: "Eric@e8productions.com",
-    to: "sahilsagvekar230@gmail.com",
+    to: "Eric@e8productions.com",
+    // to: "sahilsagvekar230@gmail.com",
     subject: `📋 Daily Team Summary - ${formattedDate}`,
     html: `
       <!DOCTYPE html>
