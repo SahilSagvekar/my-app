@@ -989,7 +989,7 @@ export async function POST(req: any) {
         type: "task_assigned",
         title: "New Task Assigned",
         body: `You have been assigned a new task: ${task.title || "Untitled"}`,
-        payload: { taskId: task.id }
+        payload: { taskId: task.id, clientId: task.clientId }
       });
     } catch (err) {
       console.error("Failed to send assignment notification:", err);

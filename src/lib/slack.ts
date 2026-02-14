@@ -56,46 +56,59 @@ function emojiForType(type: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// 1. WEBHOOK — Post to team channel
+// Helper — build Block Kit blocks for a notification
+// ---------------------------------------------------------------------------
+function buildSlackBlocks(notification: SlackNotification): any[] {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const emoji = emojiForType(notification.type);
+
+  const blocks: any[] = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `${emoji} *${notification.title}*${notification.body ? `\n${notification.body}` : ""}`,
+      },
+    },
+  ];
+
+  if (notification.payload?.taskId) {
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `<${appUrl}/dashboard?task=${notification.payload.taskId}|View Task in Dashboard>`,
+        },
+      ],
+    });
+  }
+
+  return blocks;
+}
+
+// ---------------------------------------------------------------------------
+// 1. WEBHOOK — Post to a webhook URL
+//    If overrideUrl is provided, posts there instead of the global webhook.
 // ---------------------------------------------------------------------------
 export async function sendSlackWebhook(
-  notification: SlackNotification
+  notification: SlackNotification,
+  overrideUrl?: string
 ): Promise<void> {
   try {
-    // Try DB config first, then env var fallback
-    const config = await prisma.slackConfig.findFirst({
-      where: { isActive: true },
-    });
+    let webhookUrl = overrideUrl;
 
-    const webhookUrl = config?.webhookUrl || process.env.SLACK_WEBHOOK_URL;
+    // If no override, use global config (DB → env fallback)
+    if (!webhookUrl) {
+      const config = await prisma.slackConfig.findFirst({
+        where: { isActive: true },
+      });
+      webhookUrl = config?.webhookUrl || process.env.SLACK_WEBHOOK_URL;
+    }
+
     if (!webhookUrl) return; // Not configured — silently skip
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const emoji = emojiForType(notification.type);
-
-    // Build Slack Block Kit message
-    const blocks: any[] = [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `${emoji} *${notification.title}*${notification.body ? `\n${notification.body}` : ""}`,
-        },
-      },
-    ];
-
-    // Add a task link if payload contains taskId
-    if (notification.payload?.taskId) {
-      blocks.push({
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `<${appUrl}/dashboard?task=${notification.payload.taskId}|View Task in Dashboard>`,
-          },
-        ],
-      });
-    }
+    const blocks = buildSlackBlocks(notification);
 
     await fetch(webhookUrl, {
       method: "POST",
@@ -108,7 +121,28 @@ export async function sendSlackWebhook(
 }
 
 // ---------------------------------------------------------------------------
-// 2. BOT DM — Send a direct message to a specific user
+// 2. CLIENT WEBHOOK — Post to a client-specific channel
+// ---------------------------------------------------------------------------
+async function sendClientSlackWebhook(
+  clientId: string,
+  notification: SlackNotification
+): Promise<void> {
+  try {
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { slackWebhookUrl: true, slackEnabled: true, name: true },
+    });
+
+    if (!client?.slackWebhookUrl || !client.slackEnabled) return;
+
+    await sendSlackWebhook(notification, client.slackWebhookUrl);
+  } catch (err) {
+    console.error("[Slack Client Webhook] Failed:", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. BOT DM — Send a direct message to a specific user
 // ---------------------------------------------------------------------------
 export async function sendSlackDM(
   slackUserId: string,
@@ -118,7 +152,6 @@ export async function sendSlackDM(
     const client = getSlackClient();
     if (!client) return; // Bot not configured
 
-    // Open a DM conversation with the user
     const conversationResult = await client.conversations.open({
       users: slackUserId,
     });
@@ -149,42 +182,34 @@ export async function sendSlackDM(
 }
 
 // ---------------------------------------------------------------------------
-// 3. High-level dispatcher — called from notifyUser()
+// 4. High-level dispatcher — called from notifyUser()
 // ---------------------------------------------------------------------------
 export async function deliverSlackNotification(
   notification: SlackNotification
 ): Promise<void> {
-  // A. Always send to team channel webhook (if configured)
+  // A. Always send to global team channel webhook
   await sendSlackWebhook(notification);
 
-  // B. If notification targets a specific user, try DM
-  console.log("[Slack DM] Checking user:", notification.userId);
+  // B. Send to client-specific channel (if clientId in payload)
+  if (notification.payload?.clientId) {
+    await sendClientSlackWebhook(notification.payload.clientId, notification);
+  }
 
+  // C. Send DM to the targeted user (if they have Slack linked + enabled)
   if (notification.userId) {
     const user = await prisma.user.findUnique({
       where: { id: notification.userId },
       select: { slackUserId: true, slackNotifications: true },
     });
 
-    console.log("[Slack DM] DB lookup result:", {
-      userId: notification.userId,
-      slackUserId: user?.slackUserId ?? "NULL",
-      slackNotifications: user?.slackNotifications ?? "NULL",
-    });
-
     if (user?.slackUserId && user?.slackNotifications) {
-      console.log("[Slack DM] Sending DM to:", user.slackUserId);
       await sendSlackDM(user.slackUserId, notification);
-    } else {
-      console.log("[Slack DM] Skipped — slackUserId or slackNotifications not set");
     }
-  } else {
-    console.log("[Slack DM] Skipped — no userId in notification");
   }
 }
 
 // ---------------------------------------------------------------------------
-// 4. Utility — Send a test message to the configured webhook
+// 5. Utility — Send a test message to a webhook URL
 // ---------------------------------------------------------------------------
 export async function sendSlackTestMessage(webhookUrl: string): Promise<boolean> {
   try {

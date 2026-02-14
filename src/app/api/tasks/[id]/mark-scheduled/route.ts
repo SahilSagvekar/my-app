@@ -49,7 +49,7 @@ export async function PATCH(
         type: "task_scheduled",
         title: "Content Scheduled/Posted",
         body: `Your task "${updated.title}" has been marked as scheduled.`,
-        payload: { taskId: updated.id }
+        payload: { taskId: updated.id, clientId: updated.clientId }
       });
 
       // Notify Client User
@@ -59,7 +59,7 @@ export async function PATCH(
           type: "task_scheduled",
           title: "Content Live",
           body: `Content "${updated.title}" is now live/scheduled.`,
-          payload: { taskId: updated.id }
+          payload: { taskId: updated.id, clientId: updated.clientId }
         });
       }
     } catch (notifErr) {

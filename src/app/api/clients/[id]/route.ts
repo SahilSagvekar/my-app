@@ -123,6 +123,9 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       postingSchedule,
       clientReviewRequired,
       videographerRequired,
+      slackWebhookUrl,
+      slackChannelName,
+      slackEnabled,
       monthlyDeliverables = [],
       oneOffDeliverables = [],
     } = data;
@@ -156,6 +159,9 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         postingSchedule,
         requiresClientReview: clientReview,
         requiresVideographer: videographer,
+        ...(slackWebhookUrl !== undefined && { slackWebhookUrl }),
+        ...(slackChannelName !== undefined && { slackChannelName }),
+        ...(slackEnabled !== undefined && { slackEnabled }),
       },
     });
 

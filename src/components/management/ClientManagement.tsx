@@ -54,9 +54,11 @@ import {
   DollarSign,
   CreditCard,
   GripVertical,
+  MessageSquare,
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Separator } from "../ui/separator";
+import { Switch } from "../ui/switch";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { VisuallyHidden } from "../ui/visually-hidden";
 import { Checkbox } from "../ui/checkbox";
@@ -303,6 +305,9 @@ export function ClientManagement() {
       contentApprovalRequired: true,
       quickTurnaroundAvailable: false,
     },
+    slackWebhookUrl: "",
+    slackChannelName: "",
+    slackEnabled: false,
   });
 
   const addEmail = () => {
@@ -1311,6 +1316,9 @@ export function ClientManagement() {
         id: d.id,
       })),
       billing: client.billing,
+      slackWebhookUrl: client.slackWebhookUrl || "",
+      slackChannelName: client.slackChannelName || "",
+      slackEnabled: client.slackEnabled ?? false,
       brandGuidelines: client.brandGuidelines ?? {
         primaryColors: [],
         secondaryColors: [],
@@ -2991,6 +2999,75 @@ export function ClientManagement() {
                     rows={3}
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Slack Channel Notifications */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-gray-900 flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-purple-600" />
+                  Slack Channel Notifications
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Send this client&apos;s task notifications to a dedicated Slack channel
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="slackWebhookUrl" className="text-gray-700">
+                    Webhook URL
+                  </Label>
+                  <Input
+                    id="slackWebhookUrl"
+                    placeholder="https://hooks.slack.com/services/..."
+                    value={(newClient as any).slackWebhookUrl || ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        slackWebhookUrl: e.target.value,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="slackChannelName" className="text-gray-700">
+                    Channel Name
+                  </Label>
+                  <Input
+                    id="slackChannelName"
+                    placeholder="#e8-client-name"
+                    value={(newClient as any).slackChannelName || ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        slackChannelName: e.target.value,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="text-gray-700">Enable Slack Notifications</Label>
+                  <p className="text-sm text-gray-500">
+                    Task updates for this client will be posted to their Slack channel
+                  </p>
+                </div>
+                <Switch
+                  checked={(newClient as any).slackEnabled ?? false}
+                  onCheckedChange={(checked) =>
+                    setNewClient({
+                      ...newClient,
+                      slackEnabled: checked,
+                    })
+                  }
+                />
               </div>
             </div>
           </div>

@@ -289,6 +289,9 @@ model Client {
   emails               String[]             @default([])
   phones               String[]             @default([])
   outputsFolderId      String?
+  slackWebhookUrl      String?
+  slackChannelName     String?
+  slackEnabled         Boolean              @default(false)
   brandAssets          BrandAsset[]
   user                 User?                @relation(fields: [userId], references: [id])
   monthlyDeliverables  MonthlyDeliverable[]

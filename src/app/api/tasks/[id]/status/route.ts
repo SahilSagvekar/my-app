@@ -150,7 +150,7 @@ export async function PATCH(
             type: "content_ready",
             title: "Task Ready for QC",
             body: `Task "${task.title}" is ready for your review.`,
-            payload: { taskId: task.id }
+            payload: { taskId: task.id, clientId: task.clientId }
           });
         }
       }
@@ -179,7 +179,7 @@ export async function PATCH(
             type: "review_queue",
             title: "Content Ready for Review",
             body: `Your content "${task.title}" is ready for review.`,
-            payload: { taskId: task.id }
+            payload: { taskId: task.id, clientId: task.clientId }
           });
         }
       }
@@ -201,7 +201,7 @@ export async function PATCH(
             type: "approved_content",
             title: "New Content to Schedule",
             body: `Task "${task.title}" is approved and ready for scheduling.`,
-            payload: { taskId: task.id }
+            payload: { taskId: task.id, clientId: task.clientId }
           });
         }
       }
