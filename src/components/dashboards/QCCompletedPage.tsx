@@ -243,46 +243,46 @@ export function QCCompletedPage() {
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <FileCheck className="h-8 w-8 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Total Reviewed</p>
-                <h3>{totalCompleted}</h3>
+                <h3 className="text-2xl font-bold">{totalCompleted}</h3>
               </div>
-              <FileCheck className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <CheckCircle className="h-8 w-8 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Approved</p>
-                <h3 className="text-green-600">{approvedCount}</h3>
+                <h3 className="text-2xl font-bold text-green-600">{approvedCount}</h3>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <XCircle className="h-8 w-8 text-red-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Rejected</p>
-                <h3 className="text-red-600">{rejectedCount}</h3>
+                <h3 className="text-2xl font-bold text-red-600">{rejectedCount}</h3>
               </div>
-              <XCircle className="h-8 w-8 text-red-500" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <CheckCircle className="h-8 w-8 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Approval Rate</p>
-                <h3>{approvalRate}%</h3>
+                <h3 className="text-2xl font-bold">{approvalRate}%</h3>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>

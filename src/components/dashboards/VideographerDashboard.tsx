@@ -628,7 +628,8 @@ import {
   DollarSign,
   FileText,
   XCircle,
-  Plus
+  Plus,
+  Link
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -1536,54 +1537,54 @@ export function VideographerDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Camera className="h-8 w-8 text-blue-600" />
               <div>
                 <p className="text-sm text-muted-foreground">Today's Shoots</p>
-                <h3 className="mt-2">{inProgressTasks.length}</h3>
+                <h3 className="text-2xl font-bold">{inProgressTasks.length}</h3>
               </div>
-              <Camera className="h-8 w-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-center text-center gap-2">
+              <CalendarIcon className="h-8 w-8 text-orange-600" />
               <div>
                 <p className="text-sm text-muted-foreground">Upcoming Shoots</p>
-                <h3 className="mt-2">{upcomingTasks.length}</h3>
+                <h3 className="text-2xl font-bold">{upcomingTasks.length}</h3>
               </div>
-              <CalendarIcon className="h-8 w-8 text-orange-600" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Upload className="h-8 w-8 text-green-600" />
               <div>
                 <p className="text-sm text-muted-foreground">Pending Uploads</p>
-                <h3 className="mt-2">
+                <h3 className="text-2xl font-bold">
                   {mockUploadTasks.filter((u) => u.status === "pending").length}
                 </h3>
               </div>
-              <Upload className="h-8 w-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Settings className="h-8 w-8 text-purple-600" />
               <div>
                 <p className="text-sm text-muted-foreground">
                   Equipment Available
                 </p>
-                <h3 className="mt-2">
+                <h3 className="text-2xl font-bold">
                   {mockEquipment.filter((e) => e.status === "available").length}
                 </h3>
               </div>
-              <Settings className="h-8 w-8 text-purple-600" />
             </div>
           </CardContent>
         </Card>

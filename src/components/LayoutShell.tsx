@@ -76,7 +76,7 @@ export function LayoutShell({
       if (!currentRole) return;
       try {
         setNavLoading(true);
-        const res = await fetch("/api/user/navigation");
+        const res = await fetch(`/api/user/navigation?role=${currentRole}`);
         if (res.ok) {
           const data = await res.json();
           setPermittedItems(data);

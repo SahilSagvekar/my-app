@@ -297,39 +297,37 @@ export function SchedulerDashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Clock className="h-8 w-8 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Pending Tasks</p>
-                <h3>{pendingTasks}</h3>
+                <h3 className="text-2xl font-bold">{pendingTasks}</h3>
               </div>
-              <Clock className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <CheckCircle className="h-8 w-8 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Scheduled Today</p>
-                <h3>{scheduledToday}</h3>
+                <h3 className="text-2xl font-bold">{scheduledToday}</h3>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
 
-
-
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Users className="h-8 w-8 text-purple-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Active Events</p>
-                <h3>7</h3>
+                <h3 className="text-2xl font-bold">7</h3>
               </div>
-              <Users className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>

@@ -23,7 +23,16 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const role = decoded.role as NavigationRole;
+        const { searchParams } = new URL(req.url);
+        const requestedRole = searchParams.get('role') as NavigationRole | null;
+
+        let role = decoded.role as NavigationRole;
+
+        // 🔥 If user is admin, they can request navigation for other roles (for View As feature)
+        if (role === 'admin' && requestedRole && NAVIGATION_ITEMS[requestedRole]) {
+            role = requestedRole;
+        }
+
         if (!NAVIGATION_ITEMS[role]) {
             return NextResponse.json([], { status: 200 }); // No items for this role
         }

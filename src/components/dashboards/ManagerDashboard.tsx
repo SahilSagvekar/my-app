@@ -560,8 +560,8 @@ function WorkloadHeatmap() {
                   member.status === "overloaded"
                     ? "destructive"
                     : member.status === "underutilized"
-                    ? "secondary"
-                    : "default"
+                      ? "secondary"
+                      : "default"
                 }
                 className="text-xs"
               >
@@ -613,21 +613,20 @@ export function ManagerDashboard({
           {performanceMetrics.map((metric, index) => (
             <Card key={index}>
               <CardContent className="p-6">
-                <div className="space-y-2">
+                <div className="flex flex-col items-center text-center gap-2">
                   <p className="text-sm text-muted-foreground">{metric.title}</p>
-                  <h3>{metric.value}</h3>
-                  <div className="flex items-center gap-2">
+                  <h3 className="text-3xl font-bold">{metric.value}</h3>
+                  <div className="flex items-center gap-2 mt-1 px-2 py-0.5 rounded-full bg-muted">
                     {metric.trend === "up" ? (
                       <TrendingUp className="h-4 w-4 text-green-600" />
                     ) : (
                       <TrendingDown className="h-4 w-4 text-red-600" />
                     )}
                     <span
-                      className={`text-sm ${
-                        metric.trend === "up" ? "text-green-600" : "text-red-600"
-                      }`}
+                      className={`text-xs font-medium ${metric.trend === "up" ? "text-green-600" : "text-red-600"
+                        }`}
                     >
-                      {metric.change} from last month
+                      {metric.change}
                     </span>
                   </div>
                 </div>
@@ -762,8 +761,8 @@ export function ManagerDashboard({
           currentPage === "clients"
             ? "clients"
             : currentPage === "deliverables"
-            ? "deliverables"
-            : "team"
+              ? "deliverables"
+              : "team"
         }
         className="space-y-6"
       >
