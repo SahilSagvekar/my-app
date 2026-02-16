@@ -27,6 +27,7 @@ import {
   LayoutDashboard,
   Settings as SettingsIcon,
   BarChart3,
+  BookOpen,
 } from 'lucide-react';
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
@@ -87,6 +88,11 @@ const PermissionsTab = dynamic(() => import('../admin/PermissionsTab').then(mod 
 
 const JobManagementSection = dynamic(() => import('../jobs/JobManagementSection').then(mod => ({ default: mod.JobManagementSection })), {
   loading: () => <DashboardLoadingFallback componentName="Job Management" />,
+  ssr: false,
+});
+
+const GuidelinesManagementTab = dynamic(() => import('../admin/GuidelinesManagementTab').then(mod => ({ default: mod.GuidelinesManagementTab })), {
+  loading: () => <DashboardLoadingFallback componentName="Guidelines Management" />,
   ssr: false,
 });
 
@@ -586,6 +592,13 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           <FileText className="h-4 w-4" />
           Activity Reports
         </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('guidelines')}
+          className="gap-2 cursor-pointer"
+        >
+          <BookOpen className="h-4 w-4" />
+          Guidelines
+        </DropdownMenuItem>
         {/* <DropdownMenuItem
           onClick={() => onPageChange?.('leaves')}
           className="gap-2 cursor-pointer"
@@ -804,6 +817,23 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
             <LeavesComponent />
           </div>
         );
+
+      case 'guidelines':
+        console.log('📑 [ADMIN] Switching to Guidelines tab');
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Guidelines</h1>
+                <p className="text-muted-foreground mt-2">
+                  Manage rules, standards, and client-specific instructions for the team
+                </p>
+              </div>
+            </div>
+            <GuidelinesManagementTab />
+          </div>
+        );
+
       default:
         return (
           <div className="space-y-6">

@@ -7,6 +7,7 @@ import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
 import { QCReportsPage } from "../dashboards/QCReportsPage";
 import { QCResourcesPage } from "../dashboards/QCResourcesPage";
 import { QCTrainingPage } from "../dashboards/QCTrainingPage";
+import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
 import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
 import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
@@ -85,6 +86,7 @@ export function renderPage(role: string, page: string, onPageChange?: (page: str
       case "permissions":
       case "leaves":
       case "activity_logs":
+      case "guidelines":
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
       case "feedback":
         return (
@@ -159,6 +161,8 @@ export function renderPage(role: string, page: string, onPageChange?: (page: str
         return <EditorResources />;
       case "training":
         return <QCTrainingPage currentRole={role} />;
+      case "guidelines":
+        return <EditorGuidelinesPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
       case "feedback":

@@ -307,6 +307,7 @@ model Client {
   metaSnapshots        MetaSnapshot[]
   revenues             ClientRevenue[]
   jobs                 Job[]
+  guidelines           Guideline[]
 
   @@index([status])
 }
@@ -1147,4 +1148,16 @@ model SlackConfig {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Guideline {
+  id          String   @id @default(cuid())
+  category    String   // "General E8 Rules", "Specific E8 Client Rules", etc.
+  title       String
+  content     String   @db.Text
+  role        Role?    // Targeted role (qc, editor, or null for both)
+  clientId    String?  // For client-specific rules
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  client      Client?  @relation(fields: [clientId], references: [id])
 }
