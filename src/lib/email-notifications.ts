@@ -138,7 +138,7 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
 
         console.log(`[clientEmails]`, clientEmails);
 
-        const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://e8productions.com'}/client/dashboard`;
+        const dashboardUrl = "https://e8productions.com";
 
         const mailOptions = {
             from: `"E8 Productions" <i@needediting.com>`,

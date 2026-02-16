@@ -310,8 +310,7 @@ export function LoginScreen({
 
                 <Button
                   variant="outline"
-                  // onClick={() => onOAuthLogin("slack")}
-                  onClick={() => window.location.href = "/api/auth/slack"}
+                  onClick={() => signIn("slack")}
                   disabled={loading}
                   className="w-full h-11"
                 >

@@ -17,11 +17,13 @@ export const authOptions: NextAuthConfig = {
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID!,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+            allowDangerousEmailAccountLinking: true,
         }),
 
         SlackProvider({
             clientId: process.env.SLACK_CLIENT_ID!,
             clientSecret: process.env.SLACK_CLIENT_SECRET!,
+            allowDangerousEmailAccountLinking: true,
         }),
 
         CredentialsProvider({
