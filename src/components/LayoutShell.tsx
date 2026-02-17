@@ -66,7 +66,7 @@ export function LayoutShell({
   const roleDisplay = currentRole
     ? currentRole.toLowerCase() === 'qc'
       ? 'QC'
-      : currentRole.charAt(0).toUpperCase() + currentRole.slice(1)
+      : currentRole.charAt(0).toUpperCase() + currentRole.slice(1).toLowerCase()
     : 'User';
 
   // UPDATED: Handle null role
@@ -82,11 +82,13 @@ export function LayoutShell({
           setPermittedItems(data);
         } else {
           // Fallback to defaults if API fails
-          setPermittedItems([...(NAVIGATION_ITEMS[currentRole as NavigationRole] || [])]);
+          const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
+          setPermittedItems([...(NAVIGATION_ITEMS[normalizedRole] || [])]);
         }
       } catch (err) {
         console.error("Failed to fetch navigation:", err);
-        setPermittedItems([...(NAVIGATION_ITEMS[currentRole as NavigationRole] || [])]);
+        const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
+        setPermittedItems([...(NAVIGATION_ITEMS[normalizedRole] || [])]);
       } finally {
         setNavLoading(false);
       }
@@ -292,7 +294,8 @@ export function LayoutShell({
                 ))}
               </div>
             ) : items.map((item) => {
-              const Icon = NAVIGATION_ITEMS[currentRole as NavigationRole]?.find(i => i.id === item.id)?.icon || FileText;
+              const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
+              const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || FileText;
               const isActive = currentPage === item.id;
 
               return (

@@ -24,13 +24,13 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const requestedRole = searchParams.get('role') as NavigationRole | null;
+        const requestedRole = searchParams.get('role')?.toLowerCase() as NavigationRole | null;
 
-        let role = decoded.role as NavigationRole;
+        let role = (decoded.role as string).toLowerCase() as NavigationRole;
 
-        // 🔥 If user is admin, they can request navigation for other roles (for View As feature)
-        if (role === 'admin' && requestedRole && NAVIGATION_ITEMS[requestedRole]) {
-            role = requestedRole;
+        // 🔥 If user is admin or manager, they can request navigation for other roles (for View As feature)
+        if ((role === 'admin' || role === 'manager') && requestedRole && NAVIGATION_ITEMS[requestedRole as NavigationRole]) {
+            role = requestedRole as NavigationRole;
         }
 
         if (!NAVIGATION_ITEMS[role]) {

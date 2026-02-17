@@ -53,7 +53,7 @@ function AuthenticatedAppInner() {
   }
 
   // Use viewingAsRole for UI, but keep actual user.role for auth purposes
-  const displayRole = viewingAsRole || user.role;
+  const displayRole = (viewingAsRole || user.role || "admin").toLowerCase();
 
   return (
     <NotificationProvider>
