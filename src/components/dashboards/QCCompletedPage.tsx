@@ -5,7 +5,7 @@ import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
-import { CheckCircle, XCircle, FileCheck, Calendar, FileText, Video, Palette, User, ArrowRight, Search, Filter, UserCheck, Loader, RotateCcw } from 'lucide-react';
+import { CheckCircle, XCircle, FileCheck, Calendar, FileText, Video, Palette, User, ArrowRight, Search, Filter, UserCheck, Loader, RotateCcw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
 type TaskStatus = 'COMPLETED' | 'REJECTED' | 'CLIENT_REVIEW';
@@ -87,9 +87,11 @@ export function QCCompletedPage() {
       }));
 
       const sorted = normalized.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() -
-          new Date(b.createdAt).getTime()
+        (a, b) => {
+          const timeA = a.qcReviewedAt ? new Date(a.qcReviewedAt).getTime() : new Date(a.createdAt).getTime();
+          const timeB = b.qcReviewedAt ? new Date(b.qcReviewedAt).getTime() : new Date(b.createdAt).getTime();
+          return timeB - timeA;
+        }
       );
 
       setCompletedTasks(sorted);
@@ -386,29 +388,32 @@ export function QCCompletedPage() {
                             </Badge>
                             {/* 🔥 Show QC Reviewer */}
                             {task.qcReviewer && (
-                              <span className="text-xs text-muted-foreground">
-                                by {task.qcReviewer.name}
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <UserCheck className="h-3 w-3" />
+                                {task.qcReviewer.name}
                               </span>
+                            )}
+
+                            {/* 🔥 Exact EST Time of Review */}
+                            {task.qcReviewedAt && (
+                              <Badge variant="outline" className="text-[10px] bg-zinc-50 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Intl.DateTimeFormat('en-US', {
+                                  timeZone: 'America/New_York',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                }).format(new Date(task.qcReviewedAt))} EST
+                              </Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                            {/* <div className="flex items-center gap-1">
-                              <Badge variant="outline" className="text-xs">{task.id}</Badge>
-                            </div> */}
-                            {/* <div className="flex items-center gap-1">
-                              {getTaskCategoryIcon(task.taskCategory)}
-                              <span className="capitalize">{task.taskCategory}</span>
-                            </div>
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              <span>{new Date(task.createdAt).toLocaleDateString()}</span>
-                            </div> */}
-                            {/* {task.clientId && (
-                              <div className="flex items-center gap-1">
-                                <FileText className="h-3 w-3" />
-                                <span>Project: {task.clientId}</span>
-                              </div>
-                            )} */}
+                              <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
+                            </div>
                           </div>
                         </div>
                         {/* {task.nextDestination && (

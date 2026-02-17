@@ -60,7 +60,7 @@ export async function PATCH(
 
     console.log("ROLE" + role);
     // Handle client review requirement
-    if (  
+    if (
       (role.toLowerCase() === "qc" || role.toLowerCase() === "admin") &&
       status === "COMPLETED" &&
       task.client?.requiresClientReview === true
@@ -78,7 +78,7 @@ export async function PATCH(
 
     // Update task
     // 🔥 Track QC reviewer when QC approves/rejects
-    const isQCAction = role.toLowerCase() === "qc" &&
+    const isQCAction = (role.toLowerCase() === "qc" || role.toLowerCase() === "admin") &&
       (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW" || finalStatus === "REJECTED");
 
     if (isQCAction) {
