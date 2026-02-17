@@ -19,10 +19,10 @@ import {
   Upload,
   Settings as SettingsIcon,
   Sparkles,
-  HardDrive, // 🔥 NEW ICON FOR DRIVE
-  Briefcase,  // 🔥 NEW ICON FOR EMPLOYMENT INFO
+  HardDrive,
+  Briefcase,
   LogIn,
-  Instagram // 🔥 ICON FOR INSTAGRAM
+  Instagram 
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {

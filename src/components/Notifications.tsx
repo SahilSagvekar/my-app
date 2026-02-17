@@ -19,7 +19,8 @@ import {
   Trash2,
   X,
   Shield,
-  Eye
+  Eye,
+  BookOpen
 } from 'lucide-react';
 
 interface NotificationsProps {
@@ -58,6 +59,9 @@ export function Notifications({ currentRole }: NotificationsProps) {
         return <Calendar className="h-4 w-4 text-orange-500" />;
       case 'approval_request':
         return <Eye className="h-4 w-4 text-blue-500" />;
+      case 'guideline_added':
+      case 'guideline_updated':
+        return <BookOpen className="h-4 w-4 text-primary" />;
       default:
         return <Bell className="h-4 w-4 text-gray-500" />;
     }

@@ -31,7 +31,7 @@ export async function createAuditLog(data: AuditLogData) {
         timestamp: new Date()
       }
     });
-    
+
     return auditLog;
   } catch (error) {
     console.error('Failed to create audit log:', error);
@@ -44,11 +44,11 @@ export async function createAuditLog(data: AuditLogData) {
  * Extract request metadata for audit logging
  */
 export function getRequestMetadata(req: NextRequest) {
-  const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-                    req.headers.get('x-real-ip') || 
-                    'unknown';
+  const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
   const userAgent = req.headers.get('user-agent') || 'unknown';
-  
+
   return { ipAddress, userAgent };
 }
 
@@ -63,7 +63,7 @@ export const AuditAction = {
   USER_LOGIN: 'USER_LOGIN',
   USER_LOGOUT: 'USER_LOGOUT',
   USER_ROLE_CHANGED: 'USER_ROLE_CHANGED',
-  
+
   // Task actions
   TASK_CREATED: 'TASK_CREATED',
   TASK_UPDATED: 'TASK_UPDATED',
@@ -73,27 +73,31 @@ export const AuditAction = {
   TASK_COMPLETED: 'TASK_COMPLETED',
   TASK_QC_APPROVED: 'TASK_QC_APPROVED',
   TASK_QC_REJECTED: 'TASK_QC_REJECTED',
-  
+
   // Client actions
   CLIENT_CREATED: 'CLIENT_CREATED',
   CLIENT_UPDATED: 'CLIENT_UPDATED',
   CLIENT_DELETED: 'CLIENT_DELETED',
   CLIENT_APPROVED: 'CLIENT_APPROVED',
   CLIENT_REJECTED: 'CLIENT_REJECTED',
-  
+
   // Leave actions
   LEAVE_REQUESTED: 'LEAVE_REQUESTED',
   LEAVE_APPROVED: 'LEAVE_APPROVED',
   LEAVE_REJECTED: 'LEAVE_REJECTED',
-  
+
   // Payroll actions
   PAYROLL_GENERATED: 'PAYROLL_GENERATED',
   PAYROLL_PAID: 'PAYROLL_PAID',
-  
+
   // File actions
   FILE_UPLOADED: 'FILE_UPLOADED',
   FILE_DELETED: 'FILE_DELETED',
-  
+
+  // Guideline actions
+  GUIDELINE_CREATED: 'GUIDELINE_CREATED',
+  GUIDELINE_UPDATED: 'GUIDELINE_UPDATED',
+
   // System actions
   DEADLINE_APPROACHING: 'DEADLINE_APPROACHING',
   DEADLINE_OVERDUE: 'DEADLINE_OVERDUE',
