@@ -242,3 +242,52 @@ export async function sendSlackTestMessage(webhookUrl: string): Promise<boolean>
     return false;
   }
 }
+// ---------------------------------------------------------------------------
+// 6. SPECIALIZED — Send Daily Summary Report to a specific channel
+// ---------------------------------------------------------------------------
+export async function sendDailySummaryToSlack(
+  report: any,
+  csvDownloadUrl?: string
+): Promise<void> {
+  const webhookUrl = process.env.SLACK_REPORT_WEBHOOK_URL;
+  if (!webhookUrl || !csvDownloadUrl) return;
+
+  try {
+    const formattedDate = new Date(report.date + 'T12:00:00').toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    const blocks: any[] = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `📊 *Daily Production Report — ${formattedDate}*`
+        },
+        accessory: {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "📥 Download CSV",
+            emoji: true
+          },
+          url: csvDownloadUrl,
+          action_id: "download_report"
+        }
+      }
+    ];
+
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ blocks }),
+    });
+
+    console.log(`✅ [Slack Report] Minimal download link sent to dedicated channel`);
+  } catch (err) {
+    console.error("[Slack Report] Failed to send summary link:", err);
+  }
+}

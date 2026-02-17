@@ -3,6 +3,7 @@
 // Includes: task status changes, login/logout times, client activity
 import { prisma } from './prisma';
 import { format, subSeconds } from 'date-fns';
+import { sendDailySummaryToSlack } from './slack';
 
 interface DailySummaryOptions {
     targetDate?: Date;
@@ -488,6 +489,10 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
             const { sendDailySummaryReportEmail } = await import('./email');
             await sendDailySummaryReportEmail(report, csvDownloadUrl);
             console.log('📧 Daily summary email sent!');
+
+            // 🔥 New: Also send to the dedicated Slack report channel pulse
+            console.log('💬 Sending Slack production pulse...');
+            await sendDailySummaryToSlack(report, csvDownloadUrl);
         }
 
         return report;
