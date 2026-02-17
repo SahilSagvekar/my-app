@@ -180,15 +180,22 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
         for (const log of loginLogoutLogs) {
             if (!log.userId || !log.User) continue;
 
-            const userSummary = getOrCreateUser(log.userId, log.User.name || 'Unknown', log.User.role || 'N/A');
             const metadata = log.metadata as any;
+            const locationString = metadata?.location
+                ? `${metadata.location.city || ''}, ${metadata.location.region || ''}, ${metadata.location.country || ''}`
+                : log.details || '';
+
+            // 🔥 Exclusion: Filter out Mumbai office/test logs as requested
+            if (locationString.includes('Mumbai, Maharashtra, India')) {
+                continue;
+            }
+
+            const userSummary = getOrCreateUser(log.userId, log.User.name || 'Unknown', log.User.role || 'N/A');
 
             userSummary.loginLogoutEvents.push({
                 action: log.action === 'USER_LOGIN' ? 'login' : 'logout',
                 time: log.timestamp,
-                location: metadata?.location
-                    ? `${metadata.location.city || ''}, ${metadata.location.region || ''}, ${metadata.location.country || ''}`
-                    : log.details || undefined,
+                location: locationString || undefined,
             });
         }
 
@@ -197,6 +204,16 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
             if (!log.userId || !log.User) continue;
 
             const metadata = log.metadata as any;
+
+            // 🔥 Exclusion: Filter out Mumbai office/test logs if location is present
+            const locationString = metadata?.location
+                ? `${metadata.location.city || ''}, ${metadata.location.region || ''}, ${metadata.location.country || ''}`
+                : log.details || '';
+
+            if (locationString.includes('Mumbai, Maharashtra, India')) {
+                continue;
+            }
+
             const newStatus = metadata?.newStatus;
             const previousStatus = metadata?.previousStatus;
             const role = log.User.role?.toLowerCase() || '';
