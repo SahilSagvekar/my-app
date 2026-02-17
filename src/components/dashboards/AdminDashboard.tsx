@@ -563,65 +563,136 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           Manage <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuItem
           onClick={() => onPageChange?.('dashboard')}
           className="gap-2 cursor-pointer"
         >
           <LayoutDashboard className="h-4 w-4" />
-          Dashboard
+          Dashboard Overview
         </DropdownMenuItem>
+
+        <div className="h-px bg-muted my-1" />
+        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Core Management
+        </div>
+
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('clients')}
+          className="gap-2 cursor-pointer"
+        >
+          <Users className="h-4 w-4" />
+          Client Management
+        </DropdownMenuItem>
+
         <DropdownMenuItem
           onClick={() => onPageChange?.('users')}
           className="gap-2 cursor-pointer"
         >
           <Users className="h-4 w-4" />
-          Users
+          User Management
         </DropdownMenuItem>
+
         <DropdownMenuItem
-          onClick={() => onPageChange?.('permissions')}
-          className="gap-2 cursor-pointer"
-        >
-          <SettingsIcon className="h-4 w-4" />
-          Permissions
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onPageChange?.('activity_logs')}
+          onClick={() => onPageChange?.('reports')}
           className="gap-2 cursor-pointer"
         >
           <FileText className="h-4 w-4" />
-          Activity Reports
+          Task Management
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => onPageChange?.('guidelines')}
-          className="gap-2 cursor-pointer"
-        >
-          <BookOpen className="h-4 w-4" />
-          Guidelines
-        </DropdownMenuItem>
-        {/* <DropdownMenuItem
-          onClick={() => onPageChange?.('leaves')}
-          className="gap-2 cursor-pointer"
-        >
-          <Users className="h-4 w-4" />
-          User Management (Leaves)
-        </DropdownMenuItem>
+
+        <div className="h-px bg-muted my-1" />
+        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Operations & Finance
+        </div>
+
         <DropdownMenuItem
           onClick={() => onPageChange?.('finance')}
           className="gap-2 cursor-pointer"
         >
           <DollarSign className="h-4 w-4" />
-          Financials
+          Financials & Payouts
         </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('analytics')}
+          className="gap-2 cursor-pointer"
+        >
+          <BarChart3 className="h-4 w-4" />
+          Client Analytics
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('leaves')}
+          className="gap-2 cursor-pointer"
+        >
+          <Clock className="h-4 w-4" />
+          Leave Management
+        </DropdownMenuItem>
+
+        <div className="h-px bg-muted my-1" />
+        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          System & Compliance
+        </div>
+
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('activity_logs')}
+          className="gap-2 cursor-pointer"
+        >
+          <FileText className="h-4 w-4" />
+          Daily Activity Reports
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('guidelines')}
+          className="gap-2 cursor-pointer"
+        >
+          <BookOpen className="h-4 w-4" />
+          Company Guidelines
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('permissions')}
+          className="gap-2 cursor-pointer"
+        >
+          <SettingsIcon className="h-4 w-4" />
+          Role Permissions
+        </DropdownMenuItem>
+
         <DropdownMenuItem
           onClick={() => onPageChange?.('audit')}
           className="gap-2 cursor-pointer"
         >
           <ShieldCheck className="h-4 w-4" />
-          Audit Log
-        </DropdownMenuItem> */}
+          System Audit Log
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+
+  // Helper for consistent page headers
+  const AdminPageHeader = ({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) => (
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+        <p className="text-muted-foreground mt-1">
+          {description}
+        </p>
+      </div>
+      <div className="flex items-center gap-3">
+        {children}
+        <ManagementDropdown />
+        <CreateTaskDialog
+          onTaskCreated={handleTaskCreated}
+          trigger={
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Task
+            </Button>
+          }
+        />
+      </div>
+    </div>
   );
 
   // Render the appropriate content based on currentPage
@@ -630,242 +701,141 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
       case 'dashboard':
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Dashboard</h1>
-                <p className="text-muted-foreground mt-2">
-                  Overview of system performance, recent activity, and key metrics
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-
-                <ManagementDropdown />
-                <CreateTaskDialog
-                  onTaskCreated={handleTaskCreated}
-                  trigger={
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Task
-                    </Button>
-                  }
-                />
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Admin Dashboard"
+              description="Overview of system performance, recent activity, and key metrics"
+            >
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </AdminPageHeader>
             <DashboardOverview />
           </div>
         );
 
       case 'analytics':
-        console.log('📑 [ADMIN] Switching to Analytics tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Client Analytics</h1>
-                <p className="text-muted-foreground mt-2">
-                  Social media performance analytics across all clients and platforms
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Client Analytics"
+              description="Social media performance analytics across all clients and platforms"
+            />
             <AnalyticsTab />
           </div>
         );
 
       case 'clients':
-        console.log('📑 [ADMIN] Switching to Clients tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Clients</h1>
-                <p className="text-muted-foreground mt-2">
-                  Manage client accounts, brand assets, guidelines, and team assignments
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <CreateTaskDialog
-                  onTaskCreated={handleTaskCreated}
-                  trigger={
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Task
-                    </Button>
-                  }
-                />
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Client Management"
+              description="Manage client accounts, brand assets, guidelines, and team assignments"
+            />
             <ClientManagement />
           </div>
         );
 
       case 'users':
-        console.log('📑 [ADMIN] Switching to Users tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Users</h1>
-                <p className="text-muted-foreground mt-2">
-                  Manage team members, roles, permissions, and employee information
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="User Management"
+              description="Manage team members, roles, permissions, and employee information"
+            />
             <UserManagementTab />
           </div>
         );
 
       case 'reports':
-        console.log('📑 [ADMIN] Switching to Reports tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Task Management</h1>
-                <p className="text-muted-foreground mt-2">
-                  Manage all tasks, assignments, and track team workload
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Task Management"
+              description="Manage all tasks, assignments, and track team workload"
+            />
             <TaskManagementTab />
           </div>
         );
 
       case 'audit':
-        console.log('📑 [ADMIN] Switching to Audit tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Audit Log</h1>
-                <p className="text-muted-foreground mt-2">
-                  Complete audit trail of all admin actions and system events
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="System Audit Log"
+              description="Complete audit trail of all admin actions and system events"
+            />
             <AuditLogTab />
           </div>
         );
 
       case 'activity_logs':
-        console.log('📑 [ADMIN] Switching to Activity Logs tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Activity Reports</h1>
-                <p className="text-muted-foreground mt-2">
-                  Access and download daily employee activity reports (generated at 7 PM EST)
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Activity Reports"
+              description="Access and download daily employee activity reports (generated at 7 PM EST)"
+            />
             <ActivityLogReportTab />
           </div>
         );
 
       case 'finance':
-        console.log('📑 [ADMIN] Switching to Finance tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Financials</h1>
-                <p className="text-muted-foreground mt-2">
-                  Manage client billing, editor payouts, and system-wide financial overview
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Financial Overview"
+              description="Manage client billing, editor payouts, and system-wide financial overview"
+            />
             <FinanceTab />
           </div>
         );
 
       case 'permissions':
-        console.log('📑 [ADMIN] Switching to Permissions tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Permissions</h1>
-                <p className="text-muted-foreground mt-2">
-                  Configure sidebar visibility and role-based access for all team members
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Role Permissions"
+              description="Configure sidebar visibility and role-based access for all team members"
+            />
             <PermissionsTab />
           </div>
         );
 
       case 'leaves':
-        console.log('📑 [ADMIN] Switching to Leaves tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">User Management</h1>
-                <p className="text-muted-foreground mt-2">
-                  Manage employee leaves, assignments, and team availability
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Leave Management"
+              description="Manage employee leaves, assignments, and team availability"
+            />
             <LeavesComponent />
           </div>
         );
 
       case 'guidelines':
-        console.log('📑 [ADMIN] Switching to Guidelines tab');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Guidelines</h1>
-                <p className="text-muted-foreground mt-2">
-                  Manage rules, standards, and client-specific instructions for the team
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Company Guidelines"
+              description="Manage rules, standards, and client-specific instructions for the team"
+            />
             <GuidelinesManagementTab />
           </div>
         );
 
       default:
+        console.log('📑 [ADMIN] Falling back to dashboard');
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Dashboard</h1>
-                <p className="text-muted-foreground mt-2">
-                  Overview of system performance, recent activity, and key metrics
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-
-                <ManagementDropdown />
-                <CreateTaskDialog
-                  onTaskCreated={handleTaskCreated}
-                  trigger={
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Task
-                    </Button>
-                  }
-                />
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Admin Dashboard"
+              description="Overview of system performance, recent activity, and key metrics"
+            />
             <DashboardOverview />
           </div>
         );
