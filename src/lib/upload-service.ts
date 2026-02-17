@@ -83,8 +83,49 @@ class UploadService {
         };
     }
 
+    private async detectCodec(file: File): Promise<string | null> {
+        const isVideo = file.type.startsWith('video/') ||
+            ['mp4', 'mkv', 'mov', 'avi', 'webm'].some(ext => file.name.toLowerCase().endsWith('.' + ext));
+
+        if (!isVideo) return null;
+
+        try {
+            // Read first 1MB to find codec headers
+            const buffer = await file.slice(0, 1024 * 1024).arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+
+            const search = (pattern: string) => {
+                const p = pattern.split('').map(c => c.charCodeAt(0));
+                for (let i = 0; i < bytes.length - 4; i++) {
+                    if (bytes[i] === p[0] && bytes[i + 1] === p[1] && bytes[i + 2] === p[2] && bytes[i + 3] === p[3]) return true;
+                }
+                return false;
+            };
+
+            if (search('avc1')) return 'H.264';
+            if (search('hvc1') || search('hev1')) return 'H.265';
+            if (search('vp09')) return 'VP9';
+            if (search('av01')) return 'AV1';
+            if (search('isom')) return 'MP4 (Unknown Codec)';
+
+            return 'Unknown';
+        } catch (e) {
+            console.error("Codec detection error:", e);
+            return 'Detection Failed';
+        }
+    }
+
     async startUpload(file: File, taskData: any, subfolder: string, resumeId?: string) {
         let state: UploadState;
+
+        const isVideo = file.type.startsWith('video/') ||
+            ['mp4', 'mkv', 'mov', 'avi', 'webm'].some(ext => file.name.toLowerCase().endsWith('.' + ext));
+
+        let codec: string | null = null;
+        if (isVideo) {
+            console.log("🎥 Identifying video codec for:", file.name);
+            codec = await this.detectCodec(file);
+        }
 
         if (resumeId) {
             const existing = await uploadStateManager.getUploadState(resumeId);
@@ -138,14 +179,20 @@ class UploadService {
         this.activeUploads.set(state.id, true);
         this.emit(state.id, 'started', state);
 
-        this.runUploadLoop(file, state);
+        this.runUploadLoop(file, state, codec);
 
         return state.id;
     }
 
-    private async runUploadLoop(file: File, initialState: UploadState) {
+    private async runUploadLoop(file: File, initialState: UploadState, codecProps?: string | null) {
         const { id, key, uploadId: s3UploadId } = initialState;
         const currentState = { ...initialState }; // Local master copy to avoid DB race conditions
+        let codec = codecProps;
+
+        // If resuming and we don't have a codec yet, try identifying it
+        if (!codec && file.type.startsWith('video/')) {
+            codec = await this.detectCodec(file);
+        }
 
         try {
             const chunks: Array<{ chunk: Blob; partNumber: number }> = [];
@@ -212,7 +259,8 @@ class UploadService {
                     fileSize: currentState.fileSize,
                     fileType: currentState.fileType,
                     taskId: currentState.taskId,
-                    subfolder: currentState.subfolder || 'main'
+                    subfolder: currentState.subfolder || 'main',
+                    codec: codec // 🔥 Pass the detected codec
                 }),
             });
 

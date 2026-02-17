@@ -378,6 +378,7 @@ model File {
   revisionNote String?
   s3Key        String?
   version      Int            @default(1)
+  codec        String?
   task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   feedback     TaskFeedback[]
 

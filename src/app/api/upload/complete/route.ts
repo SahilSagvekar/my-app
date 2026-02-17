@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
       fileType,
       taskId,
       userId,
-      subfolder
+      subfolder,
+      codec
     } = await request.json();
 
     console.log("📥 Complete upload request:", {
@@ -102,6 +103,7 @@ export async function POST(request: NextRequest) {
           folderType: folderType,
           version: newVersion,
           isActive: true,
+          codec: codec,
         },
       });
 

@@ -29,6 +29,9 @@ export async function GET(
             mimeType: true,
             size: true,
             uploadedAt: true,
+            version: true,
+            isActive: true,
+            codec: true,
           },
           orderBy: {
             uploadedAt: "desc",

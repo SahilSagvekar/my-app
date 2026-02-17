@@ -27,6 +27,7 @@ interface TaskFile {
   replacedBy?: string;
   revisionNote?: string;
   s3Key?: string;
+  codec?: string;
 }
 
 interface EnhancedWorkflowTask {
@@ -742,6 +743,27 @@ export function QCDashboard() {
                           Pending
                         </Badge>
                       )}
+
+                      {/* 🔥 New: Non-H.264 Badge */}
+                      {(() => {
+                        const latestVideo = task.files
+                          ?.filter(f => f.mimeType?.startsWith('video/'))
+                          .sort((a, b) => {
+                            // Prioritize active file, then highest version
+                            if (a.isActive && !b.isActive) return -1;
+                            if (!a.isActive && b.isActive) return 1;
+                            return (b.version || 1) - (a.version || 1);
+                          })[0];
+
+                        if (latestVideo && latestVideo.codec && !latestVideo.codec.toLowerCase().includes('h.264') && !latestVideo.codec.toLowerCase().includes('avc1')) {
+                          return (
+                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 rounded-full px-2 py-0.5 text-[10px] font-bold animate-pulse">
+                              ⚠️ Non-H.264
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 </Card>

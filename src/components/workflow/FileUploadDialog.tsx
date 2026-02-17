@@ -94,6 +94,32 @@ export function FileUploadDialog({
     return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   };
 
+  const detectCodec = async (file: File): Promise<string | null> => {
+    if (!file.type.startsWith('video/')) return null;
+
+    try {
+      const slice = file.slice(0, 256 * 1024);
+      const buffer = await slice.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+
+      let headerStr = "";
+      // Searching the first 50KB should be enough to find the stsd box in most MP4s
+      for (let i = 0; i < Math.min(bytes.length, 50000); i++) {
+        headerStr += String.fromCharCode(bytes[i]);
+      }
+
+      if (headerStr.includes('avc1')) return 'H.264';
+      if (headerStr.includes('hvc1') || headerStr.includes('hev1')) return 'H.265';
+      if (headerStr.includes('vp09')) return 'VP9';
+      if (headerStr.includes('av01')) return 'AV1';
+
+      return 'Unknown';
+    } catch (e) {
+      console.error("Codec detection error:", e);
+      return null;
+    }
+  };
+
   // const uploadChunk = async (
   //   chunk: Blob,
   //   partNumber: number,
@@ -209,8 +235,16 @@ export function FileUploadDialog({
     let uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
     let completedChunks: number[] = [];
     let uploadedBytes = 0;
+    let codec: string | null = null;
 
     try {
+      // Detect codec for video files
+      if (file.type.startsWith('video/')) {
+        console.log("🔍 Detecting codec...");
+        codec = await detectCodec(file);
+        console.log("🎥 Detected codec:", codec);
+      }
+
       // Resume existing upload or start new
       if (resumeState) {
         uploadId = resumeState.id;
@@ -349,6 +383,7 @@ export function FileUploadDialog({
           taskId: task.id,
           userId: user?.id,
           subfolder: subfolder, // 🔥 Make sure this is included
+          codec: codec, // 🔥 Pass the detected codec
         }),
       });
 

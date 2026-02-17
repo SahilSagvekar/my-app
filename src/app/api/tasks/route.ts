@@ -684,6 +684,7 @@ export async function GET(req: any) {
             folderType: true,
             version: true,
             isActive: true,
+            codec: true,
           },
         },
         driveLinks: true,
