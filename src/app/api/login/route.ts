@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
+    if (user.employeeStatus !== 'ACTIVE') {
+      return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
+    }
+
     // if (!user.password) {
     //   console.log("[LOGIN] 5. No password set");
     //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });

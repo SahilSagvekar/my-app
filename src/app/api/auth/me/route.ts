@@ -28,13 +28,14 @@ export async function GET(req: Request) {
             role: true,
             image: true,
             linkedClientId: true,
+            employeeStatus: true,
             client: {
               select: { id: true }
             }
           },
         });
 
-        if (user) {
+        if (user && user.employeeStatus === 'ACTIVE') {
           const processedUser = {
             ...user,
             linkedClientId: user.linkedClientId || (user as any).client?.id || null
@@ -59,13 +60,14 @@ export async function GET(req: Request) {
           role: true,
           image: true,
           linkedClientId: true,
+          employeeStatus: true,
           client: {
             select: { id: true }
           }
         },
       });
 
-      if (user) {
+      if (user && user.employeeStatus === 'ACTIVE') {
         const processedUser = {
           ...user,
           linkedClientId: user.linkedClientId || (user as any).client?.id || null

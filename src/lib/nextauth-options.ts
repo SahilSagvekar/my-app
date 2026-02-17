@@ -46,6 +46,10 @@ export const authOptions: NextAuthConfig = {
                     throw new Error("Invalid credentials");
                 }
 
+                if (user.employeeStatus !== 'ACTIVE') {
+                    throw new Error("Account is deactivated. Please contact support.");
+                }
+
                 const isValid = await bcrypt.compare(credentials.password, user.password as string);
                 if (!isValid) {
                     throw new Error("Invalid credentials");
@@ -64,6 +68,21 @@ export const authOptions: NextAuthConfig = {
     ],
 
     callbacks: {
+        async signIn({ user, account }: any) {
+            if (!user.email) return false;
+
+            const dbUser = await prisma.user.findFirst({
+                where: { email: user.email },
+                select: { employeeStatus: true }
+            });
+
+            if (dbUser && dbUser.employeeStatus !== 'ACTIVE') {
+                return false; // Block sign-in if not active
+            }
+
+            return true;
+        },
+
         async jwt({ token, user, account }: any) {
             console.log("DEBUG [JWT CALLBACK] token:", !!token, "user:", !!user, "account:", account?.provider);
 
@@ -82,8 +101,14 @@ export const authOptions: NextAuthConfig = {
                                 name: user.name,
                                 image: user.image,
                                 role: null, // Initial state is pending
+                                employeeStatus: 'ACTIVE', // OAuth users are active by default if they were allowed to sign in
                             }
                         });
+                    }
+
+                    if (dbUser.employeeStatus !== 'ACTIVE') {
+                        // This should theoretically be caught by signIn callback, but safety first
+                        return null;
                     }
 
                     token.id = dbUser.id.toString();
@@ -92,6 +117,16 @@ export const authOptions: NextAuthConfig = {
                     // Credentials login already has correct data from authorize()
                     token.id = user.id;
                     token.role = (user as any).role;
+                }
+            } else if (token.id) {
+                // Periodically verify user status for existing JWTs
+                const dbUser = await prisma.user.findUnique({
+                    where: { id: Number(token.id) },
+                    select: { employeeStatus: true }
+                });
+
+                if (!dbUser || dbUser.employeeStatus !== 'ACTIVE') {
+                    return null; // Force session expiration
                 }
             }
             return token;

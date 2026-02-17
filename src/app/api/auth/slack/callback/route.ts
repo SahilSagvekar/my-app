@@ -41,6 +41,10 @@ export async function GET(req: Request) {
     });
   }
 
+  if (user.employeeStatus !== 'ACTIVE') {
+    return NextResponse.redirect(`${process.env.GOOGLE_REDIRECT_URI}/login?error=account_deactivated`);
+  }
+
   const token = jwt.sign(
     { userId: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET!,

@@ -761,8 +761,15 @@ export default function LeavesComponent() {
     }
   }, [editingEmployee, editEmployeeForm, isSavingEmployee]);
 
-  const handleDeleteUser = (userId: number) => {
-    console.log("Deleting user:", userId);
+  const handleDeleteUser = async (userId: number) => {
+    try {
+      await apiFetch(`/api/employee/${userId}`, { method: "DELETE" });
+      toast.success("Employee deleted");
+      await loadEmployees();
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to delete employee");
+    }
   };
 
   const handleAddBonus = async () => {
@@ -795,8 +802,27 @@ export default function LeavesComponent() {
     }
   };
 
-  const handleUpdateUserStatus = (userId: number, newStatus: string) => {
-    console.log("Updating user status:", userId, newStatus);
+  const handleUpdateUserStatus = async (userId: number, currentStatus: string) => {
+    const action = currentStatus === 'active' ? 'deactivate' : 'activate';
+    const endpoint = `/api/employee/${userId}/${action}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        toast.success(`User successfully ${action}d`);
+        await loadEmployees();
+      } else {
+        toast.error(data.message || `Failed to ${action} user`);
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing user:`, error);
+      toast.error(`A system error occurred while trying to ${action} the user`);
+    }
   };
 
   const handleReset2FA = async (employee: any) => {
@@ -1340,12 +1366,7 @@ export default function LeavesComponent() {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() =>
-                              handleUpdateUserStatus(
-                                employee.id,
-                                employee.status === "active"
-                                  ? "inactive"
-                                  : "active"
-                              )
+                              handleUpdateUserStatus(employee.id, employee.status)
                             }
                           >
                             {employee.status === "active" ? (
