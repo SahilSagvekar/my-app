@@ -865,8 +865,9 @@ export function ClientDashboard() {
         <div className="flex items-center justify-between gap-4 pl-70">
           <Tabs value={currentFilter} onValueChange={(val: any) => setCurrentFilter(val)} className="w-full">
             <TabsList className="bg-zinc-200/50 p-1 mb-2">
-              <TabsTrigger value="all" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium">
+              <TabsTrigger value="all" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
                 All Tasks
+                {tasks.length > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{tasks.length}</Badge>}
               </TabsTrigger>
               <TabsTrigger value="pending" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
                 Pending Review
@@ -996,10 +997,17 @@ export function ClientDashboard() {
                           </Badge>
                         )}
                       </div>
-                      {/* <div className="flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>{new Date(task.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                      </div> */}
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-7 w-7 rounded-full bg-black/80 backdrop-blur-sm shadow-sm bg-white flex items-center justify-center p-0 border border-zinc-200/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadAllFiles(task);
+                        }}
+                      >
+                        <Download className="h-3.5 w-3.5 text-zinc-700" />
+                      </Button>
                     </div>
 
                     {/* Badges Row */}
