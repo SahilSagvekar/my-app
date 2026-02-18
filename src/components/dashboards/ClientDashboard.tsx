@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
+import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
 
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
@@ -146,6 +147,7 @@ export function ClientDashboard() {
   const [selectedFile, setSelectedFile] = useState<TaskFile | null>(null);
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
+  const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -340,6 +342,7 @@ export function ClientDashboard() {
 
       // Close modals and reset state
       setShowVideoReview(false);
+      setShowThumbnailReview(false);
       setShowFileSelector(false);
       setSelectedFile(null);
       setSelectedTask(null);
@@ -443,6 +446,45 @@ export function ClientDashboard() {
     }
   };
 
+  /* ---------------------- THUMBNAIL REVIEW HANDLERS ------------------------- */
+
+  const handleThumbnailApprove = async (file: TaskFile) => {
+    await handleApprove();
+  };
+
+  const handleThumbnailRequestRevisions = async (file: TaskFile, feedback: any[]) => {
+    if (!selectedTask) return;
+
+    // Summary of feedback
+    const notesArr = feedback.map(f => `[${f.category}] ${f.feedback}`);
+    const notes = notesArr.join('\n');
+
+    try {
+      setIsSubmitting(true);
+      await persistClientResult({
+        taskId: selectedTask.id,
+        approved: false,
+        feedback: notes,
+      });
+
+      setTasks((prev) => prev.filter((t) => t.id !== selectedTask.id));
+
+      toast.success("📝 Revisions Requested", {
+        description: "Your feedback on the thumbnail has been sent.",
+      });
+
+      setShowThumbnailReview(false);
+      setShowFileSelector(false);
+      setSelectedFile(null);
+      setSelectedTask(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to request revisions");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   /* -------------------------- DOWNLOAD HANDLERS ------------------------------- */
 
   const handleDownloadAllFiles = async (task?: ClientTask) => {
@@ -496,6 +538,8 @@ export function ClientDashboard() {
 
     if (file.mimeType?.startsWith('video/')) {
       setShowVideoReview(true);
+    } else if (file.mimeType?.startsWith('image/')) {
+      setShowThumbnailReview(true);
     } else {
       // Open in-app preview modal
       setIsPreviewOpen(true);
@@ -921,7 +965,7 @@ export function ClientDashboard() {
 
                               {/* Action Button */}
                               <div className="flex items-center gap-2 flex-shrink-0">
-                                {file.mimeType?.startsWith('video/') ? (
+                                {file.mimeType?.startsWith('video/') || file.mimeType?.startsWith('image/') ? (
                                   <Button size="sm" variant="default">
                                     <Play className="h-4 w-4 mr-2" />
                                     Review
@@ -1104,6 +1148,26 @@ export function ClientDashboard() {
           onOpenChange={setShowComparison}
           thumbnails={comparisonFiles}
           taskTitle={selectedTask.title}
+        />
+      )}
+
+      {/* Fullscreen Thumbnail Review Modal */}
+      {selectedTask && selectedFile && selectedFile.mimeType?.startsWith('image/') && (
+        <ThumbnailReviewModal
+          open={showThumbnailReview}
+          onOpenChange={(open: boolean) => {
+            setShowThumbnailReview(open);
+            if (!open) {
+              setSelectedFile(null);
+            }
+          }}
+          file={selectedFile}
+          allFiles={selectedTask.files || []}
+          taskId={selectedTask.id}
+          taskTitle={selectedTask.title}
+          onApprove={handleThumbnailApprove}
+          onRequestRevisions={handleThumbnailRequestRevisions}
+          userRole="client"
         />
       )}
     </div>
