@@ -534,7 +534,7 @@ const buildRoleWhereQuery = async (role: string | null, userId: number): Promise
             { clientId: resolvedClientId },
             {
               status: {
-                in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED],
+                in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED, TaskStatus.COMPLETED],
               },
             },
           ],
@@ -547,7 +547,7 @@ const buildRoleWhereQuery = async (role: string | null, userId: number): Promise
           { clientUserId: Number(userId) },
           {
             status: {
-              in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED],
+              in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED, TaskStatus.COMPLETED],
             },
           },
         ],

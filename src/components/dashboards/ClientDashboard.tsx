@@ -197,17 +197,22 @@ export function ClientDashboard() {
 
       const normalized = data.map((task: any) => ({
         ...task,
-        status: "pending_review",
+        status: task.status,
         priority: task.priority || "medium",
         taskCategory: task.taskCategory || "design",
         files: task.files || [],
       }));
 
-      // Sort by due date (oldest first)
-      const sorted = normalized.sort(
-        (a, b) =>
-          new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-      );
+      // Sort: Pending first, then Approved/Completed/Scheduled, then by due date
+      const sorted = normalized.sort((a, b) => {
+        const isACompleted = a.status === 'COMPLETED' || a.status === 'SCHEDULED';
+        const isBCompleted = b.status === 'COMPLETED' || b.status === 'SCHEDULED';
+
+        if (isACompleted && !isBCompleted) return 1;
+        if (!isACompleted && isBCompleted) return -1;
+
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      });
 
       setTasks(sorted);
     } catch (err) {
@@ -232,8 +237,21 @@ export function ClientDashboard() {
         approved: true,
       });
 
-      // Remove task from list
-      setTasks((prev) => prev.filter((t) => t.id !== taskToApprove.id));
+      // Update task in list instead of removing it
+      setTasks((prev) => prev.map((t) =>
+        t.id === taskToApprove.id
+          ? { ...t, status: "COMPLETED" }
+          : t
+      ));
+
+      // Re-sort tasks so the approved one moves to the end
+      setTasks((prev) => [...prev].sort((a, b) => {
+        const isACompleted = a.status === 'COMPLETED' || a.status === 'SCHEDULED';
+        const isBCompleted = b.status === 'COMPLETED' || b.status === 'SCHEDULED';
+        if (isACompleted && !isBCompleted) return 1;
+        if (!isACompleted && isBCompleted) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }));
 
       toast.success("✅ Approved – Sent to Scheduler", {
         description: "Content has been approved and sent for scheduling.",
@@ -271,7 +289,18 @@ export function ClientDashboard() {
         feedback: revisionNotes,
       });
 
-      // Remove task from list
+      // Update task status or keep it?
+      // For revision requests, it might be better to keep it if they want to see "Revision Requested"
+      // But usually they want to move it out or keep it at the end too.
+      // Given the prompt "once approved... should be moved to the end", maybe focus only on approved.
+      // However, if I change the logic for approved, I should probably handle REJECTED too so it doesn't just disappear if they expect consistency.
+      // But the user ONLY asked for approved tasks.
+      // Let's stick strictly to the user's request for approved tasks first.
+      // Wait, if I don't remove REJECTED ones, they will also stay.
+
+      // Let's just remove REJECTED ones as before, UNLESS the user wants them to stay too.
+      // The prompt specifically said "once the client has approved a task".
+
       setTasks((prev) => prev.filter((t) => t.id !== selectedTask.id));
 
       toast.success("📝 Revision Requested – Sent to Editor", {
@@ -315,7 +344,7 @@ export function ClientDashboard() {
         feedback: notes,
       });
 
-      // Remove task from list
+      // Remove task from list - Revision requested tasks should disappear as they go back to the editor
       setTasks((prev) => prev.filter((t) => t.id !== selectedTask.id));
 
       toast.success("📝 Revision Requested – Sent to Editor", {
@@ -452,7 +481,7 @@ export function ClientDashboard() {
       versions: versions,
       currentVersion: file.id,
       downloadEnabled: true,
-      approvalLocked: false
+      approvalLocked: selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED'
     };
   };
 
@@ -592,7 +621,7 @@ export function ClientDashboard() {
 
   /* ----------------------------- STATS ------------------------------------ */
 
-  const pendingReviews = tasks.length;
+  const pendingReviews = tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED')).length;
   const overdueReviews = tasks.filter(task => isOverdue(task)).length;
 
   /* -------------------------------------------------------------------------- */
@@ -708,9 +737,16 @@ export function ClientDashboard() {
                         <span>Editor: {task.user?.name || 'Assigned Editor'}</span>
                       </div> */}
                       <div className="flex flex-wrap gap-2 pt-1">
-                        <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                          Pending
-                        </Badge>
+                        {task.status === 'COMPLETED' || task.status === 'SCHEDULED' ? (
+                          <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
+                            <Check className="h-2.5 w-2.5" />
+                            Approved
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                            Pending
+                          </Badge>
+                        )}
                       </div>
                       {/* <div className="flex items-center gap-1.5">
                         <Calendar className="h-3.5 w-3.5" />
@@ -852,25 +888,37 @@ export function ClientDashboard() {
                 )}
                 Share Review
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowFileSelector(false);
-                  setShowRevisionDialog(true);
-                }}
-                disabled={isSubmitting}
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Request Revisions
-              </Button>
-              <Button
-                onClick={() => handleApprove()}
-                disabled={isSubmitting}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Approve All
-              </Button>
+
+              {!(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED') && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowFileSelector(false);
+                      setShowRevisionDialog(true);
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Request Revisions
+                  </Button>
+                  <Button
+                    onClick={() => handleApprove()}
+                    disabled={isSubmitting}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Approve All
+                  </Button>
+                </>
+              )}
+
+              {(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED') && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-100 font-medium">
+                  <CheckCircle className="h-4 w-4" />
+                  Task Approved
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>
