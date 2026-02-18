@@ -35,6 +35,7 @@ import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFra
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { ShareDialog } from '../review/ShareDialog';
 
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
@@ -159,6 +160,12 @@ export function ClientDashboard() {
   const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
   const [videoApprovedTasks, setVideoApprovedTasks] = useState<Set<string>>(new Set());
   const [thumbApprovedTasks, setThumbApprovedTasks] = useState<Set<string>>(new Set());
+
+  // 🔥 Share states
+  const [shareLink, setShareLink] = useState("");
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const { user } = useAuth();
 
@@ -613,6 +620,44 @@ export function ClientDashboard() {
     }
   };
 
+  const handleShare = async (e: React.MouseEvent, task: ClientTask) => {
+    e.stopPropagation();
+    setIsSharing(true);
+    setCopied(false);
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expiresAt: null, // Never expires by default
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate share link");
+
+      const data = await res.json();
+      setShareLink(data.shareUrl);
+      setShowShareDialog(true);
+
+      // Auto-copy with fallback for focus issues
+      try {
+        await navigator.clipboard.writeText(data.shareUrl);
+        setCopied(true);
+        toast.success("Share link created and copied to clipboard");
+        setTimeout(() => setCopied(false), 3000);
+      } catch (clipErr) {
+        console.warn("Auto-copy to clipboard failed (likely focus issue):", clipErr);
+        toast.success("Share link created!");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate share link");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
 
 
   /* ---------------------------- FILE HANDLING ------------------------------- */
@@ -858,40 +903,86 @@ export function ClientDashboard() {
         {/* Page Header & Stats Row */}
         <div className="flex flex-row items-center justify-start gap-16 pb-6 border-b border-zinc-100">
           <div className="flex flex-col gap-1 pr-16">
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Content Review</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
+              Content Review
+            </h1>
             <p className="text-sm text-zinc-500">
               Review content from your team and approve or request revisions
             </p>
           </div>
 
           <div className="flex items-center justify-between gap-4 pl-70">
-            <Tabs value={currentFilter} onValueChange={(val: any) => setCurrentFilter(val)} className="w-full">
+            <Tabs
+              value={currentFilter}
+              onValueChange={(val: any) => setCurrentFilter(val)}
+              className="w-full"
+            >
               <TabsList className="bg-zinc-200/50 p-1 mb-2">
-                <TabsTrigger value="all" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+                <TabsTrigger
+                  value="all"
+                  className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                >
                   All Tasks
-                  {tasks.length > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{tasks.length}</Badge>}
+                  {tasks.length > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
+                    >
+                      {tasks.length}
+                    </Badge>
+                  )}
                 </TabsTrigger>
-                <TabsTrigger value="pending" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+                <TabsTrigger
+                  value="pending"
+                  className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                >
                   Pending Review
-                  {pendingReviews > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{pendingReviews}</Badge>}
+                  {pendingReviews > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
+                    >
+                      {pendingReviews}
+                    </Badge>
+                  )}
                 </TabsTrigger>
-                <TabsTrigger value="approved" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+                <TabsTrigger
+                  value="approved"
+                  className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                >
                   Approved
-                  {approvedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{approvedCount}</Badge>}
+                  {approvedCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
+                    >
+                      {approvedCount}
+                    </Badge>
+                  )}
                 </TabsTrigger>
-                {user?.hasPostingServices !== false && (
-                  <TabsTrigger value="posted" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+                {/* {user?.hasPostingServices !== false && ( */}
+                  {/* console.log("User has access " + user?.hasPostingServices), */}
+                  <TabsTrigger
+                    value="posted"
+                    className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  >
                     Posted
-                    {postedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{postedCount}</Badge>}
+                    {postedCount > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
+                      >
+                        {postedCount}
+                      </Badge>
+                    )}
                   </TabsTrigger>
-                )}
+                {/* )} */}
               </TabsList>
             </Tabs>
           </div>
         </div>
 
         <div className="flex-1">
-
           {loading ? (
             <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
               <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
@@ -902,9 +993,9 @@ export function ClientDashboard() {
               <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-40 text-emerald-500" />
               <p className="font-medium">No tasks found</p>
               <p className="text-sm mt-1">
-                {currentFilter === 'all'
+                {currentFilter === "all"
                   ? "No content available yet"
-                  : `No tasks currently in ${currentFilter} status`}  
+                  : `No tasks currently in ${currentFilter} status`}
               </p>
             </div>
           ) : (
@@ -918,7 +1009,9 @@ export function ClientDashboard() {
                     onClick={() => handleTaskClick(task)}
                   >
                     {/* Visual Header / Thumbnail Area */}
-                    <div className={`h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold`}>
+                    <div
+                      className={`h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold`}
+                    >
                       {thumbnail ? (
                         <img
                           src={thumbnail}
@@ -933,7 +1026,9 @@ export function ClientDashboard() {
                       )}
 
                       {/* Darker overlay if thumbnail exists for better icon readability */}
-                      {thumbnail && <div className="absolute inset-0 bg-black/5" />}
+                      {thumbnail && (
+                        <div className="absolute inset-0 bg-black/5" />
+                      )}
 
                       {/* Status Overlay - Top Left */}
                       {/* <div className="absolute top-3 left-3">
@@ -973,12 +1068,13 @@ export function ClientDashboard() {
                         <span>Editor: {task.user?.name || 'Assigned Editor'}</span>
                       </div> */}
                         <div className="flex flex-wrap gap-2 pt-1">
-                          {task.status === 'POSTED' ? (
+                          {task.status === "POSTED" ? (
                             <Badge className="bg-orange-50 text-orange-600 hover:bg-orange-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
                               <ExternalLink className="h-2.5 w-2.5" />
                               Posted
                             </Badge>
-                          ) : task.status === 'COMPLETED' || task.status === 'SCHEDULED' ? (
+                          ) : task.status === "COMPLETED" ||
+                            task.status === "SCHEDULED" ? (
                             <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
                               <Check className="h-2.5 w-2.5" />
                               Approved
@@ -989,24 +1085,43 @@ export function ClientDashboard() {
                             </Badge>
                           )}
                         </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="secondary"
-                              size="icon"
-                              className="h-7 w-7 rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownloadAllFiles(task);
-                              }}
-                            >
-                              <Download className="h-3.5 w-3.5 text-zinc-700" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
-                            <p>Download</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <div className="flex items-center gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="secondary"
+                                size="icon"
+                                className="h-7 w-7 rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300"
+                                onClick={(e) => handleShare(e, task)}
+                                disabled={isSharing}
+                              >
+                                <Share className="h-3.5 w-3.5 text-zinc-700" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
+                              <p>Share review screen</p>
+                            </TooltipContent>
+                          </Tooltip>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="secondary"
+                                size="icon"
+                                className="h-7 w-7 rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadAllFiles(task);
+                                }}
+                              >
+                                <Download className="h-3.5 w-3.5 text-zinc-700" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
+                              <p>Download</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
 
                       {/* Badges Row */}
@@ -1034,7 +1149,8 @@ export function ClientDashboard() {
                   Review Content
                 </DialogTitle>
                 <DialogDescription>
-                  {selectedTask.title} - Review files and approve or request revisions
+                  {selectedTask.title} - Review files and approve or request
+                  revisions
                 </DialogDescription>
               </DialogHeader>
 
@@ -1043,87 +1159,116 @@ export function ClientDashboard() {
                 {selectedTask.files && selectedTask.files.length > 0 ? (
                   <div className="space-y-4">
                     {groupFilesByFolderType(selectedTask.files).map((group) => (
-                      <div key={group.folderType} className="border rounded-lg overflow-hidden">
+                      <div
+                        key={group.folderType}
+                        className="border rounded-lg overflow-hidden"
+                      >
                         {/* Section Header */}
-                        <div className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}>
+                        <div
+                          className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}
+                        >
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{group.info.icon}</span>
-                            <h4 className="font-semibold text-sm">{group.info.label}</h4>
+                            <h4 className="font-semibold text-sm">
+                              {group.info.label}
+                            </h4>
                             <Badge variant="secondary" className="text-xs">
-                              {group.files.length} file{group.files.length !== 1 ? 's' : ''}
+                              {group.files.length} file
+                              {group.files.length !== 1 ? "s" : ""}
                             </Badge>
                           </div>
-                          {group.folderType === 'thumbnails' && group.files.length > 1 && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="bg-white/50 hover:bg-white text-xs h-8"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setComparisonFiles(group.files);
-                                setShowComparison(true);
-                              }}
-                            >
-                              <History className="h-3.5 w-3.5 mr-1.5" />
-                              Compare Versions
-                            </Button>
-                          )}
+                          {group.folderType === "thumbnails" &&
+                            group.files.length > 1 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-white/50 hover:bg-white text-xs h-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setComparisonFiles(group.files);
+                                  setShowComparison(true);
+                                }}
+                              >
+                                <History className="h-3.5 w-3.5 mr-1.5" />
+                                Compare Versions
+                              </Button>
+                            )}
                         </div>
 
                         {/* Files in this section */}
                         <div className="divide-y">
-                          {group.files.filter(f => f.isActive !== false).map((file, index) => (
-                            <div
-                              key={file.id}
-                              className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => handleFileSelect(file)}
-                            >
-                              <div className="flex items-center gap-4">
-                                {/* File Info */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                    <p className="font-medium text-sm truncate max-w-[300px]">
-                                      {file.name}
-                                    </p>
-                                    <Badge variant="default" className="text-xs">
-                                      V{file.version || 1}
-                                    </Badge>
-                                    <Badge variant="secondary" className="text-xs">
-                                      {getFileTypeLabel(file.mimeType)}
-                                    </Badge>
-                                    {/* Visual indicator for partial approval */}
-                                    {((file.folderType || 'main') === 'main' && videoApprovedTasks.has(selectedTask.id)) ||
-                                      (file.folderType === 'thumbnails' && thumbApprovedTasks.has(selectedTask.id)) ? (
-                                      <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] h-5 flex items-center gap-1">
-                                        <Check className="h-3 w-3" />
-                                        Approved
+                          {group.files
+                            .filter((f) => f.isActive !== false)
+                            .map((file, index) => (
+                              <div
+                                key={file.id}
+                                className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleFileSelect(file)}
+                              >
+                                <div className="flex items-center gap-4">
+                                  {/* File Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <p className="font-medium text-sm truncate max-w-[300px]">
+                                        {file.name}
+                                      </p>
+                                      <Badge
+                                        variant="default"
+                                        className="text-xs"
+                                      >
+                                        V{file.version || 1}
                                       </Badge>
-                                    ) : null}
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-xs"
+                                      >
+                                        {getFileTypeLabel(file.mimeType)}
+                                      </Badge>
+                                      {/* Visual indicator for partial approval */}
+                                      {((file.folderType || "main") ===
+                                        "main" &&
+                                        videoApprovedTasks.has(
+                                          selectedTask.id,
+                                        )) ||
+                                      (file.folderType === "thumbnails" &&
+                                        thumbApprovedTasks.has(
+                                          selectedTask.id,
+                                        )) ? (
+                                        <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] h-5 flex items-center gap-1">
+                                          <Check className="h-3 w-3" />
+                                          Approved
+                                        </Badge>
+                                      ) : null}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                      <span>{formatFileSize(file.size)}</span>
+                                      <span>•</span>
+                                      <span>
+                                        Uploaded{" "}
+                                        {new Date(
+                                          file.uploadedAt,
+                                        ).toLocaleDateString()}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                    <span>{formatFileSize(file.size)}</span>
-                                    <span>•</span>
-                                    <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
-                                  </div>
-                                </div>
 
-                                {/* Action Button */}
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  {isReviewable(file) ? (
-                                    <Button size="sm" variant="default">
-                                      <Play className="h-4 w-4 mr-2" />
-                                      Review
-                                    </Button>
-                                  ) : (
-                                    <Button size="sm" variant="outline">
-                                      <ExternalLink className="h-4 w-4 mr-2" />
-                                      View
-                                    </Button>
-                                  )}
+                                  {/* Action Button */}
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {isReviewable(file) ? (
+                                      <Button size="sm" variant="default">
+                                        <Play className="h-4 w-4 mr-2" />
+                                        Review
+                                      </Button>
+                                    ) : (
+                                      <Button size="sm" variant="outline">
+                                        <ExternalLink className="h-4 w-4 mr-2" />
+                                        View
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
                         </div>
                       </div>
                     ))}
@@ -1137,10 +1282,10 @@ export function ClientDashboard() {
               </div>
 
               {/* 🔧 FIX: Changed mt-4 to mt-auto + flex-shrink-0 so buttons stay pinned at bottom */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t mt-auto flex-shrink-0">
+              {/* <div className="flex items-center justify-end gap-3 pt-4 border-t mt-auto flex-shrink-0">
                 <Button
                   variant="outline"
-                  className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 mr-auto"
+                  className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 mr-auto "
                   onClick={() => handleDownloadAllFiles()}
                 >
                   <Download className="h-4 w-4 mr-2" />
@@ -1188,16 +1333,85 @@ export function ClientDashboard() {
                     Content Posted
                   </div>
                 )}
+              </div> */}
+
+              {/* Bottom Action Bar */}
+              <div className="flex flex-col gap-3 pt-4 border-t mt-auto flex-shrink-0">
+                {/* Download row - full width */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-center"
+                  onClick={() => handleDownloadAllFiles()}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Files
+                </Button>
+
+                {/* Review action buttons row */}
+                {!(
+                  selectedTask.status === "COMPLETED" ||
+                  selectedTask.status === "SCHEDULED" ||
+                  selectedTask.status === "POSTED"
+                ) && (
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        setShowFileSelector(false);
+                        setShowRevisionDialog(true);
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Request Revisions
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => handleApprove()}
+                      disabled={isSubmitting}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approve All
+                    </Button>
+                  </div>
+                )}
+
+                {user?.hasPostingServices !== false &&
+                  (selectedTask.status === "COMPLETED" ||
+                    selectedTask.status === "SCHEDULED") && (
+                    <Button
+                      size="sm"
+                      className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                      onClick={() => handleMarkAsPosted()}
+                      disabled={isSubmitting}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Mark as Posted
+                    </Button>
+                  )}
+
+                {selectedTask.status === "POSTED" && (
+                  <div className="flex items-center justify-center gap-2 text-green-600 py-1">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Content Posted</span>
+                  </div>
+                )}
               </div>
             </DialogContent>
           </Dialog>
         )}
 
-
-
         {/* Revision Request Dialog */}
         {selectedTask && (
-          <Dialog open={showRevisionDialog} onOpenChange={setShowRevisionDialog}>
+          <Dialog
+            open={showRevisionDialog}
+            onOpenChange={setShowRevisionDialog}
+          >
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -1221,7 +1435,8 @@ export function ClientDashboard() {
                     className="resize-none"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Be specific about what needs to be changed. This feedback will be sent to the editor.
+                    Be specific about what needs to be changed. This feedback
+                    will be sent to the editor.
                   </p>
                 </div>
 
@@ -1255,29 +1470,31 @@ export function ClientDashboard() {
         )}
 
         {/* Fullscreen Video Review Modal */}
-        {selectedTask && selectedFile && selectedFile.mimeType?.startsWith('video/') && (
-          <FullScreenReviewModalFrameIO
-            open={showVideoReview}
-            onOpenChange={(open: boolean) => {
-              setShowVideoReview(open);
-              if (!open) {
-                setSelectedFile(null);
-                // Don't clear selectedTask so user can continue reviewing
-              }
-            }}
-            asset={getVideoAssetFromFile(selectedFile)}
-            onApprove={handleVideoApprove}
-            onRequestRevisions={handleVideoRequestRevisions}
-            userRole="client"
-            // 🔥 Pass file info for version-tracked feedback
-            taskId={selectedTask.id}
-            currentFileSection={{
-              folderType: selectedFile.folderType || 'main',
-              fileId: selectedFile.id,
-              version: selectedFile.version || 1,
-            }}
-          />
-        )}
+        {selectedTask &&
+          selectedFile &&
+          selectedFile.mimeType?.startsWith("video/") && (
+            <FullScreenReviewModalFrameIO
+              open={showVideoReview}
+              onOpenChange={(open: boolean) => {
+                setShowVideoReview(open);
+                if (!open) {
+                  setSelectedFile(null);
+                  // Don't clear selectedTask so user can continue reviewing
+                }
+              }}
+              asset={getVideoAssetFromFile(selectedFile)}
+              onApprove={handleVideoApprove}
+              onRequestRevisions={handleVideoRequestRevisions}
+              userRole="client"
+              // 🔥 Pass file info for version-tracked feedback
+              taskId={selectedTask.id}
+              currentFileSection={{
+                folderType: selectedFile.folderType || "main",
+                fileId: selectedFile.id,
+                version: selectedFile.version || 1,
+              }}
+            />
+          )}
         {/* File Preview Modal */}
         <FilePreviewModal
           file={selectedFile}
@@ -1296,24 +1513,39 @@ export function ClientDashboard() {
         )}
 
         {/* Fullscreen Thumbnail Review Modal */}
-        {selectedTask && selectedFile && selectedFile.mimeType?.startsWith('image/') && (
-          <ThumbnailReviewModal
-            open={showThumbnailReview}
-            onOpenChange={(open: boolean) => {
-              setShowThumbnailReview(open);
-              if (!open) {
-                setSelectedFile(null);
-              }
-            }}
-            file={selectedFile}
-            allFiles={selectedTask.files || []}
-            taskId={selectedTask.id}
-            taskTitle={selectedTask.title}
-            onApprove={handleThumbnailApprove}
-            onRequestRevisions={handleThumbnailRequestRevisions}
-            userRole="client"
-          />
-        )}
+        {selectedTask &&
+          selectedFile &&
+          selectedFile.mimeType?.startsWith("image/") && (
+            <ThumbnailReviewModal
+              open={showThumbnailReview}
+              onOpenChange={(open: boolean) => {
+                setShowThumbnailReview(open);
+                if (!open) {
+                  setSelectedFile(null);
+                }
+              }}
+              file={selectedFile}
+              allFiles={selectedTask.files || []}
+              taskId={selectedTask.id}
+              taskTitle={selectedTask.title}
+              onApprove={handleThumbnailApprove}
+              onRequestRevisions={handleThumbnailRequestRevisions}
+              userRole="client"
+            />
+          )}
+
+        <ShareDialog
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          shareLink={shareLink}
+          onCopy={() => {
+            navigator.clipboard.writeText(shareLink);
+            setCopied(true);
+            toast.success("Copied to clipboard");
+            setTimeout(() => setCopied(false), 2000);
+          }}
+          copied={copied}
+        />
       </div>
     </TooltipProvider>
   );
