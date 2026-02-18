@@ -156,6 +156,8 @@ export function ClientDashboard() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
+  const [videoApprovedTasks, setVideoApprovedTasks] = useState<Set<string>>(new Set());
+  const [thumbApprovedTasks, setThumbApprovedTasks] = useState<Set<string>>(new Set());
 
   const { user } = useAuth();
 
@@ -348,6 +350,18 @@ export function ClientDashboard() {
       setShowFileSelector(false);
       setSelectedFile(null);
       setSelectedTask(null);
+
+      // Clear session approval tracking for this task
+      setVideoApprovedTasks(prev => {
+        const next = new Set(prev);
+        next.delete(taskToApprove.id);
+        return next;
+      });
+      setThumbApprovedTasks(prev => {
+        const next = new Set(prev);
+        next.delete(taskToApprove.id);
+        return next;
+      });
     } catch (err) {
       console.error(err);
       toast.error("Failed to approve task");
@@ -400,6 +414,18 @@ export function ClientDashboard() {
       setRevisionNotes("");
       setSelectedFile(null);
       setSelectedTask(null);
+
+      // Clear session approval tracking for this task
+      setVideoApprovedTasks(prev => {
+        const next = new Set(prev);
+        next.delete(selectedTask.id);
+        return next;
+      });
+      setThumbApprovedTasks(prev => {
+        const next = new Set(prev);
+        next.delete(selectedTask.id);
+        return next;
+      });
     } catch (err) {
       console.error(err);
       toast.error("Failed to request revisions");
@@ -412,7 +438,23 @@ export function ClientDashboard() {
 
   // Called from FullScreenReviewModal when client approves
   const handleVideoApprove = async (asset: any) => {
-    await handleApprove();
+    if (!selectedTask) return;
+
+    // Mark video as approved locally
+    setVideoApprovedTasks(prev => new Set(prev).add(selectedTask.id));
+
+    const hasThumbnails = selectedTask.files?.some(f => f.folderType === 'thumbnails');
+    const isThumbApproved = thumbApprovedTasks.has(selectedTask.id);
+
+    if (hasThumbnails && !isThumbApproved) {
+      toast.success("Video Approved", {
+        description: "Please also review and approve a thumbnail to complete the task.",
+      });
+      setShowVideoReview(false);
+      setShowFileSelector(true);
+    } else {
+      await handleApprove();
+    }
   };
 
   // Called from FullScreenReviewModal when client requests revisions
@@ -440,6 +482,18 @@ export function ClientDashboard() {
       setShowVideoReview(false);
       setSelectedFile(null);
       setSelectedTask(null);
+
+      // Clear session approval tracking for this task
+      setVideoApprovedTasks(prev => {
+        const next = new Set(prev);
+        next.delete(selectedTask.id);
+        return next;
+      });
+      setThumbApprovedTasks(prev => {
+        const next = new Set(prev);
+        next.delete(selectedTask.id);
+        return next;
+      });
     } catch (err) {
       console.error(err);
       toast.error("Failed to request revisions");
@@ -451,7 +505,23 @@ export function ClientDashboard() {
   /* ---------------------- THUMBNAIL REVIEW HANDLERS ------------------------- */
 
   const handleThumbnailApprove = async (file: TaskFile) => {
-    await handleApprove();
+    if (!selectedTask) return;
+
+    // Mark thumbnail as approved locally
+    setThumbApprovedTasks(prev => new Set(prev).add(selectedTask.id));
+
+    const hasVideo = selectedTask.files?.some(f => f.mimeType?.startsWith('video/') && (f.folderType || 'main') === 'main');
+    const isVideoApproved = videoApprovedTasks.has(selectedTask.id);
+
+    if (hasVideo && !isVideoApproved) {
+      toast.success("Thumbnail Approved", {
+        description: "Please also review and approve the main video to complete the task.",
+      });
+      setShowThumbnailReview(false);
+      setShowFileSelector(true);
+    } else {
+      await handleApprove();
+    }
   };
 
   const handleThumbnailRequestRevisions = async (file: TaskFile, feedback: any[]) => {
@@ -479,6 +549,18 @@ export function ClientDashboard() {
       setShowFileSelector(false);
       setSelectedFile(null);
       setSelectedTask(null);
+
+      // Clear session approval tracking for this task
+      setVideoApprovedTasks(prev => {
+        const next = new Set(prev);
+        next.delete(selectedTask.id);
+        return next;
+      });
+      setThumbApprovedTasks(prev => {
+        const next = new Set(prev);
+        next.delete(selectedTask.id);
+        return next;
+      });
     } catch (err) {
       console.error(err);
       toast.error("Failed to request revisions");
@@ -538,12 +620,14 @@ export function ClientDashboard() {
     setSelectedFile(file);
     setShowFileSelector(false);
 
-    if (file.mimeType?.startsWith('video/')) {
-      setShowVideoReview(true);
-    } else if (file.mimeType?.startsWith('image/')) {
-      setShowThumbnailReview(true);
+    if (isReviewable(file)) {
+      if (file.mimeType?.startsWith('video/')) {
+        setShowVideoReview(true);
+      } else if (file.mimeType?.startsWith('image/')) {
+        setShowThumbnailReview(true);
+      }
     } else {
-      // Open in-app preview modal
+      // Open in-app preview modal (standard viewer)
       setIsPreviewOpen(true);
     }
   };
@@ -687,6 +771,15 @@ export function ClientDashboard() {
     });
 
     return result;
+  };
+
+  const isReviewable = (file: TaskFile) => {
+    if (file.folderType === 'music-license') return false;
+    const reviewableFolders = ['main', 'thumbnails', 'tiles', 'covers'];
+    return (
+      reviewableFolders.includes(file.folderType || 'main') &&
+      (file.mimeType?.startsWith('video/') || file.mimeType?.startsWith('image/'))
+    );
   };
 
   const getTaskCategoryIcon = (category?: string) => {
@@ -998,6 +1091,14 @@ export function ClientDashboard() {
                                   <Badge variant="secondary" className="text-xs">
                                     {getFileTypeLabel(file.mimeType)}
                                   </Badge>
+                                  {/* Visual indicator for partial approval */}
+                                  {((file.folderType || 'main') === 'main' && videoApprovedTasks.has(selectedTask.id)) ||
+                                    (file.folderType === 'thumbnails' && thumbApprovedTasks.has(selectedTask.id)) ? (
+                                    <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] h-5 flex items-center gap-1">
+                                      <Check className="h-3 w-3" />
+                                      Approved
+                                    </Badge>
+                                  ) : null}
                                 </div>
                                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                   <span>{formatFileSize(file.size)}</span>
@@ -1008,7 +1109,7 @@ export function ClientDashboard() {
 
                               {/* Action Button */}
                               <div className="flex items-center gap-2 flex-shrink-0">
-                                {file.mimeType?.startsWith('video/') || file.mimeType?.startsWith('image/') ? (
+                                {isReviewable(file) ? (
                                   <Button size="sm" variant="default">
                                     <Play className="h-4 w-4 mr-2" />
                                     Review

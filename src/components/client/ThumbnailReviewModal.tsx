@@ -16,6 +16,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Plus,
+    LayoutGrid,
+    Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ReviewCommentCard, CommentInput } from '../review';
@@ -74,14 +76,21 @@ export function ThumbnailReviewModal({
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
     const [reviewStatus, setReviewStatus] = useState<ReviewStatus['value']>('needs_review');
+    const [viewMode, setViewMode] = useState<'single' | 'gallery'>('gallery');
+    const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
 
-    // Versions of the current file (same name/folder, different versions)
-    const versions = useMemo(() => {
-        if (!currentFile) return [];
+    // Ordered thumbnails in this folder
+    const orderedThumbnails = useMemo(() => {
         return allFiles
-            .filter(f => f.folderType === currentFile.folderType)
-            .sort((a, b) => (b.version || 1) - (a.version || 1));
-    }, [currentFile, allFiles]);
+            .filter(f => f.folderType === (file?.folderType || 'thumbnails'))
+            .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+    }, [file, allFiles]);
+
+    // Current thumbnail index (1-based)
+    const currentNumber = useMemo(() => {
+        if (!currentFile) return 1;
+        return orderedThumbnails.findIndex(t => t.id === currentFile.id) + 1;
+    }, [currentFile, orderedThumbnails]);
 
     // Initialize
     useEffect(() => {
@@ -130,7 +139,7 @@ export function ThumbnailReviewModal({
             ...comment,
             id: Date.now().toString(),
             createdAt: new Date(),
-            version: currentFile?.version || 1,
+            version: currentNumber, // Use the position number instead of version for thumbnails
         };
 
         setComments(prev => [newComment, ...prev]);
@@ -261,7 +270,7 @@ export function ThumbnailReviewModal({
                                     <h1 className="text-lg font-medium text-white">{taskTitle}</h1>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <Badge variant="secondary" className="bg-purple-600 text-white border-none">
-                                            {currentFile.folderType} v{currentFile.version || 1}
+                                            {currentFile.folderType} #{currentNumber}
                                         </Badge>
                                         <span className="text-xs text-zinc-500">{currentFile.name}</span>
                                     </div>
@@ -269,6 +278,16 @@ export function ThumbnailReviewModal({
                             </div>
 
                             <div className="flex items-center gap-3">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setViewMode(viewMode === 'gallery' ? 'single' : 'gallery')}
+                                    className="text-zinc-400 hover:text-white"
+                                >
+                                    <LayoutGrid className="h-4 w-4 mr-2" />
+                                    {viewMode === 'gallery' ? 'Review Single' : 'View Gallery'}
+                                </Button>
+                                <div className="h-6 w-px bg-white/10 mx-2" />
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -295,49 +314,100 @@ export function ThumbnailReviewModal({
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                 >
                                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                                    Approve
+                                    Approve Final
                                 </Button>
                             </div>
                         </div>
 
                         {/* Main Content Area */}
                         <div className="flex-1 flex overflow-hidden">
-                            {/* Image Viewer */}
-                            <div className="flex-1 relative bg-black flex items-center justify-center p-8 overflow-auto">
-                                <div className="relative group max-w-full max-h-full">
-                                    <img
-                                        src={currentFile.url}
-                                        alt={currentFile.name}
-                                        className="max-w-full max-h-full object-contain shadow-2xl rounded-sm"
-                                    />
-                                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button
-                                            size="icon"
-                                            variant="secondary"
-                                            className="bg-black/50 hover:bg-black/80 text-white border-none"
-                                            onClick={() => window.open(currentFile.url, '_blank')}
-                                        >
-                                            <Maximize className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                {/* Version Switcher (Floating Bottom) */}
-                                {versions.length > 1 && (
-                                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#1a1a1a]/80 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl">
-                                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mr-2">Versions</span>
-                                        {versions.map((v) => (
-                                            <button
-                                                key={v.id}
-                                                onClick={() => setCurrentFile(v)}
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentFile.id === v.id
-                                                    ? 'bg-purple-600 text-white'
-                                                    : 'text-zinc-400 hover:bg-white/10'
+                            {/* Image Viewer / Gallery */}
+                            <div className="flex-1 relative bg-black overflow-auto p-8">
+                                {viewMode === 'gallery' ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto items-start">
+                                        {orderedThumbnails.map((t, idx) => (
+                                            <div
+                                                key={t.id}
+                                                className={`relative group rounded-xl overflow-hidden border-2 transition-all duration-300 cursor-pointer ${currentFile.id === t.id ? 'border-purple-500 ring-2 ring-purple-500/50' : 'border-white/5 hover:border-white/20'
                                                     }`}
+                                                onClick={() => {
+                                                    setCurrentFile(t);
+                                                    setViewMode('single');
+                                                }}
                                             >
-                                                V{v.version || 1}
-                                            </button>
+                                                <div className="aspect-video relative">
+                                                    <img src={t.url} alt={t.name} className="w-full h-full object-cover" />
+                                                    <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
+                                                        <span className="text-white font-black text-sm">#{idx + 1}</span>
+                                                    </div>
+
+                                                    {/* Overlays on hover */}
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <Button variant="secondary" size="sm" className="bg-white text-black hover:bg-zinc-200">
+                                                            Review Details
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                                <div className="p-3 bg-[#1a1a1a] border-t border-white/10 flex items-center justify-between">
+                                                    <span className="text-[10px] text-zinc-400 font-medium truncate max-w-[150px]">{t.name}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {comments.some(c => c.version === (idx + 1)) && (
+                                                            <Badge className="bg-orange-500/20 text-orange-500 text-[9px] border-none flex items-center gap-1">
+                                                                <MessageSquare className="h-2.5 w-2.5" />
+                                                                {comments.filter(c => c.version === (idx + 1)).length}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         ))}
+                                    </div>
+                                ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center">
+                                        <div className="relative group max-w-full max-h-full">
+                                            <img
+                                                src={currentFile.url}
+                                                alt={currentFile.name}
+                                                className="max-w-full max-h-full object-contain shadow-2xl rounded-sm"
+                                            />
+                                            <div className="absolute top-4 left-4 bg-purple-600 text-white px-4 py-1.5 rounded-lg font-black text-lg shadow-xl">
+                                                #{currentNumber}
+                                            </div>
+                                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Button
+                                                    size="icon"
+                                                    variant="secondary"
+                                                    className="bg-black/50 hover:bg-black/80 text-white border-none"
+                                                    onClick={() => window.open(currentFile.url, '_blank')}
+                                                >
+                                                    <Maximize className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Simple Numbered Switcher (Floating Bottom) */}
+                                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#1a1a1a]/80 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl">
+                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mr-2">Thumbnails</span>
+                                            {orderedThumbnails.map((t, idx) => (
+                                                <button
+                                                    key={t.id}
+                                                    onClick={() => setCurrentFile(t)}
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${currentFile.id === t.id
+                                                        ? 'bg-purple-600 text-white'
+                                                        : 'text-zinc-400 hover:bg-white/10'
+                                                        }`}
+                                                >
+                                                    {idx + 1}
+                                                </button>
+                                            ))}
+                                            <div className="h-4 w-px bg-white/10 mx-1" />
+                                            <button
+                                                onClick={() => setViewMode('gallery')}
+                                                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
+                                            >
+                                                <LayoutGrid className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -369,7 +439,7 @@ export function ThumbnailReviewModal({
                                             <CommentInput
                                                 taskId={taskId}
                                                 currentTime={0}
-                                                currentTimestamp="0:00"
+                                                currentTimestamp={`Thumbnail #${currentNumber}`}
                                                 authorId={user?.id || 'guest'}
                                                 authorName={user?.name || 'Client'}
                                                 onSubmit={handleCommentSubmit}
