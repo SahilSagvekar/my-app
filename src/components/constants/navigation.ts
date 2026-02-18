@@ -83,7 +83,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
-    { id: 'approvals', label: 'Approvals', icon: CheckSquare },
+    { id: 'approvals', label: 'Content Review', icon: CheckSquare },
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
