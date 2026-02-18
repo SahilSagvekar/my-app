@@ -187,6 +187,13 @@ cron.schedule('0 1 * * *', async () => {
 }, { timezone: 'America/New_York' });
 
 // ==========================================
+// 2.5 S3 to NAS Monthly Archive (1st of every month at 4 AM EST)
+// ==========================================
+cron.schedule('0 4 1 * *', () => {
+    triggerJob('S3 to NAS Archive', '/api/cron/s3-to-nas', 'POST');
+}, { timezone: 'America/New_York' });
+
+// ==========================================
 // 3. Daily Activity Report (Daily at 7 PM EST)
 // ==========================================
 // cron.schedule('0 19 * * *', () => {

@@ -567,6 +567,98 @@ export async function sendExecutiveSummaryReportEmail(data: {
   }
 }
 
+export async function sendNasArchivalReportEmail(data: {
+  month: string;
+  results: {
+    transferred: number;
+    failed: number;
+    totalSize: number;
+    errors: string[];
+    companyStats: Record<string, { count: number, size: number }>;
+  };
+  bucket: string;
+  dryRun: boolean;
+}) {
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const mailOptions = {
+    from: `"E8 Archiver" <${process.env.SMTP_USER}>`,
+    to: "sahilsagvekar230@gmail.com",
+    subject: `📦 S3 → NAS Archive Report: ${data.month} ${data.dryRun ? '[DRY RUN]' : ''}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+        <h2 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;">📦 Monthly S3 → NAS Archive</h2>
+        <p>The monthly archival process for <strong>${data.month}</strong> has completed.</p>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <table width="100%">
+            <tr>
+              <td><strong>Bucket:</strong></td>
+              <td>${data.bucket}</td>
+            </tr>
+            <tr>
+              <td><strong>Status:</strong></td>
+              <td style="color: ${data.results.failed > 0 ? '#dc3545' : '#28a745'}; font-weight: bold;">
+                ${data.results.failed > 0 ? 'Completed with Errors' : 'Success'}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Files Transferred:</strong></td>
+              <td>${data.results.transferred}</td>
+            </tr>
+            <tr>
+              <td><strong>Total Data Moved:</strong></td>
+              <td>${formatSize(data.results.totalSize)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <h3 style="color: #555;">🏢 Breakdown by Company:</h3>
+        <table width="100%" style="border-collapse: collapse;">
+          <tr style="background: #eee;">
+            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Company</th>
+            <th style="padding: 10px; border: 1px solid #ddd; text-align: center;">Files</th>
+            <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Size</th>
+          </tr>
+          ${Object.entries(data.results.companyStats).map(([name, stats]) => `
+            <tr>
+              <td style="padding: 10px; border: 1px solid #ddd;">${name}</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${stats.count}</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${formatSize(stats.size)}</td>
+            </tr>
+          `).join('')}
+        </table>
+
+        ${data.results.errors.length > 0 ? `
+          <h3 style="color: #dc3545; margin-top: 30px;">❌ Errors encountered (${data.results.failed}):</h3>
+          <ul style="background: #fff5f5; color: #b91c1c; padding: 15px; border-radius: 8px; list-style-position: inside; font-size: 13px;">
+            ${data.results.errors.slice(0, 5).map(err => `<li>${err}</li>`).join('')}
+            ${data.results.errors.length > 5 ? `<li>...and ${data.results.errors.length - 5} more</li>` : ''}
+          </ul>
+        ` : ''}
+
+        <p style="font-size: 12px; color: #888; margin-top: 30px; text-align: center; border-top: 1px solid #eee; padding-top: 15px;">
+          This report was generated automatically by the E8 Productions Archival System.
+        </p>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ NAS Archival report email sent to Sahil`);
+  } catch (error) {
+    console.error('❌ Failed to send NAS archival report email:', error);
+  }
+}
+
+
 export async function sendNewJobNotificationEmail(
   recipients: { email: string; name: string }[],
   jobDetails: { title: string; location: string; date: string; link: string }
