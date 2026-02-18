@@ -28,10 +28,11 @@ import {
   Share,
   Copy,
   Check,
+  Download,
 } from 'lucide-react';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
-import { ShareDialog } from '../review/ShareDialog';
+
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -49,9 +50,9 @@ interface TaskFile {
   version?: number;
   isActive?: boolean;
   replacedAt?: string;
-  replacedBy?: string;
   revisionNote?: string;
   s3Key?: string;
+  downloadUrl?: string;
 }
 
 interface ClientTask {
@@ -151,10 +152,7 @@ export function ClientDashboard() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
-  const [showShareDialog, setShowShareDialog] = useState(false);
-  const [shareLink, setShareLink] = useState("");
-  const [generatingLink, setGeneratingLink] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
+
   const { user } = useAuth();
 
   /* ---------------------------- FETCH CLIENT TASKS -------------------------- */
@@ -445,61 +443,50 @@ export function ClientDashboard() {
     }
   };
 
-  /* -------------------------- SHARE HANDLERS ------------------------------- */
+  /* -------------------------- DOWNLOAD HANDLERS ------------------------------- */
 
-  const handleGenerateShareLink = async (task?: ClientTask) => {
-    const taskToShare = task || selectedTask;
-    if (!taskToShare) return;
-
-    try {
-      setGeneratingLink(true);
-      setLinkCopied(false);
-
-      const response = await fetch(`/api/tasks/${taskToShare.id}/share`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          expiresInDays: 0 // 0 means never expires
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate share link');
-      }
-
-      setShareLink(data.shareUrl);
-      setShowShareDialog(true);
-
-      // Auto-copy to clipboard
-      try {
-        await navigator.clipboard.writeText(data.shareUrl);
-        setLinkCopied(true);
-        setTimeout(() => setLinkCopied(false), 3000);
-        toast.success('Share link generated and copied to clipboard!');
-      } catch (copyErr) {
-        toast.success('Share link generated successfully!');
-      }
-    } catch (error: any) {
-      console.error('Error generating share link:', error);
-      toast.error(error.message || 'Failed to generate share link');
-    } finally {
-      setGeneratingLink(false);
+  const handleDownloadAllFiles = async (task?: ClientTask) => {
+    const taskToDownload = task || selectedTask;
+    if (!taskToDownload || !taskToDownload.files || taskToDownload.files.length === 0) {
+      toast.error("No files available for download");
+      return;
     }
-  };
 
-  const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(shareLink);
-      setLinkCopied(true);
-      toast.success('Link copied to clipboard!');
-      setTimeout(() => setLinkCopied(false), 3000);
+      console.log(`📦 Starting download for task ${taskToDownload.id}, total files: ${taskToDownload.files.length}`);
+      toast.info(`Starting download for ${taskToDownload.files.length} file(s)...`);
+
+      for (const file of taskToDownload.files) {
+        // Use the dedicated downloadUrl with attachment headers
+        const urlToUse = file.downloadUrl || file.url;
+        console.log(`🔗 Downloading file: ${file.name}, URL exists: ${!!urlToUse}`);
+
+        if (!urlToUse) {
+          console.error(`❌ No URL found for file: ${file.name}`);
+          continue;
+        }
+
+        const link = document.createElement('a');
+        link.href = urlToUse;
+        // 🧪 Try without target="_blank" first, as it can be blocked by pop-up blockers
+        // If the header is correctly set to attachment, the browser will not navigate away.
+        link.setAttribute('download', file.name);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Small delay for multiple files
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      toast.success("All download requests sent!");
     } catch (error) {
-      console.error('Failed to copy link:', error);
-      toast.error('Failed to copy link');
+      console.error("Error in download loop:", error);
+      toast.error("An error occurred while preparing downloads.");
     }
   };
+
+
 
   /* ---------------------------- FILE HANDLING ------------------------------- */
 
@@ -791,10 +778,10 @@ export function ClientDashboard() {
                         className="h-7 w-7 rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:bg-white flex items-center justify-center p-0 border border-zinc-200/50 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleGenerateShareLink(task);
+                          handleDownloadAllFiles(task);
                         }}
                       >
-                        <Share className="h-3.5 w-3.5 text-zinc-700" />
+                        <Download className="h-3.5 w-3.5 text-zinc-700" />
                       </Button>
                     </div>
 
@@ -966,15 +953,10 @@ export function ClientDashboard() {
               <Button
                 variant="outline"
                 className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 mr-auto"
-                onClick={() => handleGenerateShareLink()}
-                disabled={generatingLink}
+                onClick={() => handleDownloadAllFiles()}
               >
-                {generatingLink ? (
-                  <Clock className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Share className="h-4 w-4 mr-2" />
-                )}
-                Share Review
+                <Download className="h-4 w-4 mr-2" />
+                Download Files
               </Button>
 
               {!(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED' || selectedTask.status === 'POSTED') && (
@@ -1023,14 +1005,7 @@ export function ClientDashboard() {
         </Dialog>
       )}
 
-      {/* Share dialog */}
-      <ShareDialog
-        open={showShareDialog}
-        onOpenChange={setShowShareDialog}
-        shareLink={shareLink}
-        onCopy={handleCopyLink}
-        copied={linkCopied}
-      />
+
 
       {/* Revision Request Dialog */}
       {selectedTask && (

@@ -789,14 +789,19 @@ export async function GET(req: any) {
           LEFT JOIN "User" u ON t."assignedTo" = u.id
           ORDER BY t."createdAt" DESC
         `);
-        // Note: Relation mapping for files/feedback in raw SQL is complex. 
-        // We'll trust that the UI can handle missing sub-arrays or we provide them as empty
+
+        // Fetch files separately for these tasks since complex joins are hard in raw SQL
+        const taskIds = (tasks as any[]).map(t => t.id);
+        const allFiles: any[] = taskIds.length > 0
+          ? await prisma.$queryRawUnsafe(`SELECT * FROM "File" WHERE "taskId" IN (${taskIds.map(id => `'${id}'`).join(',')})`)
+          : [];
+
         tasks = tasks.map(t => ({
           ...t,
           client: { name: t.clientName, companyName: t.clientCompanyName },
           user: { name: t.userName, role: t.userRole },
-          files: t.files || [],
-          taskFeedback: t.taskFeedback || []
+          files: allFiles.filter(f => f.taskId === t.id),
+          taskFeedback: [] // Feedback is less critical for fallback
         }));
       } else {
         throw e;

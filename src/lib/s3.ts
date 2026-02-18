@@ -256,7 +256,6 @@ export async function generateSignedUrl(
   key: string,
   expiresIn: number = 604800 // 7 days (maximum for SigV4 with IAM)
 ): Promise<string> {
-
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -271,6 +270,25 @@ export async function generateSignedUrl(
   }
 }
 
+export async function generateDownloadUrl(
+  key: string,
+  filename: string,
+  expiresIn: number = 604800
+): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ResponseContentDisposition: `attachment; filename="${filename.replace(/"/g, '')}"`,
+  });
+
+  try {
+    return await getSignedUrl(s3, command, { expiresIn });
+  } catch (error) {
+    console.error('❌ Failed to generate download URL:', error);
+    throw error;
+  }
+}
+
 // Add signed URLs to file objects
 export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
   if (!files || files.length === 0) return [];
@@ -278,20 +296,28 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
   return Promise.all(
     files.map(async (file) => {
       try {
-        // Skip if there's no URL or if it's already signed or if it's not an S3 URL
-        if (!file.url || file.url.includes('?X-Amz-Signature=') ||
-          (!file.url.includes('amazonaws.com') && !file.s3Key)) {
-          return file;
-        }
+        // Check if it's an S3 URL or has an s3Key
+        const isS3 = file.url?.includes('amazonaws.com') || !!file.s3Key;
+        if (!isS3) return file;
 
         // 🔥 Use s3Key directly if available, otherwise extract from URL
         const s3Key = file.s3Key || extractS3KeyFromUrl(file.url);
         if (!s3Key) return file;
 
-        const signedUrl = await generateSignedUrl(s3Key);
+        // Sign the viewing URL only if it's not already signed
+        let signedUrl = file.url;
+        if (!file.url.includes('?X-Amz-Signature=')) {
+          signedUrl = await generateSignedUrl(s3Key);
+        }
+
+        // ALWAYS generate a fresh download URL with the attachment header
+        // This ensures the download feature works even for files previously signed
+        const downloadUrl = await generateDownloadUrl(s3Key, file.name);
+
         return {
           ...file,
           url: signedUrl,
+          downloadUrl: downloadUrl,
           originalUrl: file.url,
         };
       } catch (error) {
