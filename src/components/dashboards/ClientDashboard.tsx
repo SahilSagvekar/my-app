@@ -855,45 +855,36 @@ export function ClientDashboard() {
     <div className="flex flex-col h-full space-y-6">
       {/* Page Header & Stats Row */}
       <div className="flex flex-row items-center justify-start gap-16 pb-6 border-b border-zinc-100">
-        <div className="flex flex-col gap-1 pr-165">
+        <div className="flex flex-col gap-1 pr-16">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Content Review</h1>
           <p className="text-sm text-zinc-500">
             Review content from your team and approve or request revisions
           </p>
         </div>
 
-        <div className="relative flex items-center justify-center px-6 py-2.5 rounded-2xl bg-white border border-zinc-100 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.04)] min-w-[240px]">
-          <div className="flex flex-col items-center text-center">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Tasks Pending</span>
-            <span className="text-2xl font-bold text-zinc-900">{pendingReviews}</span>
-          </div>
-          <div className="absolute right-4 h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-zinc-50">
-            <Clock className="h-5 w-5 text-blue-500" />
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-4">
-        <Tabs value={currentFilter} onValueChange={(val: any) => setCurrentFilter(val)} className="w-full">
-          <TabsList className="bg-zinc-100/50 p-1 mb-2">
-            <TabsTrigger value="all" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium">
-              All Tasks
-            </TabsTrigger>
-            <TabsTrigger value="pending" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
-              Pending Review
-              {pendingReviews > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{pendingReviews}</Badge>}
-            </TabsTrigger>
-            <TabsTrigger value="approved" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
-              Approved
-              {approvedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{approvedCount}</Badge>}
-            </TabsTrigger>
-            {user?.hasPostingServices !== false && (
-              <TabsTrigger value="posted" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
-                Posted
-                {postedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{postedCount}</Badge>}
+        <div className="flex items-center justify-between gap-4 pl-70">
+          <Tabs value={currentFilter} onValueChange={(val: any) => setCurrentFilter(val)} className="w-full">
+            <TabsList className="bg-zinc-200/50 p-1 mb-2">
+              <TabsTrigger value="all" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium">
+                All Tasks
               </TabsTrigger>
-            )}
-          </TabsList>
-        </Tabs>
+              <TabsTrigger value="pending" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+                Pending Review
+                {pendingReviews > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{pendingReviews}</Badge>}
+              </TabsTrigger>
+              <TabsTrigger value="approved" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+                Approved
+                {approvedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{approvedCount}</Badge>}
+              </TabsTrigger>
+              {user?.hasPostingServices !== false && (
+                <TabsTrigger value="posted" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+                  Posted
+                  {postedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{postedCount}</Badge>}
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       <div className="flex-1">
