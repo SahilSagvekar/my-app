@@ -30,6 +30,7 @@ import {
   Check,
   Download,
 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
@@ -149,6 +150,7 @@ export function ClientDashboard() {
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
+  const [currentFilter, setCurrentFilter] = useState<'all' | 'pending' | 'approved' | 'posted'>('pending');
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -736,7 +738,23 @@ export function ClientDashboard() {
   /* ----------------------------- STATS ------------------------------------ */
 
   const pendingReviews = tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length;
+  const approvedCount = tasks.filter(task => task.status === 'COMPLETED' || task.status === 'SCHEDULED').length;
+  const postedCount = tasks.filter(task => task.status === 'POSTED').length;
   const overdueReviews = tasks.filter(task => isOverdue(task)).length;
+
+  const filteredTasks = tasks.filter(task => {
+    if (currentFilter === 'all') return true;
+    if (currentFilter === 'pending') {
+      return !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED');
+    }
+    if (currentFilter === 'approved') {
+      return task.status === 'COMPLETED' || task.status === 'SCHEDULED';
+    }
+    if (currentFilter === 'posted') {
+      return task.status === 'POSTED';
+    }
+    return true;
+  });
 
   /* -------------------------------------------------------------------------- */
 
@@ -761,6 +779,27 @@ export function ClientDashboard() {
           </div>
         </div>
       </div>
+      <div className="flex items-center justify-between gap-4">
+        <Tabs value={currentFilter} onValueChange={(val: any) => setCurrentFilter(val)} className="w-full">
+          <TabsList className="bg-zinc-100/50 p-1 mb-2">
+            <TabsTrigger value="all" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium">
+              All Tasks
+            </TabsTrigger>
+            <TabsTrigger value="pending" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+              Pending Review
+              {pendingReviews > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{pendingReviews}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="approved" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+              Approved
+              {approvedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{approvedCount}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="posted" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+              Posted
+              {postedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{postedCount}</Badge>}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
       <div className="flex-1">
 
@@ -769,15 +808,19 @@ export function ClientDashboard() {
             <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
             <p className="font-medium">Loading tasks for review...</p>
           </div>
-        ) : tasks.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
             <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-40 text-emerald-500" />
-            <p className="font-medium">All caught up!</p>
-            <p className="text-sm mt-1">No content awaiting your review</p>
+            <p className="font-medium">No tasks found</p>
+            <p className="text-sm mt-1">
+              {currentFilter === 'all'
+                ? "No content available yet"
+                : `No tasks currently in ${currentFilter} status`}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            {tasks.map((task, index) => {
+            {filteredTasks.map((task, index) => {
               const thumbnail = getTaskThumbnail(task);
               return (
                 <Card
