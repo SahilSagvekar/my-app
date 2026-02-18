@@ -904,7 +904,7 @@ export function ClientDashboard() {
               <p className="text-sm mt-1">
                 {currentFilter === 'all'
                   ? "No content available yet"
-                  : `No tasks currently in ${currentFilter} status`}
+                  : `No tasks currently in ${currentFilter} status`}  
               </p>
             </div>
           ) : (
