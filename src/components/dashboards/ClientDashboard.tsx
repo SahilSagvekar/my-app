@@ -185,11 +185,22 @@ export function ClientDashboard() {
         credentials: "include",
       });
 
-      if (!res.ok) throw new Error("Failed fetching client tasks");
+      if (!res.ok) {
+        let errDetails = "Unknown Error";
+        try {
+          const errData = await res.json();
+          console.error("API Error Response Data:", errData);
+          errDetails = errData.error || errData.message || JSON.stringify(errData);
+        } catch (e) {
+          const text = await res.text().catch(() => "Could not read response body");
+          console.error("API Error Response Text:", text);
+          errDetails = text || res.statusText;
+        }
+        throw new Error(`Failed fetching client tasks [${res.status} ${res.statusText}]: ${errDetails}`);
+      }
 
-      let data = await res.json();
-
-      if (data.tasks) data = data.tasks;
+      const responseData = await res.json();
+      let data = responseData.tasks || responseData;
       if (!Array.isArray(data)) {
         console.error("Client API returned non-array:", data);
         return;
@@ -203,13 +214,18 @@ export function ClientDashboard() {
         files: task.files || [],
       }));
 
-      // Sort: Pending first, then Approved/Completed/Scheduled, then by due date
+      // Sort: Pending first, then Approved (Completed/Scheduled), then Posted, then by due date
       const sorted = normalized.sort((a, b) => {
-        const isACompleted = a.status === 'COMPLETED' || a.status === 'SCHEDULED';
-        const isBCompleted = b.status === 'COMPLETED' || b.status === 'SCHEDULED';
+        const getOrder = (status: string) => {
+          if (status === 'POSTED') return 3;
+          if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
+          return 1; // Pending review etc
+        };
 
-        if (isACompleted && !isBCompleted) return 1;
-        if (!isACompleted && isBCompleted) return -1;
+        const orderA = getOrder(a.status);
+        const orderB = getOrder(b.status);
+
+        if (orderA !== orderB) return orderA - orderB;
 
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       });
@@ -222,6 +238,69 @@ export function ClientDashboard() {
       setLoading(false);
     }
   }, []);
+
+  const handleMarkAsPosted = async (task?: ClientTask) => {
+    const taskToMark = task || selectedTask;
+    if (!taskToMark) return;
+
+    try {
+      setIsSubmitting(true);
+      const res = await fetch(`/api/tasks/${taskToMark.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "POSTED" }),
+      });
+
+      if (!res.ok) {
+        let errDetails = "Unknown Error";
+        try {
+          const errData = await res.json();
+          console.error("Mark as Posted API Error Data:", errData);
+          errDetails = errData.error || errData.message || JSON.stringify(errData);
+        } catch (e) {
+          const text = await res.text().catch(() => "Could not read response body");
+          console.error("Mark as Posted API Error Text:", text);
+          errDetails = text || res.statusText;
+        }
+        throw new Error(`Failed to mark as posted [${res.status}]: ${errDetails}`);
+      }
+
+      // Update task in list
+      setTasks((prev) => prev.map((t) =>
+        t.id === taskToMark.id
+          ? { ...t, status: "POSTED" }
+          : t
+      ));
+
+      // Re-sort
+      setTasks((prev) => [...prev].sort((a, b) => {
+        const getOrder = (status: string) => {
+          if (status === 'POSTED') return 3;
+          if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
+          return 1;
+        };
+        const orderA = getOrder(a.status);
+        const orderB = getOrder(b.status);
+        if (orderA !== orderB) return orderA - orderB;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }));
+
+      toast.success("🚀 Task Marked as Posted", {
+        description: "Task has been updated to posted status.",
+      });
+
+      setShowVideoReview(false);
+      setShowFileSelector(false);
+      setSelectedFile(null);
+      setSelectedTask(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to mark task as posted");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   /* ---------------------------- APPROVE HANDLER ----------------------------- */
 
@@ -246,10 +325,14 @@ export function ClientDashboard() {
 
       // Re-sort tasks so the approved one moves to the end
       setTasks((prev) => [...prev].sort((a, b) => {
-        const isACompleted = a.status === 'COMPLETED' || a.status === 'SCHEDULED';
-        const isBCompleted = b.status === 'COMPLETED' || b.status === 'SCHEDULED';
-        if (isACompleted && !isBCompleted) return 1;
-        if (!isACompleted && isBCompleted) return -1;
+        const getOrder = (status: string) => {
+          if (status === 'POSTED') return 3;
+          if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
+          return 1;
+        };
+        const orderA = getOrder(a.status);
+        const orderB = getOrder(b.status);
+        if (orderA !== orderB) return orderA - orderB;
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       }));
 
@@ -621,7 +704,7 @@ export function ClientDashboard() {
 
   /* ----------------------------- STATS ------------------------------------ */
 
-  const pendingReviews = tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED')).length;
+  const pendingReviews = tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length;
   const overdueReviews = tasks.filter(task => isOverdue(task)).length;
 
   /* -------------------------------------------------------------------------- */
@@ -737,14 +820,19 @@ export function ClientDashboard() {
                         <span>Editor: {task.user?.name || 'Assigned Editor'}</span>
                       </div> */}
                       <div className="flex flex-wrap gap-2 pt-1">
-                        {task.status === 'COMPLETED' || task.status === 'SCHEDULED' ? (
+                        {task.status === 'POSTED' ? (
+                          <Badge className="bg-orange-50 text-orange-600 hover:bg-orange-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            Posted
+                          </Badge>
+                        ) : task.status === 'COMPLETED' || task.status === 'SCHEDULED' ? (
                           <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
                             <Check className="h-2.5 w-2.5" />
                             Approved
                           </Badge>
                         ) : (
                           <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                            Pending
+                            Pending Review
                           </Badge>
                         )}
                       </div>
@@ -889,7 +977,7 @@ export function ClientDashboard() {
                 Share Review
               </Button>
 
-              {!(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED') && (
+              {!(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED' || selectedTask.status === 'POSTED') && (
                 <>
                   <Button
                     variant="outline"
@@ -914,9 +1002,20 @@ export function ClientDashboard() {
               )}
 
               {(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED') && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-md border border-emerald-100 font-medium">
-                  <CheckCircle className="h-4 w-4" />
-                  Task Approved
+                <Button
+                  onClick={() => handleMarkAsPosted()}
+                  disabled={isSubmitting}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Mark as Posted
+                </Button>
+              )}
+
+              {selectedTask.status === 'POSTED' && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-md border border-orange-100 font-medium">
+                  <ExternalLink className="h-4 w-4" />
+                  Content Posted
                 </div>
               )}
             </div>

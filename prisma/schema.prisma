@@ -858,6 +858,7 @@ enum TaskStatus {
   REJECTED
   CLIENT_REVIEW
   VIDEOGRAPHER_ASSIGNED
+  POSTED
 }
 
 enum FeedbackCategory {

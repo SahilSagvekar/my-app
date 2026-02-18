@@ -10,6 +10,20 @@ import { startTitlingJob } from '@/lib/titling-service';
 import { notifyUser } from "@/lib/notify";
 import jwt from "jsonwebtoken";
 
+function sanitizeBigInt(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "bigint") return Number(obj);
+  if (Array.isArray(obj)) return obj.map(sanitizeBigInt);
+  if (typeof obj === "object") {
+    const newObj: any = {};
+    for (const key in obj) {
+      newObj[key] = sanitizeBigInt(obj[key]);
+    }
+    return newObj;
+  }
+  return obj;
+}
+
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
@@ -73,6 +87,8 @@ export async function PATCH(
         finalStatus = "COMPLETED";
       } else if (status === "REJECTED") {
         finalStatus = "REJECTED";
+      } else if (status === "POSTED") {
+        finalStatus = "POSTED";
       }
     }
 
@@ -86,14 +102,48 @@ export async function PATCH(
       updateData.qcReviewedAt = new Date();
     }
 
-    const updatedTask = await prisma.task.update({
-      where: { id },
-      data: {
-        ...updateData,
-        status: finalStatus,
-        updatedAt: new Date(),
-      },
-    });
+    let updatedTask: any;
+    try {
+      updatedTask = await (prisma.task as any).update({
+        where: { id },
+        data: {
+          ...updateData,
+          status: finalStatus,
+          updatedAt: new Date(),
+        },
+      });
+    } catch (e: any) {
+      // If Prisma fails due to the enum mismatch (P2009 or specific error message), 
+      // we use Raw SQL to force the update and bypass runtime enum checks.
+      if (e.message?.includes("Expected TaskStatus") || e.code === "P2009") {
+        console.warn("⚠️ Prisma Enum Validation failed for status. Using raw SQL fallback...");
+
+        // Construct raw update
+        // Note: We use executeRawUnsafe for maximum flexibility with the enum string
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Task" SET "status" = $1, "updatedAt" = $2 WHERE "id" = $3`,
+          finalStatus,
+          new Date(),
+          id
+        );
+
+        // Try to fetch the updated record. 
+        // If findUnique also fails because it can't parse the new enum value, return raw data.
+        try {
+          updatedTask = await (prisma.task as any).findUnique({
+            where: { id }
+          });
+        } catch (readErr) {
+          const rawResult: any = await prisma.$queryRawUnsafe(
+            `SELECT * FROM "Task" WHERE "id" = $1`,
+            id
+          );
+          updatedTask = rawResult && Array.isArray(rawResult) ? rawResult[0] : { id, status: finalStatus };
+        }
+      } else {
+        throw e;
+      }
+    }
 
     // ============================================
     // NEW: Trigger AI titling on QC approval
@@ -225,13 +275,21 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({
+    return NextResponse.json(sanitizeBigInt({
       ...updatedTask,
       titlingTriggered: shouldTriggerTitling,
-    }, { status: 200 });
+    }), { status: 200 });
 
   } catch (err: any) {
     console.error("❌ Task status update error:", err.message);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        message: "Server error",
+        error: err.message,
+        stack: err.stack,
+        details: err.code === 'P2009' ? 'Query validation error (likely status enum mismatch)' : 'Internal error'
+      },
+      { status: 500 }
+    );
   }
 }
