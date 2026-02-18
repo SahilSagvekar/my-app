@@ -40,16 +40,30 @@ export async function GET(req: NextRequest) {
         // Get permissions from DB manually to bypass Prisma client generation issues
         const permissionsList: any[] = await prisma.$queryRaw`SELECT "navigationItems" FROM "RolePermission" WHERE "role"::text = ${role} LIMIT 1`;
         const permissions = permissionsList[0];
-
         const allItems = NAVIGATION_ITEMS[role];
 
+        // 🔥 Additional filtering for client role based on hasPostingServices
+        let finalItems = [...allItems];
+        if (role === 'client') {
+            const user = await prisma.user.findFirst({
+                where: { id: Number(decoded.userId) },
+                include: { client: { select: { hasPostingServices: true } } }
+            });
+
+            const hasPosting = (user as any)?.client?.hasPostingServices ?? true;
+            if (!hasPosting) {
+                const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+                finalItems = finalItems.filter(item => !forbiddenIds.includes(item.id));
+            }
+        }
+
         if (!permissions) {
-            // Default to all items if no record exists
-            return NextResponse.json(allItems);
+            // Default to filtered items if no record exists
+            return NextResponse.json(finalItems);
         }
 
         const enabledIds = permissions.navigationItems as string[];
-        const filteredItems = allItems.filter(item => enabledIds.includes(item.id));
+        const filteredItems = finalItems.filter(item => enabledIds.includes(item.id));
 
         return NextResponse.json(filteredItems);
 

@@ -3134,8 +3134,8 @@ export function ClientManagement() {
             <DialogTitle className="text-gray-900">
               {/* 🔥 Dynamic title based on edit mode */}
               {editingDeliverableId
-                ? (newDeliverable.postingSchedule === 'one-off' ? "Edit Project Package" : "Edit Monthly Deliverable")
-                : (newDeliverable.postingSchedule === 'one-off' ? "Add Project Package" : "Add Monthly Deliverable")}
+                ? (newDeliverable.postingSchedule === 'one-off' ? "Edit One-Off Deliverable" : "Edit Monthly Deliverable")
+                : (newDeliverable.postingSchedule === 'one-off' ? "Add One-Off Deliverable" : "Add Monthly Deliverable")}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
               {editingDeliverableId
@@ -3224,6 +3224,7 @@ export function ClientManagement() {
                   type="number"
                   min="1"
                   value={newDeliverable.videosPerDay}
+                  disabled={newClient.hasPostingServices === false}
                   onChange={(e) =>
                     syncPostingTimesWithVideosPerDay(
                       parseInt(e.target.value) || 1
@@ -3239,6 +3240,7 @@ export function ClientManagement() {
                 </Label>
                 <Select
                   value={newDeliverable.postingSchedule}
+                  disabled={newClient.hasPostingServices === false}
                   onValueChange={(value) =>
                     setNewDeliverable({
                       ...newDeliverable,
@@ -3268,6 +3270,7 @@ export function ClientManagement() {
                   size="sm"
                   variant="outline"
                   onClick={setEveryDay}
+                  disabled={newClient.hasPostingServices === false}
                   className={`h-8 ${(newDeliverable.postingDays || []).length === 7
                     ? "bg-blue-50 border-blue-500 text-blue-700"
                     : "bg-white border-gray-200 text-gray-600"
@@ -3289,8 +3292,8 @@ export function ClientManagement() {
                 ].map((day) => (
                   <div
                     key={day}
-                    onClick={() => toggleDay(day)}
-                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors ${(newDeliverable.postingDays || []).includes(day)
+                    onClick={() => newClient.hasPostingServices !== false && toggleDay(day)}
+                    className={`p-2 rounded border text-center text-sm transition-colors ${newClient.hasPostingServices === false ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${(newDeliverable.postingDays || []).includes(day)
                       ? "bg-blue-50 border-blue-500 text-blue-700"
                       : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                       }`}
@@ -3328,6 +3331,7 @@ export function ClientManagement() {
                           (newDeliverable.postingTimes || ["10:00"])[index] ||
                           "10:00"
                         }
+                        disabled={newClient.hasPostingServices === false}
                         onChange={(e) =>
                           updatePostingTime(index, e.target.value)
                         }
@@ -3352,6 +3356,7 @@ export function ClientManagement() {
                   size="sm"
                   variant="outline"
                   onClick={setAllPlatforms}
+                  disabled={newClient.hasPostingServices === false}
                   className={`h-8 ${(newDeliverable.platforms || []).length === 7
                     ? "bg-blue-50 border-blue-500 text-blue-700"
                     : "bg-white border-gray-200 text-gray-600"
@@ -3375,8 +3380,8 @@ export function ClientManagement() {
                 ).map((platform) => (
                   <div
                     key={platform}
-                    onClick={() => togglePlatform(platform)}
-                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors flex items-center justify-center gap-2 ${newDeliverable.platforms?.includes(platform)
+                    onClick={() => newClient.hasPostingServices !== false && togglePlatform(platform)}
+                    className={`p-2 rounded border text-center text-sm transition-colors flex items-center justify-center gap-2 ${newClient.hasPostingServices === false ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${newDeliverable.platforms?.includes(platform)
                       ? "bg-blue-50 border-blue-500 text-blue-700"
                       : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                       }`}

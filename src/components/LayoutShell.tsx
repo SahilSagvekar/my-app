@@ -78,17 +78,34 @@ export function LayoutShell({
         setNavLoading(true);
         const res = await fetch(`/api/user/navigation?role=${currentRole}`);
         if (res.ok) {
-          const data = await res.json();
+          let data = await res.json();
+          // 🔥 Filter for clients without posting services
+          if (currentRole.toLowerCase() === 'client' && authUser?.hasPostingServices === false) {
+            const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+            data = data.filter((item: any) => !forbiddenIds.includes(item.id));
+          }
           setPermittedItems(data);
         } else {
           // Fallback to defaults if API fails
           const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
-          setPermittedItems([...(NAVIGATION_ITEMS[normalizedRole] || [])]);
+          let data = [...(NAVIGATION_ITEMS[normalizedRole] || [])];
+          // 🔥 Filter for clients without posting services
+          if (normalizedRole === 'client' && authUser?.hasPostingServices === false) {
+            const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+            data = data.filter(item => !forbiddenIds.includes(item.id));
+          }
+          setPermittedItems(data);
         }
       } catch (err) {
         console.error("Failed to fetch navigation:", err);
         const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
-        setPermittedItems([...(NAVIGATION_ITEMS[normalizedRole] || [])]);
+        let data = [...(NAVIGATION_ITEMS[normalizedRole] || [])];
+        // 🔥 Filter for clients without posting services
+        if (normalizedRole === 'client' && authUser?.hasPostingServices === false) {
+          const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+          data = data.filter(item => !forbiddenIds.includes(item.id));
+        }
+        setPermittedItems(data);
       } finally {
         setNavLoading(false);
       }

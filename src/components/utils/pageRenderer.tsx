@@ -39,8 +39,24 @@ const ComingSoonPage = ({ title }: { title: string }) => (
   </div>
 );
 
-export function renderPage(role: string, page: string, onPageChange?: (page: string) => void): React.ReactElement {
+export function renderPage(
+  role: string,
+  page: string,
+  onPageChange?: (page: string) => void,
+  hasPostingServices?: boolean
+): React.ReactElement {
   console.log(`Rendering page for role: ${role}, page: ${page}`);
+
+  // 🔥 Block unauthorized access for clients without posting services
+  if (role.toLowerCase() === 'client' && hasPostingServices === false) {
+    const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+    if (forbiddenIds.includes(page)) {
+      console.warn(`Unauthorized access attempt to ${page} for client without posting services. Redirecting to Approvals.`);
+      // If we are in the middle of a render, we can't call onPageChange directly to change state, 
+      // but we can return the default page for this user.
+      return <ClientDashboard />;
+    }
+  }
 
   if (page === "forgot-password") {
     return (
