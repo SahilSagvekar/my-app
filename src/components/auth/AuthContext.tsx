@@ -12,6 +12,7 @@ interface User {
   image?: string;
   role: string | null;
   linkedClientId?: string; // Client ID for users with client role
+  hasPostingServices?: boolean;
 }
 
 interface AuthContextType {

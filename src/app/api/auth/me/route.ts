@@ -30,7 +30,7 @@ export async function GET(req: Request) {
             linkedClientId: true,
             employeeStatus: true,
             client: {
-              select: { id: true }
+              select: { id: true, hasPostingServices: true }
             }
           },
         });
@@ -38,7 +38,8 @@ export async function GET(req: Request) {
         if (user && user.employeeStatus === 'ACTIVE') {
           const processedUser = {
             ...user,
-            linkedClientId: user.linkedClientId || (user as any).client?.id || null
+            linkedClientId: user.linkedClientId || (user as any).client?.id || null,
+            hasPostingServices: (user as any).client?.hasPostingServices ?? true
           };
           delete (processedUser as any).client;
           return NextResponse.json({ user: processedUser }, { status: 200 });
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
           linkedClientId: true,
           employeeStatus: true,
           client: {
-            select: { id: true }
+            select: { id: true, hasPostingServices: true }
           }
         },
       });
@@ -70,7 +71,8 @@ export async function GET(req: Request) {
       if (user && user.employeeStatus === 'ACTIVE') {
         const processedUser = {
           ...user,
-          linkedClientId: user.linkedClientId || (user as any).client?.id || null
+          linkedClientId: user.linkedClientId || (user as any).client?.id || null,
+          hasPostingServices: (user as any).client?.hasPostingServices ?? true
         };
         delete (processedUser as any).client;
         return NextResponse.json({ user: processedUser }, { status: 200 });

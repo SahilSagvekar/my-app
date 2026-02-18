@@ -157,6 +157,7 @@ interface Client {
   videographerRequired: string;
   requiresClientReview: string;
   requiresVideographer: string;
+  hasPostingServices: boolean;
   brandAssets: BrandAsset[];
   brandGuidelines: {
     primaryColors: string[];
@@ -214,6 +215,9 @@ interface Client {
       bestTimes: string;
     };
   };
+  slackWebhookUrl?: string;
+  slackChannelName?: string;
+  slackEnabled?: boolean;
 }
 
 const mockBrandAssets: BrandAsset[] = [
@@ -285,6 +289,7 @@ export function ClientManagement() {
     status: "active",
     clientReviewRequired: "no",
     videographerRequired: "no",
+    hasPostingServices: true,
     monthlyDeliverables: [],
     oneOffDeliverables: [],
     brandAssets: [],
@@ -298,7 +303,6 @@ export function ClientManagement() {
       targetAudience: "",
       contentStyle: "",
     },
-
     projectSettings: {
       defaultVideoLength: "60 seconds",
       preferredPlatforms: [],
@@ -1302,6 +1306,7 @@ export function ClientManagement() {
       phones: client.phones || [],
       clientReviewRequired: client.requiresClientReview ? "yes" : "no",
       videographerRequired: client.requiresVideographer ? "yes" : "no",
+      hasPostingServices: client.hasPostingServices ?? true,
       accountManagerId: client.accountManagerId,
       startDate: client.startDate,
       renewalDate: client.renewalDate,
@@ -2305,6 +2310,19 @@ export function ClientManagement() {
                     }
                     className="bg-white border-gray-200 text-gray-900"
                   />
+                </div>
+
+                <div className="flex items-center space-x-2 py-4">
+                  <Switch
+                    id="has-posting-services"
+                    checked={newClient.hasPostingServices ?? true}
+                    onCheckedChange={(checked) =>
+                      setNewClient({ ...newClient, hasPostingServices: checked })
+                    }
+                  />
+                  <Label htmlFor="has-posting-services" className="text-gray-700 font-medium">
+                    Posting Services Provided
+                  </Label>
                 </div>
 
                 {/* Additional Emails Section */}

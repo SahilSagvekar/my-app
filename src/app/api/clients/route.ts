@@ -379,6 +379,7 @@ export async function POST(req: Request) {
       postingSchedule,
       clientReviewRequired,
       videographerRequired,
+      hasPostingServices,
     } = body;
 
     if (!name || !email)
@@ -436,6 +437,7 @@ export async function POST(req: Request) {
         postingSchedule,
         requiresClientReview: clientReview,
         requiresVideographer: videographer,
+        hasPostingServices: hasPostingServices ?? true,
         currentProgress: { completed: 0, total: 0 },
       },
     });

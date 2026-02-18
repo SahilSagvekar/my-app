@@ -886,10 +886,12 @@ export function ClientDashboard() {
               Approved
               {approvedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{approvedCount}</Badge>}
             </TabsTrigger>
-            <TabsTrigger value="posted" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
-              Posted
-              {postedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{postedCount}</Badge>}
-            </TabsTrigger>
+            {user?.hasPostingServices !== false && (
+              <TabsTrigger value="posted" className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2">
+                Posted
+                {postedCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-zinc-200/50">{postedCount}</Badge>}
+              </TabsTrigger>
+            )}
           </TabsList>
         </Tabs>
       </div>
@@ -1171,7 +1173,7 @@ export function ClientDashboard() {
                 </>
               )}
 
-              {(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED') && (
+              {user?.hasPostingServices !== false && (selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED') && (
                 <Button
                   onClick={() => handleMarkAsPosted()}
                   disabled={isSubmitting}

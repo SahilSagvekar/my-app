@@ -275,6 +275,7 @@ model Client {
   lastActivity         DateTime?
   requiresClientReview Boolean              @default(false)
   requiresVideographer Boolean              @default(false)
+  hasPostingServices   Boolean              @default(true)
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   uploadedFiles        Json?
