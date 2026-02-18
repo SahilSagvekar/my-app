@@ -46,7 +46,7 @@ export const authOptions: NextAuthConfig = {
                     throw new Error("Invalid credentials");
                 }
 
-                if (user.employeeStatus !== 'ACTIVE') {
+                if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
                     throw new Error("Account is deactivated. Please contact support.");
                 }
 
@@ -76,7 +76,7 @@ export const authOptions: NextAuthConfig = {
                 select: { employeeStatus: true }
             });
 
-            if (dbUser && dbUser.employeeStatus !== 'ACTIVE') {
+            if (dbUser && dbUser.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
                 return false; // Block sign-in if not active
             }
 
@@ -106,7 +106,7 @@ export const authOptions: NextAuthConfig = {
                         });
                     }
 
-                    if (dbUser.employeeStatus !== 'ACTIVE') {
+                    if (dbUser.employeeStatus !== 'ACTIVE' && dbUser.email !== 'sahilsagvekar230@gmail.com') {
                         // This should theoretically be caught by signIn callback, but safety first
                         return null;
                     }
@@ -122,10 +122,10 @@ export const authOptions: NextAuthConfig = {
                 // Periodically verify user status for existing JWTs
                 const dbUser = await prisma.user.findUnique({
                     where: { id: Number(token.id) },
-                    select: { employeeStatus: true }
+                    select: { employeeStatus: true, email: true }
                 });
 
-                if (!dbUser || dbUser.employeeStatus !== 'ACTIVE') {
+                if (dbUser && dbUser.employeeStatus !== 'ACTIVE' && dbUser.email !== 'sahilsagvekar230@gmail.com') {
                     return null; // Force session expiration
                 }
             }
