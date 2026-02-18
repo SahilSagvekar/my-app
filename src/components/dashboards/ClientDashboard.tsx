@@ -36,6 +36,7 @@ import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ShareDialog } from '../review/ShareDialog';
+import { Checkbox } from '../ui/checkbox';
 
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
@@ -166,6 +167,10 @@ export function ClientDashboard() {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // 🔥 Download Selector states
+  const [showDownloadSelector, setShowDownloadSelector] = useState(false);
+  const [downloadSelectedFiles, setDownloadSelectedFiles] = useState<Set<string>>(new Set());
 
   const { user } = useAuth();
 
@@ -586,24 +591,37 @@ export function ClientDashboard() {
       return;
     }
 
+    // Select all active files by default
+    const activeFileIds = taskToDownload.files
+      .filter(f => f.isActive !== false)
+      .map(f => f.id);
+
+    setDownloadSelectedFiles(new Set(activeFileIds));
+    if (task) {
+      setSelectedTask(task);
+    }
+    setShowDownloadSelector(true);
+  };
+
+  const confirmDownload = async () => {
+    if (!selectedTask || downloadSelectedFiles.size === 0) {
+      toast.error("Please select at least one file to download");
+      return;
+    }
+
+    const filesToDownload = selectedTask.files?.filter(f => downloadSelectedFiles.has(f.id)) || [];
+
     try {
-      console.log(`📦 Starting download for task ${taskToDownload.id}, total files: ${taskToDownload.files.length}`);
-      toast.info(`Starting download for ${taskToDownload.files.length} file(s)...`);
+      setIsSubmitting(true);
+      setShowDownloadSelector(false); // Close early to show progress via toast maybe, or keep open? Let's close.
+      toast.info(`Starting download for ${filesToDownload.length} file(s)...`);
 
-      for (const file of taskToDownload.files) {
-        // Use the dedicated downloadUrl with attachment headers
+      for (const file of filesToDownload) {
         const urlToUse = file.downloadUrl || file.url;
-        console.log(`🔗 Downloading file: ${file.name}, URL exists: ${!!urlToUse}`);
-
-        if (!urlToUse) {
-          console.error(`❌ No URL found for file: ${file.name}`);
-          continue;
-        }
+        if (!urlToUse) continue;
 
         const link = document.createElement('a');
         link.href = urlToUse;
-        // 🧪 Try without target="_blank" first, as it can be blocked by pop-up blockers
-        // If the header is correctly set to attachment, the browser will not navigate away.
         link.setAttribute('download', file.name);
         document.body.appendChild(link);
         link.click();
@@ -613,10 +631,12 @@ export function ClientDashboard() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      toast.success("All download requests sent!");
+      toast.success("Download requests sent!");
     } catch (error) {
       console.error("Error in download loop:", error);
       toast.error("An error occurred while preparing downloads.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -961,21 +981,21 @@ export function ClientDashboard() {
                   )}
                 </TabsTrigger>
                 {/* {user?.hasPostingServices !== false && ( */}
-                  {/* console.log("User has access " + user?.hasPostingServices), */}
-                  <TabsTrigger
-                    value="posted"
-                    className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
-                  >
-                    Posted
-                    {postedCount > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
-                      >
-                        {postedCount}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
+                {/* console.log("User has access " + user?.hasPostingServices), */}
+                <TabsTrigger
+                  value="posted"
+                  className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                >
+                  Posted
+                  {postedCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
+                    >
+                      {postedCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
                 {/* )} */}
               </TabsList>
             </Tabs>
@@ -1230,10 +1250,10 @@ export function ClientDashboard() {
                                         videoApprovedTasks.has(
                                           selectedTask.id,
                                         )) ||
-                                      (file.folderType === "thumbnails" &&
-                                        thumbApprovedTasks.has(
-                                          selectedTask.id,
-                                        )) ? (
+                                        (file.folderType === "thumbnails" &&
+                                          thumbApprovedTasks.has(
+                                            selectedTask.id,
+                                          )) ? (
                                         <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px] h-5 flex items-center gap-1">
                                           <Check className="h-3 w-3" />
                                           Approved
@@ -1354,32 +1374,32 @@ export function ClientDashboard() {
                   selectedTask.status === "SCHEDULED" ||
                   selectedTask.status === "POSTED"
                 ) && (
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => {
-                        setShowFileSelector(false);
-                        setShowRevisionDialog(true);
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Request Revisions
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setShowFileSelector(false);
+                          setShowRevisionDialog(true);
+                        }}
+                        disabled={isSubmitting}
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Request Revisions
+                      </Button>
 
-                    <Button
-                      size="sm"
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => handleApprove()}
-                      disabled={isSubmitting}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Approve All
-                    </Button>
-                  </div>
-                )}
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => handleApprove()}
+                        disabled={isSubmitting}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve All
+                      </Button>
+                    </div>
+                  )}
 
                 {user?.hasPostingServices !== false &&
                   (selectedTask.status === "COMPLETED" ||
@@ -1546,6 +1566,100 @@ export function ClientDashboard() {
           }}
           copied={copied}
         />
+
+        {/* Download Selector Dialog */}
+        <Dialog open={showDownloadSelector} onOpenChange={setShowDownloadSelector}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5" />
+                Select Files to Download
+              </DialogTitle>
+              <DialogDescription>
+                Choose which files you want to download from "{selectedTask?.title}".
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4 space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+              <div className="flex items-center justify-between pb-2 border-b">
+                <span className="text-sm font-medium text-zinc-500">
+                  {downloadSelectedFiles.size} of {selectedTask?.files?.length || 0} selected
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  onClick={() => {
+                    const allIds = selectedTask?.files?.map(f => f.id) || [];
+                    if (downloadSelectedFiles.size === allIds.length) {
+                      setDownloadSelectedFiles(new Set());
+                    } else {
+                      setDownloadSelectedFiles(new Set(allIds));
+                    }
+                  }}
+                >
+                  {downloadSelectedFiles.size === (selectedTask?.files?.length || 0) ? "Deselect All" : "Select All"}
+                </Button>
+              </div>
+
+              {selectedTask?.files?.map((file) => (
+                <div
+                  key={file.id}
+                  className="flex items-center space-x-3 p-2 rounded-lg hover:bg-zinc-50 transition-colors border border-transparent hover:border-zinc-100"
+                >
+                  <Checkbox
+                    id={`file-${file.id}`}
+                    checked={downloadSelectedFiles.has(file.id)}
+                    onCheckedChange={(checked) => {
+                      const newSelected = new Set(downloadSelectedFiles);
+                      if (checked) {
+                        newSelected.add(file.id);
+                      } else {
+                        newSelected.delete(file.id);
+                      }
+                      setDownloadSelectedFiles(newSelected);
+                    }}
+                  />
+                  <div className="flex-1 min-w-0 pr-2">
+                    <label
+                      htmlFor={`file-${file.id}`}
+                      className="text-sm font-medium leading-none cursor-pointer block truncate"
+                    >
+                      {file.name}
+                    </label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-zinc-400">
+                        V{file.version || 1} • {formatFileSize(file.size)}
+                      </span>
+                      {file.isActive === false && (
+                        <Badge variant="outline" className="text-[8px] h-3 px-1 border-zinc-200 text-zinc-400">Old Version</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t">
+              <Button variant="outline" size="sm" onClick={() => setShowDownloadSelector(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={confirmDownload}
+                disabled={downloadSelectedFiles.size === 0 || isSubmitting}
+                className="bg-zinc-900 text-white hover:bg-zinc-800"
+              >
+                {isSubmitting ? (
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Download {downloadSelectedFiles.size} {downloadSelectedFiles.size === 1 ? 'File' : 'Files'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
