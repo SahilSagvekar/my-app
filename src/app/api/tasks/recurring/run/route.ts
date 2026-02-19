@@ -203,7 +203,7 @@ function generatePostingDatesForMonth(opts: {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { clientId, year, month, dryRun } = body || {};
+    const { clientId, year, month, dryRun, deliverableId } = body || {};
 
     const now = new Date();
     const targetYear = typeof year === "number" ? year : now.getFullYear();
@@ -245,6 +245,7 @@ export async function POST(req: Request) {
     // Find active recurring tasks
     const where: any = { active: true };
     if (clientId) where.clientId = clientId;
+    if (deliverableId) where.deliverableId = deliverableId;
 
     const recurringTasks = await prisma.recurringTask.findMany({
       where,

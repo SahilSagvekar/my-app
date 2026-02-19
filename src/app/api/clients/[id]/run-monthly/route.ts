@@ -235,7 +235,7 @@ export async function POST(
 
       for (let i = 0; i < dueDates.length; i++) {
         const taskNumber = startIndex + i;
-        const title = `${clientSlug}_${createdDateStr}_${deliverableSlug}${taskNumber}`;
+        const title = `${companyName}_${createdDateStr}_${deliverableSlug}${taskNumber}`;
 
         let outputFolderId: string | null = null;
         try {
