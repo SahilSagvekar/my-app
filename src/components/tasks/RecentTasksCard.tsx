@@ -175,8 +175,8 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
                         >
                           <Share2 className="h-3 w-3" />
                         </Button>
-                        <Badge variant="secondary" className="text-xs">
-                          {task.status}
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 uppercase">
+                          {task.status.replace(/_/g, " ")}
                         </Badge>
                       </div>
                     </div>

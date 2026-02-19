@@ -483,7 +483,7 @@ function TaskCard({
                 variant="outline"
                 className={`text-[10px] px-1.5 py-0 h-4 font-medium ${getStatusBadgeStyles(task.status)}`}
               >
-                {task.status.replace("_", " ").toUpperCase()}
+                {task.status.replace(/_/g, " ").toUpperCase()}
               </Badge>
             </div>
           </div>
