@@ -77,6 +77,24 @@ function mapTaskTypeToWorkflow(type: string) {
   return "edit";
 }
 
+function getStatusBadgeStyles(status: string) {
+  switch (status) {
+    case "pending":
+      return "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50";
+    case "in_progress":
+      return "bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-50";
+    case "ready_for_qc":
+      return "bg-green-50 text-green-700 border-green-100 hover:bg-green-50";
+    case "rejected":
+      return "bg-red-50 text-red-700 border-red-100 hover:bg-red-50";
+    case "completed":
+    case "approved":
+      return "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50";
+    default:
+      return "bg-gray-50 text-gray-700 border-gray-100 hover:bg-gray-50";
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* 🔥 HELPER: Extract task number from title                                   */
 /* -------------------------------------------------------------------------- */
@@ -462,8 +480,8 @@ function TaskCard({
                 <Share2 className="h-3 w-3" />
               </Button>
               <Badge
-                variant={task.status === "completed" ? "default" : "secondary"}
-                className="text-[10px] px-1.5 py-0 h-4"
+                variant="outline"
+                className={`text-[10px] px-1.5 py-0 h-4 font-medium ${getStatusBadgeStyles(task.status)}`}
               >
                 {task.status.replace("_", " ").toUpperCase()}
               </Badge>
