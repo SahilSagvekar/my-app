@@ -897,8 +897,8 @@ export function ClientDashboard() {
   /* ----------------------------- STATS ------------------------------------ */
 
   const pendingReviews = tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length;
-  const approvedCount = tasks.filter(task => task.status === 'COMPLETED' || task.status === 'SCHEDULED').length;
-  const postedCount = tasks.filter(task => task.status === 'POSTED').length;
+  const approvedCount = tasks.filter(task => task.status === 'COMPLETED').length;
+  const postedCount = tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length;
   const overdueReviews = tasks.filter(task => isOverdue(task)).length;
 
   const filteredTasks = tasks.filter(task => {
@@ -907,10 +907,10 @@ export function ClientDashboard() {
       return !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED');
     }
     if (currentFilter === 'approved') {
-      return task.status === 'COMPLETED' || task.status === 'SCHEDULED';
+      return task.status === 'COMPLETED';
     }
     if (currentFilter === 'posted') {
-      return task.status === 'POSTED';
+      return task.status === 'POSTED' || task.status === 'SCHEDULED';
     }
     return true;
   });
@@ -1088,14 +1088,18 @@ export function ClientDashboard() {
                               <ExternalLink className="h-2.5 w-2.5" />
                               Posted
                             </Badge>
-                          ) : task.status === "COMPLETED" ||
-                            task.status === "SCHEDULED" ? (
+                          ) : task.status === "SCHEDULED" ? (
+                            <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
+                              <Clock className="h-2.5 w-2.5" />
+                              Scheduled
+                            </Badge>
+                          ) : task.status === "COMPLETED" ? (
                             <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
                               <Check className="h-2.5 w-2.5" />
                               Approved
                             </Badge>
                           ) : (
-                            <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                            <Badge className="bg-zinc-50 text-zinc-600 hover:bg-zinc-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
                               Pending Review
                             </Badge>
                           )}

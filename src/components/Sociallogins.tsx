@@ -1474,7 +1474,7 @@ export function SocialLogins() {
                           {login.platform}
                         </span>
                         <Badge variant="outline" className="text-xs">
-                          @{login.username}
+                          {login.username}
                         </Badge>
                         {login.adminOnly && (
                           <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">

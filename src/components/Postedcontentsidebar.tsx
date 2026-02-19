@@ -157,7 +157,8 @@ export function PostedContentSidebar({
       setLoading(true);
       setError(null);
 
-      const res = await fetch("/api/tasks", { cache: "no-store" });
+      const url = clientId ? `/api/tasks?clientId=${clientId}&status=SCHEDULED,POSTED` : "/api/tasks?status=SCHEDULED,POSTED";
+      const res = await fetch(url, { cache: "no-store" });
 
       if (!res.ok) {
         throw new Error("Failed to fetch tasks");
@@ -168,7 +169,8 @@ export function PostedContentSidebar({
       // Filter for scheduled tasks (posted content) with social media links
       const postedTasks = (data.tasks || [])
         .filter((task: any) => {
-          const isScheduled = task.status === "SCHEDULED";
+          const status = (task.status || "").toUpperCase();
+          const isValidStatus = status === "SCHEDULED" || status === "POSTED";
           let links = task.socialMediaLinks;
           if (typeof links === "string") {
             try {
@@ -178,7 +180,7 @@ export function PostedContentSidebar({
             }
           }
           const hasLinks = Array.isArray(links) && links.length > 0;
-          return isScheduled && hasLinks;
+          return isValidStatus && hasLinks;
         })
         .map((task: any) => {
           let smLinks = task.socialMediaLinks;
