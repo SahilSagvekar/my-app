@@ -32,8 +32,9 @@ import { useUploads } from "./UploadContext";
 import { cn } from "@/lib/utils";
 
 interface FileUploadDialogProps {
-  task: any;
+  task?: any;
   subfolder?: string;
+  folderType?: string;
   onUploadComplete: (files: any[]) => void;
   trigger?: React.ReactNode;
 }
@@ -41,6 +42,7 @@ interface FileUploadDialogProps {
 export function FileUploadDialog({
   task,
   subfolder: preselectedSubfolder,
+  folderType = "outputs",
   onUploadComplete,
   trigger,
 }: FileUploadDialogProps) {
@@ -59,11 +61,13 @@ export function FileUploadDialog({
 
   useEffect(() => {
     const check = async () => {
-      const uploads = await uploadStateManager.getUploadsByTask(task.id);
+      if (!task?.id && folderType !== 'drive') return;
+      const taskId = task?.id || 'drive-upload';
+      const uploads = await uploadStateManager.getUploadsByTask(taskId);
       setResumableUploads(uploads.filter(u => u.status === 'uploading' || u.status === 'paused'));
     };
     if (open) check();
-  }, [task.id, open]);
+  }, [task?.id, open, folderType]);
 
   useEffect(() => {
     if (currentUpload?.status === 'completed' && !notifiedUploadsRef.current.has(currentUpload.id)) {
@@ -135,14 +139,14 @@ export function FileUploadDialog({
 
     try {
       // Start the first one and wait for it so we can show it in the UI
-      const firstId = await startUpload(filesToUpload[0], task, subfolder);
+      const firstId = await startUpload(filesToUpload[0], task, subfolder, undefined, folderType);
       setCurrentUploadId(firstId);
       setIsStarting(false);
 
       // Start the rest in parallel without awaiting
       if (filesToUpload.length > 1) {
         filesToUpload.slice(1).forEach(file => {
-          startUpload(file, task, subfolder).catch(err =>
+          startUpload(file, task, subfolder, undefined, folderType).catch(err =>
             console.error("Background initiation failed:", file.name, err)
           );
         });

@@ -1,7 +1,7 @@
 // components/workflow/GlobalUploadManager.tsx
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUploads } from './UploadContext';
 import {
     X,
@@ -22,6 +22,15 @@ import { cn } from '@/lib/utils';
 export function GlobalUploadManager() {
     const { activeUploads, pauseUpload, cancelUpload, startUpload } = useUploads();
     const [isExpanded, setIsExpanded] = useState(false);
+    const [prevCount, setPrevCount] = useState(0);
+
+    // Auto-expand when a new upload starts
+    useEffect(() => {
+        if (activeUploads.length > prevCount) {
+            setIsExpanded(true);
+        }
+        setPrevCount(activeUploads.length);
+    }, [activeUploads.length, prevCount]);
 
     if (activeUploads.length === 0) return null;
 

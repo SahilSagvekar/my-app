@@ -115,7 +115,7 @@ class UploadService {
         }
     }
 
-    async startUpload(file: File, taskData: any, subfolder: string, resumeId?: string) {
+    async startUpload(file: File, taskData: any, subfolder: string, resumeId?: string, folderType: string = "outputs") {
         let state: UploadState;
 
         const isVideo = file.type.startsWith('video/') ||
@@ -142,10 +142,10 @@ class UploadService {
                 body: JSON.stringify({
                     fileName: file.name,
                     fileType: file.type,
-                    taskId: taskData.id,
-                    clientId: taskData.clientId,
-                    folderType: "outputs",
-                    taskTitle: taskData.title,
+                    taskId: taskData?.id || "drive-upload",
+                    clientId: taskData?.clientId || "unknown",
+                    folderType,
+                    taskTitle: taskData?.title || "",
                     subfolder,
                 }),
             });
@@ -158,9 +158,9 @@ class UploadService {
                 fileName: file.name,
                 fileSize: file.size,
                 fileType: file.type,
-                taskId: taskData.id,
-                clientId: taskData.clientId,
-                folderType: "outputs",
+                taskId: taskData?.id || "drive-upload",
+                clientId: taskData?.clientId || "unknown",
+                folderType,
                 uploadId: initData.uploadId,
                 key: initData.key,
                 uploadedParts: [],

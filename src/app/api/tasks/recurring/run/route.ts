@@ -285,18 +285,24 @@ export async function POST(req: Request) {
 
         // ─────────────────────────────────────────
         // DUPLICATE PREVENTION: Check if tasks already exist for this month
+        //
+        // We use the `recurringMonth` field (e.g., "2026-02") to identify
+        // which generation cycle a task belongs to. This avoids false
+        // positives from a prior cycle creating tasks whose due dates
+        // spill into the target month.
+        //
+        // Example: January's cycle creates tasks on Jan 14 with Feb 1-4
+        // due dates and recurringMonth="2026-01". When the cron runs for
+        // February, it looks for recurringMonth="2026-02" and correctly
+        // finds 0 tasks — so it generates the full February batch.
         // ─────────────────────────────────────────
-        const monthStart = new Date(targetYear, targetMonth, 1);
-        const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+        const recurringMonthLabel = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
 
         const existingTasksForMonth = await prisma.task.count({
           where: {
             clientId: rt.clientId,
             monthlyDeliverableId: deliverable.id,
-            dueDate: {
-              gte: monthStart,
-              lte: monthEnd,
-            },
+            recurringMonth: recurringMonthLabel,
           },
         });
 
@@ -401,6 +407,8 @@ export async function POST(req: Request) {
               clientUserId: client.userId,
               monthlyDeliverableId: deliverable.id,
               outputFolderId,
+              // Tag which monthly cycle this task belongs to
+              recurringMonth: recurringMonthLabel,
               // Copy all role assignments from master template
               qc_specialist: masterTemplate.qc_specialist,
               scheduler: masterTemplate.scheduler,

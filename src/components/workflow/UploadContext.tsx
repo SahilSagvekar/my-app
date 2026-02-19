@@ -7,7 +7,7 @@ import { uploadStateManager, UploadState } from '@/lib/upload-state-manager';
 
 interface UploadContextType {
     activeUploads: UploadState[];
-    startUpload: (file: File, taskData: any, subfolder: string, resumeId?: string) => Promise<string>;
+    startUpload: (file: File, taskData: any, subfolder: string, resumeId?: string, folderType?: string) => Promise<string>;
     pauseUpload: (id: string) => Promise<void>;
     cancelUpload: (id: string) => Promise<void>;
     getUploadState: (id: string) => UploadState | undefined;
@@ -46,8 +46,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         });
     }, []);
 
-    const handleStart = async (file: File, taskData: any, subfolder: string, resumeId?: string) => {
-        const id = await uploadService.startUpload(file, taskData, subfolder, resumeId);
+    const handleStart = async (file: File, taskData: any, subfolder: string, resumeId?: string, folderType?: string) => {
+        const id = await uploadService.startUpload(file, taskData, subfolder, resumeId, folderType);
 
         // Subscribe to events
         const listener = (state: UploadState) => {

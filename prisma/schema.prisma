@@ -148,6 +148,7 @@ model Task {
   qcReviewedAt         DateTime?
   qcReviewedBy         Int?
   oneOffDeliverableId  String?
+  recurringMonth       String?             // e.g. "2026-02" — marks which monthly cycle generated this task
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   shootDetail          ShootDetail?

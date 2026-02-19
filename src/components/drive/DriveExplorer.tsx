@@ -30,6 +30,7 @@ import {
   Share2
 } from "lucide-react";
 import { ShareDialog } from "../review/ShareDialog";
+import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,19 +82,8 @@ interface DriveExplorerProps {
 
 type ViewMode = "grid" | "list";
 
-interface UploadingFile {
-  name: string;
-  progress: number;
-  status: "uploading" | "completed" | "error";
-  error?: string;
-}
-
-const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks
-const PARALLEL_UPLOADS = 10;
-
 export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [driveStructure, setDriveStructure] = useState<DriveItem | null>(null);
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
@@ -102,10 +92,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  // Upload states
-  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   // 🔥 NEW: Delete states
   const [itemToDelete, setItemToDelete] = useState<DriveItem | null>(null);
@@ -195,184 +181,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    setShowUploadDialog(true);
-
-    const newUploadingFiles: UploadingFile[] = Array.from(files).map(
-      (file) => ({
-        name: file.name,
-        progress: 0,
-        status: "uploading",
-      })
-    );
-    setUploadingFiles(newUploadingFiles);
-
-    Array.from(files).forEach((file, index) => {
-      uploadFile(file, index);
-    });
-
-    event.target.value = "";
-  };
-
-  const uploadChunk = async (
-    chunk: Blob,
-    partNumber: number,
-    key: string,
-    uploadId: string,
-    fileType: string
-  ) => {
-    const partUrlResponse = await fetch("/api/upload/part-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, uploadId, partNumber }),
-    });
-
-    if (!partUrlResponse.ok) {
-      throw new Error(`Failed to get presigned URL for part ${partNumber}`);
-    }
-
-    const { presignedUrl } = await partUrlResponse.json();
-
-    const uploadResponse = await fetch(presignedUrl, {
-      method: "PUT",
-      body: chunk,
-      headers: { "Content-Type": fileType },
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error(`Failed to upload part ${partNumber}`);
-    }
-
-    const etag = uploadResponse.headers.get("ETag");
-    if (!etag) {
-      throw new Error("Failed to get ETag");
-    }
-
-    return {
-      ETag: etag.replace(/"/g, ""),
-      PartNumber: partNumber,
-    };
-  };
-
-  const uploadFile = async (file: File, index: number) => {
-    try {
-      const currentPath = getCurrentFolderS3Path();
-
-      // Update status to starting
-      setUploadingFiles((prev) =>
-        prev.map((f, i) =>
-          i === index ? { ...f, progress: 1 } : f
-        )
-      );
-
-      // 1. Initiate multipart upload
-      const initResponse = await fetch("/api/upload/initiate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type,
-          taskId: "drive-upload", // Dummy taskId for drive
-          clientId: user?.id || "unknown", // Using userId as clientId for drive scope
-          folderType: "drive",
-          subfolder: currentPath, // Direct path
-        }),
-      });
-
-      if (!initResponse.ok) {
-        throw new Error("Failed to initiate upload");
-      }
-
-      const { uploadId: s3UploadId, key } = await initResponse.json();
-
-      // 2. Prepare chunks
-      const numChunks = Math.ceil(file.size / CHUNK_SIZE);
-      const chunks: Array<{ chunk: Blob; partNumber: number }> = [];
-
-      for (let i = 0; i < numChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        chunks.push({
-          chunk: file.slice(start, end),
-          partNumber: i + 1,
-        });
-      }
-
-      const uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
-      let uploadedBytes = 0;
-      const startTime = Date.now();
-
-      // 3. Upload chunks in parallel batches
-      for (let i = 0; i < chunks.length; i += PARALLEL_UPLOADS) {
-        const batch = chunks.slice(i, i + PARALLEL_UPLOADS);
-
-        const results = await Promise.all(
-          batch.map(({ chunk, partNumber }) =>
-            uploadChunk(chunk, partNumber, key, s3UploadId, file.type)
-          )
-        );
-
-        uploadedParts.push(...results);
-
-        // Update progress
-        uploadedBytes += batch.reduce((sum, c) => sum + c.chunk.size, 0);
-        const currentProgress = Math.round((uploadedBytes / file.size) * 100);
-
-        setUploadingFiles((prev) =>
-          prev.map((f, i) =>
-            i === index ? { ...f, progress: currentProgress } : f
-          )
-        );
-      }
-
-      // 4. Complete multipart upload
-      const completeResponse = await fetch("/api/upload/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key,
-          uploadId: s3UploadId,
-          parts: uploadedParts,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          taskId: "drive-upload",
-        }),
-      });
-
-      if (!completeResponse.ok) {
-        throw new Error("Failed to complete upload");
-      }
-
-      setUploadingFiles((prev) =>
-        prev.map((f, i) =>
-          i === index ? { ...f, progress: 100, status: "completed" } : f
-        )
-      );
-
-      toast.success(`${file.name} uploaded successfully`);
-
-      setTimeout(() => {
-        loadDriveStructure();
-      }, 1000);
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      setUploadingFiles((prev) =>
-        prev.map((f, i) =>
-          i === index ? { ...f, status: "error", error: error.message } : f
-        )
-      );
-      toast.error(`Failed to upload ${file.name}`);
-    }
-  };
-
   const getCurrentFolderS3Path = (): string => {
     if (breadcrumb.length <= 1) {
       return "";
@@ -381,16 +189,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return pathParts.join("/") + "/";
   };
 
-  const closeUploadDialog = () => {
-    const allCompleted = uploadingFiles.every(
-      (f) => f.status === "completed" || f.status === "error"
-    );
-
-    if (allCompleted) {
-      setShowUploadDialog(false);
-      setUploadingFiles([]);
-    }
-  };
+  const closeUploadDialog = () => { };
 
   // 🔥 NEW: Get S3 Key for item
   const getS3Key = (item: DriveItem): string => {
@@ -590,65 +389,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   return (
     <div className="flex flex-col sm:flex-row h-screen bg-background">
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={handleFileSelect}
-      />
 
-      {/* Upload Progress Dialog */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Uploading files</DialogTitle>
-            <DialogDescription>
-              Uploading to: {breadcrumb.map((b) => b.name).join(" / ")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {uploadingFiles.map((file, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {file.status === "completed" ? (
-                      <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                    ) : file.status === "error" ? (
-                      <X className="h-4 w-4 text-red-500 flex-shrink-0" />
-                    ) : (
-                      <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
-                    )}
-                    <span className="text-sm truncate">{file.name}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground ml-2">
-                    {file.status === "completed"
-                      ? "Done"
-                      : file.status === "error"
-                        ? "Failed"
-                        : `${file.progress}%`}
-                  </span>
-                </div>
-                {file.status === "uploading" && (
-                  <Progress value={file.progress} className="h-1" />
-                )}
-                {file.status === "error" && file.error && (
-                  <p className="text-xs text-red-500">{file.error}</p>
-                )}
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={closeUploadDialog}
-              disabled={uploadingFiles.some((f) => f.status === "uploading")}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Upload Progress Dialog Removed */}
 
       {/* 🔥 NEW: Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -705,14 +447,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         {/* Top Toolbar */}
         <div className="border-b bg-card">
           <div className="flex items-center gap-4 p-3 sm:p-4">
-            {/* Left: Upload Button */}
-            <Button
-              className="gap-2 shrink-0 h-10 px-4"
-              onClick={handleUploadClick}
-            >
-              <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline font-medium">Upload</span>
-            </Button>
+            {/* Left: Upload Button - Resumable */}
+            <FileUploadDialog
+              folderType="drive"
+              subfolder={getCurrentFolderS3Path()}
+              onUploadComplete={() => {
+                setTimeout(loadDriveStructure, 1000);
+              }}
+              trigger={
+                <Button className="gap-2 shrink-0 h-10 px-4">
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline font-medium">Upload</span>
+                </Button>
+              }
+            />
 
             {/* Middle: Search bar */}
             <div className="flex-1 max-w-2xl mx-auto">
@@ -810,10 +558,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     : "Upload files to get started"}
                 </p>
                 {!searchQuery && (
-                  <Button onClick={handleUploadClick}>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload files
-                  </Button>
+                  <FileUploadDialog
+                    folderType="drive"
+                    subfolder={getCurrentFolderS3Path()}
+                    onUploadComplete={() => {
+                      setTimeout(loadDriveStructure, 1000);
+                    }}
+                    trigger={
+                      <Button>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload files
+                      </Button>
+                    }
+                  />
                 )}
               </div>
             ) : viewMode === "grid" ? (
