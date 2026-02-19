@@ -920,27 +920,25 @@ export function ClientDashboard() {
   return (
     <TooltipProvider>
       <div className="flex flex-col h-full space-y-6">
-        {/* Page Header & Stats Row */}
-        <div className="flex flex-row items-center justify-start gap-16 pb-6 border-b border-zinc-100">
-          <div className="flex flex-col gap-1 pr-16">
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
-              Content Review
-            </h1>
-            <p className="text-sm text-zinc-500">
+        {/* Page Header & Filter Row */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-gray-200">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
+            <p className="text-muted-foreground mt-1 text-lg">
               Review content from your team and approve or request revisions
             </p>
           </div>
 
-          <div className="flex items-center justify-between gap-4 pl-70">
+          <div className="flex items-center gap-4">
             <Tabs
               value={currentFilter}
               onValueChange={(val: any) => setCurrentFilter(val)}
-              className="w-full"
+              className="w-full lg:w-auto"
             >
-              <TabsList className="bg-zinc-200/50 p-1 mb-2">
+              <TabsList className="bg-zinc-100 p-1">
                 <TabsTrigger
                   value="all"
-                  className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  className="px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
                 >
                   All Tasks
                   {tasks.length > 0 && (
@@ -954,7 +952,7 @@ export function ClientDashboard() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="pending"
-                  className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  className="px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
                 >
                   Pending Review
                   {pendingReviews > 0 && (
@@ -968,7 +966,7 @@ export function ClientDashboard() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="approved"
-                  className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  className="px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
                 >
                   Approved
                   {approvedCount > 0 && (
@@ -980,11 +978,9 @@ export function ClientDashboard() {
                     </Badge>
                   )}
                 </TabsTrigger>
-                {/* {user?.hasPostingServices !== false && ( */}
-                {/* console.log("User has access " + user?.hasPostingServices), */}
                 <TabsTrigger
                   value="posted"
-                  className="px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  className="px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
                 >
                   Posted
                   {postedCount > 0 && (
@@ -996,7 +992,6 @@ export function ClientDashboard() {
                     </Badge>
                   )}
                 </TabsTrigger>
-                {/* )} */}
               </TabsList>
             </Tabs>
           </div>

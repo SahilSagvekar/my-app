@@ -583,27 +583,27 @@ export function QCDashboard() {
         </Card>
       </div> */}
 
-      <div className="flex flex-row items-center justify-start gap-16 pb-6 border-b border-zinc-100 ">
-        <div className="flex flex-col gap-1 pr-165">
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
-            Content Review
-          </h1>
-          <p className="text-sm text-zinc-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
             Review submitted work and approve or reject with feedback
           </p>
         </div>
 
-        <div className="relative flex items-center justify-center px-6 py-2.5 rounded-2xl bg-white border border-zinc-100 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.04)] min-w-[240px]">
-          <div className="flex flex-col items-center text-center">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-black-400">
-              Pending Reviews
-            </span>
-            <span className="text-2xl font-bold text-zinc-900">
-              {pendingReviews}
-            </span>
-          </div>
-          <div className="absolute right-4 h-10 w-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-zinc-50">
-            <Clock className="h-5 w-5 text-black-500" />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
+                Pending Reviews
+              </span>
+              <span className="text-xl font-bold text-zinc-900 leading-none">
+                {pendingReviews}
+              </span>
+            </div>
+            <div className="ml-4 h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+              <Clock className="h-4 w-4 text-blue-500" />
+            </div>
           </div>
         </div>
       </div>

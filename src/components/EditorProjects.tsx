@@ -197,12 +197,13 @@ export function EditorProjects() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl">My Projects</h1>
-        <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-          Track your project progress and manage assignments
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">My Projects</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
+            Track your project progress and manage assignments
+          </p>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -354,9 +355,8 @@ export function EditorProjects() {
                   <div
                     className="bg-primary h-2 rounded-full transition-all"
                     style={{
-                      width: `${
-                        (project.tasksCompleted / project.tasksTotal) * 100
-                      }%`,
+                      width: `${(project.tasksCompleted / project.tasksTotal) * 100
+                        }%`,
                     }}
                   />
                 </div>

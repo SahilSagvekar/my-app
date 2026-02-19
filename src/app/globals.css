@@ -139,27 +139,30 @@
 @layer base {
   :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
     h1 {
-      font-size: var(--text-2xl);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      letter-spacing: var(--letter-spacing-tight);
+      line-height: var(--line-height-6);
     }
 
     h2 {
-      font-size: var(--text-xl);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      font-size: var(--text-2xl);
+      font-weight: 600;
+      letter-spacing: var(--letter-spacing-tight);
+      line-height: var(--line-height-6);
     }
 
     h3 {
-      font-size: var(--text-lg);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      font-size: var(--text-xl);
+      font-weight: 600;
+      letter-spacing: var(--letter-spacing-tight);
+      line-height: var(--line-height-6);
     }
 
     h4 {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      font-size: var(--text-lg);
+      font-weight: 600;
+      line-height: var(--line-height-6);
     }
 
     p {

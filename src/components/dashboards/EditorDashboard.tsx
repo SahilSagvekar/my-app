@@ -28,6 +28,7 @@ import {
   GripVertical,
   Clock,
   Share2,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -786,79 +787,78 @@ export function EditorDashboard() {
   const router = useRouter();
 
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
+  const loadTasks = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tasks");
+      const data = await res.json();
 
-  useEffect(() => {
-    async function loadTasks() {
-      try {
-        const res = await fetch("/api/tasks");
-        const data = await res.json();
+      console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
 
-        console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
+      console.log("📋 Raw task data from API:", data.tasks?.[0]);
 
-        console.log("📋 Raw task data from API:", data.tasks?.[0]);
-
-        const formatted: WorkflowTask[] = (data.tasks || [])
-          .filter((t: any) => t.assignedTo === Number(currentUser.id))
-          .map((t: any) => {
-            console.log("🔍 Mapping task:", {
-              taskId: t.id,
-              clientId: t.clientId,
-              title: t.title,
-              deliverableType: t.monthlyDeliverable?.type,
-            });
-
-            return {
-              id: t.id,
-              title: t.title,
-              description: t.description,
-              type: mapTaskTypeToWorkflow(t.taskType),
-              status: mapStatus(t.status),
-              assignedTo: String(t.assignedTo),
-              assignedToName: currentUser.name,
-              assignedToRole: currentUser.role,
-              createdAt: t.createdAt,
-              dueDate: t.dueDate,
-              folderType: "outputs",
-              outputFolderId: t.outputFolderId,
-              workflowStep: "editing",
-              clientId: t.clientId,
-              projectId: t.clientId,
-              deliverableType: t.monthlyDeliverable?.type || t.oneOffDeliverable?.type,
-              taskNumber: extractTaskNumber(t.title),
-              isOneOff: !!t.oneOffDeliverable,
-              // 🔥 NEW: Monthly deliverable info for weekly distribution
-              monthlyDeliverableId: t.monthlyDeliverableId || null,
-              monthlyQuantity: t.monthlyDeliverable?.quantity || t.oneOffDeliverable?.quantity || 4, // Default to 4 if not set
-              files: t.files || [],
-              qcNotes: t.qcNotes || null,
-              rejectionReason: t.rejectionReason || null,
-              feedback: t.feedback || null,
-              // 🔥 Map taskFeedback with file version info from nested file data
-              taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
-                id: fb.id,
-                fileId: fb.fileId,
-                folderType: fb.folderType,
-                feedback: fb.feedback,
-                status: fb.status,
-                timestamp: fb.timestamp,
-                category: fb.category,
-                createdAt: fb.createdAt,
-                resolvedAt: fb.resolvedAt,
-                // Use nested file data from API response
-                fileVersion: fb.file?.version || 1,
-                fileName: fb.file?.name || null,
-              })),
-            };
+      const formatted: WorkflowTask[] = (data.tasks || [])
+        .filter((t: any) => t.assignedTo === Number(currentUser.id))
+        .map((t: any) => {
+          console.log("🔍 Mapping task:", {
+            taskId: t.id,
+            clientId: t.clientId,
+            title: t.title,
+            deliverableType: t.monthlyDeliverable?.type,
           });
 
-        setTasks(formatted);
-      } catch (err) {
-        console.error("Failed to load tasks:", err);
-      }
-    }
+          return {
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            type: mapTaskTypeToWorkflow(t.taskType),
+            status: mapStatus(t.status),
+            assignedTo: String(t.assignedTo),
+            assignedToName: currentUser.name,
+            assignedToRole: currentUser.role,
+            createdAt: t.createdAt,
+            dueDate: t.dueDate,
+            folderType: "outputs",
+            outputFolderId: t.outputFolderId,
+            workflowStep: "editing",
+            clientId: t.clientId,
+            projectId: t.clientId,
+            deliverableType: t.monthlyDeliverable?.type || t.oneOffDeliverable?.type,
+            taskNumber: extractTaskNumber(t.title),
+            isOneOff: !!t.oneOffDeliverable,
+            // 🔥 NEW: Monthly deliverable info for weekly distribution
+            monthlyDeliverableId: t.monthlyDeliverableId || null,
+            monthlyQuantity: t.monthlyDeliverable?.quantity || t.oneOffDeliverable?.quantity || 4, // Default to 4 if not set
+            files: t.files || [],
+            qcNotes: t.qcNotes || null,
+            rejectionReason: t.rejectionReason || null,
+            feedback: t.feedback || null,
+            // 🔥 Map taskFeedback with file version info from nested file data
+            taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
+              id: fb.id,
+              fileId: fb.fileId,
+              folderType: fb.folderType,
+              feedback: fb.feedback,
+              status: fb.status,
+              timestamp: fb.timestamp,
+              category: fb.category,
+              createdAt: fb.createdAt,
+              resolvedAt: fb.resolvedAt,
+              // Use nested file data from API response
+              fileVersion: fb.file?.version || 1,
+              fileName: fb.file?.name || null,
+            })),
+          };
+        });
 
-    loadTasks();
+      setTasks(formatted);
+    } catch (err) {
+      console.error("Failed to load tasks:", err);
+    }
   }, [currentUser.id]);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
   // Global listener for background task updates
   useEffect(() => {
@@ -1318,15 +1318,25 @@ export function EditorDashboard() {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
         <div>
-          <h1 className="text-xl sm:text-2xl">Editor Portal</h1>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Editor Portal</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
             Manage your assigned tasks and complete work for QC review.
             <span className="hidden sm:inline text-xs ml-2 text-primary">
               (Drag tasks to change status)
             </span>
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => loadTasks()}
+            className="shadow-sm"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
       </div>
 

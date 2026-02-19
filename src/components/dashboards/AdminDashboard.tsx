@@ -672,10 +672,10 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
 
   // Helper for consistent page headers
   const AdminPageHeader = ({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) => (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900">{title}</h1>
+        <p className="text-muted-foreground mt-1 text-lg">
           {description}
         </p>
       </div>
@@ -685,7 +685,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         <CreateTaskDialog
           onTaskCreated={handleTaskCreated}
           trigger={
-            <Button>
+            <Button className="shadow-sm">
               <Plus className="h-4 w-4 mr-2" />
               Create Task
             </Button>

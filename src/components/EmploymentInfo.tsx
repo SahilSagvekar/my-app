@@ -82,13 +82,13 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
 
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-semibold">
-          Employment Information
-        </h1>
-        <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-          View your employment details and manage leave requests
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Employment Information</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
+            View your employment details and manage leave requests
+          </p>
+        </div>
       </div>
 
       {/* Employee Profile Card */}

@@ -734,19 +734,18 @@ export function ManagerDashboard({
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
         <div>
-          <h1>Manager Portal</h1>
-          <p className="text-muted-foreground mt-2">
-            Monitor team performance, manage content assignments, and track
-            deliverables
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Manager Portal</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
+            Monitor team performance, manage content assignments, and track deliverables
           </p>
         </div>
         <div className="flex items-center gap-3">
           <CreateTaskDialog
             onTaskCreated={handleTaskCreated}
             trigger={
-              <Button>
+              <Button className="shadow-sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Assign Task
               </Button>

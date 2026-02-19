@@ -32,10 +32,17 @@ import { PostedContentSidebar } from "../Postedcontentsidebar"
 import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
+import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
-  <div className="p-8 text-center text-muted-foreground">
-    {title} - Coming Soon
+  <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 space-y-4">
+    <div className="p-4 bg-muted/50 rounded-full">
+      <Loader2 className="h-10 w-10 text-muted-foreground animate-pulse" />
+    </div>
+    <h1 className="text-3xl font-bold tracking-tight text-gray-900">{title}</h1>
+    <p className="text-muted-foreground text-lg max-w-md mx-auto">
+      This section is currently under development. Stay tuned for exciting new features!
+    </p>
   </div>
 );
 
@@ -105,26 +112,14 @@ export function renderPage(
       case "guidelines":
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
       case "feedback":
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Feedback</h1>
-                <p className="text-muted-foreground mt-2">
-                  View and respond to feedback from team members and clients
-                </p>
-              </div>
-            </div>
-            <FeedbackSystem currentRole={role} />
-          </div>
-        );
+        return <FeedbackSystem currentRole={role} />;
       case "training":
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
               <div>
-                <h1 className="text-3xl font-bold">Training Management</h1>
-                <p className="text-muted-foreground mt-2">
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Training Management</h1>
+                <p className="text-muted-foreground mt-1 text-lg">
                   Oversee employee training modules, certifications, and progress
                 </p>
               </div>
@@ -135,10 +130,10 @@ export function renderPage(
       case "logins":
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
               <div>
-                <h1 className="text-3xl font-bold">Social Logins</h1>
-                <p className="text-muted-foreground mt-2">
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Social Logins</h1>
+                <p className="text-muted-foreground mt-1 text-lg">
                   Securely manage social media credentials and account access
                 </p>
               </div>
@@ -149,10 +144,10 @@ export function renderPage(
       case "drive":
         return (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
               <div>
-                <h1 className="text-3xl font-bold">Files & Drive</h1>
-                <p className="text-muted-foreground mt-2">
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Files & Drive</h1>
+                <p className="text-muted-foreground mt-1 text-lg">
                   Centralized storage for assets, project files, and shared documents
                 </p>
               </div>
