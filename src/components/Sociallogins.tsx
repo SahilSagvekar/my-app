@@ -86,7 +86,7 @@ interface SocialLogin {
   id: string;
   clientId: string;
   clientName: string;
-  platform: SocialPlatform;
+  platform: string; // Changed from SocialPlatform to string to allow custom names
   username: string;
   password: string; // Will be encrypted in DB, decrypted on fetch
   loginUrl?: string; // Direct URL to login/manage page
@@ -140,9 +140,9 @@ const PIN_LENGTH = 6;
 /* HELPER FUNCTIONS                                                           */
 /* -------------------------------------------------------------------------- */
 
-const getPlatformIcon = (platform: SocialPlatform, size = "h-5 w-5") => {
+const getPlatformIcon = (platform: string, size = "h-5 w-5") => {
   const iconProps = { className: size };
-  const icons: Record<SocialPlatform, React.ReactElement> = {
+  const icons: Record<string, React.ReactElement> = {
     Instagram: <FaInstagram {...iconProps} className={`${size} text-pink-500`} />,
     Tiktok: <FaTiktok {...iconProps} className={`${size} text-gray-900`} />,
     Facebook: <FaFacebook {...iconProps} className={`${size} text-blue-600`} />,
@@ -150,13 +150,12 @@ const getPlatformIcon = (platform: SocialPlatform, size = "h-5 w-5") => {
     Twitter: <FaTwitter {...iconProps} className={`${size} text-sky-500`} />,
     Linkedin: <FaLinkedin {...iconProps} className={`${size} text-blue-700`} />,
     Snapchat: <FaSnapchat {...iconProps} className={`${size} text-yellow-400`} />,
-    Other: <SlSocialSteam {...iconProps} className={`${size} text-violet-400`} />,
   };
-  return icons[platform];
+  return icons[platform] || <SlSocialSteam {...iconProps} className={`${size} text-violet-400`} />;
 };
 
-const getPlatformBgColor = (platform: SocialPlatform): string => {
-  const colors: Record<SocialPlatform, string> = {
+const getPlatformBgColor = (platform: string): string => {
+  const colors: Record<string, string> = {
     Instagram: "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400",
     Tiktok: "bg-gray-900",
     Facebook: "bg-blue-600",
@@ -164,9 +163,8 @@ const getPlatformBgColor = (platform: SocialPlatform): string => {
     Twitter: "bg-sky-500",
     Linkedin: "bg-blue-700",
     Snapchat: "bg-yellow-400",
-    Other: "bg-violet-400",
   };
-  return colors[platform];
+  return colors[platform] || "bg-violet-400";
 };
 
 // Format a date as relative time (e.g., "2 days ago")
@@ -612,7 +610,7 @@ function LoginFormDialog({
 }) {
   const [formData, setFormData] = useState({
     clientId: "",
-    platform: "Instagram" as SocialPlatform,
+    platform: "Instagram" as string,
     username: "",
     password: "",
     loginUrl: "",
@@ -623,9 +621,20 @@ function LoginFormDialog({
     adminOnly: false,
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [customPlatformName, setCustomPlatformName] = useState("");
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("Instagram");
 
   useEffect(() => {
+    const defaultPlatforms = PLATFORMS.filter(p => p !== "Other");
     if (login) {
+      const isDefault = defaultPlatforms.includes(login.platform);
+      if (isDefault) {
+        setSelectedPlatform(login.platform);
+        setCustomPlatformName("");
+      } else {
+        setSelectedPlatform("Other");
+        setCustomPlatformName(login.platform);
+      }
       setFormData({
         clientId: login.clientId,
         platform: login.platform,
@@ -639,8 +648,9 @@ function LoginFormDialog({
         adminOnly: login.adminOnly || false,
       });
     } else {
-      // For client users, auto-set their clientId (use userClientId or first client in list)
       const autoClientId = isClient ? (userClientId || clients[0]?.id || "") : "";
+      setSelectedPlatform("Instagram");
+      setCustomPlatformName("");
       setFormData({
         clientId: autoClientId,
         platform: "Instagram",
@@ -682,7 +692,14 @@ function LoginFormDialog({
       return;
     }
 
-    onSave(formData);
+    // Handle custom platform name
+    const finalPlatform = selectedPlatform === "Other" ? customPlatformName : selectedPlatform;
+    if (!finalPlatform) {
+      toast.error("Platform name is required");
+      return;
+    }
+
+    onSave({ ...formData, platform: finalPlatform });
     onOpenChange(false);
   };
 
@@ -700,10 +717,10 @@ function LoginFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="max-h-[65vh] overflow-y-auto pr-2 -mr-2 space-y-4 py-4 px-1">
           {/* Admin Only Toggle - Moved to top for better UX */}
           {!isClient && (
-            <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+            <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 sticky top-0 z-10 backdrop-blur-sm">
               <input
                 type="checkbox"
                 id="adminOnly"
@@ -777,10 +794,8 @@ function LoginFormDialog({
             <div className="space-y-2">
               <Label>Platform *</Label>
               <Select
-                value={formData.platform}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, platform: value as SocialPlatform })
-                }
+                value={selectedPlatform}
+                onValueChange={(value) => setSelectedPlatform(value)}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -798,6 +813,18 @@ function LoginFormDialog({
               </Select>
             </div>
           </div>
+
+          {selectedPlatform === "Other" && (
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+              <Label>Custom Platform Name *</Label>
+              <Input
+                value={customPlatformName}
+                onChange={(e) => setCustomPlatformName(e.target.value)}
+                placeholder="Enter workspace or platform name"
+                autoFocus
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Username / Handle *</Label>
@@ -1238,7 +1265,10 @@ export function SocialLogins() {
       clientFilter === "all" || login.clientId === clientFilter;
 
     const matchesPlatform =
-      platformFilter === "all" || login.platform === platformFilter;
+      platformFilter === "all" ||
+      (platformFilter === "Other"
+        ? !PLATFORMS.filter(p => p !== "Other").includes(login.platform)
+        : login.platform === platformFilter);
 
     return matchesSearch && matchesClient && matchesPlatform;
   });
