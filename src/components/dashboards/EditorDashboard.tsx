@@ -82,7 +82,7 @@ function getStatusBadgeStyles(status: string) {
     case "pending":
       return "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50";
     case "in_progress":
-      return "bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-50";
+      return "bg-yellow-50 text-yellow-700 border-yellow-100 hover:bg-yellow-50";
     case "ready_for_qc":
       return "bg-green-50 text-green-700 border-green-100 hover:bg-green-50";
     case "rejected":
@@ -517,7 +517,7 @@ function TaskCard({
                 <span
                   className={`text-[10px] ${uploadValidation.isComplete
                     ? "text-green-600"
-                    : "text-amber-600"
+                    : "text-yellow-600"
                     }`}
                 >
                   {uploadValidation.isComplete
@@ -1363,15 +1363,17 @@ export function EditorDashboard() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Editor Portal</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            Editor Portal
+          </h1>
           <p className="text-muted-foreground mt-1 text-lg">
             Manage your assigned tasks and complete work for QC review.
-            <span className="hidden sm:inline text-xs ml-2 text-primary">
+            {/* <span className="hidden sm:inline text-xs ml-2 text-primary">
               (Drag tasks to change status)
-            </span>
+            </span> */}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        {/* <div className="flex items-center gap-3">
           <Button
             variant="outline"
             onClick={() => loadTasks()}
@@ -1380,11 +1382,85 @@ export function EditorDashboard() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
+        </div> */}
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs sm:text-sm text-muted-foreground">
+                Filter by:
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+              <Select
+                value={deliverableTypeFilter}
+                onValueChange={setDeliverableTypeFilter}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="All Deliverables" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Deliverables</SelectItem>
+                  {availableDeliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="All Clients" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {availableClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="text-xs shrink-0"
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Show filter info */}
+          {/* {deliverableTypeFilter !== "all" && (
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Showing{" "}
+                  <span className="font-medium text-foreground">
+                    {totalFilteredTasks}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-medium text-foreground">
+                    {totalTasks}
+                  </span>{" "}
+                  tasks filtered by{" "}
+                  <Badge variant="secondary" className="ml-1">
+                    {deliverableTypeFilter.replace(/_/g, " ")}
+                  </Badge>
+                </p>
+              </div>
+            )} */}
         </div>
       </div>
 
       {/* Filter Section */}
-      <Card>
+      {/* <Card>
         <CardContent className="p-3 sm:p-4">
           <div className="flex flex-col gap-3 sm:gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
@@ -1442,29 +1518,9 @@ export function EditorDashboard() {
                 )}
               </div>
             </div>
-
-            {/* Show filter info */}
-            {/* {deliverableTypeFilter !== "all" && (
-              <div className="mt-3 pt-3 border-t">
-                <p className="text-sm text-muted-foreground">
-                  Showing{" "}
-                  <span className="font-medium text-foreground">
-                    {totalFilteredTasks}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-medium text-foreground">
-                    {totalTasks}
-                  </span>{" "}
-                  tasks filtered by{" "}
-                  <Badge variant="secondary" className="ml-1">
-                    {deliverableTypeFilter.replace(/_/g, " ")}
-                  </Badge>
-                </p>
-              </div>
-            )} */}
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Kanban Board with Drag & Drop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
