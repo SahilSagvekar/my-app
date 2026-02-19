@@ -271,6 +271,7 @@ interface WorkflowTask {
   monthlyDeliverableId?: string;
   monthlyQuantity?: number; // Total tasks per month for this deliverable
   taskNumber?: number; // Task number (extracted from title)
+  clientName?: string; // 🔥 Added client name for filtering
 }
 
 /* -------------------------------------------------------------------------- */
@@ -765,6 +766,7 @@ export function EditorDashboard() {
   const [tasks, setTasks] = useState<WorkflowTask[]>([]);
   const [deliverableTypeFilter, setDeliverableTypeFilter] =
     useState<string>("all");
+  const [clientFilter, setClientFilter] = useState<string>("all");
   const [draggingTask, setDraggingTask] = useState<WorkflowTask | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
@@ -825,6 +827,7 @@ export function EditorDashboard() {
             deliverableType: t.monthlyDeliverable?.type || t.oneOffDeliverable?.type,
             taskNumber: extractTaskNumber(t.title),
             isOneOff: !!t.oneOffDeliverable,
+            clientName: t.client?.companyName || t.client?.name || "Unknown Client",
             // 🔥 NEW: Monthly deliverable info for weekly distribution
             monthlyDeliverableId: t.monthlyDeliverableId || null,
             monthlyQuantity: t.monthlyDeliverable?.quantity || t.oneOffDeliverable?.quantity || 4, // Default to 4 if not set
@@ -882,6 +885,18 @@ export function EditorDashboard() {
       }
     });
     return Array.from(types).sort();
+  }, [tasks]);
+
+  const availableClients = useMemo(() => {
+    const clients = new Map<string, string>(); // clientId -> clientName
+    tasks.forEach((task) => {
+      if (task.clientId && task.clientName) {
+        clients.set(task.clientId, task.clientName);
+      }
+    });
+    return Array.from(clients.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [tasks]);
 
   // 🔥 WEEKLY TASK DISTRIBUTION LOGIC
@@ -980,13 +995,22 @@ export function EditorDashboard() {
 
   // Apply deliverable type filter on top of weekly visible tasks
   const filteredTasks = useMemo(() => {
-    if (deliverableTypeFilter === "all") {
-      return weeklyVisibleTasks;
+    let result = weeklyVisibleTasks;
+
+    if (deliverableTypeFilter !== "all") {
+      result = result.filter(
+        (task) => task.deliverableType === deliverableTypeFilter
+      );
     }
-    return weeklyVisibleTasks.filter(
-      (task) => task.deliverableType === deliverableTypeFilter
-    );
-  }, [weeklyVisibleTasks, deliverableTypeFilter]);
+
+    if (clientFilter !== "all") {
+      result = result.filter(
+        (task) => task.clientId === clientFilter
+      );
+    }
+
+    return result;
+  }, [weeklyVisibleTasks, deliverableTypeFilter, clientFilter]);
 
   // 🔥 Calculate hidden task count for UI feedback
   const hiddenTaskCount = useMemo(() => {
@@ -1256,9 +1280,10 @@ export function EditorDashboard() {
 
   function clearAllFilters() {
     setDeliverableTypeFilter("all");
+    setClientFilter("all");
   }
 
-  const hasActiveFilters = deliverableTypeFilter !== "all";
+  const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all";
 
   /* ----------------------------- GROUPING ---------------------------------- */
 
@@ -1358,10 +1383,10 @@ export function EditorDashboard() {
                   onValueChange={setDeliverableTypeFilter}
                 >
                   <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="All Types" />
+                    <SelectValue placeholder="All Deliverables" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="all">All Deliverables</SelectItem>
                     {availableDeliverableTypes.map((type) => (
                       <SelectItem key={type} value={type}>
                         {type.replace(/_/g, " ")}
@@ -1370,14 +1395,31 @@ export function EditorDashboard() {
                   </SelectContent>
                 </Select>
 
-                {deliverableTypeFilter !== "all" && (
+                <Select
+                  value={clientFilter}
+                  onValueChange={setClientFilter}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="All Clients" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {availableClients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {hasActiveFilters && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setDeliverableTypeFilter("all")}
+                    onClick={clearAllFilters}
                     className="text-xs shrink-0"
                   >
-                    Clear
+                    Clear Filters
                   </Button>
                 )}
               </div>
