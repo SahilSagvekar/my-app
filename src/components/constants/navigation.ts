@@ -22,7 +22,7 @@ import {
   HardDrive,
   Briefcase,
   LogIn,
-  Instagram 
+  Instagram
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -43,7 +43,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
     // { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'resources', label: 'Resources', icon: BookOpen },
-    { id: 'guidelines', label: 'Guidelines', icon: BookOpen },
+    { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
@@ -52,7 +52,7 @@ export const NAVIGATION_ITEMS = {
   qc: [
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
     { id: 'completed', label: 'Completed', icon: Archive },
-    { id: 'guidelines', label: 'Guidelines', icon: BookOpen },
+    { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'training', label: 'Training', icon: Layout },
@@ -179,7 +179,7 @@ export const getDefaultPage = (role: string): string => {
 //   qc: [
 //     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
 //     { id: 'completed', label: 'Completed', icon: Archive },
-//     { id: 'guidelines', label: 'Guidelines', icon: BookOpen },
+//     { id: 'guidelines', label: 'Guidelines', icon: FileText },
 //     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
 //     { id: 'training', label: 'Training', icon: Layout },
 //     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
