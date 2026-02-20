@@ -903,7 +903,10 @@ export async function POST(req: any) {
 
     const { role, id: userId } = user;
 
-    if (!role || !["admin", "manager"].includes(role.toLowerCase())) {
+    // 🔒 Editors can only create tasks if explicitly permitted for the target client
+    const isEditorCreate = role?.toLowerCase() === 'editor';
+
+    if (!role || (!["admin", "manager"].includes(role.toLowerCase()) && !isEditorCreate)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
@@ -912,14 +915,28 @@ export async function POST(req: any) {
 
     const description = form.get("description") as string;
     const dueDate = form.get("dueDate") as string;
-    const assignedTo = Number(form.get("assignedTo"));
-    const qc_specialist = Number(form.get("qc_specialist"));
-    const scheduler = Number(form.get("scheduler"));
-    const videographer = Number(form.get("videographer"));
+    // Editors are always assigned to themselves; admins read from form
+    const assignedTo = isEditorCreate ? Number(userId) : Number(form.get("assignedTo"));
+    const qc_specialist = isEditorCreate ? 0 : Number(form.get("qc_specialist"));
+    const scheduler = isEditorCreate ? 0 : Number(form.get("scheduler"));
+    const videographer = isEditorCreate ? 0 : Number(form.get("videographer"));
     const clientId = form.get("clientId") as string;
     const folderType = form.get("folderType") as string;
-    const monthlyDeliverableId = form.get("monthlyDeliverableId") as string;
+    const monthlyDeliverableId = isEditorCreate ? '' : (form.get("monthlyDeliverableId") as string);
     const oneOffDeliverableId = form.get("oneOffDeliverableId") as string;
+
+    // 🔥 EDITOR PERMISSION CHECK
+    if (isEditorCreate) {
+      if (!clientId || !oneOffDeliverableId) {
+        return NextResponse.json({ message: "clientId and oneOffDeliverableId are required" }, { status: 400 });
+      }
+      const perm = await (prisma as any).editorClientPermission.findUnique({
+        where: { editorId_clientId: { editorId: Number(userId), clientId } },
+      });
+      if (!perm) {
+        return NextResponse.json({ message: "You do not have permission to create tasks for this client" }, { status: 403 });
+      }
+    }
 
     // 🔥 SHOOT SPECIFIC FIELDS
     const shootLocation = form.get("shootLocation") as string;
@@ -931,8 +948,7 @@ export async function POST(req: any) {
     const shootExclusions = form.get("shootExclusions") as string;
     const shootReferenceLinks = form.get("shootReferenceLinks") as string;
 
-
-    if (!assignedTo || !clientId) {
+    if (!isEditorCreate && (!assignedTo || !clientId)) {
       return NextResponse.json(
         { message: "Missing required fields" },
         { status: 400 }
@@ -988,7 +1004,7 @@ export async function POST(req: any) {
       folderPrefix = client.essentialsFolderId || '';
     }
 
-    if (!folderPrefix) {
+    if (!folderPrefix && !isEditorCreate) {
       return NextResponse.json(
         { message: `Missing folder for ${folderType}` },
         { status: 400 }

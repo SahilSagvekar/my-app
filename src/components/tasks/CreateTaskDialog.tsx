@@ -694,15 +694,19 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
           const res = await fetch(`/api/clients/${formData.clientId}/deliverables`);
           if (res.ok) {
             const payload = await res.json();
-            if (Array.isArray(payload.monthlyDeliverables)) {
-              allDeliverables = [...allDeliverables, ...payload.monthlyDeliverables.map((d: any) => ({ ...d, deliverableSource: 'monthly' }))];
+            const monthlyList = Array.isArray(payload.monthlyDeliverables) ? payload.monthlyDeliverables :
+              Array.isArray(payload.deliverables) ? payload.deliverables : [];
+            if (monthlyList.length > 0) {
+              allDeliverables = [...allDeliverables, ...monthlyList.map((d: any) => ({ ...d, deliverableSource: 'monthly' }))];
             }
           }
           const res2 = await fetch(`/api/clients/${formData.clientId}/one-off-deliverables`);
           if (res2.ok) {
             const payload2 = await res2.json();
-            if (Array.isArray(payload2.oneOffDeliverables)) {
-              allDeliverables = [...allDeliverables, ...payload2.oneOffDeliverables.map((d: any) => ({ ...d, deliverableSource: 'oneoff' }))];
+            const oneOffList = Array.isArray(payload2.oneOffDeliverables) ? payload2.oneOffDeliverables :
+              Array.isArray(payload2.deliverables) ? payload2.deliverables : [];
+            if (oneOffList.length > 0) {
+              allDeliverables = [...allDeliverables, ...oneOffList.map((d: any) => ({ ...d, deliverableSource: 'oneoff' }))];
             }
           }
         } catch (err) {

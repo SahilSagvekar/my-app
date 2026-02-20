@@ -1108,3 +1108,172 @@ export async function sendDailySummaryReportEmail(report: {
     throw error;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CLIENT REVIEW REMINDER
+   Sent to Eric AND the client when tasks have been in CLIENT_REVIEW > 4 days.
+   Call once per client group – pass all overdue tasks for that client.
+───────────────────────────────────────────────────────────────────────────── */
+export async function sendClientReviewReminderEmail(data: {
+  clientName: string;
+  clientEmails: string[];   // all emails for that client
+  tasks: Array<{
+    id: string;
+    title: string;
+    daysInReview: number;
+    dashboardUrl: string;   // deep-link to that task's review screen
+  }>;
+}) {
+  const ERIC_EMAIL = 'eric@e8productions.com';
+  const APP_URL = process.env.BASE_URL || process.env.NEXTAUTH_URL || 'https://e8productions.com';
+
+  // Deduplicate recipients: Eric + all client emails, case-insensitive
+  const allRecipients = Array.from(
+    new Set([ERIC_EMAIL, ...data.clientEmails].map(e => e.toLowerCase().trim()))
+  );
+
+  // Build task rows for the HTML table
+  const taskRows = data.tasks.map(t => `
+    <tr>
+      <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-weight: 500;">
+        ${t.title || 'Untitled Task'}
+      </td>
+      <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; text-align: center;">
+        <span style="
+          display: inline-block;
+          padding: 3px 10px;
+          border-radius: 9999px;
+          font-size: 13px;
+          font-weight: 600;
+          background: ${t.daysInReview >= 7 ? '#fee2e2' : '#fef3c7'};
+          color: ${t.daysInReview >= 7 ? '#b91c1c' : '#92400e'};
+        ">
+          ${t.daysInReview} day${t.daysInReview !== 1 ? 's' : ''}
+        </span>
+      </td>
+      <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; text-align: center;">
+        <a href="${t.dashboardUrl}"
+           style="color: #2563eb; text-decoration: none; font-weight: 500; font-size: 13px;">
+          Review Now →
+        </a>
+      </td>
+    </tr>
+  `).join('');
+
+  const subject = data.tasks.length === 1
+    ? `⏰ Reminder: "${data.tasks[0].title}" is awaiting your review`
+    : `⏰ Reminder: ${data.tasks.length} tasks are awaiting review for ${data.clientName}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Review Reminder</title>
+    </head>
+    <body style="margin: 0; padding: 0; background: #f3f4f6; font-family: 'Segoe UI', Arial, sans-serif; color: #374151;">
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6; padding: 40px 0;">
+        <tr>
+          <td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.07);">
+
+              <!-- Header -->
+              <tr>
+                <td style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 32px 40px;">
+                  <p style="margin: 0 0 4px 0; font-size: 13px; color: #93c5fd; letter-spacing: 1px; text-transform: uppercase;">E8 Productions</p>
+                  <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #ffffff;">
+                    ⏰ Review Reminder
+                  </h1>
+                  <p style="margin: 8px 0 0; color: #bfdbfe; font-size: 14px;">
+                    ${data.tasks.length} task${data.tasks.length !== 1 ? 's' : ''} for <strong>${data.clientName}</strong> ${data.tasks.length !== 1 ? 'are' : 'is'} awaiting review
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Body -->
+              <tr>
+                <td style="padding: 32px 40px;">
+                  <p style="margin: 0 0 20px; font-size: 15px; line-height: 1.6; color: #374151;">
+                    Hi there,<br/><br/>
+                    The following task${data.tasks.length !== 1 ? 's' : ''} for <strong>${data.clientName}</strong> ${data.tasks.length !== 1 ? 'have' : 'has'} been sitting in <em>Client Review</em> for <strong>more than 4 days</strong> without any action.
+                    Please take a moment to review ${data.tasks.length !== 1 ? 'them' : 'it'} and provide your feedback.
+                  </p>
+
+                  <!-- Task table -->
+                  <table width="100%" cellpadding="0" cellspacing="0"
+                    style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 28px;">
+                    <thead>
+                      <tr style="background: #f9fafb;">
+                        <th style="padding: 11px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb;">Task</th>
+                        <th style="padding: 11px 16px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; width: 110px;">Waiting</th>
+                        <th style="padding: 11px 16px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; width: 120px;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${taskRows}
+                    </tbody>
+                  </table>
+
+                  <!-- CTA -->
+                  <div style="text-align: center; margin: 8px 0 24px;">
+                    <a href="${APP_URL}/dashboard"
+                       style="display: inline-block; padding: 14px 32px; background: #2563eb; color: #ffffff;
+                              text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;
+                              box-shadow: 0 2px 6px rgba(37,99,235,0.35);">
+                      Go to Dashboard →
+                    </a>
+                  </div>
+
+                  <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.6;">
+                    If you have already reviewed these tasks, please disregard this message.<br/>
+                    This reminder is sent automatically after <strong>4 days</strong> without a response.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background: #f9fafb; padding: 20px 40px; border-top: 1px solid #e5e7eb;">
+                  <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
+                    © ${new Date().getFullYear()} E8 Productions · Automated Reminder System
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+
+    </body>
+    </html>
+  `;
+
+  const transporter2 = createTransporter();
+  if (!transporter2) {
+    console.log('[ClientReviewReminder] Email not configured – skipping send.');
+    console.log(`[ClientReviewReminder] Would have sent to: ${allRecipients.join(', ')}`);
+    return { sent: 0, skipped: allRecipients.length };
+  }
+
+  let sent = 0;
+  // Send individually so each recipient only sees their own address
+  for (const recipient of allRecipients) {
+    try {
+      await transporter2.sendMail(addGlobalBcc({
+        from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+        to: recipient,
+        subject,
+        html,
+      }));
+      console.log(`✅ [ClientReviewReminder] Sent to ${recipient}`);
+      sent++;
+    } catch (err) {
+      console.error(`❌ [ClientReviewReminder] Failed to send to ${recipient}:`, err);
+    }
+  }
+
+  return { sent, total: allRecipients.length };
+}

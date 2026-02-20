@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Loader, Save, RefreshCw, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { EditorTaskPermissionsPanel } from './EditorTaskPermissionsPanel';
 
 interface NavItem {
     id: string;
@@ -158,6 +159,11 @@ export function PermissionsTab() {
                         </CardContent>
                     </Card>
                 ))}
+            </div>
+
+            {/* ── Editor Task-Creation Permissions ─────────────────────── */}
+            <div className="pt-4">
+                <EditorTaskPermissionsPanel />
             </div>
         </div>
     );

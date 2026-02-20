@@ -39,9 +39,9 @@ export async function POST(
 
     console.log("✅ Deliverable created:", deliverable.id);
 
-    return NextResponse.json({ 
-      success: true, 
-      deliverable 
+    return NextResponse.json({
+      success: true,
+      deliverable
     }, { status: 201 });
 
   } catch (err) {
@@ -63,7 +63,7 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ deliverables });
+    return NextResponse.json({ deliverables, monthlyDeliverables: deliverables });
 
   } catch (err) {
     console.error("GET deliverables failed:", err);

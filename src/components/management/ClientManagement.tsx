@@ -648,7 +648,7 @@ export function ClientManagement() {
       return;
     }
 
-    if (!newDeliverable.platforms || newDeliverable.platforms.length === 0) {
+    if (newClient.hasPostingServices !== false && (!newDeliverable.platforms || newDeliverable.platforms.length === 0)) {
       toast.error("Please select at least one platform");
       return;
     }
@@ -1692,6 +1692,7 @@ export function ClientManagement() {
                   </div>
                   <Button size="sm" onClick={() => {
                     setEditingClient(selectedClient);
+                    setNewClient(prev => ({ ...prev, hasPostingServices: selectedClient.hasPostingServices ?? true }));
                     setNewDeliverable({
                       type: "Short Form Videos",
                       quantity: 1,
@@ -1748,6 +1749,7 @@ export function ClientManagement() {
                             className="text-blue-600 hover:text-blue-700"
                             onClick={() => {
                               setEditingClient(selectedClient);
+                              setNewClient(prev => ({ ...prev, hasPostingServices: selectedClient.hasPostingServices ?? true }));
                               setEditingDeliverableId(deliverable.id);
                               setNewDeliverable({
                                 type: deliverable.type,
@@ -1819,6 +1821,8 @@ export function ClientManagement() {
                       <Zap className="h-8 w-8 text-gray-300 mx-auto mb-3" />
                       <p className="text-gray-500">No one-off projects or packages found.</p>
                       <Button variant="link" onClick={() => {
+                        setEditingClient(selectedClient);
+                        setNewClient(prev => ({ ...prev, hasPostingServices: selectedClient.hasPostingServices ?? true }));
                         setNewDeliverable({
                           ...newDeliverable,
                           postingSchedule: 'one-off'

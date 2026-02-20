@@ -35,6 +35,7 @@ import { useRouter } from "next/navigation";
 import { FilePreviewModal } from "../FileViewerModal";
 import { ShareDialog } from "../review/ShareDialog";
 import { toast } from "sonner";
+import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -798,6 +799,17 @@ export function EditorDashboard() {
 
   const { user } = useAuth();
 
+  // ── Editor task-creation permissions ──────────────────────────────
+  const [permittedClients, setPermittedClients] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/editor/task-permissions', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setPermittedClients(d.clients || []))
+      .catch(() => setPermittedClients([]));
+  }, []);
+  // ─────────────────────────────────────────────────────────────────
+
   const currentUser = {
     id: user?.id?.toString() || "",
     name: user?.name || "Editor",
@@ -1368,10 +1380,13 @@ export function EditorDashboard() {
           </h1>
           <p className="text-muted-foreground mt-1 text-lg">
             Manage your assigned tasks and complete work for QC review.
-            {/* <span className="hidden sm:inline text-xs ml-2 text-primary">
-              (Drag tasks to change status)
-            </span> */}
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <EditorCreateTaskDialog
+            permittedClients={permittedClients}
+            onTaskCreated={() => loadTasks()}
+          />
         </div>
         {/* <div className="flex items-center gap-3">
           <Button

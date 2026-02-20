@@ -38,9 +38,9 @@ export async function POST(
 
     console.log("✅ One-off deliverable created:", deliverable.id);
 
-    return NextResponse.json({ 
-      success: true, 
-      deliverable 
+    return NextResponse.json({
+      success: true,
+      deliverable
     }, { status: 201 });
 
   } catch (err) {
@@ -62,7 +62,7 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ deliverables });
+    return NextResponse.json({ deliverables, oneOffDeliverables: deliverables });
 
   } catch (err) {
     console.error("GET one-off deliverables failed:", err);
