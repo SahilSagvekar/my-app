@@ -8,6 +8,22 @@ import { Checkbox } from '../ui/checkbox';
 import { CheckCircle, XCircle, FileCheck, Calendar, FileText, Video, Palette, User, ArrowRight, Search, Filter, UserCheck, Loader, RotateCcw, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
+// 🛡️ Safe date formatter — returns a fallback string if the date is null/invalid
+const safeFormatDate = (
+  value: string | null | undefined,
+  formatter: (date: Date) => string,
+  fallback = '—'
+): string => {
+  if (!value) return fallback;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return fallback;
+  try {
+    return formatter(d);
+  } catch {
+    return fallback;
+  }
+};
+
 type TaskStatus = 'COMPLETED' | 'REJECTED' | 'CLIENT_REVIEW';
 type TaskCategory = 'design' | 'video' | 'copywriting' | 'review';
 type TaskDestination = 'editor' | 'client' | 'scheduler';
@@ -398,21 +414,24 @@ export function QCCompletedPage() {
                             {task.qcReviewedAt && (
                               <Badge variant="outline" className="text-[10px] bg-zinc-50 flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
-                                {new Intl.DateTimeFormat('en-US', {
-                                  timeZone: 'America/New_York',
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true
-                                }).format(new Date(task.qcReviewedAt))} EST
+                                {safeFormatDate(
+                                  task.qcReviewedAt,
+                                  (d) => new Intl.DateTimeFormat('en-US', {
+                                    timeZone: 'America/New_York',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  }).format(d)
+                                )} EST
                               </Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              <span>Created: {new Date(task.createdAt).toLocaleDateString()}</span>
+                              <span>Created: {safeFormatDate(task.createdAt, (d) => d.toLocaleDateString())}</span>
                             </div>
                           </div>
                         </div>
