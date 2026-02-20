@@ -325,8 +325,8 @@ export function SchedulerSpreadsheetView() {
             const matchesStatus = statusFilter === 'all' ||
                 (statusFilter === 'pending' && t.status === 'PENDING') ||
                 (statusFilter === 'scheduled' && t.status === 'SCHEDULED');
-            const matchesClient = clientFilter === 'all' || t.client?.name === clientFilter;
-            const matchesDeliverable = deliverableFilter === 'all' || t.deliverable?.type === deliverableFilter;
+            const matchesClient = clientFilter === 'all' || t.clientId === clientFilter;
+            const matchesDeliverable = deliverableFilter === 'all' || t.deliverable?.id === deliverableFilter || t.deliverable?.type === deliverableFilter;
             return matchesSearch && matchesStatus && matchesClient && matchesDeliverable;
         })
         .sort((a, b) => {
@@ -348,7 +348,15 @@ export function SchedulerSpreadsheetView() {
     const scheduledCount = tasks.filter(t => t.status === 'SCHEDULED').length;
 
     // Get unique clients and deliverables for filter dropdowns
-    const uniqueClients = Array.from(new Set(tasks.map(t => t.client?.companyName).filter(Boolean))) as string[];
+    const uniqueClients = Array.from(
+        new Map(
+            tasks
+                .map(t => t.client)
+                .filter(Boolean)
+                .map(c => [c.id, c.companyName || c.name])
+        ).entries()
+    ).sort((a, b) => a[1].localeCompare(b[1]));
+
     const uniqueDeliverables = Array.from(new Set(tasks.map(t => t.deliverable?.type).filter(Boolean))) as string[];
 
     // Copy title to clipboard - handle both string and object formats
@@ -441,8 +449,8 @@ export function SchedulerSpreadsheetView() {
                         onChange={(e) => setClientFilter(e.target.value)}
                     >
                         <option value="all">All Clients</option>
-                        {uniqueClients.sort().map(client => (
-                            <option key={client} value={client}>{client}</option>
+                        {uniqueClients.map(([id, name]) => (
+                            <option key={id} value={id}>{name}</option>
                         ))}
                     </select>
 
