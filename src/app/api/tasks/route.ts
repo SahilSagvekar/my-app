@@ -479,6 +479,7 @@ function getTokenFromCookies(req: Request) {
 function sanitizeBigInt(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === "bigint") return Number(obj);
+  if (obj instanceof Date) return obj.toISOString(); // ✅ Serialize dates as ISO strings
   if (Array.isArray(obj)) return obj.map(sanitizeBigInt);
   if (typeof obj === "object") {
     const newObj: any = {};
