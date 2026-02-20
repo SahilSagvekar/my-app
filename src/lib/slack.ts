@@ -37,6 +37,7 @@ const TYPE_EMOJI: Record<string, string> = {
   review_queue: "👀",
   approved_content: "🎉",
   task_scheduled: "📅",
+  task_posted: "🚀",
   deadline_reminder: "⏰",
   task_deadline: "⏰",
   client_feedback: "💬",
@@ -187,10 +188,19 @@ export async function sendSlackDM(
 export async function deliverSlackNotification(
   notification: SlackNotification
 ): Promise<void> {
-  // A. Always send to global team channel webhook
+  // A. Special Routing: Send specific statuses to a dedicated production channel
+  // Target: Ready for Review, Scheduled, Posted
+  const productionChannelUrl = process.env.SLACK_READY_REVIEW_POSTED_WEBHOOK_URL;
+  const productionTypes = ["review_queue", "task_scheduled", "task_posted", "content_ready"];
+
+  if (productionChannelUrl && productionTypes.includes(notification.type)) {
+    await sendSlackWebhook(notification, productionChannelUrl);
+  }
+
+  // B. Always send to global team channel webhook
   await sendSlackWebhook(notification);
 
-  // B. Send to client-specific channel (if clientId in payload)
+  // C. Send to client-specific channel (if clientId in payload)
   if (notification.payload?.clientId) {
     await sendClientSlackWebhook(notification.payload.clientId, notification);
   }

@@ -255,6 +255,17 @@ export async function PATCH(
           });
         }
       }
+
+      else if (finalStatus === "POSTED" && task.status !== "POSTED") {
+        // Notify Team that content is Live/Posted
+        await notifyUser({
+          userId: task.assignedTo,
+          type: "task_posted",
+          title: "Content Posted! 🚀",
+          body: `Content for "${task.title}" has been successfully posted.`,
+          payload: { taskId: task.id, clientId: task.clientId }
+        });
+      }
     } catch (notifErr) {
       console.error("[StatusUpdate] Notification error:", notifErr);
     }
