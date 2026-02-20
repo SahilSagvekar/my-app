@@ -169,11 +169,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h1 className="text-lg font-medium text-white">{p.asset.title}</h1>
-                                    {p.currentFileSection && (
+                                    {/* {p.currentFileSection && (
                                         <Badge className={`${p.asset.status === 'approved' ? 'bg-green-600' : 'bg-purple-600'} text-xs`}>
                                             v{p.currentFileSection.version}
                                         </Badge>
-                                    )}
+                                    )} */}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <span className="text-sm text-[var(--review-text-muted)]">
