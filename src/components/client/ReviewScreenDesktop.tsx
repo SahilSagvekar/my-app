@@ -125,10 +125,14 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             <CardContent className="p-8 text-center">
                                 <CheckCircle2 className="h-16 w-16 text-green-400 mx-auto mb-4" />
                                 <h3 className="text-xl font-medium text-green-100 mb-2">
-                                    {p.userRole === 'qc' ? 'Sent to Client!' : 'Version Approved!'}
+                                    {p.userRole === 'qc'
+                                        ? (p.requiresClientReview ? 'Sent to Client!' : 'Sent to Scheduler!')
+                                        : 'Sent to Scheduler!'}
                                 </h3>
                                 <p className="text-green-300/80">
-                                    {p.userRole === 'qc' ? 'Asset has been sent to client for review' : 'Asset has been approved for publishing'}
+                                    {p.userRole === 'qc'
+                                        ? (p.requiresClientReview ? 'Asset has been sent to client for review' : 'Asset has been sent to scheduler for posting')
+                                        : 'Asset has been sent to scheduler for posting'}
                                 </p>
                             </CardContent>
                         </Card>
@@ -508,7 +512,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         </label>
                                     </div>
                                     <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white" onClick={() => p.handleStatusChange('approved')} disabled={!p.confirmFinal || p.asset.approvalLocked}>
-                                        <CheckCircle2 className="h-4 w-4 mr-2" />Approve Version
+                                        <CheckCircle2 className="h-4 w-4 mr-2" />Approve &amp; Send to Scheduler
                                     </Button>
                                     <Button size="sm" variant="outline" className="w-full bg-transparent border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-400" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0}>
                                         <MessageSquare className="h-4 w-4 mr-2" />Request Revisions

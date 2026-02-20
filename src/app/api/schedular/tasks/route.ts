@@ -107,6 +107,8 @@ export async function GET(req: Request) {
           transcriptSummary: t.transcriptSummary,
           suggestedTitles: t.suggestedTitles,
           platform: t.platform,
+          socialMediaLinks: t.socialMediaLinks || [],
+          priority: t.priority,
           client: t.client,
           files: filesWithUrls,
           titlingJob: (t as any).titlingJob || null,

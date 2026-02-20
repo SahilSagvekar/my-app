@@ -38,10 +38,14 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                         <CardContent className="p-6 text-center">
                             <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-3" />
                             <h3 className="text-lg font-medium text-green-100 mb-1">
-                                {p.userRole === 'qc' ? 'Sent to Client!' : 'Version Approved!'}
+                                {p.userRole === 'qc'
+                                    ? (p.requiresClientReview ? 'Sent to Client!' : 'Sent to Scheduler!')
+                                    : 'Sent to Scheduler!'}
                             </h3>
                             <p className="text-green-300/80 text-sm">
-                                {p.userRole === 'qc' ? 'Asset sent to client for review' : 'Asset approved for publishing'}
+                                {p.userRole === 'qc'
+                                    ? (p.requiresClientReview ? 'Asset sent to client for review' : 'Asset sent to scheduler for posting')
+                                    : 'Asset sent to scheduler for posting'}
                             </p>
                         </CardContent>
                     </Card>
@@ -401,7 +405,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                         onClick={() => p.handleStatusChange('approved')}
                                         disabled={!p.confirmFinal || p.asset.approvalLocked}
                                     >
-                                        <CheckCircle2 className="h-5 w-5 mr-2" />Approve Version
+                                        <CheckCircle2 className="h-5 w-5 mr-2" />Approve &amp; Send to Scheduler
                                     </Button>
                                     <Button
                                         size="lg"

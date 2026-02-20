@@ -51,10 +51,9 @@ model User {
   sessions            Session[]
   shootDetails        ShootDetail[]       @relation("VideographerShootDetails")
   updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
-  assignedTasks           Task[]                   @relation("AssignedTasks")
-  clientTasks             Task[]                   @relation("ClientUserTasks")
-  qcReviewedTasks         Task[]                   @relation("QCReviewedTasks")
-  editorClientPermissions EditorClientPermission[] @relation("EditorClientPermissions")
+  assignedTasks       Task[]              @relation("AssignedTasks")
+  clientTasks         Task[]              @relation("ClientUserTasks")
+  qcReviewedTasks     Task[]              @relation("QCReviewedTasks")
   taskFeedback        TaskFeedback[]      @relation("TaskFeedbackAuthor")
   linkedClient        Client?             @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin         UserSecurityPin?
@@ -149,7 +148,7 @@ model Task {
   qcReviewedAt         DateTime?
   qcReviewedBy         Int?
   oneOffDeliverableId  String?
-  recurringMonth       String?             // e.g. "2026-02" — marks which monthly cycle generated this task
+  recurringMonth       String?
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   shootDetail          ShootDetail?
@@ -290,12 +289,11 @@ model Client {
   slackEnabled         Boolean              @default(false)
   slackWebhookUrl      String?
   hasPostingServices   Boolean              @default(true)
-  brandAssets             BrandAsset[]
-  user                    User?                    @relation(fields: [userId], references: [id])
-  revenues                ClientRevenue[]
-  guidelines              Guideline[]
-  jobs                    Job[]
-  editorClientPermissions EditorClientPermission[] @relation("EditorClientPermissions")
+  brandAssets          BrandAsset[]
+  user                 User?                @relation(fields: [userId], references: [id])
+  revenues             ClientRevenue[]
+  guidelines           Guideline[]
+  jobs                 Job[]
   metaAccount          MetaAccount?
   metaSnapshots        MetaSnapshot[]
   monthlyDeliverables  MonthlyDeliverable[]
@@ -820,21 +818,6 @@ model RolePermission {
   navigationItems Json
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-}
-
-// Tracks which editors can create one-off tasks for which clients.
-// Granted/revoked by admins via the Permissions screen.
-model EditorClientPermission {
-  id        String   @id @default(cuid())
-  editorId  Int
-  clientId  String
-  createdAt DateTime @default(now())
-  editor    User     @relation("EditorClientPermissions", fields: [editorId], references: [id], onDelete: Cascade)
-  client    Client   @relation("EditorClientPermissions", fields: [clientId], references: [id], onDelete: Cascade)
-
-  @@unique([editorId, clientId])
-  @@index([editorId])
-  @@index([clientId])
 }
 
 model MetaAccount {
