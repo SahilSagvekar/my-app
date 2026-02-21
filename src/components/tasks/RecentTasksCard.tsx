@@ -104,8 +104,10 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
   };
 
 
-  const formatRelativeTime = (dateString: string) => {
+  const formatRelativeTime = (dateString: string | null | undefined) => {
+    if (!dateString) return '—';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '—';
     const diff = (Date.now() - date.getTime()) / 3600000;
 
     if (diff < 1) return "Just now";
@@ -113,8 +115,10 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
     return `${Math.floor(diff / 24)}d ago`;
   };
 
-  const formatDue = (dateString: string) => {
+  const formatDue = (dateString: string | null | undefined) => {
+    if (!dateString) return '—';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '—';
     const diff = Math.ceil((date.getTime() - Date.now()) / 86400000);
 
     if (diff === 0) return "Today";
@@ -176,7 +180,7 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
                           <Share2 className="h-3 w-3" />
                         </Button>
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 uppercase">
-                          {task.status.replace(/_/g, " ")}
+                          {(task.status ?? '').replace(/_/g, " ")}
                         </Badge>
                       </div>
                     </div>

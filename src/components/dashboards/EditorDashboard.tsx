@@ -442,6 +442,15 @@ function TaskCard({
   onShare: (task: WorkflowTask) => void;
 }) {
   const [showFiles, setShowFiles] = useState(false);
+  const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
+
+  const toggleFeedbackExpand = (id: string) => {
+    setExpandedFeedbackIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const isOverdue = new Date(task.dueDate) < new Date();
 
   // 🔥 Tasks in QC review shouldn't be draggable by editors
@@ -541,52 +550,66 @@ function TaskCard({
                 </span>
               </div>
 
-              <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
+              <div className="space-y-1.5">
                 {task.taskFeedback
                   .filter(fb => fb.status === "needs_revision")
-                  .map((fb) => (
-                    <Alert
-                      key={fb.id}
-                      variant="destructive"
-                      className="py-1.5"
-                    >
-                      <AlertDescription className="text-[10px]">
-                        {/* Version and Section badges */}
-                        <div className="flex items-center gap-1 mb-1 flex-wrap">
-                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
-                            V{fb.fileVersion || 1}
-                          </Badge>
-                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                            {fb.folderType === "main" ? "📁 Main" :
-                              fb.folderType === "thumbnails" ? "🖼️ Thumb" :
-                                fb.folderType === "tiles" ? "🎨 Tiles" :
-                                  fb.folderType === "music-license" ? "🎵 Music" :
-                                    fb.folderType}
-                          </Badge>
-                          {fb.timestamp && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">
-                              ⏱️ {fb.timestamp}
+                  .map((fb) => {
+                    const isExpanded = expandedFeedbackIds.has(fb.id);
+                    const isLong = fb.feedback && fb.feedback.length > 120;
+                    return (
+                      <Alert
+                        key={fb.id}
+                        variant="destructive"
+                        className="py-1.5"
+                      >
+                        <AlertDescription className="text-[10px]">
+                          {/* Version and Section badges */}
+                          <div className="flex items-center gap-1 mb-1 flex-wrap">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
+                              V{fb.fileVersion || 1}
                             </Badge>
-                          )}
-                          {fb.category && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                              {fb.category}
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                              {fb.folderType === "main" ? "📁 Main" :
+                                fb.folderType === "thumbnails" ? "🖼️ Thumb" :
+                                  fb.folderType === "tiles" ? "🎨 Tiles" :
+                                    fb.folderType === "music-license" ? "🎵 Music" :
+                                      fb.folderType}
                             </Badge>
-                          )}
-                        </div>
+                            {fb.timestamp && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">
+                                ⏱️ {fb.timestamp}
+                              </Badge>
+                            )}
+                            {fb.category && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                                {fb.category}
+                              </Badge>
+                            )}
+                          </div>
 
-                        {/* Feedback text */}
-                        <p className="whitespace-pre-wrap line-clamp-2">{fb.feedback}</p>
-
-                        {/* File reference if available */}
-                        {fb.fileName && (
-                          <p className="text-muted-foreground mt-0.5 text-[9px] truncate">
-                            📎 {fb.fileName}
+                          {/* Feedback text — expandable */}
+                          <p className={`whitespace-pre-wrap break-words ${isExpanded ? '' : 'line-clamp-2'}`}>
+                            {fb.feedback}
                           </p>
-                        )}
-                      </AlertDescription>
-                    </Alert>
-                  ))}
+                          {isLong && (
+                            <button
+                              className="text-[9px] font-semibold text-destructive/80 hover:text-destructive underline mt-0.5 focus:outline-none"
+                              onClick={(e) => { e.stopPropagation(); toggleFeedbackExpand(fb.id); }}
+                            >
+                              {isExpanded ? 'Show less ▲' : 'Show more ▼'}
+                            </button>
+                          )}
+
+                          {/* File reference if available */}
+                          {fb.fileName && (
+                            <p className="text-muted-foreground mt-0.5 text-[9px] truncate">
+                              📎 {fb.fileName}
+                            </p>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  })}
               </div>
             </div>
           )}
