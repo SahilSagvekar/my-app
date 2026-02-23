@@ -30,7 +30,7 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 // PUT - Update login
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = getTokenFromCookies(req);
@@ -83,7 +83,7 @@ export async function PUT(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     const body = await req.json();
     const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly } = body;
 
@@ -122,14 +122,17 @@ export async function PUT(
       }
     }
 
-    // Get client info
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { companyName: true },
-    });
+    // Get client info (only if clientId is provided)
+    let client = null;
+    if (clientId) {
+      client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { companyName: true },
+      });
 
-    if (!client) {
-      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+      if (!client) {
+        return NextResponse.json({ message: "Client not found" }, { status: 404 });
+      }
     }
 
     // Encrypt password if provided
@@ -140,10 +143,13 @@ export async function PUT(
     // Track if password is being changed
     const passwordIsChanging = !!password;
 
+    const isNewAdminOnly = adminOnly ?? existingLogin.adminOnly;
+    const finalClientId = isNewAdminOnly ? null : (clientId || null);
+
     const login = await prisma.socialLogin.update({
       where: { id },
       data: {
-        clientId,
+        clientId: finalClientId,
         platform,
         username,
         encryptedPassword,
@@ -176,8 +182,11 @@ export async function PUT(
     return NextResponse.json({
       login: {
         id: login.id,
-        clientId: login.clientId,
-        clientName: client.companyName,
+        // Only include client info if NOT adminOnly
+        ...(login.adminOnly ? {} : {
+          clientId: login.clientId,
+          clientName: client?.companyName,
+        }),
         platform: login.platform,
         username: login.username,
         password: password || decrypt(existingLogin.encryptedPassword),
@@ -206,7 +215,7 @@ export async function PUT(
 // DELETE - Remove login
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = getTokenFromCookies(req);
@@ -258,7 +267,7 @@ export async function DELETE(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Check if login exists
     const existingLogin = await prisma.socialLogin.findUnique({

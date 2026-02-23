@@ -8,6 +8,7 @@ import {
   useState,
   ReactNode,
 } from "react";
+import { useAuth } from "./auth/AuthContext";
 
 interface Notification {
   id: string;
@@ -44,47 +45,74 @@ export function useNotifications() {
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const esRef = useRef<EventSource | null>(null);
+  const { user } = useAuth();
 
   // ----------------------------
   // INITIAL FETCH FROM BACKEND
   // ----------------------------
-  // useEffect(() => {
-  //   fetch("/api/notifications")
-  //     .then((res) => res.json())
-  //     .then((data) => {
-  //       if (data.notifications) {
-  //         setNotifications(data.notifications);
-  //       }
-  //     });
+  useEffect(() => {
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
 
-  //   // ----------------------------
-  //   // REALTIME CONNECTION (SSE)
-  //   // ----------------------------
-  //   const connect = () => {
-  //     const es = new EventSource("/api/notifications/stream");
-  //     esRef.current = es;
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch("/api/notifications");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.notifications) {
+            setNotifications(data.notifications);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch notifications:", err);
+      }
+    };
 
-  //     es.addEventListener("notification", (e) => {
-  //       const notif = JSON.parse(e.data);
+    fetchNotifications();
 
-  //       setNotifications((prev) => {
-  //         if (prev.some((item) => item.id === notif.id)) return prev;
-  //         return [notif, ...prev];
-  //       });
-  //     });
+    const playSound = () => {
+      try {
+        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3"); // Light ping sound
+        audio.volume = 0.5;
+        audio.play().catch(err => console.warn("Audio play blocked:", err));
+      } catch (err) {
+        console.warn("Notification sound failed:", err);
+      }
+    };
 
-  //     es.onerror = () => {
-  //       es.close();
-  //       setTimeout(connect, 2000);
-  //     };
-  //   };
+    // ----------------------------
+    // REALTIME CONNECTION (SSE)
+    // ----------------------------
+    const connect = () => {
+      if (esRef.current) esRef.current.close();
 
-  //   connect();
+      const es = new EventSource("/api/notifications/stream");
+      esRef.current = es;
 
-  //   return () => {
-  //     esRef.current?.close();
-  //   };
-  // }, []);
+      es.addEventListener("notification", (e) => {
+        const notif = JSON.parse(e.data);
+
+        setNotifications((prev) => {
+          if (prev.some((item) => item.id === notif.id)) return prev;
+          playSound();
+          return [notif, ...prev];
+        });
+      });
+
+      es.onerror = () => {
+        es.close();
+        setTimeout(connect, 3000); // Wait 3s before reconnecting
+      };
+    };
+
+    connect();
+
+    return () => {
+      esRef.current?.close();
+    };
+  }, [user?.id]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -118,8 +146,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const markAllAsRead = () => {
-    notifications.forEach((n) => markAsRead(n.id));
+  const markAllAsRead = async () => {
+    await fetch("/api/notifications/mark-all-read", { method: "PATCH" });
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   // ----------------------------

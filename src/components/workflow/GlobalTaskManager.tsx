@@ -10,12 +10,13 @@ export interface GlobalTask extends Omit<WorkflowTask, 'type' | 'workflowStep' |
   createdByName?: string;
   estimatedHours?: number;
   taskTypeLabel?: string;
+  completedAt?: string;
 }
 
 // Team member mapping for role assignment
 const roleMapping: Record<string, string> = {
   'design': 'editor',
-  'video': 'editor', 
+  'video': 'editor',
   'copywriting': 'editor',
   'review': 'qc',
   'audit': 'qc',
@@ -54,7 +55,7 @@ class GlobalTaskManager {
     if (typeof window === 'undefined' || !window.localStorage) {
       return;
     }
-    
+
     try {
       const stored = localStorage.getItem(this.storageKey);
       if (stored) {
@@ -73,7 +74,7 @@ class GlobalTaskManager {
     if (typeof window === 'undefined' || !window.localStorage) {
       return;
     }
-    
+
     try {
       const tasksArray = Array.from(this.tasks.values());
       localStorage.setItem(this.storageKey, JSON.stringify(tasksArray));
@@ -110,9 +111,9 @@ class GlobalTaskManager {
     taskTypeLabel?: string;
   }): GlobalTask {
     this.initializeIfNeeded(); // Initialize when first action is taken
-    
+
     const assignedRole = roleMapping[taskData.type] || 'editor';
-    
+
     const task: GlobalTask = {
       id: `TASK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       title: taskData.title,
@@ -161,7 +162,7 @@ class GlobalTaskManager {
   // Update a task
   updateTask(taskId: string, updates: Partial<GlobalTask>): GlobalTask | null {
     this.initializeIfNeeded();
-    
+
     const task = this.tasks.get(taskId);
     if (!task) {
       console.warn(`Task ${taskId} not found for update`);
@@ -180,7 +181,7 @@ class GlobalTaskManager {
   // Delete a task
   deleteTask(taskId: string): boolean {
     this.initializeIfNeeded();
-    
+
     const existed = this.tasks.has(taskId);
     if (existed) {
       this.tasks.delete(taskId);
@@ -203,8 +204,8 @@ class GlobalTaskManager {
       id: task.id,
       title: task.title,
       description: task.description,
-      type: task.type === 'design' || task.type === 'video' || task.type === 'copywriting' ? 'edit' : 
-            task.type === 'review' || task.type === 'audit' ? 'qc_review' : 'scheduling',
+      type: task.type === 'design' || task.type === 'video' || task.type === 'copywriting' ? 'edit' :
+        task.type === 'review' || task.type === 'audit' ? 'qc_review' : 'scheduling',
       status: task.status,
       assignedTo: task.assignedTo,
       assignedToName: task.assignedToName,
@@ -224,7 +225,7 @@ class GlobalTaskManager {
   // Clear all tasks (for testing/demo purposes)
   clearAllTasks(): void {
     this.initializeIfNeeded();
-    
+
     this.tasks.clear();
     this.saveToStorage();
     this.notifyListeners();

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma:*)",
+      "Bash(New-Item -ItemType Directory -Force -Path \"D:/E8 Productions/my-app/src/app/api/admin/sales-leads\")",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType Directory -Force -Path \"D:/E8 Productions/my-app/src/app/api/sales-leads\")",
+      "Bash(cmd /c \"mkdir \"\"D:\\\\E8 Productions\\\\my-app\\\\src\\\\app\\\\api\\\\admin\\\\sales-leads\"\" 2>nul & mkdir \"\"D:\\\\E8 Productions\\\\my-app\\\\src\\\\app\\\\api\\\\sales-leads\"\" 2>nul & echo done\")",
+      "Bash(cmd /c:*)",
+      "Bash(taskkill:*)",
+      "Bash(node:*)",
+      "Bash(dir:*)"
+    ]
+  }
+}

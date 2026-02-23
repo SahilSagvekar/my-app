@@ -118,6 +118,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 @layer base {
@@ -127,6 +129,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   }
 }
 
@@ -136,27 +139,30 @@
 @layer base {
   :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
     h1 {
-      font-size: var(--text-2xl);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      letter-spacing: var(--letter-spacing-tight);
+      line-height: var(--line-height-6);
     }
 
     h2 {
-      font-size: var(--text-xl);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      font-size: var(--text-2xl);
+      font-weight: 600;
+      letter-spacing: var(--letter-spacing-tight);
+      line-height: var(--line-height-6);
     }
 
     h3 {
-      font-size: var(--text-lg);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      font-size: var(--text-xl);
+      font-weight: 600;
+      letter-spacing: var(--letter-spacing-tight);
+      line-height: var(--line-height-6);
     }
 
     h4 {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
+      font-size: var(--text-lg);
+      font-weight: 600;
+      line-height: var(--line-height-6);
     }
 
     p {
@@ -229,7 +235,7 @@ html {
 }
 
 /* Hide default dialog close button */
-.fullscreen-dialog > button:last-child {
+.fullscreen-dialog>button:last-child {
   display: none !important;
 }
 
@@ -269,9 +275,13 @@ html {
 
 /* Review Modal Header */
 .review-header {
-  background: linear-gradient(to bottom, var(--review-bg-secondary), transparent);
+  background: var(--review-bg-secondary);
+  background: linear-gradient(to bottom, var(--review-bg-secondary) 80%, transparent);
   border-bottom: 1px solid var(--review-border);
-  backdrop-filter: blur(10px);
+  /* Optimize backdrop-filter for Windows performance */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 40;
 }
 
 /* Status Dropdown Styles */
@@ -341,9 +351,9 @@ html {
 /* Timeline with Markers */
 .review-timeline {
   position: relative;
-  height: 40px;
+  height: 48px;
   background: var(--review-bg-tertiary);
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: visible;
 }
 
@@ -366,7 +376,10 @@ html {
   height: 100%;
   background: var(--review-timeline-progress);
   border-radius: 2px;
-  transition: width 0.1s linear;
+  /* Use hardware acceleration */
+  will-change: transform;
+  transform-origin: left center;
+  width: 100%;
 }
 
 .review-timeline-playhead {
@@ -376,7 +389,10 @@ html {
   height: 14px;
   background: white;
   border-radius: 50%;
+  /* Use transform instead of left for performance */
+  left: 0;
   transform: translate(-50%, -50%);
+  will-change: transform;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   cursor: grab;
   z-index: 10;
@@ -545,6 +561,7 @@ html {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -556,6 +573,7 @@ html {
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -611,31 +629,6 @@ html {
 }
 
 
-/* :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-} */
-
 /* Add to your globals.css or a component-level style */
 .rdp {
   --rdp-cell-size: 40px;
@@ -656,6 +649,7 @@ body {
   width: var(--rdp-cell-size);
   height: var(--rdp-cell-size);
 }
+
 /* Date Range Picker Calendar Fixes */
 .rdp {
   --rdp-cell-size: 40px;

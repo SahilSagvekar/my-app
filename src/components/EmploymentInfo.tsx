@@ -39,25 +39,17 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
   const fetchEmployeeInfo = async () => {
     try {
       setLoading(true);
-      const token =
-        localStorage.getItem("authToken") ||
-        sessionStorage.getItem("authToken");
 
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch("/api/auth/me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await fetch("/api/profile", {
+        credentials: "include",
       });
 
       const data = await response.json();
 
-      if (data.user) {
-        setEmployee(data.user);
+      if (data.success && data.data) {
+        setEmployee(data.data);
+      } else {
+        console.error("Failed to fetch employee info:", data.error);
       }
     } catch (err) {
       console.error("Failed to fetch employee info:", err);
@@ -90,13 +82,13 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
 
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-semibold">
-          Employment Information
-        </h1>
-        <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-          View your employment details and manage leave requests
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Employment Information</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
+            View your employment details and manage leave requests
+          </p>
+        </div>
       </div>
 
       {/* Employee Profile Card */}

@@ -377,10 +377,10 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
       setSelectedFeedback((prev) =>
         prev
           ? {
-              ...prev,
-              responses: [...(prev.responses || []), response],
-              status: "acknowledged",
-            }
+            ...prev,
+            responses: [...(prev.responses || []), response],
+            status: "acknowledged",
+          }
           : null
       );
 
@@ -459,147 +459,149 @@ export function FeedbackSystem({ currentRole }: { currentRole: string }) {
     <>
       <div className="space-y-4 sm:space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
           <div>
-            <h1 className="text-xl sm:text-2xl">Feedback</h1>
-            <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-              {currentRole === "admin" || currentRole === "manager"
-                ? "View and respond to feedback from team members"
-                : "Send feedback to admin and managers, or view responses"}
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Feedback</h1>
+            <p className="text-muted-foreground mt-1 text-lg">
+              {currentRole === 'admin' || currentRole === 'manager'
+                ? 'View and respond to feedback from team members and clients'
+                : 'Send feedback, suggestions, or report issues to the management team'}
             </p>
           </div>
-          <Dialog
-            open={showNewFeedbackDialog}
-            onOpenChange={setShowNewFeedbackDialog}
-          >
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="h-4 w-4 mr-2" />
-                New Feedback
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Submit Feedback</DialogTitle>
-                <DialogDescription>
-                  Send feedback, suggestions, or report issues to the admin and
-                  management team.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Subject
-                  </label>
-                  <Input
-                    placeholder="Brief description of your feedback..."
-                    value={newFeedback.subject}
-                    onChange={(e) =>
-                      setNewFeedback((prev) => ({
-                        ...prev,
-                        subject: e.target.value,
-                      }))
-                    }
-                    disabled={submitting}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="flex items-center gap-3">
+            <Dialog
+              open={showNewFeedbackDialog}
+              onOpenChange={setShowNewFeedbackDialog}
+            >
+              <DialogTrigger asChild>
+                <Button className="w-full sm:w-auto">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Feedback
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Submit Feedback</DialogTitle>
+                  <DialogDescription>
+                    Send feedback, suggestions, or report issues to the admin and
+                    management team.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
                   <div>
                     <label className="text-sm font-medium mb-2 block">
-                      Category
+                      Subject
                     </label>
-                    <Select
-                      value={newFeedback.category}
-                      onValueChange={(value: any) =>
-                        setNewFeedback((prev) => ({ ...prev, category: value }))
+                    <Input
+                      placeholder="Brief description of your feedback..."
+                      value={newFeedback.subject}
+                      onChange={(e) =>
+                        setNewFeedback((prev) => ({
+                          ...prev,
+                          subject: e.target.value,
+                        }))
                       }
                       disabled={submitting}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Category
+                      </label>
+                      <Select
+                        value={newFeedback.category}
+                        onValueChange={(value: any) =>
+                          setNewFeedback((prev) => ({ ...prev, category: value }))
+                        }
+                        disabled={submitting}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.value} value={cat.value}>
+                              {cat.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Priority
+                      </label>
+                      <Select
+                        value={newFeedback.priority}
+                        onValueChange={(value: any) =>
+                          setNewFeedback((prev) => ({ ...prev, priority: value }))
+                        }
+                        disabled={submitting}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {priorities.map((priority) => (
+                            <SelectItem
+                              key={priority.value}
+                              value={priority.value}
+                            >
+                              {priority.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div>
                     <label className="text-sm font-medium mb-2 block">
-                      Priority
+                      Message
                     </label>
-                    <Select
-                      value={newFeedback.priority}
-                      onValueChange={(value: any) =>
-                        setNewFeedback((prev) => ({ ...prev, priority: value }))
+                    <Textarea
+                      placeholder="Describe your feedback in detail..."
+                      value={newFeedback.message}
+                      onChange={(e) =>
+                        setNewFeedback((prev) => ({
+                          ...prev,
+                          message: e.target.value,
+                        }))
                       }
+                      className="min-h-[120px]"
+                      disabled={submitting}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowNewFeedbackDialog(false)}
                       disabled={submitting}
                     >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {priorities.map((priority) => (
-                          <SelectItem
-                            key={priority.value}
-                            value={priority.value}
-                          >
-                            {priority.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSubmitFeedback} disabled={submitting}>
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4 mr-2" />
+                          Send Feedback
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Message
-                  </label>
-                  <Textarea
-                    placeholder="Describe your feedback in detail..."
-                    value={newFeedback.message}
-                    onChange={(e) =>
-                      setNewFeedback((prev) => ({
-                        ...prev,
-                        message: e.target.value,
-                      }))
-                    }
-                    className="min-h-[120px]"
-                    disabled={submitting}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowNewFeedbackDialog(false)}
-                    disabled={submitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSubmitFeedback} disabled={submitting}>
-                    {submitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Send Feedback
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Search and Filters */}

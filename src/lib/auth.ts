@@ -10,12 +10,12 @@ export const verifyToken = (token: string) => {
   try {
     // const verified = jwt.verify(token, process.env.JWT_SECRET || "");
     if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET not configured");
-}
-const verified = jwt.verify(token, process.env.JWT_SECRET);
+      throw new Error("JWT_SECRET not configured");
+    }
+    const verified = jwt.verify(token, process.env.JWT_SECRET);
     // console.log("Verified Token:", verified);
     return verified as { userId: number; email: string; iat: number; exp: number };
-  } catch { 
+  } catch {
     return null;
   }
 };
@@ -105,37 +105,40 @@ export async function getCurrentUser(req: NextRequest) {
 
 type Decoded = { userId: string; email: string; role?: string; name?: string };
 
+import { auth } from "@/auth";
+
 export async function getCurrentUser2(req?: NextRequest) {
   try {
-    // Prefer cookie; allow Authorization header for Postman
+    // 1. Try Custom JWT Token (Cookie or Header)
     const cookieToken = req
       ? req.cookies.get("authToken")?.value
-      : cookies().get("authToken")?.value;
-
-      // console.log(req.cookies.getAll());
-      // console.log(req.headers.get("cookie"))
+      : (await cookies()).get("authToken")?.value;
 
     const headerToken = req?.headers.get("authorization")?.split(" ")[1];
-
     const token = cookieToken || headerToken;
-   
-    if (!token) return null;
 
-    // const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as Decoded;
-    if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET not configured");
-}
-    const decoded = jwt.verify(token, process.env.JWT_SECRET) as Decoded;
-    // console.log("getCurrentUser2 decoded:", decoded);
-    if (!decoded?.userId) return null;
+    if (token && process.env.JWT_SECRET) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as Decoded;
+        if (decoded?.userId) {
+          const user = await prisma.user.findUnique({ where: { id: Number(decoded.userId) } });
+          if (user) return user;
+        }
+      } catch (jwtErr) {
+        // Fall through to NextAuth
+      }
+    }
 
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-    // console.log("getCurrentUser2 user:", user);
-    if (!user) return null;
+    // 2. Try NextAuth Session (Google/Slack)
+    const session = await auth();
+    if (session?.user?.email) {
+      const user = await prisma.user.findFirst({
+        where: { email: session.user.email }
+      });
+      if (user && (user.employeeStatus === 'ACTIVE' || user.email === 'sahilsagvekar230@gmail.com')) return user;
+    }
 
-    return user;
-
-    // return { userId: user.id, email: user.email, role: user.role, name: user.name };
+    return null;
   } catch (err) {
     console.error("getCurrentUser error:", err);
     return null;
@@ -155,8 +158,8 @@ export function getUserFromRequest(req: Request) {
     // const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret");
 
     if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET not configured");
-}
+      throw new Error("JWT_SECRET not configured");
+    }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     return decoded; // must contain userId inside it
   } catch (e) {
@@ -185,7 +188,10 @@ export async function requireAdmin(req: NextRequest) {
   // if (!userId) throw { status: 401, message: 'Unauthorized' };
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user || user.role !== "admin" && user.role !== "manager")
+  if (!user || (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com'))
+    throw { status: 403, message: "Account deactivated" };
+
+  if (user.role !== "admin" && user.role !== "manager")
     throw { status: 403, message: "Admin required" };
   return user;
 }
@@ -199,6 +205,36 @@ export async function getRequestingUser(req: NextRequest) {
 export function isEmployee(user: { role: string } | null) {
   if (!user) return false;
   return user.role !== 'admin' && user.role !== 'client';
+}
+
+/**
+ * Resolves the Client ID for a given user.
+ * 
+ * Strategy (with backward compatibility):
+ *   1. Check user.linkedClientId (new multi-user method)
+ *   2. Fallback: Check Client.userId (old 1:1 method)
+ * 
+ * This ensures ALL users linked to the same client resolve to the same clientId,
+ * regardless of which linking method was used.
+ */
+export async function resolveClientIdForUser(userId: number): Promise<string | null> {
+  // Method 1: Check linkedClientId on the User record (preferred, supports multi-user)
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { linkedClientId: true },
+  });
+
+  if (user?.linkedClientId) {
+    return user.linkedClientId;
+  }
+
+  // Method 2: Fallback to old Client.userId (1:1 relation, backward compat)
+  const clientByUserId = await prisma.client.findFirst({
+    where: { userId: userId },
+    select: { id: true },
+  });
+
+  return clientByUserId?.id || null;
 }
 
 

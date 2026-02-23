@@ -2,22 +2,29 @@
 "use client";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { SessionExpiredModal } from "@/components/auth/SessionExpiredModal";
 
 interface User {
   id: string;
   email: string;
   name?: string;
-  role: string;
+  image?: string;
+  role: string | null;
   linkedClientId?: string; // Client ID for users with client role
+  hasPostingServices?: boolean;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (newPassword: string, confirmPassword: string, token: string) => Promise<void>;
+  verifyTwoFactor: (code: string) => Promise<void>;
+  resendTwoFactorCode: () => Promise<void>;
   handleSessionExpired: () => void;
 }
 
@@ -29,6 +36,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [showSessionExpired, setShowSessionExpired] = useState(false);
   const router = useRouter();
+
+  // Track auth state in a ref for the fetch interceptor
+  const authStateRef = React.useRef({ isAuthenticated, user });
+  React.useEffect(() => {
+    authStateRef.current = { isAuthenticated, user };
+  }, [isAuthenticated, user]);
 
   // Check auth status on mount
   useEffect(() => {
@@ -51,41 +64,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Global fetch interceptor for JWT expiration
   useEffect(() => {
+    // 🛑 Prevent double wrapping if multiple instances are mounted
+    if ((window.fetch as any).__isE8Wrapped) {
+      console.warn('⚠️ Fetch is already wrapped, skipping to prevent recursion');
+      return;
+    }
+
     const originalFetch = window.fetch;
 
-    window.fetch = async (...args) => {
-      const response = await originalFetch(...args);
+    const wrappedFetch = async (...args: any[]) => {
+      // Execute the actual fetch using apply to handle arguments correctly
+      const response = await (originalFetch as any).apply(window, args);
 
-      // 🔥 Skip S3/AWS URLs - don't intercept file uploads
+      // 🔥 Skip S3/AWS URLs - don't intercept file uploads or guest/public APIs
       const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url || '';
-      if (url.includes('s3.amazonaws.com') ||
+      const isPublicUrl =
+        url.includes('s3.amazonaws.com') ||
         url.includes('amazonaws.com') ||
         url.includes('X-Amz-') ||
-        url.includes('.s3.')) {
+        url.includes('.s3.') ||
+        url.includes('/api/shared/') ||
+        (url.includes('/api/tasks/') && (url.includes('/feedback') || url.includes('/status')));
+
+      if (isPublicUrl) {
         return response;
       }
 
       // Clone response to read it without consuming the stream
-      const clonedResponse = response.clone();
-
       try {
-        const contentType = clonedResponse.headers.get("content-type");
+        const contentType = response.headers.get("content-type");
 
         // Only parse JSON responses
         if (contentType && contentType.includes("application/json")) {
+          const clonedResponse = response.clone();
           const data = await clonedResponse.json();
 
-          // Check for JWT expiration errors
+          // Check for JWT expiration errors (401 Unauthorized or 500 with specific message)
           if (
             (response.status === 401 || response.status === 500) &&
-            (data.message?.includes('jwt expired') ||
-              data.message?.includes('Token expired') ||
-              data.message?.includes('TokenExpiredError') ||
-              data.error?.includes('jwt expired') ||
-              data.message?.includes('Unauthorized'))
+            (data.message?.toLowerCase().includes('jwt expired') ||
+              data.message?.toLowerCase().includes('token expired') ||
+              data.error?.toLowerCase().includes('jwt expired'))
           ) {
-            // Show session expired modal
-            setShowSessionExpired(true);
+            // Only show modal if user WAS authenticated
+            if (authStateRef.current.isAuthenticated && !showSessionExpired) {
+              console.log('🚨 Session expired detected in fetch interceptor');
+              setShowSessionExpired(true);
+            }
           }
         }
       } catch (e) {
@@ -95,18 +120,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return response;
     };
 
+    // Mark it to prevent double wrapping
+    (wrappedFetch as any).__isE8Wrapped = true;
+    window.fetch = wrappedFetch;
+
     // Cleanup: restore original fetch
     return () => {
       window.fetch = originalFetch;
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe?: boolean) => {
     setLoading(true);
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, rememberMe }),
     });
 
     if (!res.ok) {
@@ -124,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await fetch("/api/logout", { method: "POST" });
+      await signOut({ redirect: false });
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -141,6 +171,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout();
   };
 
+  const forgotPassword = async (email: string) => { console.log('Forgot password stub:', email); };
+  const resetPassword = async (newPassword: string, confirmPassword: string, token: string) => { console.log('Reset password stub:', token); };
+  const verifyTwoFactor = async (code: string) => { console.log('Verify 2FA stub:', code); };
+  const resendTwoFactorCode = async () => { console.log('Resend 2FA stub'); };
+
   return (
     <AuthContext.Provider
       value={{
@@ -149,6 +184,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         login,
         logout,
+        forgotPassword,
+        resetPassword,
+        verifyTwoFactor,
+        resendTwoFactorCode,
         handleSessionExpired
       }}
     >

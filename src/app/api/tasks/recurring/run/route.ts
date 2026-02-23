@@ -203,17 +203,49 @@ function generatePostingDatesForMonth(opts: {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { clientId, year, month, dryRun } = body || {};
+    const { clientId, year, month, dryRun, deliverableId } = body || {};
 
     const now = new Date();
     const targetYear = typeof year === "number" ? year : now.getFullYear();
     const targetMonth = typeof month === "number" ? month : now.getMonth();
+
+    // 📁 NEW: Ensure Month Folders for all active clients
+    // This runs every time the recurring cron runs (typically daily)
+    const monthLabel = new Date(targetYear, targetMonth).toLocaleDateString("en-US", { month: "long" });
+    const monthYearFolder = `${monthLabel}-${targetYear}`;
+
+    const activeClients = await prisma.client.findMany({
+      where: { status: "active" },
+      select: { id: true, companyName: true, name: true, rawFootageFolderId: true },
+    });
+
+    console.log(`📂 Ensuring month folders for ${activeClients.length} clients for ${monthYearFolder}`);
+
+    for (const client of activeClients) {
+      const companyName = client.companyName || client.name;
+      const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
+      const base = rawFootageBase.endsWith("/") ? rawFootageBase : `${rawFootageBase}/`;
+      const folderKey = `${base}${monthYearFolder}/`;
+
+      try {
+        await s3Client.send(
+          new PutObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET!,
+            Key: folderKey,
+            ContentType: "application/x-directory",
+          })
+        );
+      } catch (err) {
+        console.log(`   ⚠️ Folder check failed for ${client.name} (usually OK):`, err);
+      }
+    }
 
     console.log(`🔄 Running recurring tasks for ${targetYear}-${targetMonth + 1}${dryRun ? " (DRY RUN)" : ""}`);
 
     // Find active recurring tasks
     const where: any = { active: true };
     if (clientId) where.clientId = clientId;
+    if (deliverableId) where.deliverableId = deliverableId;
 
     const recurringTasks = await prisma.recurringTask.findMany({
       where,
@@ -243,166 +275,194 @@ export async function POST(req: Request) {
     const skipped: { clientName: string; reason: string }[] = [];
 
     for (const rt of recurringTasks) {
-      const { client, deliverable } = rt;
+      try {
+        const { client, deliverable } = rt;
 
-      // Validate required data
-      if (!deliverable) {
-        skipped.push({ clientName: client.name, reason: "No deliverable" });
-        continue;
-      }
+        // Validate required data
+        if (!deliverable) {
+          skipped.push({ clientName: client.name, reason: "No deliverable" });
+          continue;
+        }
 
-      // ─────────────────────────────────────────
-      // DUPLICATE PREVENTION: Check if tasks already exist for this month
-      // ─────────────────────────────────────────
-      const monthStart = new Date(targetYear, targetMonth, 1);
-      const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+        // ─────────────────────────────────────────
+        // DUPLICATE PREVENTION: Check if tasks already exist for this month
+        //
+        // We use the `recurringMonth` field (e.g., "2026-02") to identify
+        // which generation cycle a task belongs to. This avoids false
+        // positives from a prior cycle creating tasks whose due dates
+        // spill into the target month.
+        //
+        // Example: January's cycle creates tasks on Jan 14 with Feb 1-4
+        // due dates and recurringMonth="2026-01". When the cron runs for
+        // February, it looks for recurringMonth="2026-02" and correctly
+        // finds 0 tasks — so it generates the full February batch.
+        // ─────────────────────────────────────────
+        const recurringMonthLabel = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
 
-      const existingTasksForMonth = await prisma.task.count({
-        where: {
-          clientId: rt.clientId,
-          monthlyDeliverableId: deliverable.id,
-          dueDate: {
-            gte: monthStart,
-            lte: monthEnd,
+        const existingTasksForMonth = await prisma.task.count({
+          where: {
+            clientId: rt.clientId,
+            monthlyDeliverableId: deliverable.id,
+            recurringMonth: recurringMonthLabel,
           },
-        },
-      });
-
-      if (existingTasksForMonth >= deliverable.quantity) {
-        skipped.push({
-          clientName: client.name,
-          reason: `Already has ${existingTasksForMonth}/${deliverable.quantity} tasks for this month`,
         });
-        continue;
-      }
 
-      // ─────────────────────────────────────────
-      // USE STORED MASTER TEMPLATE (from RecurringTask.templateTaskId)
-      // ─────────────────────────────────────────
-      const masterTemplate = rt.templateTask;
-
-      if (!masterTemplate) {
-        skipped.push({
-          clientName: client.name,
-          reason: "No master template found - create the first task manually for this deliverable",
-        });
-        continue;
-      }
-
-      console.log(`📋 Using master template: ${masterTemplate.title} for ${client.name}`);
-
-      // ─────────────────────────────────────────
-      // Create ALL tasks for this month (starting from #1)
-      // ─────────────────────────────────────────
-      const tasksToCreate = deliverable.quantity - existingTasksForMonth;
-      const startIndex = existingTasksForMonth + 1;
-
-      // ─────────────────────────────────────────
-      // Generate posting dates for the target month
-      // ─────────────────────────────────────────
-      const dueDates = generatePostingDatesForMonth({
-        year: targetYear,
-        month: targetMonth,
-        quantity: tasksToCreate,
-        videosPerDay: deliverable.videosPerDay || 1,
-        postingSchedule: deliverable.postingSchedule as PostingSchedule,
-        postingDays: deliverable.postingDays || [],
-        postingTimes: deliverable.postingTimes || ["10:00"],
-      });
-
-      if (dueDates.length === 0) {
-        skipped.push({ clientName: client.name, reason: "No posting dates generated - check deliverable posting schedule" });
-        continue;
-      }
-
-      // ─────────────────────────────────────────
-      // Build task titles
-      // ─────────────────────────────────────────
-      const companyName = client.companyName || client.name;
-      const clientSlug = client.name.replace(/\s+/g, "");
-      const deliverableSlug = getDeliverableShortCode(deliverable.type);
-      const createdDateStr = formatDateMMDDYYYY(now);
-
-      for (let i = 0; i < dueDates.length; i++) {
-        const dueDate = dueDates[i];
-        const taskNumber = startIndex + i;
-
-        // Build title with creation date and incrementing number
-        const title = `${clientSlug}_${createdDateStr}_${deliverableSlug}${taskNumber}`;
-
-        if (dryRun) {
-          // Dry run - just collect what would be created
-          createdTasks.push({
-            id: `dry-run-${i}`,
-            title,
-            dueDate,
-            templateFrom: masterTemplate.title,
-            assignedTo: masterTemplate.assignedTo,
-            qc_specialist: masterTemplate.qc_specialist,
-            scheduler: masterTemplate.scheduler,
-            videographer: masterTemplate.videographer,
+        if (existingTasksForMonth >= deliverable.quantity) {
+          skipped.push({
+            clientName: client.name,
+            reason: `Already has ${existingTasksForMonth}/${deliverable.quantity} tasks for this month`,
           });
           continue;
         }
 
-        // Create S3 folder for this task
-        let outputFolderId: string | null = null;
-        try {
-          outputFolderId = await createTaskFolderStructure(companyName, title);
-        } catch (error) {
-          console.error(`⚠️ S3 folder creation failed for ${title}:`, error);
-          // Continue without folder - don't block task creation
+        // ─────────────────────────────────────────
+        // USE STORED MASTER TEMPLATE (from RecurringTask.templateTaskId)
+        // ─────────────────────────────────────────
+        const masterTemplate = rt.templateTask;
+
+        if (!masterTemplate) {
+          skipped.push({
+            clientName: client.name,
+            reason: "No master template found - create the first task manually for this deliverable",
+          });
+          continue;
         }
 
-        // Create the task - copy ALL fields from master template
-        const newTask = await prisma.task.create({
-          data: {
-            title,
-            // Copy everything from master template
-            description: masterTemplate.description || "",
-            taskType: masterTemplate.taskType || deliverable.type,
-            status: "PENDING",
-            dueDate,
-            assignedTo: masterTemplate.assignedTo || defaultUser.id,
-            createdBy: masterTemplate.createdBy,
-            clientId: rt.clientId,
-            clientUserId: client.userId,
-            monthlyDeliverableId: deliverable.id,
-            outputFolderId,
-            // Copy all role assignments from master template
-            qc_specialist: masterTemplate.qc_specialist,
-            scheduler: masterTemplate.scheduler,
-            videographer: masterTemplate.videographer,
-            // Copy other fields from master template
-            folderType: masterTemplate.folderType,
-            driveLinks: masterTemplate.driveLinks ?? [],
-            priority: masterTemplate.priority,
-            taskCategory: masterTemplate.taskCategory,
-            deliverableType: masterTemplate.deliverableType,
-          },
+        console.log(`📋 Using master template: ${masterTemplate.title} for ${client.name}`);
+
+        // ─────────────────────────────────────────
+        // Create ALL tasks for this month (starting from #1)
+        // ─────────────────────────────────────────
+        const tasksToCreate = deliverable.quantity - existingTasksForMonth;
+        const startIndex = existingTasksForMonth + 1;
+
+        // ─────────────────────────────────────────
+        // Generate posting dates for the target month
+        // ─────────────────────────────────────────
+        const dueDates = generatePostingDatesForMonth({
+          year: targetYear,
+          month: targetMonth,
+          quantity: tasksToCreate,
+          videosPerDay: deliverable.videosPerDay || 1,
+          postingSchedule: deliverable.postingSchedule as PostingSchedule,
+          postingDays: deliverable.postingDays || [],
+          postingTimes: deliverable.postingTimes || ["10:00"],
         });
 
-        createdTasks.push(newTask);
-      }
+        if (dueDates.length === 0) {
+          skipped.push({ clientName: client.name, reason: "No posting dates generated - check deliverable posting schedule" });
+          continue;
+        }
 
-      if (!dryRun) {
-        // Update nextRunDate to next month
-        const nextMonth = targetMonth === 11 ? 0 : targetMonth + 1;
-        const nextYear = targetMonth === 11 ? targetYear + 1 : targetYear;
+        // ─────────────────────────────────────────
+        // Build task titles
+        // ─────────────────────────────────────────
+        const companyName = client.companyName || client.name;
+        const clientSlug = companyName.replace(/\s+/g, "");  // Use companyName for task title
+        const deliverableSlug = getDeliverableShortCode(deliverable.type);
+        const createdDateStr = formatDateMMDDYYYY(now);
 
-        await prisma.recurringTask.update({
-          where: { id: rt.id },
-          data: {
-            lastRunDate: now,
-            nextRunDate: new Date(nextYear, nextMonth, 1),
-          },
+        for (let i = 0; i < dueDates.length; i++) {
+          const dueDate = dueDates[i];
+          const taskNumber = startIndex + i;
+
+          // Build title with creation date and incrementing number
+          const title = `${clientSlug}_${createdDateStr}_${deliverableSlug}${taskNumber}`;
+
+          if (dryRun) {
+            // Dry run - just collect what would be created
+            createdTasks.push({
+              id: `dry-run-${i}`,
+              title,
+              dueDate,
+              templateFrom: masterTemplate.title,
+              assignedTo: masterTemplate.assignedTo,
+              qc_specialist: masterTemplate.qc_specialist,
+              scheduler: masterTemplate.scheduler,
+              videographer: masterTemplate.videographer,
+            });
+            continue;
+          }
+
+          // Create S3 folder for this task
+          let outputFolderId: string | null = null;
+          try {
+            outputFolderId = await createTaskFolderStructure(companyName, title);
+          } catch (error) {
+            console.error(`⚠️ S3 folder creation failed for ${title}:`, error);
+            // Continue without folder - don't block task creation
+          }
+
+          // Create the task - copy ALL fields from master template
+          const newTask = await prisma.task.create({
+            data: {
+              title,
+              // Copy everything from master template
+              description: masterTemplate.description || "",
+              taskType: masterTemplate.taskType || deliverable.type,
+              status: "PENDING",
+              dueDate,
+              assignedTo: masterTemplate.assignedTo || defaultUser.id,
+              createdBy: masterTemplate.createdBy,
+              clientId: rt.clientId,
+              clientUserId: client.userId,
+              monthlyDeliverableId: deliverable.id,
+              outputFolderId,
+              // Tag which monthly cycle this task belongs to
+              recurringMonth: recurringMonthLabel,
+              // Copy all role assignments from master template
+              qc_specialist: masterTemplate.qc_specialist,
+              scheduler: masterTemplate.scheduler,
+              videographer: masterTemplate.videographer,
+              // Copy other fields from master template
+              folderType: masterTemplate.folderType,
+              driveLinks: masterTemplate.driveLinks ?? [],
+              priority: masterTemplate.priority,
+              taskCategory: masterTemplate.taskCategory,
+              deliverableType: masterTemplate.deliverableType,
+            },
+          });
+
+          createdTasks.push(newTask);
+        }
+
+        if (!dryRun) {
+          // Update nextRunDate to next month
+          const nextMonth = targetMonth === 11 ? 0 : targetMonth + 1;
+          const nextYear = targetMonth === 11 ? targetYear + 1 : targetYear;
+
+          await prisma.recurringTask.update({
+            where: { id: rt.id },
+            data: {
+              lastRunDate: now,
+              nextRunDate: new Date(nextYear, nextMonth, 1),
+            },
+          });
+        }
+
+        console.log(`✅ ${client.name}: ${dryRun ? "Would create" : "Created"} ${dueDates.length} tasks`);
+      } catch (itemErr) {
+        console.error(`❌ Failed processing recurring task for client:`, rt.clientId, itemErr);
+        skipped.push({
+          clientName: rt.client?.name || rt.clientId,
+          reason: `Error: ${itemErr instanceof Error ? itemErr.message : String(itemErr)}`
         });
       }
-
-      console.log(`✅ ${client.name}: ${dryRun ? "Would create" : "Created"} ${dueDates.length} tasks`);
     }
 
     console.log(`🎉 Completed: ${createdTasks.length} tasks ${dryRun ? "would be" : ""} created, ${skipped.length} skipped`);
+
+    const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+    await createAuditLog({
+      action: AuditAction.TASK_CREATED,
+      entity: "RecurringTask",
+      details: `Automated task generation complete: ${createdTasks.length} created, ${skipped.length} skipped`,
+      metadata: {
+        createdCount: createdTasks.length,
+        skippedCount: skipped.length,
+        targetMonth: `${targetYear}-${targetMonth + 1}`
+      }
+    });
 
     return NextResponse.json(
       {

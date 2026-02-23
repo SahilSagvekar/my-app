@@ -252,49 +252,87 @@ function getTokenFromCookies(req: Request) {
 // ---------- GET /api/clients ----------
 export async function GET() {
   try {
+    // Get current month date range
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
     const clients = await prisma.client.findMany({
       orderBy: { name: "asc" },
       include: {
         monthlyDeliverables: true,
+        oneOffDeliverables: true,
         brandAssets: true,
         recurringTasks: true,
+        tasks: {
+          where: {
+            createdAt: {
+              gte: startOfMonth,
+              lte: endOfMonth,
+            },
+          },
+          select: {
+            id: true,
+            status: true,
+          },
+        },
       },
     });
 
-    const formattedClients = clients.map((c) => ({
-      ...c,
-      emails: c.emails ?? [],
-      phones: c.phones ?? [],
-      monthlyDeliverables: c.monthlyDeliverables ?? [],
-      brandAssets: c.brandAssets ?? [],
-      recurringTasks: c.recurringTasks ?? [],
-      brandGuidelines: c.brandGuidelines ?? {
-        primaryColors: [],
-        secondaryColors: [],
-        fonts: [],
-        logoUsage: "",
-        toneOfVoice: "",
-        brandValues: "",
-        targetAudience: "",
-        contentStyle: "",
-      },
-      projectSettings: c.projectSettings ?? {
-        defaultVideoLength: "60 seconds",
-        preferredPlatforms: [],
-        contentApprovalRequired: false,
-        quickTurnaroundAvailable: false,
-      },
-      billing: c.billing ?? {
-        monthlyFee: "",
-        billingFrequency: "monthly",
-        billingDay: 1,
-        paymentMethod: "credit-card",
-        nextBillingDate: "",
-        notes: "",
-      },
-      postingSchedule: c.postingSchedule ?? {},
-      currentProgress: c.currentProgress ?? { completed: 0, total: 0 },
-    }));
+    const formattedClients = clients.map((c) => {
+      // Calculate total deliverables for the month
+      const totalDeliverables = (c.monthlyDeliverables ?? []).reduce(
+        (sum, d) => sum + (d.quantity ?? 0),
+        0
+      );
+
+      // Count completed tasks (COMPLETED or SCHEDULED means posted/done)
+      const completedTasks = (c.tasks ?? []).filter(
+        (t) => t.status === "COMPLETED" || t.status === "SCHEDULED"
+      ).length;
+
+      return {
+        ...c,
+        emails: c.emails ?? [],
+        phones: c.phones ?? [],
+        monthlyDeliverables: c.monthlyDeliverables ?? [],
+        oneOffDeliverables: c.oneOffDeliverables ?? [],
+        brandAssets: c.brandAssets ?? [],
+        recurringTasks: c.recurringTasks ?? [],
+        brandGuidelines: c.brandGuidelines ?? {
+          primaryColors: [],
+          secondaryColors: [],
+          fonts: [],
+          logoUsage: "",
+          toneOfVoice: "",
+          brandValues: "",
+          targetAudience: "",
+          contentStyle: "",
+        },
+        projectSettings: c.projectSettings ?? {
+          defaultVideoLength: "60 seconds",
+          preferredPlatforms: [],
+          contentApprovalRequired: false,
+          quickTurnaroundAvailable: false,
+        },
+        billing: c.billing ?? {
+          monthlyFee: "",
+          billingFrequency: "monthly",
+          billingDay: 1,
+          paymentMethod: "credit-card",
+          nextBillingDate: "",
+          notes: "",
+        },
+        postingSchedule: c.postingSchedule ?? {},
+        // 🔥 Dynamic progress calculation
+        currentProgress: {
+          completed: completedTasks,
+          total: totalDeliverables,
+        },
+        // Remove tasks from response to keep it clean
+        tasks: undefined,
+      };
+    });
 
     return NextResponse.json({ clients: formattedClients });
   } catch (err) {
@@ -334,12 +372,14 @@ export async function POST(req: Request) {
       companyName,
       accountManagerId,
       monthlyDeliverables,
+      oneOffDeliverables,
       brandGuidelines,
       projectSettings,
       billing,
       postingSchedule,
       clientReviewRequired,
       videographerRequired,
+      hasPostingServices,
     } = body;
 
     if (!name || !email)
@@ -389,7 +429,7 @@ export async function POST(req: Request) {
         lastActivity: new Date(),
         driveFolderId: folders.mainFolderId,
         rawFootageFolderId: folders.rawFolderId,
-        essentialsFolderId: folders.essentialsFolderId,
+        essentialsFolderId: folders.elementsFolderId,
         outputsFolderId: folders.outputsFolderId,
         brandGuidelines,
         projectSettings,
@@ -397,6 +437,7 @@ export async function POST(req: Request) {
         postingSchedule,
         requiresClientReview: clientReview,
         requiresVideographer: videographer,
+        hasPostingServices: hasPostingServices ?? true,
         currentProgress: { completed: 0, total: 0 },
       },
     });
@@ -414,6 +455,25 @@ export async function POST(req: Request) {
             postingTimes: d.postingTimes,
             platforms: d.platforms,
             description: d.description,
+          },
+        })
+      )
+    );
+
+    const createdOneOffs = await Promise.all(
+      (oneOffDeliverables || []).map((d: any) =>
+        prisma.oneOffDeliverable.create({
+          data: {
+            clientId: client.id,
+            type: d.type,
+            quantity: d.quantity,
+            videosPerDay: d.videosPerDay,
+            postingSchedule: "one-off",
+            postingDays: d.postingDays,
+            postingTimes: d.postingTimes,
+            platforms: d.platforms,
+            description: d.description,
+            status: "PENDING",
           },
         })
       )

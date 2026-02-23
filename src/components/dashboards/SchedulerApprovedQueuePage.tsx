@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Calendar, Clock, FileText, Eye, Search, Filter, CheckCircle, MapPin, Link as LinkIcon, Download, ChevronDown, ExternalLink, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '../ui/sonner';
+import { FilePreviewModal } from '../FileViewerModal';
 
 type SchedulerTask = {
   id: string;
@@ -47,7 +48,6 @@ export function SchedulerApprovedQueuePage() {
   const [tasks, setTasks] = useState<SchedulerTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<SchedulerTask | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -56,6 +56,8 @@ export function SchedulerApprovedQueuePage() {
   const [socialMediaPlatform, setSocialMediaPlatform] = useState('');
   const [socialMediaUrl, setSocialMediaUrl] = useState('');
   const [submittingLink, setSubmittingLink] = useState(false);
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Folder expansion state
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -83,46 +85,16 @@ export function SchedulerApprovedQueuePage() {
         console.log(`Task ${t.id}: API status = "${t.status}"`);
 
         // Map driveLinks to files format
-        const filesFromDriveLinks = (t.driveLinks || []).map((url: string, index: number) => {
-          const urlParts = url.split('/');
-          const filename = urlParts[urlParts.length - 1];
-
-          let folderType = 'other';
-          if (url.includes('/outputs/')) {
-            if (url.includes('/music-license/')) folderType = 'music';
-            else if (url.includes('/thumbnails/')) folderType = 'thumbnail';
-            else if (url.includes('/broll/')) folderType = 'broll';
-            else if (url.includes('/script/')) folderType = 'script';
-            else if (url.includes('/voiceover/')) folderType = 'voiceover';
-            else if (url.includes('/graphics/')) folderType = 'graphics';
-            else folderType = 'outputs';
-          }
-
-          // Extract S3 key from URL
-          const key = url.split('.amazonaws.com/')[1] || '';
-
-          return {
-            id: `${t.id}-file-${index}`,
-            name: decodeURIComponent(filename),
-            url: url,
-            key: key,
-            size: 0,
-            folderType: folderType,
-          };
-        });
-
-        // Combine with existing files
-        const allFiles = [
-          ...filesFromDriveLinks,
-          ...(t.files || []).map((file: any) => ({
-            id: file.id,
-            name: file.name,
-            url: file.url,
-            key: file.url?.split('.amazonaws.com/')[1] || '',
-            size: file.size || 0,
-            folderType: file.subfolder || 'other',
-          }))
-        ];
+        // Use only the files from the database (which are already filtered for isActive: true by the API)
+        const allFiles = (t.files || []).map((file: any) => ({
+          id: file.id,
+          name: file.name,
+          url: file.url,
+          key: file.s3Key || file.url?.split('.amazonaws.com/')[1] || '',
+          size: file.size || 0,
+          mimeType: file.mimeType || file.contentType || '',
+          folderType: file.folderType || 'other',
+        }));
 
         // Normalize API status to uppercase for comparison
         const apiStatus = (t.status || 'PENDING').toUpperCase();
@@ -293,22 +265,13 @@ export function SchedulerApprovedQueuePage() {
     }));
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "urgent": return "destructive";
-      case "high": return "default";
-      case "medium": return "secondary";
-      default: return "outline";
-    }
-  };
+
 
   const filtered = tasks.filter(t => {
     const matchText = t.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.id?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchPriority = priorityFilter === "all" || t.priority === priorityFilter;
-    return matchText && matchPriority;
+    return matchText;
   });
-
   const pendingTasks = filtered.filter(t => t.status === "PENDING");
   const scheduledTasks = filtered.filter(t => t.status === "SCHEDULED");
 
@@ -367,15 +330,9 @@ export function SchedulerApprovedQueuePage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Urgent</p>
-              <h3 className="text-2xl font-bold">{pendingTasks.filter((t) => t.priority === "urgent").length}</h3>
-            </CardContent>
-          </Card>
+
         </div>
 
-        {/* Filters */}
         <Card>
           <CardContent className="p-4 flex gap-4">
             <div className="flex-1 relative">
@@ -387,19 +344,6 @@ export function SchedulerApprovedQueuePage() {
                 className="pl-9"
               />
             </div>
-
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="urgent">Urgent</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
           </CardContent>
         </Card>
 
@@ -452,9 +396,6 @@ export function SchedulerApprovedQueuePage() {
                           )}
                         </div>
                       </div>
-                      <Badge variant={getPriorityColor(task.priority)} className="flex-shrink-0">
-                        {task.priority}
-                      </Badge>
                     </div>
                   </div>
                 ))
@@ -484,20 +425,81 @@ export function SchedulerApprovedQueuePage() {
                   </div>
 
                   {/* Deliverable */}
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2 flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      Deliverable Info
+                  <div className="p-4 border rounded-lg bg-muted/30">
+                    <h4 className="font-medium mb-3 flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      Deliverable specifications
                     </h4>
                     {selectedTask.deliverable ? (
-                      <div className="text-sm space-y-1">
-                        <p><strong>Type:</strong> {selectedTask.deliverable.type}</p>
-                        <p><strong>Schedule:</strong> {selectedTask.deliverable.postingSchedule}</p>
-                        <p><strong>Days:</strong> {selectedTask.deliverable.postingDays?.join(", ") || 'N/A'}</p>
-                        <p><strong>Times:</strong> {selectedTask.deliverable.postingTimes?.join(", ") || 'N/A'}</p>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Type</p>
+                            <p className="font-medium">{selectedTask.deliverable.type}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Quantity</p>
+                            <p className="font-medium">{selectedTask.deliverable.quantity} total</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Frequency</p>
+                            <p className="font-medium">{selectedTask.deliverable.videosPerDay} video(s)/day</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Schedule</p>
+                            <p className="font-medium">{selectedTask.deliverable.postingSchedule}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Platforms</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedTask.deliverable.platforms?.map((p: string) => (
+                                <Badge key={p} variant="secondary" className="px-2 py-0.5 text-[10px] capitalize">
+                                  {p}
+                                </Badge>
+                              )) || <span className="text-xs italic">N/A</span>}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Posting Days</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedTask.deliverable.postingDays?.map((d: string) => (
+                                <Badge key={d} variant="outline" className="px-2 py-0.5 text-[10px]">
+                                  {d}
+                                </Badge>
+                              )) || <span className="text-xs italic">N/A</span>}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold">Posting Times</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedTask.deliverable.postingTimes?.map((t: string) => (
+                                <Badge key={t} variant="outline" className="px-2 py-0.5 text-[10px] border-blue-200 text-blue-700 bg-blue-50">
+                                  <Clock className="h-2.5 w-2.5 mr-1" />
+                                  {t}
+                                </Badge>
+                              )) || <span className="text-xs italic">N/A</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {selectedTask.deliverable.description && (
+                          <div className="pt-2 border-t">
+                            <p className="text-xs text-muted-foreground uppercase font-semibold mb-1">Additional Notes</p>
+                            <p className="text-sm italic text-muted-foreground line-clamp-3">
+                              "{selectedTask.deliverable.description}"
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No deliverable linked</p>
+                      <div className="text-center py-4 bg-muted/50 rounded-md border border-dashed">
+                        <p className="text-xs text-muted-foreground">No deliverable linked to this task</p>
+                      </div>
                     )}
                   </div>
 
@@ -565,7 +567,10 @@ export function SchedulerApprovedQueuePage() {
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => window.open(file.url, "_blank")}
+                                        onClick={() => {
+                                          setPreviewFile(file);
+                                          setIsPreviewOpen(true);
+                                        }}
                                       >
                                         <Eye className="h-3 w-3 mr-1" />
                                         View
@@ -668,7 +673,10 @@ export function SchedulerApprovedQueuePage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => window.open(link.url, '_blank')}
+                              onClick={() => {
+                                setPreviewFile({ url: link.url, name: `${link.platform} Post`, mimeType: 'text/html' });
+                                setIsPreviewOpen(true);
+                              }}
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
@@ -775,6 +783,12 @@ export function SchedulerApprovedQueuePage() {
         </DialogContent>
       </Dialog>
 
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
       <Toaster />
     </>
   );

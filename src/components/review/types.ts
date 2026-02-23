@@ -14,6 +14,7 @@ export interface ReviewComment {
     annotations?: Annotation[];
     replies?: ReviewComment[];
     resolved: boolean;
+    version?: number; // Version number of the file when comment was made
     createdAt: Date;
     updatedAt?: Date;
 }

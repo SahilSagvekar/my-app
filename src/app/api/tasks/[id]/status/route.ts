@@ -1,7 +1,28 @@
+// src/app/api/tasks/[id]/status/route.ts
+// 
+// UPDATED VERSION - Add titling trigger on QC approval
+// Replace your existing route.ts with this
+
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
-import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
+import { createAuditLog, AuditAction } from '@/lib/audit-logger';
+import { startTitlingJob } from '@/lib/titling-service';
+import { notifyUser } from "@/lib/notify";
 import jwt from "jsonwebtoken";
+
+function sanitizeBigInt(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "bigint") return Number(obj);
+  if (Array.isArray(obj)) return obj.map(sanitizeBigInt);
+  if (typeof obj === "object") {
+    const newObj: any = {};
+    for (const key in obj) {
+      newObj[key] = sanitizeBigInt(obj[key]);
+    }
+    return newObj;
+  }
+  return obj;
+}
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -31,6 +52,7 @@ export async function PATCH(
     if (!status)
       return NextResponse.json({ message: "Status is required" }, { status: 400 });
 
+    console.log(`\n[StatusUpdate] User ${userId} (${role}) is updating task ${id} to status: ${status}`);
     const updateData: any = {};
 
     if (feedback !== undefined) updateData.feedback = feedback;
@@ -41,48 +63,19 @@ export async function PATCH(
       where: { id },
       include: {
         client: true,
+        files: {
+          where: { isActive: true },
+        },
       },
     });
 
     if (!task)
       return NextResponse.json({ message: "Task not found" }, { status: 404 });
 
-    // const allowedTransitions: Record<string, string[]> = {
-    //   editor: ["IN_PROGRESS", "READY_FOR_QC", "ON_HOLD"],
-    //   qc: ["QC_IN_PROGRESS", "COMPLETED", "REJECTED"],
-    //   client: ["CLIENT_REVIEW", "COMPLETED", "REJECTED"],
-    //   scheduler: [],
-    //   manager: [
-    //     "PENDING",
-    //     "IN_PROGRESS",
-    //     "READY_FOR_QC",
-    //     "QC_IN_PROGRESS",
-    //     "COMPLETED",
-    //     "ON_HOLD",
-    //     "REJECTED",
-    //   ],
-    //   admin: [
-    //     "PENDING",
-    //     "IN_PROGRESS",
-    //     "READY_FOR_QC",
-    //     "QC_IN_PROGRESS",
-    //     "COMPLETED",
-    //     "ON_HOLD",
-    //     "REJECTED",
-    //   ],
-    // };
-
-    // const allowed = allowedTransitions[role.toLowerCase()] || [];
-
-    // if (!allowed.includes(status)) {
-    //   return NextResponse.json(
-    //     { message: `Role '${role}' cannot set status to '${status}'` },
-    //     { status: 403 }
-    //   );
-    // }
-
+    console.log("ROLE" + role);
+    // Handle client review requirement
     if (
-      role.toLowerCase() === "qc" &&
+      (role.toLowerCase() === "qc" || role.toLowerCase() === "admin") &&
       status === "COMPLETED" &&
       task.client?.requiresClientReview === true
     ) {
@@ -94,38 +87,220 @@ export async function PATCH(
         finalStatus = "COMPLETED";
       } else if (status === "REJECTED") {
         finalStatus = "REJECTED";
+      } else if (status === "POSTED") {
+        finalStatus = "POSTED";
       }
     }
 
-    const updatedTask = await prisma.task.update({
-      where: { id },
-      data: {
-        ...updateData,
-        status: finalStatus,
-        updatedAt: new Date(),
-      },
-    });
+    // Update task
+    // 🔥 Track QC reviewer when QC approves/rejects
+    const isQCAction = (role.toLowerCase() === "qc" || role.toLowerCase() === "admin") &&
+      (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW" || finalStatus === "REJECTED");
 
+    if (isQCAction) {
+      updateData.qcReviewedBy = userId;
+      updateData.qcReviewedAt = new Date();
+    }
+
+    let updatedTask: any;
+    try {
+      updatedTask = await (prisma.task as any).update({
+        where: { id },
+        data: {
+          ...updateData,
+          status: finalStatus,
+          updatedAt: new Date(),
+        },
+      });
+    } catch (e: any) {
+      // If Prisma fails due to the enum mismatch (P2009 or specific error message), 
+      // we use Raw SQL to force the update and bypass runtime enum checks.
+      if (e.message?.includes("Expected TaskStatus") || e.code === "P2009") {
+        console.warn("⚠️ Prisma Enum Validation failed for status. Using raw SQL fallback...");
+
+        // Construct raw update
+        // Note: We use executeRawUnsafe for maximum flexibility with the enum string
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Task" SET "status" = $1, "updatedAt" = $2 WHERE "id" = $3`,
+          finalStatus,
+          new Date(),
+          id
+        );
+
+        // Try to fetch the updated record. 
+        // If findUnique also fails because it can't parse the new enum value, return raw data.
+        try {
+          updatedTask = await (prisma.task as any).findUnique({
+            where: { id }
+          });
+        } catch (readErr) {
+          const rawResult: any = await prisma.$queryRawUnsafe(
+            `SELECT * FROM "Task" WHERE "id" = $1`,
+            id
+          );
+          updatedTask = rawResult && Array.isArray(rawResult) ? rawResult[0] : { id, status: finalStatus };
+        }
+      } else {
+        throw e;
+      }
+    }
+
+    // ============================================
+    // NEW: Trigger AI titling on QC approval
+    // ============================================
+    const shouldTriggerTitling =
+      role.toLowerCase() === "qc" &&
+      (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW") &&
+      task.titlingStatus !== 'COMPLETED' && // Don't re-trigger if already done
+      task.titlingStatus !== 'PROCESSING'; // Don't re-trigger if in progress
+
+    if (shouldTriggerTitling) {
+      // Check if task has a video file
+      const hasVideoFile = task.files.some(f => f.mimeType?.startsWith('video/'));
+
+      if (hasVideoFile) {
+        console.log(`\n🎬 QC approved task ${id} - triggering AI titling`);
+
+        // Start titling in background (don't await - let it run async)
+        startTitlingJob(id)
+          .then(({ jobId, transcriptId }) => {
+            console.log(`   ✅ Titling job started: ${jobId}`);
+          })
+          .catch((err) => {
+            console.error(`   ❌ Failed to start titling job:`, err.message);
+            // Update task to show titling failed
+            prisma.task.update({
+              where: { id },
+              data: {
+                titlingStatus: 'FAILED',
+                titlingError: err.message,
+              },
+            }).catch(console.error);
+          });
+      } else {
+        console.log(`   ℹ️ Task ${id} has no video file - skipping titling`);
+      }
+    }
+    // ============================================
+
+    // Audit log
     const user = await prisma.user.findUnique({
       where: { id: userId },
     });
 
+    // ============================================
+    // NEW: In-app & Email Notifications
+    // ============================================
+    try {
+      if (finalStatus === "READY_FOR_QC" && task.status !== "READY_FOR_QC") {
+        // Notify QC specialist
+        if (task.qc_specialist) {
+          await notifyUser({
+            userId: task.qc_specialist,
+            type: "content_ready",
+            title: "Task Ready for QC",
+            body: `Task "${task.title}" is ready for your review.`,
+            payload: { taskId: task.id, clientId: task.clientId }
+          });
+        }
+      }
+
+      else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
+        // Notify Editor
+        await notifyUser({
+          userId: task.assignedTo,
+          type: "task_rejected",
+          title: "Task Needs Revision",
+          body: `Task "${task.title}" has been rejected: ${qcNotes || "Please check QC notes."}`,
+          payload: { taskId: task.id }
+        });
+      }
+
+      else if (finalStatus === "CLIENT_REVIEW" && task.status !== "CLIENT_REVIEW") {
+        // Email
+        console.log(`\n📧 sending email notification`);
+        const { sendTaskReadyForReviewEmail } = await import("@/lib/email-notifications");
+        sendTaskReadyForReviewEmail(id);
+
+        // Notify Client User
+        if (task.clientUserId) {
+          await notifyUser({
+            userId: task.clientUserId,
+            type: "review_queue",
+            title: "Content Ready for Review",
+            body: `Your content "${task.title}" is ready for review.`,
+            payload: { taskId: task.id, clientId: task.clientId }
+          });
+        }
+      }
+
+      else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
+        // Notify Editor that it's approved
+        await notifyUser({
+          userId: task.assignedTo,
+          type: "qc_approval",
+          title: "Task Approved",
+          body: `Your task "${task.title}" has been approved.`,
+          payload: { taskId: task.id }
+        });
+
+        // Notify Scheduler
+        if (task.scheduler) {
+          await notifyUser({
+            userId: task.scheduler,
+            type: "approved_content",
+            title: "New Content to Schedule",
+            body: `Task "${task.title}" is approved and ready for scheduling.`,
+            payload: { taskId: task.id, clientId: task.clientId }
+          });
+        }
+      }
+
+      else if (finalStatus === "POSTED" && task.status !== "POSTED") {
+        // Notify Team that content is Live/Posted
+        await notifyUser({
+          userId: task.assignedTo,
+          type: "task_posted",
+          title: "Content Posted! 🚀",
+          body: `Content for "${task.title}" has been successfully posted.`,
+          payload: { taskId: task.id, clientId: task.clientId }
+        });
+      }
+    } catch (notifErr) {
+      console.error("[StatusUpdate] Notification error:", notifErr);
+    }
+    // ============================================
+
     await createAuditLog({
       userId: userId,
-      action: AuditAction.USER_UPDATED,
-      entity: "User",
-      entityId: userId.toString(),
-      details: `Updated employee: ${user?.name} (${user?.email})`,
+      action: AuditAction.TASK_UPDATED,
+      entity: "Task",
+      entityId: id,
+      details: `Task status updated to: ${finalStatus}`,
       metadata: {
-        employeeId: userId,
+        taskId: id,
+        previousStatus: task.status,
+        newStatus: finalStatus,
+        updatedBy: user?.name,
         role: role,
-        email: user?.email,
       },
     });
 
-    return NextResponse.json(updatedTask, { status: 200 });
+    return NextResponse.json(sanitizeBigInt({
+      ...updatedTask,
+      titlingTriggered: shouldTriggerTitling,
+    }), { status: 200 });
+
   } catch (err: any) {
     console.error("❌ Task status update error:", err.message);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        message: "Server error",
+        error: err.message,
+        stack: err.stack,
+        details: err.code === 'P2009' ? 'Query validation error (likely status enum mismatch)' : 'Internal error'
+      },
+      { status: 500 }
+    );
   }
 }

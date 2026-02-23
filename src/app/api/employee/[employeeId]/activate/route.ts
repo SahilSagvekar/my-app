@@ -12,6 +12,17 @@ export async function PATCH(req: Request, context: { params: { employeeId: strin
       where: { id },
       data: { employeeStatus: 'ACTIVE' }
     });
+
+    const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+    await createAuditLog({
+      userId: id,
+      action: AuditAction.USER_UPDATED,
+      entity: 'User',
+      entityId: id,
+      details: `User account activated by admin`,
+      metadata: { userId: id, newStatus: 'ACTIVE' }
+    });
+
     return NextResponse.json({ ok: true, user });
   } catch (err: any) {
     console.error(err);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, CreateMultipartUploadCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getServerSession } from "next-auth";
+import getServerSession from "next-auth";
 // import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -14,6 +14,7 @@ const s3Client = new S3Client({
 
 // 🔥 Helper: Ensure folder exists in S3
 async function ensureS3FolderExists(folderPath: string) {
+  if (!folderPath || folderPath === "" || folderPath === "/") return;
   try {
     await s3Client.send(
       new PutObjectCommand({
@@ -37,17 +38,17 @@ async function createTaskFolderStructure(
   // Main task folder: CompanyName/outputs/TaskTitle/
   const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
 
-  console.log("📁 Creating task folder structure:", taskFolderPath);
+  console.log("📁 Creating task folder structure in parallel:", taskFolderPath);
 
-  // Create main task folder
-  await ensureS3FolderExists(taskFolderPath);
+  // 🔥 Create main folder and subfolders in parallel to save time
+  await Promise.all([
+    ensureS3FolderExists(taskFolderPath),
+    ensureS3FolderExists(`${taskFolderPath}thumbnails/`),
+    ensureS3FolderExists(`${taskFolderPath}tiles/`),
+    ensureS3FolderExists(`${taskFolderPath}music-license/`),
+  ]);
 
-  // 🔥 Create only the special subfolders (NO "task" folder!)
-  await ensureS3FolderExists(`${taskFolderPath}thumbnails/`);
-  await ensureS3FolderExists(`${taskFolderPath}tiles/`);
-  await ensureS3FolderExists(`${taskFolderPath}music-license/`);
-
-  console.log("✅ Task folder structure created");
+  console.log("✅ Task folder structure created/verified");
 
   return taskFolderPath;
 }
@@ -94,20 +95,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get client to find company name
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { companyName: true, name: true },
-    });
+    let companyName = "";
 
-    if (!client) {
-      return NextResponse.json(
-        { message: "Client not found" },
-        { status: 404 }
-      );
+    // 🔥 HANDLE DIFFERENT FOLDER TYPES
+    if (folderType !== "drive") {
+      if (!clientId) {
+        return NextResponse.json(
+          { message: "Missing clientId" },
+          { status: 400 }
+        );
+      }
+
+      // Get client to find company name
+      const client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { companyName: true, name: true },
+      });
+
+      if (!client) {
+        return NextResponse.json(
+          { message: "Client not found" },
+          { status: 404 }
+        );
+      }
+
+      companyName = client.companyName || client.name;
     }
-
-    const companyName = client.companyName || client.name;
 
     let s3Key: string;
 
@@ -144,7 +157,7 @@ export async function POST(req: NextRequest) {
       // Raw footage - with monthly folders
       const currentMonth = getCurrentMonthFolder();
       const monthFolderPath = `${companyName}/raw-footage/${currentMonth}/`;
-      
+
       await ensureS3FolderExists(monthFolderPath);
       s3Key = `${monthFolderPath}${Date.now()}-${fileName}`;
     } else if (folderType === "essentials") {
@@ -152,6 +165,14 @@ export async function POST(req: NextRequest) {
       const elementsFolderPath = `${companyName}/elements/`;
       await ensureS3FolderExists(elementsFolderPath);
       s3Key = `${elementsFolderPath}${Date.now()}-${fileName}`;
+    } else if (folderType === "drive") {
+      // Direct drive upload - subfolder contains the full path
+      let drivePath = subfolder || "";
+      if (drivePath !== "" && !drivePath.endsWith("/")) {
+        drivePath += "/";
+      }
+      await ensureS3FolderExists(drivePath);
+      s3Key = `${drivePath}${fileName}`;
     } else {
       return NextResponse.json(
         { message: "Invalid folder type" },

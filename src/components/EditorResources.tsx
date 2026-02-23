@@ -4,10 +4,10 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { 
-  Search, 
-  Download, 
-  ExternalLink, 
+import {
+  Search,
+  Download,
+  ExternalLink,
   BookOpen,
   Video,
   Image as ImageIcon,
@@ -226,12 +226,13 @@ export function EditorResources() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl">Resources</h1>
-        <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
-          Access brand assets, tutorials, stock resources, and helpful tools
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Resources</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
+            Access brand assets, tutorials, stock resources, and helpful tools
+          </p>
+        </div>
       </div>
 
       {/* Search */}
@@ -258,7 +259,7 @@ export function EditorResources() {
             <h2 className="mb-4">Brand Assets</h2>
             <p className="text-muted-foreground mb-6">Download official brand assets and guidelines</p>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {brandAssets.map((asset) => (
               <Card key={asset.id} className="overflow-hidden hover:shadow-md transition-shadow">
@@ -275,7 +276,7 @@ export function EditorResources() {
                     </Badge>
                   </div>
                 </div>
-                
+
                 <CardContent className="p-4 space-y-3">
                   <div>
                     <h3 className="font-medium text-sm">{asset.title}</h3>
@@ -308,7 +309,7 @@ export function EditorResources() {
             <h2 className="mb-4">Learning Resources</h2>
             <p className="text-muted-foreground mb-6">Tutorials and guides to improve your skills</p>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {tutorials.map((tutorial) => (
               <Card key={tutorial.id} className="overflow-hidden hover:shadow-md transition-shadow">
@@ -330,7 +331,7 @@ export function EditorResources() {
                     </Badge>
                   </div>
                 </div>
-                
+
                 <CardContent className="p-4 space-y-3">
                   <div>
                     <h3 className="font-medium text-sm">{tutorial.title}</h3>
@@ -367,7 +368,7 @@ export function EditorResources() {
             <h2 className="mb-4">Stock Resources</h2>
             <p className="text-muted-foreground mb-6">Licensed stock photos, videos, and audio</p>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {stockResources.map((resource) => (
               <Card key={resource.id} className="overflow-hidden hover:shadow-md transition-shadow">
@@ -383,7 +384,7 @@ export function EditorResources() {
                     </Badge>
                   </div>
                 </div>
-                
+
                 <CardContent className="p-4 space-y-3">
                   <div>
                     <h3 className="font-medium text-sm">{resource.title}</h3>
@@ -412,7 +413,7 @@ export function EditorResources() {
             <h2 className="mb-4">Recommended Tools</h2>
             <p className="text-muted-foreground mb-6">Essential tools and software for content creation</p>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {tools.map((tool) => (
               <Card key={tool.id} className="hover:shadow-md transition-shadow">

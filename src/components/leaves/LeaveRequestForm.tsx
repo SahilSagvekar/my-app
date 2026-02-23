@@ -44,7 +44,7 @@ const apiFetch = async (path: string, options: RequestInit = {}) => {
   let data: any = null;
   try {
     data = await res.json();
-  } catch {}
+  } catch { }
 
   if (!res.ok) {
     throw new Error(data?.message || "Request failed");
@@ -93,9 +93,14 @@ const toSQLDate = (date: Date) => {
 // -------------------------------------------
 // COMPONENT
 // -------------------------------------------
-export default function LeaveRequestForm() {
-  const [employeeId, setEmployeeId] = useState<number | null>(null);
-  const [worksOnSaturday, setWorksOnSaturday] = useState<boolean>(false);
+interface LeaveRequestFormProps {
+  employeeId?: number;
+  worksOnSaturday?: boolean;
+}
+
+export default function LeaveRequestForm(props: LeaveRequestFormProps = {}) {
+  const [employeeId, setEmployeeId] = useState<number | null>(props.employeeId ?? null);
+  const [worksOnSaturday, setWorksOnSaturday] = useState<boolean>(props.worksOnSaturday ?? false);
   const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
@@ -105,13 +110,18 @@ export default function LeaveRequestForm() {
 
   const days = calculateDays(startDate, endDate, worksOnSaturday);
 
-  // Fetch user profile
+  // Fetch user profile (only if props not provided)
   useEffect(() => {
     async function loadUser() {
       try {
         const me = await apiFetch("/api/auth/me", { method: "GET" });
-        setEmployeeId(me.user.id);
-        setWorksOnSaturday(!!me.worksOnSaturday);
+        // Only set if not provided via props
+        if (!props.employeeId) {
+          setEmployeeId(me.user.id);
+        }
+        if (props.worksOnSaturday === undefined) {
+          setWorksOnSaturday(!!me.worksOnSaturday);
+        }
         setUserName(me.user.name || "Employee");
       } catch (err: any) {
         toast.error("Error loading profile", { description: err.message });
@@ -119,7 +129,7 @@ export default function LeaveRequestForm() {
     }
 
     loadUser();
-  }, []);
+  }, [props.employeeId, props.worksOnSaturday]);
 
   // Normalize selected dates
   const handleStartDateSelect = (date: Date | undefined) => {
@@ -342,7 +352,7 @@ export default function LeaveRequestForm() {
       </Card>
 
       {/* Footer Note */}
-      <Card>
+      {/* <Card>
         <CardHeader className="p-4 sm:p-6">
           <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
             <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -356,7 +366,7 @@ export default function LeaveRequestForm() {
             <li>Submit at least 3 days before the leave date</li>
           </ul>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }

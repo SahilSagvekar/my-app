@@ -320,56 +320,36 @@ export function AuditLogTab() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Logs</p>
-                <h3 className="text-2xl font-bold mt-2">{stats.totalLogs}</h3>
-              </div>
-              <FileText className="h-8 w-8 text-blue-600" />
-            </div>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <FileText className="h-8 w-8 text-blue-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Total Logs</p>
+            <h3 className="text-3xl font-bold mt-1">{stats.totalLogs}</h3>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Today's Logs</p>
-                <h3 className="text-2xl font-bold mt-2">{stats.todayLogs}</h3>
-              </div>
-              <Calendar className="h-8 w-8 text-green-600" />
-            </div>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <Calendar className="h-8 w-8 text-green-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Today's Logs</p>
+            <h3 className="text-3xl font-bold mt-1">{stats.todayLogs}</h3>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">High Severity</p>
-                <h3 className="text-2xl font-bold mt-2">
-                  {stats.highSeverity}
-                </h3>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-600" />
-            </div>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <AlertTriangle className="h-8 w-8 text-red-600 mb-4" />
+            <p className="text-sm text-muted-foreground">High Severity</p>
+            <h3 className="text-3xl font-bold mt-1">{stats.highSeverity}</h3>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Security Events</p>
-                <h3 className="text-2xl font-bold mt-2">
-                  {stats.securityEvents}
-                </h3>
-              </div>
-              <Shield className="h-8 w-8 text-purple-600" />
-            </div>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center">
+            <Shield className="h-8 w-8 text-purple-600 mb-4" />
+            <p className="text-sm text-muted-foreground">Security Events</p>
+            <h3 className="text-3xl font-bold mt-1">{stats.securityEvents}</h3>
           </CardContent>
         </Card>
       </div>

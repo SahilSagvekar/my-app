@@ -7,17 +7,20 @@ import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
 import { QCReportsPage } from "../dashboards/QCReportsPage";
 import { QCResourcesPage } from "../dashboards/QCResourcesPage";
 import { QCTrainingPage } from "../dashboards/QCTrainingPage";
+import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
-import { SchedulerApprovedQueuePage } from "../dashboards/SchedulerApprovedQueuePage";
+import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
 import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
 import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
 import { SchedulerReportsPage } from "../dashboards/SchedulerReportsPage";
 import { SchedulerTrainingPage } from "../dashboards/SchedulerTrainingPage";
+import { SchedulerPostedArchivePage } from "../dashboards/SchedulerPostedArchivePage";
 import { ManagerDashboard } from "../dashboards/ManagerDashboard";
 import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
 import { VideographerDashboard } from "../dashboards/VideographerDashboard";
+import { SalesDashboard } from "../dashboards/SalesDashboard";
 import { EditorProjects } from "../EditorProjects";
 import { EditorResources } from "../EditorResources";
 import { FeedbackSystem } from "../FeedbackSystem";
@@ -27,15 +30,41 @@ import { DriveExplorer } from "../drive/DriveExplorer";
 import { EmploymentInfo } from "../EmploymentInfo";
 import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
+import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
+import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
+import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
+import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
-  <div className="p-8 text-center text-muted-foreground">
-    {title} - Coming Soon
+  <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 space-y-4">
+    <div className="p-4 bg-muted/50 rounded-full">
+      <Loader2 className="h-10 w-10 text-muted-foreground animate-pulse" />
+    </div>
+    <h1 className="text-3xl font-bold tracking-tight text-gray-900">{title}</h1>
+    <p className="text-muted-foreground text-lg max-w-md mx-auto">
+      This section is currently under development. Stay tuned for exciting new features!
+    </p>
   </div>
 );
 
-export function renderPage(role: string, page: string): React.ReactElement {
+export function renderPage(
+  role: string,
+  page: string,
+  onPageChange?: (page: string) => void,
+  hasPostingServices?: boolean
+): React.ReactElement {
   console.log(`Rendering page for role: ${role}, page: ${page}`);
+
+  // 🔥 Block unauthorized access for clients without posting services
+  if (role.toLowerCase() === 'client' && hasPostingServices === false) {
+    const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+    if (forbiddenIds.includes(page)) {
+      console.warn(`Unauthorized access attempt to ${page} for client without posting services. Redirecting to Approvals.`);
+      // If we are in the middle of a render, we can't call onPageChange directly to change state, 
+      // but we can return the default page for this user.
+      return <ClientDashboard />;
+    }
+  }
 
   if (page === "forgot-password") {
     return (
@@ -61,8 +90,12 @@ export function renderPage(role: string, page: string): React.ReactElement {
     return <ComingSoonPage title="Scheduling" />;
   }
 
-  if( page === "posted") {
+  if (page === "posted") {
     return <PostedContentSidebar />;
+  }
+
+  if (page === "activity_logs") {
+    return <ActivityLogReportTab />;
   }
 
   if (role === "admin") {
@@ -74,15 +107,60 @@ export function renderPage(role: string, page: string): React.ReactElement {
       case "reports":
       case "audit":
       case "finance":
-        return <AdminDashboard currentPage={page} />;
+      case "permissions":
+      case "leaves":
+      case "activity_logs":
+      case "guidelines":
+      case "sales-management":
+        return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
-      case "leaves":
-        return <LeavesComponent />;
       case "training":
-        return <QCTrainingPage currentRole={role} />;
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Training Management</h1>
+                <p className="text-muted-foreground mt-1 text-lg">
+                  Oversee employee training modules, certifications, and progress
+                </p>
+              </div>
+            </div>
+            <QCTrainingPage currentRole={role} />
+          </div>
+        );
+      case "logins":
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Social Logins</h1>
+                <p className="text-muted-foreground mt-1 text-lg">
+                  Securely manage social media credentials and account access
+                </p>
+              </div>
+            </div>
+            <SocialLogins />
+          </div>
+        );
+      case "drive":
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Files & Drive</h1>
+                <p className="text-muted-foreground mt-1 text-lg">
+                  Centralized storage for assets, project files, and shared documents
+                </p>
+              </div>
+            </div>
+            <DriveExplorer role={role} />
+          </div>
+        );
+      case "activity_logs":
+        return <ActivityLogReportTab />;
       default:
-        return <AdminDashboard currentPage="dashboard" />;
+        return <AdminDashboard currentPage="dashboard" onPageChange={onPageChange} />;
     }
   }
 
@@ -96,6 +174,8 @@ export function renderPage(role: string, page: string): React.ReactElement {
         return <EditorResources />;
       case "training":
         return <QCTrainingPage currentRole={role} />;
+      case "guidelines":
+        return <EditorGuidelinesPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
@@ -137,7 +217,7 @@ export function renderPage(role: string, page: string): React.ReactElement {
       case "calendar":
         return <SchedulerDashboard />;
       case "approved-queue":
-        return <SchedulerApprovedQueuePage />;
+        return <SchedulerSpreadsheetView />;
       case "scheduling":
         return <SchedulerSchedulingPage />;
       case "content-titling":
@@ -150,6 +230,8 @@ export function renderPage(role: string, page: string): React.ReactElement {
         return <SchedulerTrainingPage currentRole={role} />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
+      case "posted-archive":
+        return <SchedulerPostedArchivePage />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:
@@ -224,6 +306,23 @@ export function renderPage(role: string, page: string): React.ReactElement {
         return <FeedbackSystem currentRole={role} />;
       default:
         return <VideographerDashboard />;
+    }
+  }
+
+  if (role === "sales") {
+    switch (page) {
+      case "dashboard":
+        return <SalesDashboard />;
+      case "clients":
+        return <SalesDashboard />;
+      case "training":
+        return <QCTrainingPage currentRole={role} />;
+      case "employment-info":
+        return <EmploymentInfo currentRole={role} />;
+      case "feedback":
+        return <FeedbackSystem currentRole={role} />;
+      default:
+        return <SalesDashboard />;
     }
   }
 

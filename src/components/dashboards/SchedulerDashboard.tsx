@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle, FileText, Eye } from 'lucide-react';
 import { useTaskWorkflow, WorkflowTask } from '../workflow/TaskWorkflowEngine';
+import { FilePreviewModal } from '../FileViewerModal';
 
 // Mock current scheduler user
 const currentUser = {
@@ -16,7 +17,7 @@ const currentUser = {
 const currentDate = new Date(2024, 7, 10); // August 2024
 
 // Mock scheduled events (in real app would come from API)
-const calendarEvents = {
+const calendarEvents: Record<string, any[]> = {
   '2024-08-12': [
     { id: 1, title: 'Video Shoot - Product Demo', time: '09:00', type: 'production', color: 'bg-blue-500' },
     { id: 2, title: 'Client Meeting - Brand Review', time: '14:00', type: 'meeting', color: 'bg-purple-500' }
@@ -36,66 +37,33 @@ const calendarEvents = {
   ]
 };
 
-async function scheduleTask(task: SchedulerTask) {
-  try {
-    setBusyId(task.id);
-
-    const res = await fetch(`/api/tasks/${task.id}/mark-scheduled`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ postedAt: new Date().toISOString() })
-    });
-
-    if (!res.ok) throw new Error("Failed to schedule");
-
-    const updated = await res.json();
-
-    // Update UI instantly
-    setTasks(prev =>
-      prev.map(t =>
-        t.id === task.id ? { ...t, status: "SCHEDULED" } : t
-      )
-    );
-
-    // Remove selection
-    setSelectedTask(null);
-
-    alert("Task scheduled successfully");
-  } catch (err) {
-    console.error(err);
-    alert("Error scheduling task");
-  } finally {
-    setBusyId(null);
-  }
-}
-
-
-// Mock initial scheduling tasks
+// Initial scheduling tasks
 const initialSchedulingTasks: WorkflowTask[] = [];
 
- function mapStatus(status: string) {
-    if (status === "QC_APPROVED" || status === "READY_FOR_SCHEDULER")
-      return "pending";
-    if (status === "SCHEDULED") return "completed";
+
+function mapStatus(status: string) {
+  if (status === "QC_APPROVED" || status === "READY_FOR_SCHEDULER")
     return "pending";
-  }
+  if (status === "SCHEDULED") return "completed";
+  return "pending";
+}
 
 function CalendarGrid() {
   const [currentMonth, setCurrentMonth] = useState(currentDate);
-  
+
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   };
-  
+
   const getFirstDayOfMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
-  
+
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDay = getFirstDayOfMonth(currentMonth);
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const emptyDays = Array.from({ length: firstDay }, (_, i) => null);
-  
+
   const formatEventDate = (day: number) => {
     const year = currentMonth.getFullYear();
     const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
@@ -103,7 +71,7 @@ function CalendarGrid() {
     return `${year}-${month}-${dayStr}`;
   };
 
- 
+
 
 
   return (
@@ -129,35 +97,34 @@ function CalendarGrid() {
           </Button>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-7 gap-1">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
             {day}
           </div>
         ))}
-        
+
         {emptyDays.map((_, index) => (
           <div key={`empty-${index}`} className="p-2 h-24"></div>
         ))}
-        
+
         {days.map(day => {
           const dateKey = formatEventDate(day);
           const dayEvents = calendarEvents[dateKey] || [];
           const isToday = day === 10; // Current day for demo
-          
+
           return (
             <div
               key={day}
-              className={`p-2 h-24 border border-border rounded-lg hover:bg-muted/50 ${
-                isToday ? 'bg-primary/10 border-primary' : ''
-              }`}
+              className={`p-2 h-24 border border-border rounded-lg hover:bg-muted/50 ${isToday ? 'bg-primary/10 border-primary' : ''
+                }`}
             >
               <div className={`text-sm mb-1 ${isToday ? 'font-medium text-primary' : ''}`}>
                 {day}
               </div>
               <div className="space-y-1">
-                {dayEvents.slice(0, 2).map(event => (
+                {dayEvents.slice(0, 2).map((event: any) => (
                   <div
                     key={event.id}
                     className={`text-xs px-1 py-0.5 rounded text-white truncate ${event.color}`}
@@ -185,20 +152,22 @@ export function SchedulerDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<WorkflowTask | null>(null);
   const { tasks: workflowTasks, completeSchedulingTask } = useTaskWorkflow();
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // useEffect(() => {
   //   // Filter workflow tasks for scheduling
   //   const userSchedulingTasks = workflowTasks.filter(task => 
   //     task.assignedTo === currentUser.id && task.type === 'scheduling'
   //   );
-    
+
   //   // Combine with initial tasks
   //   const allSchedulingTasks = [...initialSchedulingTasks, ...userSchedulingTasks.filter(wt => 
   //     !initialSchedulingTasks.some(it => it.id === wt.id)
   //   )];
-    
+
   //   setSchedulingTasks(allSchedulingTasks);
-    
+
   //   // Auto-select first pending task
   //   if (!selectedTask && allSchedulingTasks.length > 0) {
   //     const firstPending = allSchedulingTasks.find(task => task.status === 'pending');
@@ -221,10 +190,19 @@ export function SchedulerDashboard() {
           assignedTo: String(t.assignedSchedulerId),
           dueDate: t.dueDate,
           clientId: t.clientId,
+          oneOffDeliverableId: t.oneOffDeliverableId,
           projectId: t.clientId,
           priority: t.priority,
           feedback: t.feedback,
-          files: t.files || [],
+          files: (t.files || [])
+            .filter((f: any) => f.isActive !== false)
+            .map((f: any) => ({
+              id: f.id,
+              name: f.name,
+              url: f.url,
+              size: f.size || 0,
+              mimeType: f.mimeType || f.contentType || '',
+            })),
         }));
 
         setSchedulingTasks(mapped);
@@ -290,85 +268,66 @@ export function SchedulerDashboard() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'destructive';
-      case 'high': return 'default';
-      case 'medium': return 'secondary';
-      default: return 'outline';
-    }
-  };
+
 
   // Stats
   const pendingTasks = schedulingTasks.filter(task => task.status === 'pending').length;
-  const scheduledToday = schedulingTasks.filter(task => 
+  const scheduledToday = schedulingTasks.filter(task =>
     task.status === 'completed' &&
     new Date(task.createdAt).toDateString() === new Date().toDateString()
   ).length;
-  const urgentTasks = schedulingTasks.filter(task => task.priority === 'urgent' && task.status === 'pending').length;
+  const urgentTasks = 0; // Removed priority logic
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
         <div>
-          <h1>Scheduler Portal</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Scheduler Portal</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
             Schedule QC-approved content and manage production timeline
           </p>
         </div>
-        <Button>
+        <Button className="shadow-sm">
           <Calendar className="h-4 w-4 mr-2" />
           New Schedule
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Clock className="h-8 w-8 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Pending Tasks</p>
-                <h3>{pendingTasks}</h3>
+                <h3 className="text-2xl font-bold">{pendingTasks}</h3>
               </div>
-              <Clock className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <CheckCircle className="h-8 w-8 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Scheduled Today</p>
-                <h3>{scheduledToday}</h3>
+                <h3 className="text-2xl font-bold">{scheduledToday}</h3>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Urgent Tasks</p>
-                <h3>{urgentTasks}</h3>
-              </div>
-              <Calendar className="h-8 w-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Users className="h-8 w-8 text-purple-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Active Events</p>
-                <h3>7</h3>
+                <h3 className="text-2xl font-bold">7</h3>
               </div>
-              <Users className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
@@ -421,26 +380,26 @@ export function SchedulerDashboard() {
                 </div>
               ) : (
                 schedulingTasks.map((task) => (
-                  <div 
-                    key={task.id} 
-                    className={`p-4 border-b hover:bg-muted/50 cursor-pointer transition-colors ${
-                      selectedTask?.id === task.id ? 'bg-muted' : ''
-                    }`}
+                  <div
+                    key={task.id}
+                    className={`p-4 border-b hover:bg-muted/50 cursor-pointer transition-colors ${selectedTask?.id === task.id ? 'bg-muted' : ''
+                      }`}
                     onClick={() => setSelectedTask(task)}
                   >
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
-                        <h4 className="font-medium text-sm">
-                          {task.title.replace('Schedule: ', '')}
-                        </h4>
-                        <Badge
-                          variant={getPriorityColor(task.priority)}
-                          className="text-xs"
-                        >
-                          {task.priority}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <h4 className="font-medium text-sm">
+                            {task.title.replace('Schedule: ', '')}
+                          </h4>
+                          {(task as any).oneOffDeliverableId && (
+                            <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                              One-Off
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      
+
                       <div className="space-y-2 text-xs text-muted-foreground">
                         <div className="flex items-center gap-2">
                           <MapPin className="h-3 w-3" />
@@ -457,7 +416,7 @@ export function SchedulerDashboard() {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="flex items-center justify-between">
                         <Badge variant="outline" className="text-xs">
                           {task.id}
@@ -504,12 +463,6 @@ export function SchedulerDashboard() {
                   <p className="font-medium">{selectedTask.projectId || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Priority</p>
-                  <Badge variant={getPriorityColor(selectedTask.priority)}>
-                    {selectedTask.priority}
-                  </Badge>
-                </div>
-                <div>
                   <p className="text-sm text-muted-foreground">Due Date</p>
                   <p className="font-medium">{selectedTask.dueDate}</p>
                 </div>
@@ -539,11 +492,14 @@ export function SchedulerDashboard() {
                         <p className="text-xs text-muted-foreground mb-3">
                           {formatFileSize(file.size)}
                         </p>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           className="w-full"
-                          onClick={() => window.open(file.url, '_blank')}
+                          onClick={() => {
+                            setPreviewFile(file);
+                            setIsPreviewOpen(true);
+                          }}
                         >
                           <Eye className="h-3 w-3 mr-1" />
                           View
@@ -557,8 +513,8 @@ export function SchedulerDashboard() {
               {/* Action */}
               {selectedTask.status === 'pending' && (
                 <div className="flex justify-center pt-4">
-                  <Button 
-                    size="lg" 
+                  <Button
+                    size="lg"
                     onClick={() => handleScheduleTask(selectedTask)}
                   >
                     <Calendar className="h-4 w-4 mr-2" />
@@ -570,6 +526,13 @@ export function SchedulerDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </div>
   );
 }

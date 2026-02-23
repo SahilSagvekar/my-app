@@ -423,13 +423,7 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
   // Password Gate
   if (!isUnlocked) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1>Training & Certification</h1>
-          <p className="text-muted-foreground mt-2">
-            Complete the comprehensive QC training course to become certified
-          </p>
-        </div>
+      <div className="space-y-6 pt-6">
 
         <Card className="max-w-md mx-auto mt-12">
           <CardHeader className="text-center">
@@ -473,6 +467,7 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
     if (!currentModule) return null;
 
     if (showModuleQuiz && currentModule.quiz) {
+      const quiz = currentModule.quiz;
       return (
         <div className="space-y-6">
           <div>
@@ -495,7 +490,7 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
 
           <Card>
             <CardContent className="p-6 space-y-6">
-              {currentModule.quiz.map((question, idx) => (
+              {quiz.map((question, idx) => (
                 <div key={question.id} className="space-y-3">
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
@@ -524,15 +519,14 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                             />
                             <Label
                               htmlFor={`q${question.id}-opt${optIdx}`}
-                              className={`flex-1 cursor-pointer ${
-                                quizSubmitted
-                                  ? optIdx === question.correctAnswer
-                                    ? "text-green-600 font-medium"
-                                    : quizAnswers[question.id] === optIdx
+                              className={`flex-1 cursor-pointer ${quizSubmitted
+                                ? optIdx === question.correctAnswer
+                                  ? "text-green-600 font-medium"
+                                  : quizAnswers[question.id] === optIdx
                                     ? "text-red-600"
                                     : ""
-                                  : ""
-                              }`}
+                                : ""
+                                }`}
                             >
                               {option}
                               {quizSubmitted &&
@@ -557,7 +551,7 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                       )}
                     </div>
                   </div>
-                  {idx < currentModule.quiz.length - 1 && <Separator />}
+                  {idx < quiz.length - 1 && <Separator />}
                 </div>
               ))}
 
@@ -574,29 +568,28 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
               {quizSubmitted && (
                 <div className="text-center">
                   <div
-                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${
-                      currentModule.quiz.filter(
-                        (q) => quizAnswers[q.id] === q.correctAnswer
-                      ).length >=
-                      currentModule.quiz.length * 0.7
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {currentModule.quiz.filter(
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${quiz.filter(
                       (q) => quizAnswers[q.id] === q.correctAnswer
                     ).length >=
-                    currentModule.quiz.length * 0.7 ? (
+                      quiz.length * 0.7
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                      }`}
+                  >
+                    {quiz.filter(
+                      (q) => quizAnswers[q.id] === q.correctAnswer
+                    ).length >=
+                      quiz.length * 0.7 ? (
                       <>
                         <CheckCircle className="h-5 w-5" />
                         <span>
                           Passed! (
                           {
-                            currentModule.quiz.filter(
+                            quiz.filter(
                               (q) => quizAnswers[q.id] === q.correctAnswer
                             ).length
                           }
-                          /{currentModule.quiz.length} correct)
+                          /{quiz.length} correct)
                         </span>
                       </>
                     ) : (
@@ -605,11 +598,11 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                         <span>
                           Not Passed (
                           {
-                            currentModule.quiz.filter(
+                            quiz.filter(
                               (q) => quizAnswers[q.id] === q.correctAnswer
                             ).length
                           }
-                          /{currentModule.quiz.length} correct) - Review and try
+                          /{quiz.length} correct) - Review and try
                           again
                         </span>
                       </>
@@ -749,15 +742,14 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
                             />
                             <Label
                               htmlFor={`final-q${question.id}-opt${optIdx}`}
-                              className={`flex-1 cursor-pointer ${
-                                finalQuizSubmitted
-                                  ? optIdx === question.correctAnswer
-                                    ? "text-green-600 font-medium"
-                                    : finalQuizAnswers[question.id] === optIdx
+                              className={`flex-1 cursor-pointer ${finalQuizSubmitted
+                                ? optIdx === question.correctAnswer
+                                  ? "text-green-600 font-medium"
+                                  : finalQuizAnswers[question.id] === optIdx
                                     ? "text-red-600"
                                     : ""
-                                  : ""
-                              }`}
+                                : ""
+                                }`}
                             >
                               {option}
                               {finalQuizSubmitted &&
@@ -831,13 +823,13 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
+      {/* <div>
         <h1>Training & Certification</h1>
         <p className="text-muted-foreground mt-2">
           Complete all modules and pass the final exam to become a Certified QC
           Reviewer
         </p>
-      </div>
+      </div> */}
 
       {/* Progress Overview */}
       <Card>
@@ -875,13 +867,12 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
           {modules.map((module) => (
             <div
               key={module.id}
-              className={`p-4 border rounded-lg ${
-                module.completed
-                  ? "bg-green-50 border-green-200"
-                  : module.unlocked
+              className={`p-4 border rounded-lg ${module.completed
+                ? "bg-green-50 border-green-200"
+                : module.unlocked
                   ? "bg-white hover:bg-accent/50 cursor-pointer"
                   : "bg-gray-50 border-gray-200 opacity-60"
-              }`}
+                }`}
               onClick={() =>
                 module.unlocked &&
                 !module.completed &&
@@ -890,13 +881,12 @@ export function QCTrainingPage({ currentRole }: QCTrainingPageProps) {
             >
               <div className="flex items-start gap-4">
                 <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    module.completed
-                      ? "bg-green-600 text-white"
-                      : module.unlocked
+                  className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${module.completed
+                    ? "bg-green-600 text-white"
+                    : module.unlocked
                       ? "bg-blue-600 text-white"
                       : "bg-gray-300 text-gray-500"
-                  }`}
+                    }`}
                 >
                   {module.completed ? (
                     <CheckCircle className="h-6 w-6" />

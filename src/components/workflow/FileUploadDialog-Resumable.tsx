@@ -1,7 +1,7 @@
 // components/workflow/FileUploadDialog-Resumable.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,411 +12,194 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Upload, 
-  X, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Upload,
+  X,
+  CheckCircle,
+  AlertCircle,
   File as FileIcon,
   Zap,
-  Play,
   Pause,
   RefreshCw,
-  FolderOpen
+  FolderOpen,
+  Folder,
+  FileVideo,
+  ChevronRight,
+  Play
 } from "lucide-react";
-import { useAuth } from "@/components/auth/AuthContext";
 import { uploadStateManager, UploadState } from "@/lib/upload-state-manager";
-
-const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks
-const PARALLEL_UPLOADS = 5;
+import { useUploads } from "./UploadContext";
+import { cn } from "@/lib/utils";
 
 interface FileUploadDialogProps {
-  task: any;
-  subfolder?: string; // 🔥 Pre-selected subfolder (locks the upload destination)
+  task?: any;
+  subfolder?: string;
+  folderType?: string;
   onUploadComplete: (files: any[]) => void;
   trigger?: React.ReactNode;
 }
 
 export function FileUploadDialog({
   task,
-  subfolder: preselectedSubfolder, // 🔥 NEW
+  subfolder: preselectedSubfolder,
+  folderType = "outputs",
   onUploadComplete,
   trigger,
 }: FileUploadDialogProps) {
   const [open, setOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const [subfolder, setSubfolder] = useState<string>(preselectedSubfolder || "main");
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [uploadSpeed, setUploadSpeed] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [paused, setPaused] = useState(false);
   const [resumableUploads, setResumableUploads] = useState<UploadState[]>([]);
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const notifiedUploadsRef = useRef<Set<string>>(new Set());
 
-  const { user } = useAuth();
+  const { startUpload, pauseUpload, cancelUpload, getUploadState } = useUploads();
+  const currentUpload = currentUploadId ? getUploadState(currentUploadId) : null;
 
-  // Check for resumable uploads on mount
   useEffect(() => {
-    checkResumableUploads();
-  }, [task.id]);
+    const check = async () => {
+      if (!task?.id && folderType !== 'drive') return;
+      const taskId = task?.id || 'drive-upload';
+      const uploads = await uploadStateManager.getUploadsByTask(taskId);
+      setResumableUploads(uploads.filter(u => u.status === 'uploading' || u.status === 'paused'));
+    };
+    if (open) check();
+  }, [task?.id, open, folderType]);
 
-  // Update subfolder when preselectedSubfolder changes
   useEffect(() => {
-    if (preselectedSubfolder) {
-      setSubfolder(preselectedSubfolder);
+    if (currentUpload?.status === 'completed' && !notifiedUploadsRef.current.has(currentUpload.id)) {
+      notifiedUploadsRef.current.add(currentUpload.id);
+
+      // Trigger update immediately
+      onUploadComplete([]);
+
+      if (selectedFiles.length === 0) {
+        setTimeout(() => {
+          setOpen(false);
+          setCurrentUploadId(null);
+        }, 2000);
+      }
     }
-  }, [preselectedSubfolder]);
-
-  const checkResumableUploads = async () => {
-    const uploads = await uploadStateManager.getUploadsByTask(task.id);
-    const activeUploads = uploads.filter(
-      u => u.status === 'uploading' || u.status === 'paused'
-    );
-    setResumableUploads(activeUploads);
-  };
-
-  const formatSpeed = (mbps: number) => {
-    return `${mbps.toFixed(2)} MB/s`;
-  };
+  }, [currentUpload?.status, currentUpload?.id, selectedFiles.length, onUploadComplete]);
 
   const formatSize = (bytes: number) => {
-    if (bytes < 1024 * 1024) {
-      return `${(bytes / 1024).toFixed(2)} KB`;
-    } else if (bytes < 1024 * 1024 * 1024) {
-      return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-    } else {
-      return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  };
+
+  const getSubfolderLabel = (f: string): string => {
+    const labels: Record<string, string> = { "main": "Main Task Folder", "thumbnails": "Thumbnails", "tiles": "Tiles", "music-license": "Music License", "covers": "Covers" };
+    return labels[f] || f;
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      setSelectedFiles(prev => [...prev, ...newFiles]);
     }
   };
 
-  const generateUploadId = () => {
-    return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+    }
   };
 
-  const getSubfolderLabel = (subfolder: string): string => {
-    const labels: Record<string, string> = {
-      "main": "Main Task Folder",
-      "thumbnails": "Thumbnails",
-      "tiles": "Tiles",
-      "music-license": "Music License",
-      "covers": "Covers",
-    };
-    return labels[subfolder] || subfolder;
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const uploadChunk = async (
-    chunk: Blob,
-    partNumber: number,
-    key: string,
-    uploadId: string,
-    fileType: string
-  ) => {
-    const partUrlResponse = await fetch("/api/upload/part-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, uploadId, partNumber }),
-    });
+  const handleStart = async () => {
+    if (selectedFiles.length === 0) return;
 
-    if (!partUrlResponse.ok) {
-      throw new Error(`Failed to get presigned URL for part ${partNumber}`);
-    }
-
-    const { presignedUrl } = await partUrlResponse.json();
-
-    const uploadResponse = await fetch(presignedUrl, {
-      method: "PUT",
-      body: chunk,
-      headers: { "Content-Type": fileType },
-    });
-
-    if (!uploadResponse.ok) {
-      throw new Error(`Failed to upload part ${partNumber}`);
-    }
-
-    const etag = uploadResponse.headers.get("ETag");
-    if (!etag) {
-      throw new Error("Failed to get ETag");
-    }
-
-    return {
-      ETag: etag.replace(/"/g, ""),
-      PartNumber: partNumber,
-    };
-  };
-
-  const startUpload = async (file: File, resumeState?: UploadState) => {
-    setUploading(true);
-    setError(null);
-    setPaused(false);
-
-    let uploadId: string;
-    let key: string;
-    let s3UploadId: string;
-    let uploadedParts: Array<{ ETag: string; PartNumber: number }> = [];
-    let completedChunks: number[] = [];
-    let uploadedBytes = 0;
+    setIsStarting(true);
+    const filesToUpload = [...selectedFiles];
+    setSelectedFiles([]);
 
     try {
-      // Resume existing upload or start new
-      if (resumeState) {
-        uploadId = resumeState.id;
-        key = resumeState.key;
-        s3UploadId = resumeState.uploadId;
-        uploadedParts = resumeState.uploadedParts;
-        completedChunks = resumeState.completedChunks;
-        uploadedBytes = resumeState.uploadedBytes;
-        
-        console.log("📥 Resuming upload:", { uploadId, progress: Math.round((uploadedBytes / file.size) * 100) + '%' });
-        await uploadStateManager.resumeUpload(uploadId);
-      } else {
-        // Initiate new upload
-        uploadId = generateUploadId();
-        setCurrentUploadId(uploadId);
+      // Start the first one and wait for it so we can show it in the UI
+      const firstId = await startUpload(filesToUpload[0], task, subfolder, undefined, folderType);
+      setCurrentUploadId(firstId);
+      setIsStarting(false);
 
-        console.log("🚀 Initiating new upload...");
-        const initResponse = await fetch("/api/upload/initiate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: file.name,
-            fileType: file.type,
-            taskId: task.id,
-            clientId: task.clientId,
-            folderType: "outputs", // 🔥 FORCE OUTPUTS
-            taskTitle: task.title, // 🔥 Pass task title
-            subfolder: subfolder, // 🔥 Pass subfolder
-          }),
-        });
-
-        if (!initResponse.ok) {
-          throw new Error("Failed to initiate upload");
-        }
-
-        const initData = await initResponse.json();
-        key = initData.key;
-        s3UploadId = initData.uploadId;
-
-        // Save initial state
-        const numChunks = Math.ceil(file.size / CHUNK_SIZE);
-        await uploadStateManager.saveUploadState({
-          id: uploadId,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          taskId: task.id,
-          clientId: task.clientId,
-          folderType: "outputs",
-          uploadId: s3UploadId,
-          key,
-          uploadedParts: [],
-          uploadedBytes: 0,
-          totalChunks: numChunks,
-          completedChunks: [],
-          status: 'uploading',
-          startedAt: Date.now(),
-          lastUpdated: Date.now(),
+      // Start the rest in parallel without awaiting
+      if (filesToUpload.length > 1) {
+        filesToUpload.slice(1).forEach(file => {
+          startUpload(file, task, subfolder, undefined, folderType).catch(err =>
+            console.error("Background initiation failed:", file.name, err)
+          );
         });
       }
-
-      // Prepare chunks
-      const numChunks = Math.ceil(file.size / CHUNK_SIZE);
-      const chunks: Array<{ chunk: Blob; partNumber: number }> = [];
-
-      for (let i = 0; i < numChunks; i++) {
-        const partNumber = i + 1;
-        
-        // Skip already uploaded chunks
-        if (completedChunks.includes(partNumber)) {
-          console.log(`⏭️ Skipping already uploaded chunk ${partNumber}`);
-          continue;
-        }
-
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        chunks.push({ chunk, partNumber });
-      }
-
-      const startTime = Date.now();
-
-      // Upload remaining chunks in parallel
-      for (let i = 0; i < chunks.length; i += PARALLEL_UPLOADS) {
-        // Check if paused
-        const state = await uploadStateManager.getUploadState(uploadId);
-        if (state?.status === 'paused') {
-          console.log("⏸️ Upload paused");
-          setUploading(false);
-          return;
-        }
-
-        const batch = chunks.slice(i, i + PARALLEL_UPLOADS);
-        console.log(`⚡ Uploading batch with ${batch.length} chunks`);
-
-        const batchResults = await Promise.all(
-          batch.map(({ chunk, partNumber }) =>
-            uploadChunk(chunk, partNumber, key, s3UploadId, file.type)
-          )
-        );
-
-        uploadedParts.push(...batchResults);
-        completedChunks.push(...batch.map(b => b.partNumber));
-
-        uploadedBytes += batch.reduce((sum, { chunk }) => sum + chunk.size, 0);
-        const progressPercent = Math.round((uploadedBytes / file.size) * 100);
-        setProgress(progressPercent);
-
-        const elapsedSeconds = (Date.now() - startTime) / 1000;
-        const speedMBps = uploadedBytes / (1024 * 1024) / elapsedSeconds;
-        setUploadSpeed(speedMBps);
-
-        // Save progress
-        await uploadStateManager.updateProgress(
-          uploadId,
-          uploadedBytes,
-          completedChunks,
-          uploadedParts
-        );
-      }
-
-      // Sort and complete
-      uploadedParts.sort((a, b) => a.PartNumber - b.PartNumber);
-
-      console.log("🔄 Completing upload...");
-      const completeResponse = await fetch("/api/upload/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key,
-          uploadId: s3UploadId,
-          parts: uploadedParts,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          taskId: task.id,
-          userId: user?.id,
-          subfolder: subfolder, // 🔥 Pass subfolder for database
-        }),
-      });
-
-      if (!completeResponse.ok) {
-        throw new Error("Failed to complete upload");
-      }
-
-      const result = await completeResponse.json();
-      console.log("✅ Upload complete!");
-
-      await uploadStateManager.markAsCompleted(uploadId);
-      setProgress(100);
-
-      const uploadedFile = {
-        id: result.fileId,
-        name: result.fileName,
-        url: result.fileUrl,
-        mimeType: file.type,
-        size: file.size,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: user?.name || "Unknown",
-        folderType: subfolder, // 🔥 Tag with subfolder
-      };
-
-      onUploadComplete([uploadedFile]);
-
-      setTimeout(() => {
-        setOpen(false);
-        setUploading(false);
-        setSelectedFile(null);
-        setProgress(0);
-        setCurrentUploadId(null);
-        checkResumableUploads();
-      }, 1500);
-    } catch (error: any) {
-      console.error("❌ Upload failed:", error);
-      
-      if (uploadId) {
-        await uploadStateManager.markAsFailed(uploadId, error.message);
-      }
-      
-      setError(error.message || "Upload failed");
-      setUploading(false);
+    } catch (err) {
+      console.error("Initiation failed:", err);
+      setIsStarting(false);
+      // Maybe put files back? For now just log
     }
   };
 
-  const pauseUpload = async () => {
-    if (currentUploadId) {
-      await uploadStateManager.pauseUpload(currentUploadId);
-      setPaused(true);
-      setUploading(false);
-      checkResumableUploads();
-    }
-  };
-
-  const resumeUpload = async (uploadState: UploadState) => {
-    if (!selectedFile) {
-      setError("Please select the original file to resume");
-      return;
-    }
-    
-    await startUpload(selectedFile, uploadState);
-  };
-
-  const cancelUpload = async () => {
-    if (currentUploadId) {
-      const state = await uploadStateManager.getUploadState(currentUploadId);
-      if (state) {
-        await fetch("/api/upload/abort", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key: state.key, uploadId: state.uploadId }),
-        });
-      }
-      
-      await uploadStateManager.deleteUploadState(currentUploadId);
-      setUploading(false);
-      setPaused(false);
-      setCurrentUploadId(null);
-      checkResumableUploads();
-    }
-  };
+  const progress = currentUpload ? Math.round((currentUpload.uploadedBytes / currentUpload.fileSize) * 100) : 0;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => {
+      setOpen(v);
+      if (!v) {
+        setSelectedFiles([]);
+        setIsDragging(false);
+      }
+    }}>
       <DialogTrigger asChild>
         {trigger || (
           <Button size="sm">
             <Upload className="h-4 w-4 mr-2" />
-            Upload File
+            Upload Files
           </Button>
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Upload to Task Output
-            <RefreshCw className="h-4 w-4 text-blue-500" />
-            <span className="text-xs text-muted-foreground font-normal">Resumable</span>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100">
+              <RefreshCw className="h-3 w-3 animate-spin-slow" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Background</span>
+            </div>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Show resumable uploads */}
-          {resumableUploads.length > 0 && !uploading && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <p className="font-medium mb-2">Incomplete uploads found:</p>
-                {resumableUploads.map((upload) => (
-                  <div key={upload.id} className="flex items-center justify-between py-2">
-                    <div>
-                      <p className="text-sm">{upload.fileName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {Math.round((upload.uploadedBytes / upload.fileSize) * 100)}% complete
-                      </p>
-                    </div>
-                    <Button size="sm" onClick={() => resumeUpload(upload)}>
-                      <Play className="h-3 w-3 mr-1" />
-                      Resume
+        <div className="space-y-4 py-2">
+          {/* Resumable Uploads */}
+          {resumableUploads.length > 0 && !currentUpload && (
+            <Alert className="bg-amber-50 border-amber-200">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <p className="text-xs font-semibold mb-1">Unfinished uploads found</p>
+                {resumableUploads.map(upload => (
+                  <div key={upload.id} className="flex items-center justify-between py-1">
+                    <span className="text-[11px] truncate max-w-[180px] text-gray-700">{upload.fileName}</span>
+                    <Button size="sm" variant="outline" className="h-6 text-[10px] bg-white text-gray-700 border-amber-200 hover:bg-amber-100" onClick={() => setCurrentUploadId(upload.id)}>
+                      View Progress
                     </Button>
                   </div>
                 ))}
@@ -424,135 +207,158 @@ export function FileUploadDialog({
             </Alert>
           )}
 
-          {/* 🔥 Upload To Section - Locked or Selectable */}
-          {preselectedSubfolder ? (
-            // Locked folder display (like your second image)
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <FolderOpen className="h-4 w-4" />
-                <span>Upload To</span>
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <FolderOpen className="h-3.5 w-3.5" />
+              Target Folder
+            </Label>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3">
+              <div className="p-2 bg-amber-100 text-amber-600 rounded-lg">
+                <Folder className="h-4 w-4" />
               </div>
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center gap-2">
-                <span>📁</span>
-                <span className="font-medium text-sm">
-                  {getSubfolderLabel(preselectedSubfolder)}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Files will be uploaded to:{" "}
-                <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                  {task.title}/{preselectedSubfolder === "main" ? "" : `${preselectedSubfolder}/`}
-                </code>
-              </p>
+              <span className="font-semibold text-sm text-gray-700">{getSubfolderLabel(subfolder)}</span>
             </div>
-          ) : (
-            // Original dropdown for manual selection (fallback)
+          </div>
+
+          {!currentUpload && (
             <div className="space-y-2">
-              <Label htmlFor="subfolder" className="flex items-center gap-2">
-                <FolderOpen className="h-4 w-4" />
-                Upload To
+              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <FileIcon className="h-3.5 w-3.5" />
+                Upload Section
               </Label>
-              <div className="text-sm text-muted-foreground">
-                Manual upload mode - subfolder not specified
-              </div>
-            </div>
-          )}
-
-          {/* File Selection */}
-          {!uploading && !selectedFile && (
-            <div>
-              <input
-                type="file"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) setSelectedFile(file);
-                }}
-                className="hidden"
-                id="file-input"
-                accept="video/*,image/*,.pdf,.doc,.docx"
-              />
-              <label
-                htmlFor="file-input"
-                className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-8 cursor-pointer hover:border-primary transition-colors"
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={cn(
+                  "group flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl p-10 cursor-pointer transition-all",
+                  isDragging
+                    ? "border-primary bg-primary/5 scale-[1.02]"
+                    : "border-slate-200 hover:border-primary hover:bg-slate-50"
+                )}
+                onClick={() => document.getElementById('file-input')?.click()}
               >
-                <Upload className="h-6 w-6 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Click to select file
-                </span>
-              </label>
-            </div>
-          )}
-
-          {/* Selected File */}
-          {selectedFile && !uploading && !paused && (
-            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-              <FileIcon className="h-5 w-5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">{selectedFile.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatSize(selectedFile.size)}
-                </p>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedFile(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-
-          {/* Upload Progress */}
-          {uploading && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{selectedFile?.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {uploadSpeed > 0 && `${formatSpeed(uploadSpeed)} • `}
-                    {progress}% complete
+                <div className={cn(
+                  "p-4 rounded-full transition-colors",
+                  isDragging ? "bg-primary/20 text-primary" : "bg-slate-100 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary"
+                )}>
+                  <Upload className="h-8 w-8" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-gray-700">
+                    {isDragging ? "Drop files now" : "Click to upload or drag & drop"}
                   </p>
+                  <p className="text-xs text-slate-400">Multiple videos, images or documents</p>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={pauseUpload}>
-                    <Pause className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={cancelUpload}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="relative w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="absolute top-0 left-0 bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full transition-all"
-                  style={{ width: `${progress}%` }}
+                <input
+                  type="file"
+                  className="hidden"
+                  id="file-input"
+                  multiple
+                  onChange={handleFileSelect}
                 />
               </div>
             </div>
           )}
 
-          {/* Error */}
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+          {selectedFiles.length > 0 && !currentUpload && (
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <FileIcon className="h-3.5 w-3.5" />
+                Selected Files ({selectedFiles.length})
+              </Label>
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {selectedFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
+                    <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
+                      <FileVideo className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-900 truncate pr-6">{file.name}</p>
+                      <p className="text-[10px] font-medium text-gray-500">{formatSize(file.size)}</p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(idx);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
-          {/* Success */}
-          {progress === 100 && !error && (
-            <Alert>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <AlertDescription>Upload complete!</AlertDescription>
-            </Alert>
+          {currentUpload && (
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Active Upload
+              </Label>
+              <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-4 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                      <FileVideo className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate text-gray-900">{currentUpload.fileName}</p>
+                      <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">
+                        {currentUpload.status === 'uploading' ? 'Uploading...' : currentUpload.status}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    {currentUpload.status === 'uploading' && (
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-gray-100" onClick={() => pauseUpload(currentUpload.id)}>
+                        <Pause className="h-4 w-4 fill-current" />
+                      </Button>
+                    )}
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50" onClick={() => cancelUpload(currentUpload.id)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[11px] font-bold">
+                    <span className="text-blue-600">{progress}%</span>
+                    <span className="text-gray-400">{formatSize(currentUpload.uploadedBytes)} of {formatSize(currentUpload.fileSize)}</span>
+                  </div>
+                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-100">
+                    <div className="h-full bg-blue-500 transition-all duration-500 ease-out" style={{ width: `${progress}%` }} />
+                  </div>
+                </div>
+
+                <div className="flex justify-center">
+                  <p className="text-[10px] text-gray-400 italic">Upload will continue even if you close this window</p>
+                </div>
+              </div>
+            </div>
           )}
 
-          {/* Upload Button */}
-          {selectedFile && !uploading && !paused && (
+          {selectedFiles.length > 0 && !currentUpload && (
             <Button
-              onClick={() => startUpload(selectedFile)}
-              className="w-full"
+              onClick={handleStart}
+              disabled={isStarting}
+              className="w-full h-11 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold shadow-sm transition-all active:scale-[0.98]"
             >
-              <Zap className="h-4 w-4 mr-2" />
-              Start Upload
+              {isStarting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Starting Uploads...
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4 mr-2 text-yellow-400 fill-yellow-400" />
+                  Start {selectedFiles.length} Background {selectedFiles.length === 1 ? 'Upload' : 'Uploads'}
+                </>
+              )}
             </Button>
           )}
         </div>

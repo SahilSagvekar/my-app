@@ -1,0 +1,28 @@
+{
+    "crons": [
+        {
+            "path": "/api/cron/client-review-reminder",
+            "schedule": "0 9 * * *"
+        },
+        {
+            "path": "/api/cron/check-titling-jobs",
+            "schedule": "0,30 * * * *"
+        },
+        {
+            "path": "/api/cron/recurring",
+            "schedule": "0 6 * * *"
+        },
+        {
+            "path": "/api/cron/meta-sync",
+            "schedule": "0 2 * * *"
+        },
+        {
+            "path": "/api/cron/youtube-sync",
+            "schedule": "0 3 * * *"
+        },
+        {
+            "path": "/api/reports/cron-email",
+            "schedule": "30 19 * * 1-5"
+        }
+    ]
+}

@@ -30,7 +30,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Slack user email not available" }, { status: 400 });
   }
 
-  let user = await prisma.user.findUnique({ where: { email } });
+  let user = await prisma.user.findFirst({ where: { email } });
   if (!user) {
     user = await prisma.user.create({
       data: {
@@ -39,6 +39,10 @@ export async function GET(req: Request) {
         role: "client",
       },
     });
+  }
+
+  if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+    return NextResponse.redirect(`${process.env.GOOGLE_REDIRECT_URI}/login?error=account_deactivated`);
   }
 
   const token = jwt.sign(

@@ -201,15 +201,14 @@ export async function POST(
 
       if (!deliverable) continue;
 
-      // Duplicate prevention
-      const monthStart = new Date(targetYear, targetMonth, 1);
-      const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+      // Duplicate prevention using recurringMonth to identify cycle
+      const recurringMonthLabel = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
 
       const existingTasks = await prisma.task.count({
         where: {
           clientId,
           monthlyDeliverableId: deliverable.id,
-          dueDate: { gte: monthStart, lte: monthEnd },
+          recurringMonth: recurringMonthLabel,
         },
       });
 
@@ -236,7 +235,7 @@ export async function POST(
 
       for (let i = 0; i < dueDates.length; i++) {
         const taskNumber = startIndex + i;
-        const title = `${clientSlug}_${createdDateStr}_${deliverableSlug}${taskNumber}`;
+        const title = `${companyName}_${createdDateStr}_${deliverableSlug}${taskNumber}`;
 
         let outputFolderId: string | null = null;
         try {
@@ -258,6 +257,7 @@ export async function POST(
             clientUserId: client.userId,
             monthlyDeliverableId: deliverable.id,
             outputFolderId,
+            recurringMonth: recurringMonthLabel,
             qc_specialist: templateTask?.qc_specialist,
             scheduler: templateTask?.scheduler,
             videographer: templateTask?.videographer,

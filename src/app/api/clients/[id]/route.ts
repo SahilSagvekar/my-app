@@ -1,17 +1,36 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
+import jwt from "jsonwebtoken";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
 
+    // Get current month date range
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
     const client = await prisma.client.findUnique({
       where: { id: id },
       include: {
         monthlyDeliverables: true,
+        oneOffDeliverables: true,
         brandAssets: true,
         recurringTasks: true,
+        tasks: {
+          where: {
+            createdAt: {
+              gte: startOfMonth,
+              lte: endOfMonth,
+            },
+          },
+          select: {
+            id: true,
+            status: true,
+          },
+        },
       }
     });
 
@@ -19,11 +38,23 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
+    // Calculate total deliverables for the month
+    const totalDeliverables = (client.monthlyDeliverables ?? []).reduce(
+      (sum, d) => sum + (d.quantity ?? 0),
+      0
+    );
+
+    // Count completed tasks (COMPLETED or SCHEDULED means posted/done)
+    const completedTasks = (client.tasks ?? []).filter(
+      (t) => t.status === "COMPLETED" || t.status === "SCHEDULED"
+    ).length;
+
     const normalizedClient = {
       ...client,
       emails: client.emails ?? [],
       phones: client.phones ?? [],
       monthlyDeliverables: client.monthlyDeliverables ?? [],
+      oneOffDeliverables: client.oneOffDeliverables ?? [],
       brandAssets: client.brandAssets ?? [],
       recurringTasks: client.recurringTasks ?? [],
       brandGuidelines: client.brandGuidelines ?? {
@@ -51,7 +82,13 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
         notes: "",
       },
       postingSchedule: client.postingSchedule ?? {},
-      currentProgress: client.currentProgress ?? { completed: 0, total: 0 },
+      // 🔥 Dynamic progress calculation
+      currentProgress: {
+        completed: completedTasks,
+        total: totalDeliverables,
+      },
+      // Remove tasks from response to keep it clean
+      tasks: undefined,
     };
 
     return NextResponse.json({ client: normalizedClient });
@@ -84,9 +121,14 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       projectSettings,
       billing,
       postingSchedule,
-      clientReviewRequired,       
-      videographerRequired,       
+      clientReviewRequired,
+      videographerRequired,
+      hasPostingServices,
+      slackWebhookUrl,
+      slackChannelName,
+      slackEnabled,
       monthlyDeliverables = [],
+      oneOffDeliverables = [],
     } = data;
 
     if (clientReviewRequired === "yes") {
@@ -116,8 +158,12 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         projectSettings,
         billing,
         postingSchedule,
-        requiresClientReview: clientReview,     
-        requiresVideographer: videographer,  
+        requiresClientReview: clientReview,
+        requiresVideographer: videographer,
+        hasPostingServices,
+        ...(slackWebhookUrl !== undefined && { slackWebhookUrl }),
+        ...(slackChannelName !== undefined && { slackChannelName }),
+        ...(slackEnabled !== undefined && { slackEnabled }),
       },
     });
 
@@ -131,7 +177,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     console.log("📦 Existing deliverables in DB:", existing.length, "items");
 
     const existingIds = existing.map((d) => d.id);
-    
+
     // Filter out frontend-generated IDs (they start with "deliverable-")
     const incomingDbIds = monthlyDeliverables
       .map((d: any) => d.id)
@@ -157,7 +203,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     // Update or create deliverables
     for (const d of monthlyDeliverables) {
       const isExistingDbRecord = d.id && existingIds.includes(d.id);
-      
+
       if (isExistingDbRecord) {
         // UPDATE existing deliverable
         console.log("✏️ Updating deliverable:", d.id);
@@ -193,11 +239,72 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       }
     }
 
+    // 🔥 Handle one-off deliverables
+    console.log("📦 Processing oneOffDeliverables:", oneOffDeliverables.length, "items");
+
+    const existingOneOffs = await prisma.oneOffDeliverable.findMany({
+      where: { clientId: id },
+    });
+
+    const existingOneOffIds = existingOneOffs.map((o) => o.id);
+
+    // Filter out temporary IDs (starting with "temp-")
+    const incomingOneOffDbIds = oneOffDeliverables
+      .map((o: any) => o.id)
+      .filter((oid: string) => oid && !oid.startsWith("temp-"));
+
+    // Delete removed one-offs
+    const toDeleteOneOffs = existingOneOffIds.filter((oid) => !incomingOneOffDbIds.includes(oid));
+
+    if (toDeleteOneOffs.length > 0) {
+      await prisma.oneOffDeliverable.deleteMany({
+        where: { id: { in: toDeleteOneOffs } },
+      });
+    }
+
+    // Update or create one-offs
+    for (const o of oneOffDeliverables) {
+      const isExisting = o.id && existingOneOffIds.includes(o.id);
+
+      if (isExisting) {
+        await prisma.oneOffDeliverable.update({
+          where: { id: o.id },
+          data: {
+            type: o.type,
+            quantity: o.quantity,
+            videosPerDay: o.videosPerDay || 1,
+            postingSchedule: "one-off",
+            postingDays: o.postingDays || [],
+            postingTimes: o.postingTimes || [],
+            platforms: o.platforms || [],
+            description: o.description || "",
+            status: o.status || "PENDING",
+          }
+        });
+      } else {
+        await prisma.oneOffDeliverable.create({
+          data: {
+            clientId: id,
+            type: o.type,
+            quantity: o.quantity,
+            videosPerDay: o.videosPerDay || 1,
+            postingSchedule: "one-off",
+            postingDays: o.postingDays || [],
+            postingTimes: o.postingTimes || [],
+            platforms: o.platforms || [],
+            description: o.description || "",
+            status: "PENDING",
+          }
+        });
+      }
+    }
+
     // 🔥 Fetch the updated client with all relations to return
     const finalClient = await prisma.client.findUnique({
       where: { id },
       include: {
         monthlyDeliverables: true,
+        oneOffDeliverables: true,
         brandAssets: true,
         recurringTasks: true,
       },
@@ -205,8 +312,32 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 
     console.log("✅ Client updated successfully with", finalClient?.monthlyDeliverables.length, "deliverables");
 
-    return NextResponse.json({ 
-      success: true, 
+    // 🔥 Audit client update
+    const token = req.headers.get("cookie")?.match(/authToken=([^;]+)/)?.[1];
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+        await createAuditLog({
+          userId: decoded.userId,
+          action: AuditAction.CLIENT_UPDATED,
+          entity: "Client",
+          entityId: id,
+          details: `Updated client: ${name || companyName}`,
+          metadata: {
+            clientId: id,
+            updatedFields: Object.keys(data).filter(k => k !== 'monthlyDeliverables'),
+            deliverableChanges: {
+              added: monthlyDeliverables.filter((d: any) => !d.id || d.id.startsWith('deliverable-')).length,
+              deleted: toDelete.length
+            }
+          }
+        });
+      } catch { }
+    }
+
+    return NextResponse.json({
+      success: true,
       updated: {
         ...finalClient,
         emails: additionalEmails,
@@ -268,6 +399,10 @@ export async function DELETE(
       });
     }
 
+    await prisma.oneOffDeliverable.deleteMany({
+      where: { clientId: id },
+    });
+
     await prisma.brandAsset.deleteMany({
       where: { clientId: id },
     });
@@ -280,6 +415,29 @@ export async function DELETE(
       where: { id },
     });
 
+    // 🔥 Audit client deletion
+    const token = req.headers.get("cookie")?.match(/authToken=([^;]+)/)?.[1];
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+        await createAuditLog({
+          userId: decoded.userId,
+          action: AuditAction.CLIENT_DELETED,
+          entity: "Client",
+          entityId: id,
+          details: `Deleted client: ${deletedClient.name || deletedClient.companyName}`,
+          metadata: {
+            clientId: id,
+            clientName: deletedClient.name,
+            companyName: deletedClient.companyName,
+            tasksDeleted: taskIds.length,
+            deliverablesDeleted: deliverableIds.length
+          }
+        });
+      } catch { }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Client deleted successfully',
@@ -289,10 +447,10 @@ export async function DELETE(
   } catch (error: any) {
     console.error('DELETE client failed:', error);
     return NextResponse.json(
-      { 
-        error: 'Failed to delete client', 
+      {
+        error: 'Failed to delete client',
         details: error.message,
-        code: error.code 
+        code: error.code
       },
       { status: 500 }
     );

@@ -59,6 +59,7 @@ import {
   Filter,
   Gift,
   Loader2,
+  ShieldAlert,
 } from "lucide-react";
 import { SimpleCalendar } from "../ui/simple-calendar";
 // import {
@@ -760,8 +761,15 @@ export default function LeavesComponent() {
     }
   }, [editingEmployee, editEmployeeForm, isSavingEmployee]);
 
-  const handleDeleteUser = (userId: number) => {
-    console.log("Deleting user:", userId);
+  const handleDeleteUser = async (userId: number) => {
+    try {
+      await apiFetch(`/api/employee/${userId}`, { method: "DELETE" });
+      toast.success("Employee deleted");
+      await loadEmployees();
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Failed to delete employee");
+    }
   };
 
   const handleAddBonus = async () => {
@@ -794,8 +802,51 @@ export default function LeavesComponent() {
     }
   };
 
-  const handleUpdateUserStatus = (userId: number, newStatus: string) => {
-    console.log("Updating user status:", userId, newStatus);
+  const handleUpdateUserStatus = async (userId: number, currentStatus: string) => {
+    const action = currentStatus === 'active' ? 'deactivate' : 'activate';
+    const endpoint = `/api/employee/${userId}/${action}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        toast.success(`User successfully ${action}d`);
+        await loadEmployees();
+      } else {
+        toast.error(data.message || `Failed to ${action} user`);
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing user:`, error);
+      toast.error(`A system error occurred while trying to ${action} the user`);
+    }
+  };
+
+  const handleReset2FA = async (employee: any) => {
+    if (!confirm(`Are you sure you want to reset 2FA for ${employee.name}? They will be able to log in without a physical device, but will need to set up 2FA again to access sensitive areas.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${employee.id}/reset-2fa`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success(data.message || "2FA reset successfully");
+        // Log this action locally too if needed
+        console.log(`[ADMIN] Reset 2FA for user ${employee.id}`);
+      } else {
+        toast.error(data.error || "Failed to reset 2FA");
+      }
+    } catch (error) {
+      console.error("Error resetting 2FA:", error);
+      toast.error("An error occurred while resetting 2FA");
+    }
   };
 
   const handleOpenDetails = (leave: LeaveRow) => {
@@ -1315,12 +1366,7 @@ export default function LeavesComponent() {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() =>
-                              handleUpdateUserStatus(
-                                employee.id,
-                                employee.status === "active"
-                                  ? "inactive"
-                                  : "active"
-                              )
+                              handleUpdateUserStatus(employee.id, employee.status)
                             }
                           >
                             {employee.status === "active" ? (
@@ -1334,6 +1380,14 @@ export default function LeavesComponent() {
                                 Activate
                               </>
                             )}
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() => handleReset2FA(employee)}
+                            className="text-amber-600 focus:text-amber-600"
+                          >
+                            <ShieldAlert className="h-4 w-4 mr-2" />
+                            Reset 2FA
                           </DropdownMenuItem>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -1380,7 +1434,10 @@ export default function LeavesComponent() {
       {/* Leave Management Section */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Leave Management</h2>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-orange-600" />
+            Leave Management
+          </h2>
           <p className="text-sm text-muted-foreground">
             Review and approve employee leave requests.
           </p>

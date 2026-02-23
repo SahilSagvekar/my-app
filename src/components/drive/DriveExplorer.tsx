@@ -26,7 +26,11 @@ import {
   CheckCircle,
   Loader2,
   AlertTriangle,
+  Link as LinkIcon,
+  Share2
 } from "lucide-react";
+import { ShareDialog } from "../review/ShareDialog";
+import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,16 +82,8 @@ interface DriveExplorerProps {
 
 type ViewMode = "grid" | "list";
 
-interface UploadingFile {
-  name: string;
-  progress: number;
-  status: "uploading" | "completed" | "error";
-  error?: string;
-}
-
 export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [driveStructure, setDriveStructure] = useState<DriveItem | null>(null);
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
@@ -97,14 +93,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Upload states
-  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-
   // 🔥 NEW: Delete states
   const [itemToDelete, setItemToDelete] = useState<DriveItem | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 🔥 NEW: Share states
+  const [shareLink, setShareLink] = useState("");
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -183,73 +181,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    setShowUploadDialog(true);
-
-    const newUploadingFiles: UploadingFile[] = Array.from(files).map(
-      (file) => ({
-        name: file.name,
-        progress: 0,
-        status: "uploading",
-      })
-    );
-    setUploadingFiles(newUploadingFiles);
-
-    Array.from(files).forEach((file, index) => {
-      uploadFile(file, index);
-    });
-
-    event.target.value = "";
-  };
-
-  const uploadFile = async (file: File, index: number) => {
-    try {
-      const currentPath = getCurrentFolderS3Path();
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folderPath", currentPath);
-      formData.append("userId", user?.id?.toString() || "");
-      formData.append("role", role);
-
-      const response = await fetch("/api/drive/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
-
-      setUploadingFiles((prev) =>
-        prev.map((f, i) =>
-          i === index ? { ...f, progress: 100, status: "completed" } : f
-        )
-      );
-
-      toast.success(`${file.name} uploaded successfully`);
-
-      setTimeout(() => {
-        loadDriveStructure();
-      }, 1000);
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      setUploadingFiles((prev) =>
-        prev.map((f, i) =>
-          i === index ? { ...f, status: "error", error: error.message } : f
-        )
-      );
-      toast.error(`Failed to upload ${file.name}`);
-    }
-  };
-
   const getCurrentFolderS3Path = (): string => {
     if (breadcrumb.length <= 1) {
       return "";
@@ -258,16 +189,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return pathParts.join("/") + "/";
   };
 
-  const closeUploadDialog = () => {
-    const allCompleted = uploadingFiles.every(
-      (f) => f.status === "completed" || f.status === "error"
-    );
-
-    if (allCompleted) {
-      setShowUploadDialog(false);
-      setUploadingFiles([]);
-    }
-  };
+  const closeUploadDialog = () => { };
 
   // 🔥 NEW: Get S3 Key for item
   const getS3Key = (item: DriveItem): string => {
@@ -354,6 +276,51 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     setItemToDelete(null);
   };
 
+  // 🔥 NEW: Handle Share Link
+  const handleShareClick = async (item: DriveItem) => {
+    if (item.type !== "file") return;
+
+    setIsSharing(true);
+    setCopied(false);
+
+    try {
+      const s3Key = item.s3Key || getS3Key(item);
+
+      const response = await fetch("/api/drive/share", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          s3Key,
+          fileName: item.name,
+          fileSize: item.size,
+          mimeType: item.url ? (await fetch(item.url, { method: 'HEAD' })).headers.get('content-type') : null
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate share link");
+      }
+
+      const data = await response.json();
+      setShareLink(data.shareUrl);
+      setShowShareDialog(true);
+
+      // Auto-copy
+      await navigator.clipboard.writeText(data.shareUrl);
+      setCopied(true);
+      toast.success("Share link created and copied to clipboard");
+      setTimeout(() => setCopied(false), 3000);
+
+    } catch (error: any) {
+      console.error("Share error:", error);
+      toast.error("Failed to generate share link");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase();
 
@@ -374,6 +341,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
 
     return <FileIcon className="h-8 w-8 text-gray-500" />;
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true);
+    toast.success("Link copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const formatBytes = (bytes: number): string => {
@@ -415,65 +389,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   return (
     <div className="flex flex-col sm:flex-row h-screen bg-background">
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={handleFileSelect}
-      />
 
-      {/* Upload Progress Dialog */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Uploading files</DialogTitle>
-            <DialogDescription>
-              Uploading to: {breadcrumb.map((b) => b.name).join(" / ")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {uploadingFiles.map((file, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {file.status === "completed" ? (
-                      <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                    ) : file.status === "error" ? (
-                      <X className="h-4 w-4 text-red-500 flex-shrink-0" />
-                    ) : (
-                      <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
-                    )}
-                    <span className="text-sm truncate">{file.name}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground ml-2">
-                    {file.status === "completed"
-                      ? "Done"
-                      : file.status === "error"
-                      ? "Failed"
-                      : `${file.progress}%`}
-                  </span>
-                </div>
-                {file.status === "uploading" && (
-                  <Progress value={file.progress} className="h-1" />
-                )}
-                {file.status === "error" && file.error && (
-                  <p className="text-xs text-red-500">{file.error}</p>
-                )}
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={closeUploadDialog}
-              disabled={uploadingFiles.some((f) => f.status === "uploading")}
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Upload Progress Dialog Removed */}
 
       {/* 🔥 NEW: Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -516,58 +433,82 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Share Dialog */}
+      <ShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        shareLink={shareLink}
+        onCopy={handleCopyLink}
+        copied={copied}
+      />
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Toolbar */}
         <div className="border-b bg-card">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4">
-            <div className="flex-1 w-full sm:max-w-2xl">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center gap-4 p-3 sm:p-4">
+            {/* Left: Upload Button - Resumable */}
+            <FileUploadDialog
+              folderType="drive"
+              subfolder={getCurrentFolderS3Path()}
+              onUploadComplete={() => {
+                setTimeout(loadDriveStructure, 1000);
+              }}
+              trigger={
+                <Button className="gap-2 shrink-0 h-10 px-4">
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline font-medium">Upload</span>
+                </Button>
+              }
+            />
+
+            {/* Middle: Search bar */}
+            <div className="flex-1 max-w-2xl mx-auto">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
                 <Input
                   placeholder="Search in Drive"
-                  className="pl-10 bg-secondary/50 text-sm sm:text-base"
+                  className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Button
-                className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
-                onClick={handleUploadClick}
-              >
-                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Upload</span>
-              </Button>
-
-              <div className="flex gap-1 border rounded-md">
+            {/* Right: View toggle and Refresh */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <div className="flex bg-secondary/30 p-1 rounded-lg">
                 <Button
                   variant={viewMode === "grid" ? "secondary" : "ghost"}
                   size="icon"
-                  className="h-9 w-9 sm:h-10 sm:w-10"
+                  className={cn(
+                    "h-8 w-8 rounded-md transition-all",
+                    viewMode === "grid" ? "bg-background shadow-sm" : "hover:bg-background/50"
+                  )}
                   onClick={() => setViewMode("grid")}
                 >
-                  <Grid3x3 className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <Grid3x3 className="h-4 w-4" />
                 </Button>
                 <Button
                   variant={viewMode === "list" ? "secondary" : "ghost"}
                   size="icon"
-                  className="h-9 w-9 sm:h-10 sm:w-10"
+                  className={cn(
+                    "h-8 w-8 rounded-md transition-all",
+                    viewMode === "list" ? "bg-background shadow-sm" : "hover:bg-background/50"
+                  )}
                   onClick={() => setViewMode("list")}
                 >
-                  <List className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <List className="h-4 w-4" />
                 </Button>
               </div>
 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 sm:h-10 sm:w-10"
+                className="h-10 w-10 hover:bg-secondary/50 rounded-full"
                 onClick={loadDriveStructure}
               >
-                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
+                <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -617,10 +558,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     : "Upload files to get started"}
                 </p>
                 {!searchQuery && (
-                  <Button onClick={handleUploadClick}>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload files
-                  </Button>
+                  <FileUploadDialog
+                    folderType="drive"
+                    subfolder={getCurrentFolderS3Path()}
+                    onUploadComplete={() => {
+                      setTimeout(loadDriveStructure, 1000);
+                    }}
+                    trigger={
+                      <Button>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload files
+                      </Button>
+                    }
+                  />
                 )}
               </div>
             ) : viewMode === "grid" ? (
@@ -691,6 +641,23 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           Add to starred
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        {/* 🔥 NEW: Share Link Option */}
+                        {item.type === "file" && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShareClick(item);
+                            }}
+                            disabled={isSharing}
+                          >
+                            {isSharing ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Share2 className="h-4 w-4 mr-2" />
+                            )}
+                            Copy shareable link
+                          </DropdownMenuItem>
+                        )}
                         {/* 🔥 NEW: Delete Option */}
                         <DropdownMenuItem
                           onClick={() => handleDeleteClick(item)}
@@ -798,6 +765,22 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                 Add to starred
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
+                              {item.type === "file" && (
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShareClick(item);
+                                  }}
+                                  disabled={isSharing}
+                                >
+                                  {isSharing ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Share2 className="h-4 w-4 mr-2" />
+                                  )}
+                                  Copy shareable link
+                                </DropdownMenuItem>
+                              )}
                               {/* 🔥 NEW: Delete Option */}
                               <DropdownMenuItem
                                 onClick={() => handleDeleteClick(item)}

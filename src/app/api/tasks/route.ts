@@ -43,7 +43,7 @@
 //   return match ? match[1] : null;
 // }
 
-// const buildRoleWhereQuery = (role: string, userId: number): any => {
+// const buildRoleWhereQuery = (role: string | null, userId: number): any => {
 //   if (!role) {
 //     return {}; // Return empty query or default behavior
 //   }
@@ -385,11 +385,13 @@ import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { uploadBufferToS3, addSignedUrlsToFiles } from "@/lib/s3";
-import { TaskStatus } from "@prisma/client";
+// import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
+import { notifyUser } from "@/lib/notify";
+import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 // ─────────────────────────────────────────
 // Helpers
@@ -410,6 +412,59 @@ function getCurrentMonthFolder(): string {
   return `${month}-${year}`;
 }
 
+function getDeliverableShortCode(type: string) {
+  const normalized = type.toLowerCase().trim();
+  if (normalized === "short form videos") return "SF";
+  if (normalized === "long form videos") return "LF";
+  if (normalized === "square form videos") return "SQF";
+  if (normalized === "thumbnails") return "THUMB";
+  if (normalized === "tiles") return "T";
+  if (normalized === "hard posts / graphic images") return "HP";
+  if (normalized === "snapchat episodes") return "SEP";
+  if (normalized === "beta short form") return "BSF";
+  return type.replace(/\s+/g, "");
+}
+
+function formatDateMMDDYYYY(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${month}-${day}-${year}`;
+}
+
+async function createTaskFolderStructure(
+  companyName: string,
+  taskTitle: string
+): Promise<string> {
+  // Main task folder: CompanyName/outputs/TaskTitle/
+  const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+
+  await Promise.all([
+    s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: taskFolderPath,
+      ContentType: "application/x-directory",
+    })),
+    s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: `${taskFolderPath}thumbnails/`,
+      ContentType: "application/x-directory",
+    })),
+    s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: `${taskFolderPath}tiles/`,
+      ContentType: "application/x-directory",
+    })),
+    s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: `${taskFolderPath}music-license/`,
+      ContentType: "application/x-directory",
+    }))
+  ]);
+
+  return taskFolderPath;
+}
+
 export const config = {
   api: { bodyParser: false },
 };
@@ -421,7 +476,22 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
-const buildRoleWhereQuery = (role: string, userId: number): any => {
+function sanitizeBigInt(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "bigint") return Number(obj);
+  if (obj instanceof Date) return obj.toISOString(); // ✅ Serialize dates as ISO strings
+  if (Array.isArray(obj)) return obj.map(sanitizeBigInt);
+  if (typeof obj === "object") {
+    const newObj: any = {};
+    for (const key in obj) {
+      newObj[key] = sanitizeBigInt(obj[key]);
+    }
+    return newObj;
+  }
+  return obj;
+}
+
+const buildRoleWhereQuery = async (role: string | null, userId: number): Promise<any> => {
   if (!role) {
     return {};
   }
@@ -434,10 +504,10 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
           {
             status: {
               in: [
-                TaskStatus.PENDING,
-                TaskStatus.IN_PROGRESS,
-                TaskStatus.READY_FOR_QC,
-                TaskStatus.REJECTED,
+                "PENDING",
+                "IN_PROGRESS",
+                "READY_FOR_QC",
+                "REJECTED",
               ],
             },
           },
@@ -450,7 +520,7 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
           { qc_specialist: userId },
           {
             status: {
-              in: [TaskStatus.READY_FOR_QC, TaskStatus.COMPLETED, TaskStatus.REJECTED],
+              in: ["READY_FOR_QC", "COMPLETED", "REJECTED", "CLIENT_REVIEW"],
             },
           },
         ],
@@ -462,23 +532,43 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
           { scheduler: userId },
           {
             status: {
-              in: [TaskStatus.COMPLETED],
+              in: ["COMPLETED", "SCHEDULED"],
             },
           },
         ],
       };
 
-    case "client":
+    case "client": {
+      // 🔥 FIX: Resolve the actual clientId (via linkedClientId or fallback)
+      // so ALL users linked to the same client see the same tasks
+      const resolvedClientId = await resolveClientIdForUser(userId);
+
+      if (resolvedClientId) {
+        // Filter by clientId — all users linked to this client see the same tasks
+        return {
+          AND: [
+            { clientId: resolvedClientId },
+            {
+              status: {
+                in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED"],
+              },
+            },
+          ],
+        };
+      }
+
+      // Fallback: if no client link found, use old clientUserId filter (safety net)
       return {
         AND: [
           { clientUserId: Number(userId) },
           {
             status: {
-              in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED],
+              in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED"],
             },
           },
         ],
       };
+    }
 
     case "videographer":
       return {
@@ -486,7 +576,7 @@ const buildRoleWhereQuery = (role: string, userId: number): any => {
           { videographer: userId },
           {
             status: {
-              in: [TaskStatus.VIDEOGRAPHER_ASSIGNED],
+              in: ["VIDEOGRAPHER_ASSIGNED"],
             },
           },
         ],
@@ -511,15 +601,16 @@ const WEEKDAY_MAP: Record<string, number> = {
   Saturday: 6,
 };
 
-export async function GET(req: Request) {
+
+
+export async function GET(req: any) {
   try {
-    const token = getTokenFromCookies(req);
-    if (!token) {
+    const user = await getCurrentUser2(req);
+    if (!user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    const { role, userId } = decoded;
+    const { role, id: userId } = user;
 
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -528,7 +619,7 @@ export async function GET(req: Request) {
     const clientIdFilter = searchParams.get("clientId") as string | null; // 🔥 NEW: Client filter
 
     // Build role-based where query
-    let where: any = buildRoleWhereQuery(role, Number(userId));
+    let where: any = await buildRoleWhereQuery(role, Number(userId));
 
     // 🔥 ADD CLIENT FILTER - For filtering tasks by client
     if (clientIdFilter) {
@@ -544,7 +635,7 @@ export async function GET(req: Request) {
     }
 
     // 🔥 ADD STATUS FILTER - ALLOW COMMA SEPARATED STATUSES
-    const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED", "PENDING", "IN_PROGRESS", "CLIENT_REVIEW", "SCHEDULED", "VIDEOGRAPHER_ASSIGNED"];
+    const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED", "PENDING", "IN_PROGRESS", "CLIENT_REVIEW", "SCHEDULED", "VIDEOGRAPHER_ASSIGNED", "POSTED"];
 
     if (statusFilter) {
       const statuses = statusFilter.split(",").map((s) => s.trim().toUpperCase());
@@ -580,74 +671,143 @@ export async function GET(req: Request) {
       }
     }
 
-    const tasks = await prisma.task.findMany({
-      where,
-      // take: limit,
-      // skip: (page - 1) * limit,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        taskType: true,
-        status: true,
-        dueDate: true,
-        assignedTo: true,
-        createdBy: true,
-        clientId: true,
-        clientUserId: true,
-        files: {
-          select: {
-            id: true,
-            name: true,
-            url: true,
-            s3Key: true,
-            mimeType: true,
-            size: true,
-            uploadedAt: true,
-            uploadedBy: true,
-            folderType: true,
-            version: true,
+    let tasks: any[];
+    try {
+      tasks = await (prisma.task as any).findMany({
+        where,
+        // take: limit,
+        // skip: (page - 1) * limit,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          taskType: true,
+          status: true,
+          dueDate: true,
+          assignedTo: true,
+          createdBy: true,
+          clientId: true,
+          clientUserId: true,
+          files: {
+            select: {
+              id: true,
+              name: true,
+              url: true,
+              s3Key: true,
+              mimeType: true,
+              size: true,
+              uploadedAt: true,
+              uploadedBy: true,
+              folderType: true,
+              version: true,
+              isActive: true,
+              codec: true,
+            },
+          },
+          driveLinks: true,
+
+          createdAt: true,
+          priority: true,
+          taskCategory: true,
+          nextDestination: true,
+          requiresClientReview: true,
+          workflowStep: true,
+          folderType: true,
+          qcNotes: true,
+          feedback: true,
+          shootDetail: true,
+          // files: true,
+          deliverableType: true,
+          monthlyDeliverableId: true,
+          monthlyDeliverable: true,
+          oneOffDeliverableId: true,
+          oneOffDeliverable: true,
+          socialMediaLinks: true,
+          updatedAt: true,
+          client: {
+            select: {
+              name: true,
+              companyName: true,
+            }
+          },
+          user: {
+            select: {
+              name: true,
+              role: true,
+            },
+          },
+          // 🔥 Include QC reviewer info
+          qcReviewedBy: true,
+          qcReviewedAt: true,
+          qcResult: true,
+          qcReviewer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          taskFeedback: {
+            select: {
+              id: true,
+              fileId: true,
+              folderType: true,
+              feedback: true,
+              status: true,
+              timestamp: true,
+              category: true,
+              createdAt: true,
+              resolvedAt: true,
+              file: {
+                select: {
+                  version: true,
+                  name: true,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  role: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' as const },
           },
         },
-        driveLinks: true,
+      });
+    } catch (e: any) {
+      if (e.message?.includes("Expected TaskStatus") || e.code === "P2009" || e.message?.includes("validation")) {
+        console.warn("⚠️ findMany failed due to enum mismatch. Falling back to queryRaw...");
+        // This is a simplified fallback that just gets the basic fields needed for the dashboard
+        // A full raw query with all joins would be massive, so we try to provide what's necessary
+        tasks = await prisma.$queryRawUnsafe(`
+          SELECT t.*, 
+                 c.name as "clientName", c."companyName" as "clientCompanyName",
+                 u.name as "userName", u.role as "userRole"
+          FROM "Task" t
+          LEFT JOIN "Client" c ON t."clientId" = c.id
+          LEFT JOIN "User" u ON t."assignedTo" = u.id
+          ORDER BY t."createdAt" DESC
+        `);
 
-        createdAt: true,
-        priority: true,
-        taskCategory: true,
-        nextDestination: true,
-        requiresClientReview: true,
-        workflowStep: true,
-        folderType: true,
-        qcNotes: true,
-        feedback: true,
-        // files: true,
-        monthlyDeliverableId: true,
-        monthlyDeliverable: true,
-        socialMediaLinks: true,
-        // 🔥 Task feedback temporarily removed - will be re-enabled after Prisma client regeneration
-        // taskFeedback: {
-        //   select: {
-        //     id: true,
-        //     fileId: true,
-        //     folderType: true,
-        //     feedback: true,
-        //     status: true,
-        //     timestamp: true,
-        //     category: true,
-        //     createdAt: true,
-        //     resolvedAt: true,
-        //     file: {
-        //       select: {
-        //         version: true,
-        //         name: true,
-        //       },
-        //     },
-        //   },
-        //   orderBy: { createdAt: 'desc' as const },
-        // },
-      },
-    });
+        // Fetch files separately for these tasks since complex joins are hard in raw SQL
+        const taskIds = (tasks as any[]).map(t => t.id);
+        const allFiles: any[] = taskIds.length > 0
+          ? await prisma.$queryRawUnsafe(`SELECT * FROM "File" WHERE "taskId" IN (${taskIds.map(id => `'${id}'`).join(',')})`)
+          : [];
+
+        tasks = tasks.map(t => ({
+          ...t,
+          client: { name: t.clientName, companyName: t.clientCompanyName },
+          user: { name: t.userName, role: t.userRole },
+          files: allFiles.filter(f => f.taskId === t.id),
+          taskFeedback: [] // Feedback is less critical for fallback
+        }));
+      } else {
+        throw e;
+      }
+    }
 
     // const sortedTasks = tasks.sort((a, b) => {
     //   const extractNumber = (title: string | null) => {
@@ -678,7 +838,7 @@ export async function GET(req: Request) {
     };
 
     // Sort: company → date → prefix → number
-    const sortedTasks = tasks.sort((a, b) => {
+    const sortedTasks = tasks.sort((a: any, b: any) => {
       const taskA = extractSortParts(a.title);
       const taskB = extractSortParts(b.title);
 
@@ -707,7 +867,7 @@ export async function GET(req: Request) {
     // // ✅ NO COUNT QUERY - just return tasks
     // 🔥 ADD SIGNED URLs TO ALL TASK FILES
     const tasksWithSignedUrls = await Promise.all(
-      sortedTasks.map(async (task) => {
+      sortedTasks.map(async (task: any) => {
         if (task.files && task.files.length > 0) {
           const filesWithSignedUrls = await addSignedUrlsToFiles(task.files);
           return {
@@ -719,29 +879,35 @@ export async function GET(req: Request) {
       })
     );
 
-    // ✅ Return tasks with signed URLs
-    return NextResponse.json({ tasks: tasksWithSignedUrls }, { status: 200 });
+    // ✅ Return tasks with signed URLs (Sanitized for BigInt)
+    return NextResponse.json({ tasks: sanitizeBigInt(tasksWithSignedUrls) }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
     return NextResponse.json(
-      { message: "Server error", error: err.message },
+      {
+        message: "Server error",
+        error: err.message,
+        stack: err.stack,
+        details: err.code === 'P2009' ? 'Query validation error' : 'Unknown Prisma error'
+      },
       { status: 500 }
     );
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: any) {
   try {
     // 🔒 AUTH
-    const token = getTokenFromCookies(req);
-    if (!token)
+    const user = await getCurrentUser2(req);
+    if (!user)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    const { role, id: userId } = user;
 
-    const { role, userId } = decoded;
+    // 🔒 Editors can only create tasks if explicitly permitted for the target client
+    const isEditorCreate = role?.toLowerCase() === 'editor';
 
-    if (!["admin", "manager"].includes(decoded.role)) {
+    if (!role || (!["admin", "manager"].includes(role.toLowerCase()) && !isEditorCreate)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
@@ -750,16 +916,40 @@ export async function POST(req: Request) {
 
     const description = form.get("description") as string;
     const dueDate = form.get("dueDate") as string;
-    const assignedTo = Number(form.get("assignedTo"));
-    const qc_specialist = Number(form.get("qc_specialist"));
-    const scheduler = Number(form.get("scheduler"));
-    const videographer = Number(form.get("videographer"));
+    // Editors are always assigned to themselves; admins read from form
+    const assignedTo = isEditorCreate ? Number(userId) : Number(form.get("assignedTo"));
+    const qc_specialist = isEditorCreate ? 0 : Number(form.get("qc_specialist"));
+    const scheduler = isEditorCreate ? 0 : Number(form.get("scheduler"));
+    const videographer = isEditorCreate ? 0 : Number(form.get("videographer"));
     const clientId = form.get("clientId") as string;
     const folderType = form.get("folderType") as string;
-    const monthlyDeliverableId = form.get("monthlyDeliverableId") as string;
+    const monthlyDeliverableId = isEditorCreate ? '' : (form.get("monthlyDeliverableId") as string);
+    const oneOffDeliverableId = form.get("oneOffDeliverableId") as string;
 
+    // 🔥 EDITOR PERMISSION CHECK
+    if (isEditorCreate) {
+      if (!clientId || !oneOffDeliverableId) {
+        return NextResponse.json({ message: "clientId and oneOffDeliverableId are required" }, { status: 400 });
+      }
+      const perm = await (prisma as any).editorClientPermission.findUnique({
+        where: { editorId_clientId: { editorId: Number(userId), clientId } },
+      });
+      if (!perm) {
+        return NextResponse.json({ message: "You do not have permission to create tasks for this client" }, { status: 403 });
+      }
+    }
 
-    if (!assignedTo || !clientId) {
+    // 🔥 SHOOT SPECIFIC FIELDS
+    const shootLocation = form.get("shootLocation") as string;
+    const shootDate = form.get("shootDate") as string;
+    const shootCamera = form.get("shootCamera") as string;
+    const shootQuality = form.get("shootQuality") as string;
+    const shootFrameRate = form.get("shootFrameRate") as string;
+    const shootLighting = form.get("shootLighting") as string;
+    const shootExclusions = form.get("shootExclusions") as string;
+    const shootReferenceLinks = form.get("shootReferenceLinks") as string;
+
+    if (!isEditorCreate && (!assignedTo || !clientId)) {
       return NextResponse.json(
         { message: "Missing required fields" },
         { status: 400 }
@@ -782,8 +972,6 @@ export async function POST(req: Request) {
         userId: true,
       },
     });
-
-
 
     if (!client)
       return NextResponse.json(
@@ -817,7 +1005,7 @@ export async function POST(req: Request) {
       folderPrefix = client.essentialsFolderId || '';
     }
 
-    if (!folderPrefix) {
+    if (!folderPrefix && !isEditorCreate) {
       return NextResponse.json(
         { message: `Missing folder for ${folderType}` },
         { status: 400 }
@@ -837,14 +1025,15 @@ export async function POST(req: Request) {
         qc_specialist,
         scheduler,
         videographer,
-        createdBy: decoded.userId,
+        createdBy: userId,
         clientId: clientId,
         clientUserId: client?.userId,
-        monthlyDeliverableId: monthlyDeliverableId,
+        monthlyDeliverableId: monthlyDeliverableId || null,
+        oneOffDeliverableId: oneOffDeliverableId || null,
         driveLinks: uploadedLinks,
         folderType: effectiveFolderType,
         requiresClientReview: client.requiresClientReview,
-        status: client.requiresVideographer
+        status: (client.requiresVideographer || shootLocation || shootCamera)
           ? "VIDEOGRAPHER_ASSIGNED"
           : "PENDING",
       },
@@ -864,6 +1053,19 @@ export async function POST(req: Request) {
         status: task.status
       },
     });
+
+    // 🔔 Notify the assigned editor
+    try {
+      await notifyUser({
+        userId: assignedTo,
+        type: "task_assigned",
+        title: "New Task Assigned",
+        body: `You have been assigned a new task: ${task.title || "Untitled"}`,
+        payload: { taskId: task.id, clientId: task.clientId }
+      });
+    } catch (err) {
+      console.error("Failed to send assignment notification:", err);
+    }
 
     // 📤 UPLOAD FILES TO S3
     for (const file of files) {
@@ -885,7 +1087,7 @@ export async function POST(req: Request) {
           url: uploaded.url,
           mimeType: file.type,
           size: BigInt(buffer.length),
-          uploadedBy: decoded.userId,
+          uploadedBy: userId,
         },
       });
     }
@@ -896,8 +1098,68 @@ export async function POST(req: Request) {
       data: { driveLinks: uploadedLinks },
     });
 
-    // 🔁 AUTO GENERATE TASKS
-    await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
+    // 🔥 CREATE SHOOT DETAIL IF PROVIDED
+    if (shootLocation || shootDate || shootCamera || shootReferenceLinks) {
+      const referenceLinksArray = shootReferenceLinks
+        ? shootReferenceLinks.split(',').map(l => l.trim()).filter(Boolean)
+        : [];
+
+      await (prisma as any).shootDetail.create({
+        data: {
+          taskId: task.id,
+          location: shootLocation || null,
+          shootDate: shootDate ? new Date(shootDate) : null,
+          camera: shootCamera || null,
+          quality: shootQuality || null,
+          frameRate: shootFrameRate || null,
+          lighting: shootLighting || null,
+          exclusions: shootExclusions || null,
+          referenceLinks: referenceLinksArray,
+          videographerId: videographer || null
+        }
+      });
+    }
+
+    // 🔁 AUTO GENERATE TASKS (Only if it's a monthly deliverable)
+    if (monthlyDeliverableId) {
+      await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
+    } else if (oneOffDeliverableId) {
+      // 🔥 HANDLE ONE-OFF TASK NAMING AND FOLDERS
+      const deliverable = await prisma.oneOffDeliverable.findUnique({
+        where: { id: oneOffDeliverableId }
+      });
+
+      if (deliverable) {
+        const companyName = client.companyName || client.name;
+        const companyNameSlug = companyName.replace(/\s/g, '');
+        const deliverableSlug = getDeliverableShortCode(deliverable.type);
+        const createdAtStr = formatDateMMDDYYYY(task.createdAt);
+        const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}1`;
+
+        // Create folder structure
+        const taskFolderPath = await createTaskFolderStructure(companyName, title);
+
+        // Update task with title and folder
+        const updatedOneOff = await prisma.task.update({
+          where: { id: task.id },
+          data: {
+            title,
+            outputFolderId: taskFolderPath
+          }
+        });
+
+        console.log(`✅ One-off task updated: ${title}`);
+        return NextResponse.json(updatedOneOff, { status: 201 });
+      }
+    }
+
+    // For monthly tasks, we should fetch the task again as generateMonthlyTasksFromTemplate updates it
+    if (monthlyDeliverableId) {
+      const updatedMonthly = await prisma.task.findUnique({
+        where: { id: task.id }
+      });
+      return NextResponse.json(updatedMonthly || task, { status: 201 });
+    }
 
     return NextResponse.json(task, { status: 201 });
   } catch (err: any) {

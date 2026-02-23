@@ -1,10 +1,7 @@
 // src/lib/notify.ts
 import { prisma } from "@/lib/prisma";
-import { redisConnection } from "@/lib/redis";
-import { Queue } from "bullmq";
 import { broadcastNotification } from "@/lib/notifications-bus";
-
-const notifQueue = new Queue("notifications", { connection: redisConnection });
+import { deliverSlackNotification } from "@/lib/slack";
 
 export type NotifyOpts = {
   userId: string | number | null;    // recipient userId (null => broadcast)
@@ -12,18 +9,19 @@ export type NotifyOpts = {
   title: string;
   body?: string;
   payload?: Record<string, any>;
-  channels?: string[];               // default ["in-app","slack"] or ["in-app"]
+  channels?: string[];               // default ["in-app"]
 };
 
 /**
- * Creates notification in DB, broadcasts to SSE clients, and enqueues delivery job.
+ * Creates notification in DB and broadcasts to SSE clients.
+ * Also delivers to Slack (webhook + DM) if configured.
  * Use this from server-side logic (not the client).
  */
 export async function notifyUser(opts: NotifyOpts) {
-  const { userId, type, title, body, payload, channels = ["in-app", "slack"] } = opts;
+  const { userId, type, title, body, payload, channels = ["in-app"] } = opts;
 
-  // Normalise userId to string (Prisma type depends on your schema — adjust as needed)
-  const userIdValue = userId === null ? null : String(userId);
+  // Normalise userId to Number (Prisma schema expects Int)
+  const userIdValue = userId === null ? null : Number(userId);
 
   const notification = await prisma.notification.create({
     data: {
@@ -31,7 +29,7 @@ export async function notifyUser(opts: NotifyOpts) {
       type,
       title,
       body: body ?? null,
-      payload: payload ?? null,
+      payload: (payload as any) ?? null,
       channel: channels
     },
   });
@@ -43,12 +41,14 @@ export async function notifyUser(opts: NotifyOpts) {
     console.warn("SSE broadcast failed:", err);
   }
 
-  // Enqueue a job for channel delivery (Slack/email) - worker will handle retries
-  await notifQueue.add(
-    "deliver",
-    { notificationId: notification.id, channels },
-    { attempts: 5, backoff: { type: "exponential", delay: 1000 } }
-  );
+  // Deliver to Slack (webhook + DM) — fire-and-forget
+  deliverSlackNotification({
+    type,
+    title,
+    body,
+    payload,
+    userId: userIdValue,
+  }).catch((err) => console.warn("[Slack] delivery error:", err));
 
   return notification;
 }

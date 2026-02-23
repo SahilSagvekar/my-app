@@ -82,6 +82,8 @@ export function TaskUploadSections({
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [showHistory, setShowHistory] = useState<Record<string, boolean>>({});
+  const [showFeedback, setShowFeedback] = useState<Record<string, boolean>>({});
 
   const getUploadSections = (deliverableType: string): UploadSection[] => {
     const mainSection: UploadSection = {
@@ -207,7 +209,7 @@ export function TaskUploadSections({
 
   // Toggle history visibility
   const toggleHistory = (folderType: string) => {
-    setShowHistory((prev) => ({
+    setShowHistory((prev: Record<string, boolean>) => ({
       ...prev,
       [folderType]: !prev[folderType],
     }));
@@ -215,7 +217,7 @@ export function TaskUploadSections({
 
   // Toggle feedback visibility
   const toggleFeedbackVisibility = (folderType: string) => {
-    setShowFeedback((prev) => ({
+    setShowFeedback((prev: Record<string, boolean>) => ({
       ...prev,
       [folderType]: !prev[folderType],
     }));
@@ -265,24 +267,22 @@ export function TaskUploadSections({
     <div className="space-y-1.5">
       {/* Compact Status Bar */}
       <div
-        className={`flex items-center justify-between px-2 py-1 rounded text-xs ${
-          allRequiredFilesUploaded()
-            ? "bg-green-50 text-green-700 border border-green-200"
-            : "bg-amber-50 text-amber-700 border border-amber-200"
-        }`}
+        className={`flex items-center justify-between px-2 py-1 rounded text-xs ${allRequiredFilesUploaded()
+          ? "bg-green-50 text-green-700 border border-green-200"
+          : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+          }`}
       >
         <div className="flex items-center gap-1.5">
           {allRequiredFilesUploaded() ? (
             <CheckCircle className="h-3.5 w-3.5 text-green-600" />
           ) : (
-            <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+            <AlertCircle className="h-3.5 w-3.5 text-yellow-600" />
           )}
           <span className="font-medium">
             {allRequiredFilesUploaded()
               ? "Ready to Submit"
-              : `${sections.filter((s) => s.required && s.uploaded).length}/${
-                  sections.filter((s) => s.required).length
-                } Required Uploaded`}
+              : `${sections.filter((s) => s.required && s.uploaded).length}/${sections.filter((s) => s.required).length
+              } Required Uploaded`}
           </span>
         </div>
         {Object.keys(uploadedFiles).length > 0 && (
@@ -302,13 +302,12 @@ export function TaskUploadSections({
         return (
           <Card
             key={section.folderType}
-            className={`transition-all ${
-              section.uploaded
-                ? "border-green-500 bg-green-50/30"
-                : section.required
+            className={`transition-all ${section.uploaded
+              ? "border-green-500 bg-green-50/30"
+              : section.required
                 ? "border-amber-200"
                 : "border-gray-200"
-            }`}
+              }`}
           >
             <CardContent className="p-2">
               {/* Enhanced Header with Summary Info */}
@@ -318,9 +317,8 @@ export function TaskUploadSections({
                   onClick={() => toggleSection(section.folderType)}
                 >
                   <div
-                    className={`p-1 rounded shrink-0 ${
-                      section.uploaded ? "bg-green-100" : "bg-purple-100"
-                    }`}
+                    className={`p-1 rounded shrink-0 ${section.uploaded ? "bg-green-100" : "bg-purple-100"
+                      }`}
                   >
                     <span className="text-base">{section.icon}</span>
                   </div>
@@ -367,9 +365,8 @@ export function TaskUploadSections({
                     )}
                   </div>
                   <ChevronDown
-                    className={`h-3.5 w-3.5 text-gray-500 transition-transform shrink-0 ${
-                      isOpen ? "rotate-180" : ""
-                    }`}
+                    className={`h-3.5 w-3.5 text-gray-500 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""
+                      }`}
                   />
                 </div>
               </div>

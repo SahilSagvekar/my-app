@@ -1,10 +1,26 @@
 import nodemailer from 'nodemailer';
 import { NextRequest, NextResponse } from 'next/server';
+import { getGeoLocation, formatLocation } from '@/lib/geo';
+
+// 🔥 Global BCC - All emails will be copied to this address for monitoring
+const GLOBAL_BCC_EMAIL = 'sahilsagvekar230@gmail.com';
 
 // Basic in-memory rate limiter (per-IP). For production use a shared store like Redis.
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const RATE_LIMIT_MAX = 6; // max submissions per window
 const ipSubmissions = new Map<string, number[]>();
+
+// Helper function to add global BCC to mail options
+const addGlobalBcc = (mailOptions: any) => {
+  if (mailOptions.bcc) {
+    mailOptions.bcc = Array.isArray(mailOptions.bcc)
+      ? [...mailOptions.bcc, GLOBAL_BCC_EMAIL]
+      : [mailOptions.bcc, GLOBAL_BCC_EMAIL];
+  } else {
+    mailOptions.bcc = GLOBAL_BCC_EMAIL;
+  }
+  return mailOptions;
+};
 
 
 function escapeHtml(unsafe: string) {
@@ -31,7 +47,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Rate-limiting per IP
-    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown';
+
+    // Fetch location data
+    const locationData = await getGeoLocation(ip);
+    const locationString = formatLocation(locationData);
+    const googleMapsUrl = locationData?.lat && locationData?.lon
+      ? `https://www.google.com/maps?q=${locationData.lat},${locationData.lon}`
+      : null;
+
     const now = Date.now();
     const entries = ipSubmissions.get(ip) || [];
     const recent = entries.filter((ts) => ts > now - RATE_LIMIT_WINDOW_MS);
@@ -51,6 +75,7 @@ export async function POST(req: NextRequest) {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
       console.log(`To: ${recipient}`);
       console.log(`From: ${name} <${email}>`);
+      console.log(`Location: ${locationString}`);
       console.log('Message:');
       console.log(message);
       console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
@@ -73,15 +98,23 @@ export async function POST(req: NextRequest) {
       to: recipient,
       subject: `New contact form submission from ${name}`,
       html: `
-        <p><strong>Name:</strong> ${escapeHtml(name)}</p>
-        <p><strong>Email:</strong> ${escapeHtml(email)}</p>
-        <p><strong>Message:</strong><br/>${escapeHtml(message).replace(/\n/g, '<br/>')}</p>
-        <hr/>
-        <p>Received: ${new Date().toISOString()}</p>
+        <div style="font-family: sans-serif; line-height: 1.5; color: #333;">
+          <h2 style="color: #000; border-bottom: 1px solid #eee; padding-bottom: 10px;">New Message Received</h2>
+          <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+          <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+          <p><strong>Location:</strong> ${locationString} ${googleMapsUrl ? `<a href="${googleMapsUrl}" target="_blank" style="font-size: 12px; margin-left:10px;">(View on Map)</a>` : ''}</p>
+          <p><strong>IP Address:</strong> ${ip}</p>
+          <div style="margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-radius: 8px;">
+            <strong>Message:</strong><br/>
+            ${escapeHtml(message).replace(/\n/g, '<br/>')}
+          </div>
+          <hr style="margin-top: 30px; border: 0; border-top: 1px solid #eee;"/>
+          <p style="font-size: 11px; color: #999;">Received via E8 Productions Contact Form: ${new Date().toLocaleString()}</p>
+        </div>
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(addGlobalBcc(mailOptions));
 
     return NextResponse.json({ message: 'Message sent successfully' });
   } catch (err) {

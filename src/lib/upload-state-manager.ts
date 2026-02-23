@@ -18,6 +18,7 @@ interface UploadState {
   status: 'pending' | 'uploading' | 'paused' | 'completed' | 'failed';
   startedAt: number;
   lastUpdated: number;
+  subfolder?: string;
   error?: string;
 }
 
@@ -101,7 +102,7 @@ class UploadStateManager {
       state.status = 'completed';
       state.lastUpdated = Date.now();
       await db.put('uploads', state);
-      
+
       // Clean up chunks after completion
       setTimeout(() => this.deleteUploadState(id), 5000);
     }

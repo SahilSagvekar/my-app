@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
 
     const login = await prisma.socialLogin.create({
       data: {
-        clientId: isAdminOnlyLogin ? null : clientId,
+        clientId: isAdminOnlyLogin ? null : (clientId || null),
         platform,
         username,
         encryptedPassword,

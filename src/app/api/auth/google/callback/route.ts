@@ -46,6 +46,10 @@ export async function GET(req: Request) {
     });
   }
 
+  if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+    return NextResponse.redirect(`${process.env.BASE_URL}/login?error=account_deactivated`);
+  }
+
   // Generate JWT
   const token = jwt.sign(
     { userId: user.id, email: user.email, role: user.role },

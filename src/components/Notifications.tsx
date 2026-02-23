@@ -7,20 +7,20 @@ import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from './ui/sheet';
 import { useNotifications } from './NotificationContext';
-import { 
-  Bell, 
-  CheckCircle, 
-  AlertTriangle, 
-  Clock, 
-  FileText, 
-  User, 
-  MessageCircle, 
-  Calendar, 
-  Trash2, 
-  MarkAsRead,
+import {
+  Bell,
+  CheckCircle,
+  AlertTriangle,
+  Clock,
+  FileText,
+  User,
+  MessageCircle,
+  Calendar,
+  Trash2,
   X,
   Shield,
-  Eye
+  Eye,
+  BookOpen
 } from 'lucide-react';
 
 interface NotificationsProps {
@@ -59,6 +59,9 @@ export function Notifications({ currentRole }: NotificationsProps) {
         return <Calendar className="h-4 w-4 text-orange-500" />;
       case 'approval_request':
         return <Eye className="h-4 w-4 text-blue-500" />;
+      case 'guideline_added':
+      case 'guideline_updated':
+        return <BookOpen className="h-4 w-4 text-primary" />;
       default:
         return <Bell className="h-4 w-4 text-gray-500" />;
     }
@@ -111,7 +114,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
               )}
             </div>
             <p className={`text-sm ${notification.read ? 'text-muted-foreground' : 'text-foreground'}`}>
-              {notification.message}
+              {notification.body}
             </p>
             <div className="flex items-center gap-2 mt-2">
               {notification.user && (
@@ -123,7 +126,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
                 </div>
               )}
               <span className="text-xs text-muted-foreground">
-                {notification.timestamp}
+                {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : ""}
               </span>
             </div>
           </div>
@@ -164,7 +167,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-96 p-0">
+      <SheetContent className="w-96 p-0 flex flex-col h-full">
         <SheetHeader className="p-6 pb-4 pr-12">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2">
@@ -176,7 +179,7 @@ export function Notifications({ currentRole }: NotificationsProps) {
           <SheetDescription>
             View and manage your notifications and alerts
           </SheetDescription>
-          
+
           <div className="flex items-center gap-2 mt-4">
             <Button
               variant={filter === 'all' ? 'default' : 'outline'}
@@ -206,15 +209,15 @@ export function Notifications({ currentRole }: NotificationsProps) {
           )}
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-0">
+        <ScrollArea className="flex-1 overflow-auto">
           <div className="space-y-0">
             {filteredNotifications.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
                 <Bell className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <h3 className="text-lg font-medium mb-2">No notifications</h3>
                 <p className="text-sm">
-                  {filter === 'all' 
-                    ? "You're all caught up!" 
+                  {filter === 'all'
+                    ? "You're all caught up!"
                     : "No unread notifications"}
                 </p>
               </div>

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { ScrollArea } from './ui/scroll-area';
-import { User, Bell, Shield, Palette, Mail, Phone, Globe, Moon, Sun, Monitor, Save, Eye, EyeOff, Loader, Edit2 } from 'lucide-react';
+import { User, Bell, Shield, Palette, Mail, Phone, Globe, Moon, Sun, Monitor, Save, Eye, EyeOff, Loader, Edit2, MessageSquare, Link, Unlink, Send } from 'lucide-react';
 
 interface SettingsProps {
   currentRole: string;
@@ -22,7 +22,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     phone: '',
     role: '',
     image: '',
-    
+
     // Notification preferences
     emailNotifications: true,
     pushNotifications: true,
@@ -31,7 +31,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     teamUpdates: false,
     systemMaintenance: true,
     weeklyReports: true,
-    
+
     // Appearance settings
     theme: 'system',
     language: 'en',
@@ -48,16 +48,31 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
+  // Slack state
+  const [slackUserId, setSlackUserId] = useState<string | null>(null);
+  const [slackNotifications, setSlackNotifications] = useState(false);
+  const [slackLinking, setSlackLinking] = useState(false);
+  const [slackMessage, setSlackMessage] = useState('');
+
+  // Admin Slack webhook state
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
+  const [slackChannelName, setSlackChannelName] = useState('');
+  const [slackWebhookActive, setSlackWebhookActive] = useState(true);
+  const [slackWebhookLoading, setSlackWebhookLoading] = useState(false);
+
   // Fetch user profile on mount
   useEffect(() => {
     fetchProfile();
+    if (currentRole === 'admin') {
+      fetchSlackConfig();
+    }
   }, []);
 
   const fetchProfile = async () => {
     try {
       setLoading(true);
       setError('');
-      
+
       const response = await fetch('/api/profile', {
         method: 'GET',
         credentials: 'include', // This sends cookies automatically
@@ -97,12 +112,145 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         if (userData.image) {
           setPreviewUrl(userData.image);
         }
+        // Load Slack state
+        setSlackUserId(userData.slackUserId || null);
+        setSlackNotifications(userData.slackNotifications ?? false);
       }
     } catch (err: any) {
       console.error('Failed to fetch profile:', err);
       setError(err.message || 'Failed to load profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch admin Slack webhook config
+  const fetchSlackConfig = async () => {
+    try {
+      const res = await fetch('/api/admin/slack-config', { credentials: 'include' });
+      const data = await res.json();
+      if (data.success && data.config) {
+        setSlackWebhookUrl(data.config.webhookUrl || '');
+        setSlackChannelName(data.config.channelName || '');
+        setSlackWebhookActive(data.config.isActive ?? true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch Slack config:', err);
+    }
+  };
+
+  // Link Slack account
+  const handleSlackLink = async () => {
+    try {
+      setSlackLinking(true);
+      setSlackMessage('');
+      const res = await fetch('/api/slack/link', { method: 'POST', credentials: 'include' });
+      const data = await res.json();
+      if (data.success) {
+        setSlackUserId(data.slackUserId);
+        setSlackNotifications(true);
+        setSlackMessage(`Linked to Slack as ${data.slackName || data.slackUserId}`);
+      } else {
+        setSlackMessage(data.error || 'Failed to link Slack');
+      }
+    } catch (err: any) {
+      setSlackMessage(err.message || 'Failed to link Slack');
+    } finally {
+      setSlackLinking(false);
+      setTimeout(() => setSlackMessage(''), 4000);
+    }
+  };
+
+  // Unlink Slack account
+  const handleSlackUnlink = async () => {
+    try {
+      setSlackLinking(true);
+      const res = await fetch('/api/slack/link', { method: 'DELETE', credentials: 'include' });
+      const data = await res.json();
+      if (data.success) {
+        setSlackUserId(null);
+        setSlackNotifications(false);
+        setSlackMessage('Slack account unlinked');
+      }
+    } catch (err: any) {
+      setSlackMessage(err.message || 'Failed to unlink');
+    } finally {
+      setSlackLinking(false);
+      setTimeout(() => setSlackMessage(''), 4000);
+    }
+  };
+
+  // Toggle Slack notifications
+  const handleSlackToggle = async (enabled: boolean) => {
+    try {
+      const res = await fetch('/api/slack/toggle', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSlackNotifications(enabled);
+      } else {
+        setSlackMessage(data.error || 'Failed to update');
+        setTimeout(() => setSlackMessage(''), 4000);
+      }
+    } catch (err: any) {
+      setSlackMessage(err.message || 'Failed to update');
+      setTimeout(() => setSlackMessage(''), 4000);
+    }
+  };
+
+  // Save admin Slack webhook config
+  const handleSaveSlackConfig = async () => {
+    try {
+      setSlackWebhookLoading(true);
+      const res = await fetch('/api/admin/slack-config', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          webhookUrl: slackWebhookUrl,
+          channelName: slackChannelName,
+          isActive: slackWebhookActive,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessage('Slack webhook config saved!');
+        setTimeout(() => setMessage(''), 3000);
+      } else {
+        setError(data.error || 'Failed to save Slack config');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to save Slack config');
+    } finally {
+      setSlackWebhookLoading(false);
+    }
+  };
+
+  // Send test Slack message
+  const handleTestSlackWebhook = async () => {
+    try {
+      setSlackWebhookLoading(true);
+      const res = await fetch('/api/admin/slack-config', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl: slackWebhookUrl, test: true }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessage('Test message sent to Slack!');
+      } else {
+        setError(data.message || 'Test failed');
+      }
+      setTimeout(() => { setMessage(''); setError(''); }, 3000);
+    } catch (err: any) {
+      setError(err.message || 'Test failed');
+    } finally {
+      setSlackWebhookLoading(false);
     }
   };
 
@@ -114,7 +262,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         setError('Image size must be less than 1MB');
         return;
       }
-      
+
       setImageFile(file);
       // Create preview
       const reader = new FileReader();
@@ -134,6 +282,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
       const formDataToSend = new FormData();
       formDataToSend.append('name', formData.name || '');
       formDataToSend.append('phone', formData.phone || '');
+      formDataToSend.append('emailNotifications', String(formData.emailNotifications));
       // Note: Don't send 'role' as it's the system role (admin/editor/qc), not job title
 
       if (imageFile) {
@@ -163,7 +312,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         setMessage('Profile updated successfully!');
         setImageFile(null);
         setIsEditing(false);
-        
+
         // Update form data with response if provided
         if (data.data) {
           setFormData(prev => ({
@@ -178,7 +327,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
             setPreviewUrl(data.data.image);
           }
         }
-        
+
         setTimeout(() => {
           setMessage('');
         }, 3000);
@@ -208,38 +357,112 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     switch (currentRole) {
       case 'admin':
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-bold">
-                <Shield className="h-5 w-5" />
-                Admin Preferences
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label>System Maintenance Alerts</Label>
-                  <p className="text-sm text-muted-foreground">Get notified about system updates and maintenance</p>
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-bold">
+                  <Shield className="h-5 w-5" />
+                  Admin Preferences
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label>System Maintenance Alerts</Label>
+                    <p className="text-sm text-muted-foreground">Get notified about system updates and maintenance</p>
+                  </div>
+                  <Switch
+                    disabled={!isEditing}
+                    checked={formData.systemMaintenance}
+                    onCheckedChange={(checked) => handleInputChange('systemMaintenance', checked)}
+                  />
                 </div>
-                <Switch
-                  disabled={!isEditing}
-                  checked={formData.systemMaintenance}
-                  onCheckedChange={(checked) => handleInputChange('systemMaintenance', checked)}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label>Weekly Reports</Label>
-                  <p className="text-sm text-muted-foreground">Receive automated weekly performance reports</p>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label>Weekly Reports</Label>
+                    <p className="text-sm text-muted-foreground">Receive automated weekly performance reports</p>
+                  </div>
+                  <Switch
+                    disabled={!isEditing}
+                    checked={formData.weeklyReports}
+                    onCheckedChange={(checked) => handleInputChange('weeklyReports', checked)}
+                  />
                 </div>
-                <Switch
-                  disabled={!isEditing}
-                  checked={formData.weeklyReports}
-                  onCheckedChange={(checked) => handleInputChange('weeklyReports', checked)}
-                />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            {/* Slack Webhook Config (Admin Only) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-bold">
+                  <MessageSquare className="h-5 w-5 text-purple-600" />
+                  Slack Integration
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Webhook URL</Label>
+                  <Input
+                    value={slackWebhookUrl}
+                    onChange={(e) => setSlackWebhookUrl(e.target.value)}
+                    placeholder="https://hooks.slack.com/services/T00/B00/xxxx"
+                    disabled={!isEditing}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Incoming webhook URL for the team notification channel
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Channel Name</Label>
+                  <Input
+                    value={slackChannelName}
+                    onChange={(e) => setSlackChannelName(e.target.value)}
+                    placeholder="#e8-notifications"
+                    disabled={!isEditing}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label>Active</Label>
+                    <p className="text-sm text-muted-foreground">Enable/disable channel notifications</p>
+                  </div>
+                  <Switch
+                    checked={slackWebhookActive}
+                    onCheckedChange={setSlackWebhookActive}
+                    disabled={!isEditing}
+                  />
+                </div>
+
+                {isEditing && (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSaveSlackConfig}
+                      disabled={slackWebhookLoading || !slackWebhookUrl}
+                      className="flex items-center gap-2"
+                    >
+                      {slackWebhookLoading ? (
+                        <Loader className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Save Webhook
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleTestSlackWebhook}
+                      disabled={slackWebhookLoading || !slackWebhookUrl}
+                      className="flex items-center gap-2"
+                    >
+                      <Send className="h-4 w-4" />
+                      Send Test
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
         );
       case 'editor':
         return (
@@ -297,7 +520,7 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
         </div>
         <div className="flex gap-2">
           {!isEditing && (
-            <Button 
+            <Button
               onClick={() => setIsEditing(true)}
               className="flex items-center gap-2"
             >
@@ -484,6 +707,76 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
                         onCheckedChange={(checked) => handleInputChange('teamUpdates', checked)}
                       />
                     </div>
+
+                    <Separator />
+
+                    {/* Slack Notifications */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-purple-600" />
+                        <Label className="font-semibold">Slack Notifications</Label>
+                      </div>
+
+                      {slackMessage && (
+                        <p className={`text-sm ${slackMessage.includes('Failed') || slackMessage.includes('No Slack') ? 'text-red-600' : 'text-green-600'}`}>
+                          {slackMessage}
+                        </p>
+                      )}
+
+                      {!slackUserId ? (
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <p className="text-sm text-muted-foreground">
+                              Link your Slack account to receive DM notifications
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleSlackLink}
+                            disabled={slackLinking}
+                            className="flex items-center gap-2"
+                          >
+                            {slackLinking ? (
+                              <Loader className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Link className="h-3 w-3" />
+                            )}
+                            Link Slack
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                              <Label>Receive Slack DMs</Label>
+                              <p className="text-sm text-muted-foreground">
+                                Get notified via Slack direct messages
+                              </p>
+                            </div>
+                            <Switch
+                              checked={slackNotifications}
+                              onCheckedChange={handleSlackToggle}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">
+                              Slack ID: <span className="font-mono text-xs">{slackUserId}</span>
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleSlackUnlink}
+                              disabled={slackLinking}
+                              className="text-red-600 hover:text-red-700 flex items-center gap-1"
+                            >
+                              <Unlink className="h-3 w-3" />
+                              Unlink
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </section>
@@ -551,8 +844,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
       <div className="flex-shrink-0 border-t p-6">
         {isEditing ? (
           <div className="flex items-center gap-3">
-            <Button 
-              onClick={handleSave} 
+            <Button
+              onClick={handleSave}
               disabled={loading}
               className="flex items-center gap-2"
             >
@@ -563,8 +856,8 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
               )}
               {loading ? 'Saving...' : 'Save Changes'}
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleCancel}
               disabled={loading}
             >

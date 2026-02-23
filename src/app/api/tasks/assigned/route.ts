@@ -9,14 +9,16 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
-export async function GET(req: Request) {
+import { getCurrentUser2 } from "@/lib/auth";
+
+export async function GET(req: any) {
   try {
-    const token = getTokenFromCookies(req);
-    if (!token)
+    const user = await getCurrentUser2(req);
+    if (!user)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    const { userId, role } = decoded;
+    const userId = user.id;
+    const role = user.role || "";
 
     let tasks;
 
@@ -55,7 +57,7 @@ export async function GET(req: Request) {
 
       case "client":
         tasks = await prisma.task.findMany({
-          where: { 
+          where: {
             status: 'CLIENT_REVIEW',
             // clientId: userId 
           },

@@ -11,11 +11,12 @@ module.exports = {
             restart_delay: 5000,
             max_restarts: 10,
 
-            cron_restart: '*/15 * * * *',
+            // cron_restart: '*/15 * * * *', // Restarting every 15 mins causes 502s when cron jobs run!
 
             env: {
                 NODE_ENV: 'production',
                 PORT: 3000,
+                HOSTNAME: '127.0.0.1',
             },
 
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
@@ -58,6 +59,48 @@ module.exports = {
 
             watch: false,
             kill_timeout: 300000,  // 5 min for long video processing
+        },
+        {
+            name: 'cron-master',
+            script: 'src/scripts/cron-master.ts',
+            interpreter: 'node',
+            node_args: '--import tsx',
+            instances: 1,
+            exec_mode: 'fork',
+
+            max_memory_restart: '512M',
+            restart_delay: 5000,
+
+            env: {
+                NODE_ENV: 'production',
+                BASE_URL: 'http://127.0.0.1:3000',
+            },
+
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+            error_file: './logs/cron-error.log',
+            out_file: './logs/cron-out.log',
+            merge_logs: true,
+        },
+        {
+            name: 'cron-titling',
+            script: 'src/scripts/cron-titling.ts',
+            interpreter: 'node',
+            node_args: '--import tsx',
+            instances: 1,
+            exec_mode: 'fork',
+
+            max_memory_restart: '256M',
+            restart_delay: 5000,
+
+            env: {
+                NODE_ENV: 'production',
+                BASE_URL: 'http://localhost:3000',
+            },
+
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+            error_file: './logs/cron-titling-error.log',
+            out_file: './logs/cron-titling-out.log',
+            merge_logs: true,
         },
     ],
 };

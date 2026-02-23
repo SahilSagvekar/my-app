@@ -6,23 +6,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Whitelist Cloudinary for Next.js Image component
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'res.cloudinary.com',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.s3.us-east-1.amazonaws.com',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.amazonaws.com',
-      },
-    ],
-  },
   // Add these configurations
   experimental: {
     serverActions: {
@@ -50,7 +33,7 @@ const nextConfig = {
   //   ];
   // },
 
-   async headers() {
+  async headers() {
     return [
       {
         source: '/(.*)',
@@ -61,9 +44,10 @@ const nextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://res.cloudinary.com https://*.s3.us-east-1.amazonaws.com https://*.amazonaws.com",
-              "media-src 'self' blob: https://res.cloudinary.com https://*.s3.us-east-1.amazonaws.com https://*.amazonaws.com", // 🔥 This allows S3 videos + Cloudinary
-              "connect-src 'self' https://res.cloudinary.com https://*.s3.us-east-1.amazonaws.com https://*.amazonaws.com", // 🔥 This allows S3 API calls + Cloudinary
+              "img-src 'self' data: blob: https://*.s3.amazonaws.com https://*.amazonaws.com https://ui-avatars.com https://res.cloudinary.com",
+              "media-src 'self' blob: https://*.s3.amazonaws.com https://*.amazonaws.com",
+              "connect-src 'self' https://*.s3.amazonaws.com https://*.amazonaws.com",
+              "frame-src 'self' https://drive.google.com https://www.youtube.com https://*.s3.amazonaws.com",
               "font-src 'self' data:",
               "object-src 'none'",
               "base-uri 'self'",

@@ -1,50 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Card, CardContent } from '../ui/card';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
-import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Checkbox } from '../ui/checkbox';
-import { Input } from '../ui/input';
-import {
-    X,
-    Download,
-    Share,
-    Play,
-    Pause,
-    Volume2,
-    VolumeX,
-    Settings,
-    CheckCircle2,
-    MessageSquare,
-    Upload,
-    Calendar,
-    User,
-    Monitor,
-    HardDrive,
-    Clock,
-    ChevronLeft,
-    ChevronRight,
-    Maximize,
-    RotateCcw,
-    AlertCircle,
-    Rewind,
-    FastForward,
-    SkipBack,
-    SkipForward,
-    ArrowLeft,
-    Info,
-    Plus
-} from 'lucide-react';
 import { toast } from 'sonner';
 import { getVideoSource } from '../workflow/VideoUrlHelper';
-import { ReviewCommentCard, CommentInput, ReviewTimeline, StatusDropdown } from '../review';
-import { ReviewComment, ReviewStatus, REVIEW_STATUSES } from '../review/types';
+import { ReviewComment, ReviewStatus } from '../review/types';
 import { useAuth } from '../auth/AuthContext';
+import { ReviewScreenDesktop } from './ReviewScreenDesktop';
+import { ReviewScreenMobile } from './ReviewScreenMobile';
 
+/* ─── Types ───────────────────────────────────────────────────── */
 interface Version {
     id: string;
     number: string;
@@ -52,7 +17,7 @@ interface Version {
     duration: string;
     uploadDate: string;
     status: 'draft' | 'in_qc' | 'client_review' | 'approved';
-    url?: string; // Video URL for this version
+    url?: string;
 }
 
 interface ReviewAsset {
@@ -73,6 +38,7 @@ interface ReviewAsset {
     currentVersion: string;
     downloadEnabled: boolean;
     approvalLocked: boolean;
+    taskFeedback?: any[];
 }
 
 interface FullScreenReviewModalProps {
@@ -85,14 +51,10 @@ interface FullScreenReviewModalProps {
     userRole?: 'client' | 'qc';
     onSendToClient?: (asset: ReviewAsset) => void;
     onSendBackToEditor?: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
-    // 🔥 NEW: Section info for linking feedback to specific files
-    currentFileSection?: {
-        folderType: string;
-        fileId: string;
-        version: number;
-    };
-    // 🔥 NEW: Task ID for saving feedback
+    currentFileSection?: { folderType: string; fileId: string; version: number };
     taskId?: string;
+    requiresClientReview?: boolean;
+    shareToken?: string;
 }
 
 interface RevisionRequest {
@@ -110,6 +72,7 @@ interface RevisionRequest {
     }>;
 }
 
+/* ─────────────────────────────────────────────────────────────── */
 export function FullScreenReviewModalFrameIO({
     open,
     onOpenChange,
@@ -121,187 +84,199 @@ export function FullScreenReviewModalFrameIO({
     onSendToClient,
     onSendBackToEditor,
     currentFileSection,
-    taskId
+    taskId,
+    requiresClientReview = false,
+    shareToken,
 }: FullScreenReviewModalProps) {
-    // Auth context
     const { user } = useAuth();
 
-    // Video state
+    /* ── View mode: auto-detect on mount, user can toggle ── */
+    const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
+        if (typeof window !== 'undefined') {
+            return window.innerWidth < 768 ? 'mobile' : 'desktop';
+        }
+        return 'desktop';
+    });
+
+    /* ── Video state ── */
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [measuredResolution, setMeasuredResolution] = useState('');
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [currentVersion, setCurrentVersion] = useState('');
+    const currentVersionNumber = useMemo(() => {
+        const v = asset?.versions.find(v => v.id === currentVersion);
+        return v ? parseInt(v.number) : 1;
+    }, [asset, currentVersion]);
     const [currentVideoUrl, setCurrentVideoUrl] = useState('');
     const [videoError, setVideoError] = useState(false);
     const [iframeLoaded, setIframeLoaded] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
 
-    // Review state
-    const [reviewStatus, setReviewStatus] = useState<ReviewStatus['value']>('needs_review');
+    /* ── Review state ── */
     const [comments, setComments] = useState<ReviewComment[]>([]);
     const [activeCommentId, setActiveCommentId] = useState<string | undefined>();
     const [showCommentInput, setShowCommentInput] = useState(false);
     const [confirmFinal, setConfirmFinal] = useState(false);
     const [savingFeedback, setSavingFeedback] = useState(false);
 
-    // UI State
+    const sortedComments = useMemo(
+        () => [...comments].sort((a, b) => a.timestampSeconds - b.timestampSeconds),
+        [comments],
+    );
+
+    /* ── UI state ── */
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
     const [showInfoPanel, setShowInfoPanel] = useState(false);
+    const [showShareDialog, setShowShareDialog] = useState(false);
+    const [shareLink, setShareLink] = useState('');
+    const [generatingLink, setGeneratingLink] = useState(false);
+    const [linkCopied, setLinkCopied] = useState(false);
 
-    // Refs
+    /* ── Refs ── */
     const videoRef = useRef<HTMLVideoElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const commentsRef = useRef<HTMLDivElement>(null);
+    const lastTimeUpdateRef = useRef<number>(0);
 
-    // Video source - use currentVideoUrl state for version switching
-    const videoSource = currentVideoUrl ? getVideoSource(currentVideoUrl) : (asset ? getVideoSource(asset.videoUrl) : { type: 'video' as const, src: '' });
+    /* ── Video source ── */
+    const videoSource = useMemo(() => {
+        if (currentVideoUrl) return getVideoSource(currentVideoUrl);
+        if (asset) return getVideoSource(asset.videoUrl);
+        return { type: 'video' as const, src: '' };
+    }, [currentVideoUrl, asset]);
 
-    // Initialize state when asset changes
+    /* ── Initialise on asset change ── */
     useEffect(() => {
-        if (asset) {
-            setCurrentVersion(asset.currentVersion);
-            setCurrentVideoUrl(asset.videoUrl);
-            setIsPlaying(false);
-            setCurrentTime(0);
-            setConfirmFinal(false);
-            setShowApprovalSuccess(false);
-            setShowRevisionSuccess(false);
-            setVideoError(false);
-            setIframeLoaded(false);
-            setActiveCommentId(undefined);
-            setShowCommentInput(false);
+        if (!asset) return;
+        setCurrentVersion(asset.currentVersion);
+        setCurrentVideoUrl(asset.videoUrl);
+        setIsPlaying(false);
+        setCurrentTime(0);
+        setDuration(0);
+        setMeasuredResolution('');
+        setConfirmFinal(false);
+        setShowApprovalSuccess(false);
+        setShowRevisionSuccess(false);
+        setVideoError(false);
+        setIframeLoaded(false);
+        setActiveCommentId(undefined);
+        setShowCommentInput(false);
 
-            // Set initial review status based on asset status
-            if (asset.status === 'approved') {
-                setReviewStatus('approved');
-            } else if (asset.status === 'in_qc' || asset.status === 'client_review') {
-                setReviewStatus('needs_review');
-            } else {
-                setReviewStatus('needs_review');
-            }
-
-            // Clear comments when asset changes
+        if ((asset as any).taskFeedback) {
+            setComments(
+                (asset as any).taskFeedback.map((fb: any) => {
+                    const ts = fb.timestamp || '0:00';
+                    const parts = ts.split(':');
+                    const tsSeconds = parts.length === 2 ? parseInt(parts[0]) * 60 + parseInt(parts[1]) : 0;
+                    return {
+                        id: fb.id,
+                        taskId: asset.id,
+                        authorId: String(fb.user?.id || 0),
+                        authorName: fb.user?.name || 'Member',
+                        content: fb.feedback,
+                        timestamp: ts,
+                        timestampSeconds: tsSeconds,
+                        category: fb.category || 'other',
+                        createdAt: new Date(fb.createdAt),
+                        resolved: fb.status === 'resolved',
+                        version: fb.file?.version || 1,
+                    };
+                }),
+            );
+        } else {
             setComments([]);
         }
-    }, [asset]);
 
-    // Lock body scroll when modal is open
+        if (user) fetchExistingShareLinks(taskId || asset.id);
+    }, [asset, taskId, user]);
+
+    const fetchExistingShareLinks = async (id: string) => {
+        try {
+            const res = await fetch(`/api/tasks/${id}/share`);
+            const data = await res.json();
+            if (res.ok && data.links?.length > 0) setShareLink(data.links[0].shareUrl);
+        } catch {/* silent */ }
+    };
+
+    /* ── Lock scroll ── */
     useEffect(() => {
-        if (open) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
-        return () => {
-            document.body.style.overflow = 'unset';
-        };
+        document.body.style.overflow = open ? 'hidden' : 'unset';
+        return () => { document.body.style.overflow = 'unset'; };
     }, [open]);
 
-    // Keyboard shortcuts
+    /* ── Keyboard shortcuts (desktop only) ── */
     useEffect(() => {
-        const handleKeyPress = (e: KeyboardEvent) => {
+        if (viewMode !== 'desktop') return;
+        const handler = (e: KeyboardEvent) => {
             if (!open || showCommentInput || isDragging) return;
-
             switch (e.key) {
-                case ' ':
-                    e.preventDefault();
-                    togglePlay();
-                    break;
-                case 'Escape':
-                    onOpenChange(false);
-                    break;
-                case 'j':
-                case 'J':
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    seekBackward();
-                    break;
-                case 'k':
-                case 'K':
-                    e.preventDefault();
-                    togglePlay();
-                    break;
-                case 'l':
-                case 'L':
-                case 'ArrowRight':
-                    e.preventDefault();
-                    seekForward();
-                    break;
-                case 'm':
-                case 'M':
-                    e.preventDefault();
-                    toggleMute();
-                    break;
-                case 'c':
-                case 'C':
-                    e.preventDefault();
-                    setShowCommentInput(true);
-                    break;
+                case ' ': e.preventDefault(); togglePlay(); break;
+                case 'Escape': onOpenChange(false); break;
+                case 'j': case 'J': case 'ArrowLeft': e.preventDefault(); seekBackward(); break;
+                case 'k': case 'K': e.preventDefault(); togglePlay(); break;
+                case 'l': case 'L': case 'ArrowRight': e.preventDefault(); seekForward(); break;
+                case 'm': case 'M': e.preventDefault(); toggleMute(); break;
+                case 'c': case 'C': e.preventDefault(); setShowCommentInput(true); break;
             }
         };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, [open, showCommentInput, isDragging, viewMode]);
 
-        document.addEventListener('keydown', handleKeyPress);
-        return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [open, showCommentInput, isDragging]);
+    /* ── Video controls ── */
+    const togglePlay = useCallback(() => {
+        if (!videoRef.current) return;
+        isPlaying ? videoRef.current.pause() : videoRef.current.play();
+        setIsPlaying(!isPlaying);
+    }, [isPlaying]);
 
-    // Video controls
-    const togglePlay = () => {
-        if (videoRef.current) {
-            if (isPlaying) {
-                videoRef.current.pause();
-            } else {
-                videoRef.current.play();
-            }
-            setIsPlaying(!isPlaying);
+    const toggleMute = useCallback(() => {
+        if (!videoRef.current) return;
+        videoRef.current.muted = !isMuted;
+        setIsMuted(!isMuted);
+    }, [isMuted]);
+
+    const seekBackward = useCallback(() => {
+        if (videoRef.current) videoRef.current.currentTime = Math.max(0, currentTime - 10);
+    }, [currentTime]);
+
+    const seekForward = useCallback(() => {
+        if (videoRef.current) videoRef.current.currentTime = Math.min(duration, currentTime + 10);
+    }, [duration, currentTime]);
+
+    const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+        const time = e.currentTarget.currentTime;
+        if (Math.abs(time - lastTimeUpdateRef.current) >= 0.15 || time === 0 || time === duration) {
+            setCurrentTime(time);
+            lastTimeUpdateRef.current = time;
         }
     };
 
-    const toggleMute = () => {
-        if (videoRef.current) {
-            videoRef.current.muted = !isMuted;
-            setIsMuted(!isMuted);
-        }
-    };
-
-    const seekBackward = () => {
-        if (videoRef.current) {
-            videoRef.current.currentTime = Math.max(0, currentTime - 10);
-        }
-    };
-
-    const seekForward = () => {
-        if (videoRef.current) {
-            videoRef.current.currentTime = Math.min(duration, currentTime + 10);
-        }
-    };
-
-    const handleSeek = (time: number) => {
+    const handleSeek = useCallback((time: number) => {
         if (videoRef.current) {
             videoRef.current.currentTime = time;
             setCurrentTime(time);
+            lastTimeUpdateRef.current = time;
         }
-    };
+    }, []);
 
     const handlePlaybackSpeedChange = (speed: string) => {
-        const newSpeed = parseFloat(speed);
-        setPlaybackSpeed(newSpeed);
-        if (videoRef.current) {
-            videoRef.current.playbackRate = newSpeed;
-        }
+        const s = parseFloat(speed);
+        setPlaybackSpeed(s);
+        if (videoRef.current) videoRef.current.playbackRate = s;
     };
 
-    // Handle version change - switch to different video version
     const handleVersionChange = (versionId: string) => {
         if (!asset) return;
-
-        const selectedVersion = asset.versions.find(v => v.id === versionId);
-        if (selectedVersion?.url) {
+        const ver = asset.versions.find(v => v.id === versionId);
+        if (ver?.url) {
             setCurrentVersion(versionId);
-            setCurrentVideoUrl(selectedVersion.url);
+            setCurrentVideoUrl(ver.url);
             setIsPlaying(false);
             setCurrentTime(0);
             setVideoError(false);
@@ -310,97 +285,70 @@ export function FullScreenReviewModalFrameIO({
     };
 
     const formatTime = (time: number) => {
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        const m = Math.floor(time / 60);
+        const s = Math.floor(time % 60);
+        return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    // Comment handlers
+    /* ── Comment handlers ── */
     const handleCommentSubmit = async (comment: Omit<ReviewComment, 'id' | 'createdAt'>) => {
-        const newComment: ReviewComment = {
-            ...comment,
-            id: Date.now().toString(),
-            createdAt: new Date(),
-        };
-
+        const newComment: ReviewComment = { ...comment, id: Date.now().toString(), createdAt: new Date(), version: currentVersionNumber };
         setComments(prev => [...prev, newComment]);
         setShowCommentInput(false);
         toast.success('Comment added');
     };
 
-    const handleCommentResolve = (commentId: string, resolved: boolean) => {
-        setComments(prev =>
-            prev.map(c => c.id === commentId ? { ...c, resolved } : c)
-        );
-    };
+    const handleCommentResolve = useCallback((id: string, resolved: boolean) => {
+        setComments(prev => prev.map(c => c.id === id ? { ...c, resolved } : c));
+    }, []);
 
-    const handleCommentDelete = (commentId: string) => {
-        setComments(prev => prev.filter(c => c.id !== commentId));
+    const handleCommentDelete = useCallback((id: string) => {
+        setComments(prev => prev.filter(c => c.id !== id));
         toast.success('Comment deleted');
-    };
+    }, []);
 
-    const handleTimestampClick = (timestampSeconds: number) => {
-        handleSeek(timestampSeconds);
-        const comment = comments.find(c => c.timestampSeconds === timestampSeconds);
-        if (comment) {
-            setActiveCommentId(comment.id);
-        }
-    };
+    const handleTimestampClick = useCallback((ts: number) => {
+        handleSeek(ts);
+        const c = comments.find(c => c.timestampSeconds === ts);
+        if (c) setActiveCommentId(c.id);
+    }, [comments, handleSeek]);
 
-    const handleMarkerClick = (comment: ReviewComment) => {
+    const handleMarkerClick = useCallback((comment: ReviewComment) => {
         handleSeek(comment.timestampSeconds);
         setActiveCommentId(comment.id);
-
-        // Scroll to comment in sidebar
         setTimeout(() => {
-            const commentEl = document.getElementById(`comment-${comment.id}`);
-            if (commentEl && commentsRef.current) {
-                commentsRef.current.scrollTo({
-                    top: commentEl.offsetTop - 100,
-                    behavior: 'smooth'
-                });
-            }
+            const el = document.getElementById(`comment-${comment.id}`);
+            if (el && commentsRef.current) commentsRef.current.scrollTo({ top: el.offsetTop - 100, behavior: 'smooth' });
         }, 100);
-    };
+    }, [handleSeek]);
 
-    // 🔥 NEW: Save feedback to database
+    /* ── Save feedback ── */
     const saveFeedbackToDatabase = async (feedbackComments: ReviewComment[]) => {
-        const actualTaskId = taskId || asset?.id;
-        if (!actualTaskId || !user?.id) {
-            console.error('Missing taskId or user for saving feedback');
-            return false;
-        }
-
+        const id = taskId || asset?.id;
+        if (!id) return false;
+        if (!user?.id && !shareToken) return false;
         try {
             setSavingFeedback(true);
-
-            const feedbackItems = feedbackComments
+            const items = feedbackComments
                 .filter(c => !c.resolved)
-                .map(c => ({
-                    folderType: currentFileSection?.folderType || 'main',
-                    fileId: currentFileSection?.fileId || null,
-                    feedback: c.content,
-                    timestamp: c.timestamp,
-                    category: c.category,
-                }));
-
-            const res = await fetch(`/api/tasks/${actualTaskId}/feedback`, {
+                .map(c => {
+                    const ver = asset?.versions.find(v => parseInt(v.number) === (c.version || currentVersionNumber));
+                    return {
+                        folderType: currentFileSection?.folderType || 'main',
+                        fileId: ver?.id || currentFileSection?.fileId || null,
+                        feedback: c.content,
+                        timestamp: c.timestamp,
+                        category: c.category,
+                    };
+                });
+            const res = await fetch(`/api/tasks/${id}/feedback`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    feedbackItems,
-                    createdBy: user.id,
-                }),
+                body: JSON.stringify({ feedbackItems: items, createdBy: user?.id || 0, shareToken }),
             });
-
-            if (!res.ok) {
-                throw new Error('Failed to save feedback');
-            }
-
-            console.log('✅ Feedback saved successfully');
+            if (!res.ok) throw new Error('Failed to save feedback');
             return true;
-        } catch (err) {
-            console.error('❌ Failed to save feedback:', err);
+        } catch {
             toast.error('Failed to save feedback');
             return false;
         } finally {
@@ -408,623 +356,244 @@ export function FullScreenReviewModalFrameIO({
         }
     };
 
-    // Status change handler
-    const handleStatusChange = async (newStatus: ReviewStatus['value']) => {
-        setReviewStatus(newStatus);
-
-        if (newStatus === 'approved' && asset) {
-            if (userRole === 'qc' && onSendToClient) {
-                onSendToClient(asset);
-                setShowApprovalSuccess(true);
-                setTimeout(() => {
-                    setShowApprovalSuccess(false);
-                    onOpenChange(false);
-                }, 2000);
-            } else if (userRole === 'client') {
-                onApprove(asset, true);
-                setShowApprovalSuccess(true);
-                setTimeout(() => {
-                    setShowApprovalSuccess(false);
-                    onOpenChange(false);
-                }, 2000);
-            }
-        } else if (newStatus === 'needs_changes' && asset) {
-            // 🔥 NEW: Save feedback to database with section info
-            const feedbackSaved = await saveFeedbackToDatabase(comments);
-
-            if (!feedbackSaved) {
-                toast.error('Failed to save feedback. Please try again.');
-                return;
-            }
-
-            // Build revision data with section context
-            const sectionLabel = currentFileSection?.folderType?.toUpperCase() || 'MAIN';
-            const versionLabel = currentFileSection?.version || 1;
-
+    /* ── Status change ── */
+    const handleStatusChange = async (status: ReviewStatus['value']) => {
+        if (!asset) return;
+        if (status === 'approved') {
+            if (userRole === 'qc' && onSendToClient) onSendToClient(asset);
+            else onApprove(asset, true);
+            setShowApprovalSuccess(true);
+            setTimeout(() => { setShowApprovalSuccess(false); onOpenChange(false); }, 2000);
+        } else if (status === 'needs_changes') {
+            const saved = await saveFeedbackToDatabase(comments);
+            if (!saved) { toast.error('Failed to save feedback. Please try again.'); return; }
+            const label = currentFileSection?.folderType?.toUpperCase() || 'MAIN';
+            const ver = currentFileSection?.version || 1;
             const revisionData: RevisionRequest = {
                 reason: 'other',
-                notes: comments
-                    .filter(c => !c.resolved)
-                    .map(c => `[${sectionLabel} v${versionLabel} @ ${c.timestamp}] ${c.content}`)
-                    .join('\n\n'),
+                notes: comments.filter(c => !c.resolved).map(c => `[${label} v${ver} @ ${c.timestamp}] ${c.content}`).join('\n\n'),
                 assignTo: 'editor',
                 entries: comments.filter(c => !c.resolved).map(c => ({
                     id: c.id,
                     timestamp: new Date().toLocaleTimeString(),
-                    reason: c.category as 'design' | 'content' | 'timing' | 'technical' | 'spelling' | 'other' | 'subtitles',
+                    reason: c.category as any,
                     notes: c.content,
-                    videoTime: c.timestamp
-                }))
+                    videoTime: c.timestamp,
+                })),
             };
-
-            if (userRole === 'qc' && onSendBackToEditor) {
-                onSendBackToEditor(asset, revisionData);
-            } else {
-                onRequestRevisions(asset, revisionData);
-            }
-
+            if (userRole === 'qc' && onSendBackToEditor) onSendBackToEditor(asset, revisionData);
+            else onRequestRevisions(asset, revisionData);
             setShowRevisionSuccess(true);
-            setTimeout(() => {
-                setShowRevisionSuccess(false);
-                onOpenChange(false);
-            }, 2000);
+            setTimeout(() => { setShowRevisionSuccess(false); onOpenChange(false); }, 2000);
         }
     };
 
+    /* ── Reject with typed comment (mobile reject dialog) ── */
+    const handleRejectWithComment = async (commentText: string) => {
+        if (!asset) return;
+        const id = taskId || asset.id;
+        const label = currentFileSection?.folderType?.toUpperCase() || 'MAIN';
+        const ver = currentFileSection?.version || 1;
+
+        // Build a single feedback item from the typed comment
+        const feedbackItem = {
+            folderType: currentFileSection?.folderType || 'main',
+            fileId: currentFileSection?.fileId || null,
+            feedback: commentText.trim(),
+            timestamp: '0:00',
+            category: 'other',
+        };
+
+        try {
+            setSavingFeedback(true);
+            if (user?.id || shareToken) {
+                const res = await fetch(`/api/tasks/${id}/feedback`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ feedbackItems: [feedbackItem], createdBy: user?.id || 0, shareToken }),
+                });
+                if (!res.ok) throw new Error('Failed to save feedback');
+            }
+            // Also save existing unresolved comments
+            if (comments.filter(c => !c.resolved).length > 0) {
+                await saveFeedbackToDatabase(comments);
+            }
+
+            const revisionData: RevisionRequest = {
+                reason: 'other',
+                notes: `[${label} v${ver}] ${commentText.trim()}`,
+                assignTo: 'editor',
+                entries: [{
+                    id: Date.now().toString(),
+                    timestamp: new Date().toLocaleTimeString(),
+                    reason: 'other',
+                    notes: commentText.trim(),
+                    videoTime: '0:00',
+                }],
+            };
+            if (userRole === 'qc' && onSendBackToEditor) onSendBackToEditor(asset, revisionData);
+            else onRequestRevisions(asset, revisionData);
+            setShowRevisionSuccess(true);
+            setTimeout(() => { setShowRevisionSuccess(false); onOpenChange(false); }, 2000);
+        } catch {
+            toast.error('Failed to send feedback. Please try again.');
+        } finally {
+            setSavingFeedback(false);
+        }
+    };
+
+    /* ── Share ── */
+    const handleGenerateShareLink = async () => {
+        const id = taskId || asset?.id;
+        if (!id) { toast.error('Unable to generate share link'); return; }
+        try {
+            setGeneratingLink(true);
+            setLinkCopied(false);
+            const res = await fetch(`/api/tasks/${id}/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ expiresInDays: 0 }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to generate share link');
+            setShareLink(data.shareUrl);
+            setShowShareDialog(true);
+            setShowInfoPanel(true);
+            try {
+                await navigator.clipboard.writeText(data.shareUrl);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 3000);
+                toast.success('Share link generated and copied!');
+            } catch {
+                toast.success('Share link generated!');
+            }
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to generate share link');
+        } finally {
+            setGeneratingLink(false);
+        }
+    };
+
+    const handleCopyLink = async () => {
+        try {
+            await navigator.clipboard.writeText(shareLink);
+            setLinkCopied(true);
+            toast.success('Link copied!');
+            setTimeout(() => setLinkCopied(false), 3000);
+        } catch {
+            toast.error('Failed to copy link');
+        }
+    };
+
+    const handleDownload = async () => {
+        if (!asset) return;
+        try {
+            toast.loading('Preparing download...', { id: 'dl' });
+            const res = await fetch(asset.videoUrl);
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${asset.title.replace(/\s+/g, '_')}_V${asset.currentVersion}.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('Download complete', { id: 'dl' });
+        } catch {
+            toast.error('Failed to download video', { id: 'dl' });
+        }
+    };
+
+    /* ── Guard ── */
     if (!asset) return null;
 
-    const currentVersionData = asset.versions.find(v => v.id === currentVersion) || asset.versions[0];
+    /* ── Shared props object ── */
+    const screenProps = {
+        asset,
+        currentFileSection,
+        userRole,
+        requiresClientReview,
+        videoRef,
+        iframeRef,
+        containerRef,
+        commentsRef,
+        videoSource,
+        isPlaying,
+        isMuted,
+        currentTime,
+        duration,
+        playbackSpeed,
+        currentVersion,
+        measuredResolution,
+        videoError,
+        iframeLoaded,
+        isDragging,
+        comments,
+        sortedComments,
+        activeCommentId,
+        showCommentInput,
+        confirmFinal,
+        savingFeedback,
+        showApprovalSuccess,
+        showRevisionSuccess,
+        showInfoPanel,
+        shareLink,
+        generatingLink,
+        linkCopied,
+        showShareDialog,
+        userName: user?.name || 'You',
+        togglePlay,
+        toggleMute,
+        seekBackward,
+        seekForward,
+        handleSeek,
+        handleTimeUpdate,
+        handlePlaybackSpeedChange,
+        handleVersionChange,
+        handleMarkerClick,
+        handleTimestampClick,
+        handleCommentSubmit,
+        handleCommentResolve,
+        handleCommentDelete,
+        handleStatusChange,
+        setShowCommentInput,
+        setConfirmFinal,
+        setShowInfoPanel,
+        setShowShareDialog,
+        setVideoError,
+        setIframeLoaded,
+        setIsDragging,
+        setIsPlaying,
+        setDuration,
+        setMeasuredResolution,
+        setCurrentTime,
+        handleDownload,
+        handleGenerateShareLink,
+        handleCopyLink,
+        onOpenChange,
+        onNextAsset,
+        formatTime,
+        onSwitchToMobile: () => setViewMode('mobile'),
+        onSwitchToDesktop: () => setViewMode('desktop'),
+        handleRejectWithComment,
+    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !overflow-hidden !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog review-modal"
-            >
-                {/* Accessibility: Hidden title and description for screen readers */}
+            <DialogContent className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !overflow-hidden !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog review-modal">
+                {/* Accessibility */}
                 <div className="sr-only">
-                    <DialogTitle>
-                        {asset?.title ? `Review ${asset.title}` : 'Asset Review'}
-                    </DialogTitle>
-                    <DialogDescription>
-                        Review and provide feedback on this video asset using time-coded comments.
-                    </DialogDescription>
+                    <DialogTitle>{asset.title ? `Review ${asset.title}` : 'Asset Review'}</DialogTitle>
+                    <DialogDescription>Review and provide feedback on this video asset using time-coded comments.</DialogDescription>
                 </div>
 
-                <div
-                    ref={containerRef}
-                    className="relative w-full h-full flex flex-col overflow-hidden"
-                    style={{ background: 'var(--review-bg-primary)' }}
-                >
-                    {/* Success States */}
-                    {showApprovalSuccess && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
-                            <Card className="bg-green-900/50 border-green-500/50 backdrop-blur-xl">
-                                <CardContent className="p-8 text-center">
-                                    <CheckCircle2 className="h-16 w-16 text-green-400 mx-auto mb-4" />
-                                    <h3 className="text-xl font-medium text-green-100 mb-2">
-                                        {userRole === 'qc' ? 'Sent to Client!' : 'Version Approved!'}
-                                    </h3>
-                                    <p className="text-green-300/80">
-                                        {userRole === 'qc'
-                                            ? 'Asset has been sent to client for review'
-                                            : 'Asset has been approved for publishing'
-                                        }
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    )}
-
-                    {showRevisionSuccess && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
-                            <Card className="bg-orange-900/50 border-orange-500/50 backdrop-blur-xl">
-                                <CardContent className="p-8 text-center">
-                                    <MessageSquare className="h-16 w-16 text-orange-400 mx-auto mb-4" />
-                                    <h3 className="text-xl font-medium text-orange-100 mb-2">
-                                        {userRole === 'qc' ? 'Sent Back to Editor' : 'Revisions Requested'}
-                                    </h3>
-                                    <p className="text-orange-300/80">
-                                        {comments.filter(c => !c.resolved).length} comments sent as feedback
-                                        {currentFileSection && (
-                                            <span className="block mt-1 text-sm">
-                                                for {currentFileSection.folderType} v{currentFileSection.version}
-                                            </span>
-                                        )}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    )}
-
-                    {/* Header */}
-                    <div className="flex-shrink-0 review-header px-6 py-3">
-                        <div className="flex items-center justify-between">
-                            {/* Left: Back + Title */}
-                            <div className="flex items-center gap-4">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onOpenChange(false)}
-                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                >
-                                    <ArrowLeft className="h-4 w-4 mr-2" />
-                                    Back
-                                </Button>
-
-                                <div className="h-6 w-px bg-[var(--review-border)]" />
-
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h1 className="text-lg font-medium text-white">{asset.title}</h1>
-                                        {/* 🔥 NEW: Show section badge */}
-                                        {currentFileSection && (
-                                            <Badge className="bg-purple-600 text-xs">
-                                                {currentFileSection.folderType} v{currentFileSection.version}
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-sm text-[var(--review-text-muted)]">{asset.runtime}</span>
-                                        <span className="text-[var(--review-text-muted)]">•</span>
-                                        <span className="text-sm text-[var(--review-text-muted)]">{asset.resolution}</span>
-                                        {asset.versions.length > 1 && (
-                                            <>
-                                                <span className="text-[var(--review-text-muted)]">•</span>
-                                                <Select value={currentVersion} onValueChange={setCurrentVersion}>
-                                                    <SelectTrigger className="h-6 w-16 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] text-xs">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
-                                                        {asset.versions.map((v) => (
-                                                            <SelectItem key={v.id} value={v.id} className="text-[var(--review-text-secondary)]">
-                                                                V{v.number}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Right: Status + Actions */}
-                            <div className="flex items-center gap-3">
-                                {/* Version Selector */}
-                                {asset.versions.length > 1 ? (
-                                    <Select value={currentVersion} onValueChange={handleVersionChange}>
-                                        <SelectTrigger className="h-8 w-auto min-w-[100px] bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-sm">
-                                            <SelectValue placeholder="Version" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
-                                            {asset.versions.map((v) => (
-                                                <SelectItem
-                                                    key={v.id}
-                                                    value={v.id}
-                                                    className="text-[var(--review-text-secondary)] hover:text-white"
-                                                >
-                                                    Version {v.number} - {v.uploadDate}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <Badge className="bg-[var(--review-bg-tertiary)] text-white text-sm px-3 py-1">
-                                        Version {asset.versions[0]?.number || '1'}
-                                    </Badge>
-                                )}
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setShowInfoPanel(!showInfoPanel)}
-                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                >
-                                    <Info className="h-4 w-4" />
-                                </Button>
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]"
-                                >
-                                    <Share className="h-4 w-4" />
-                                </Button>
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onOpenChange(false)}
-                                    className="text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                                >
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Main Content */}
-                    <div className="flex-1 flex overflow-hidden min-h-0">
-                        {/* Video Area */}
-                        <div className="flex-1 flex flex-col p-6 pr-0 pb-6 overflow-y-auto">
-                            {/* Video Container */}
-                            <div className="flex items-center justify-center mb-4">
-                                <div className="relative w-full max-w-5xl aspect-video review-video-container">
-                                    {videoError ? (
-                                        <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white">
-                                            <div className="text-center p-8 max-w-2xl">
-                                                <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
-                                                <h3 className="text-xl mb-2">Video Failed to Load</h3>
-                                                <p className="text-sm text-[var(--review-text-muted)] mb-4">
-                                                    Please ensure the video file is accessible and permissions are set correctly.
-                                                </p>
-                                                <div className="flex gap-2 justify-center">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => setVideoError(false)}
-                                                        className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white"
-                                                    >
-                                                        Retry
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => window.open(asset.videoUrl, '_blank')}
-                                                        className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white"
-                                                    >
-                                                        Open in New Tab
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : videoSource.type === 'iframe' ? (
-                                        <div className="relative w-full h-full">
-                                            {!iframeLoaded && (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
-                                                    <div className="text-center">
-                                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                                                        <p className="text-sm text-[var(--review-text-muted)]">Loading video...</p>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            <iframe
-                                                ref={iframeRef}
-                                                className="w-full h-full bg-black"
-                                                src={videoSource.src}
-                                                title={`Video player for ${asset.title}`}
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                allowFullScreen
-                                                onLoad={() => setIframeLoaded(true)}
-                                                onError={() => setVideoError(true)}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <video
-                                                ref={videoRef}
-                                                className="w-full h-full object-contain bg-black"
-                                                src={videoSource.src}
-                                                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                                                onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                                                onPlay={() => setIsPlaying(true)}
-                                                onPause={() => setIsPlaying(false)}
-                                                onError={() => setVideoError(true)}
-                                                playsInline
-                                            />
-
-                                            {/* Play/Pause Overlay */}
-                                            <div
-                                                className="absolute inset-0 flex items-center justify-center cursor-pointer"
-                                                onClick={togglePlay}
-                                            >
-                                                {!isPlaying && (
-                                                    <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
-                                                        <Play className="h-12 w-12 text-white fill-white" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Timeline + Controls */}
-                            <div className="mt-4 px-2">
-                                {/* Timeline with markers */}
-                                {videoSource.type === 'video' && (
-                                    <ReviewTimeline
-                                        duration={duration}
-                                        currentTime={currentTime}
-                                        comments={comments}
-                                        activeCommentId={activeCommentId}
-                                        onSeek={handleSeek}
-                                        onMarkerClick={handleMarkerClick}
-                                        onDragStart={() => setIsDragging(true)}
-                                        onDragEnd={() => setIsDragging(false)}
-                                    />
-                                )}
-
-                                {/* Control Bar - White Background */}
-                                <div className="bg-white rounded-lg p-3 shadow-lg mt-3">
-                                    <div className="flex items-center justify-between">
-                                        {/* Left Controls */}
-                                        <div className="flex items-center gap-2">
-                                            {videoSource.type === 'video' && (
-                                                <>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={seekBackward}
-                                                        className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                                                    >
-                                                        <SkipBack className="h-4 w-4" />
-                                                    </Button>
-
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={togglePlay}
-                                                        className="text-gray-900 hover:bg-gray-100"
-                                                    >
-                                                        {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                                                    </Button>
-
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={seekForward}
-                                                        className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                                                    >
-                                                        <SkipForward className="h-4 w-4" />
-                                                    </Button>
-
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={toggleMute}
-                                                        className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                                                    >
-                                                        {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                                                    </Button>
-
-                                                    <Select value={playbackSpeed.toString()} onValueChange={handlePlaybackSpeedChange}>
-                                                        <SelectTrigger className="w-16 h-8 bg-white border-gray-300 text-gray-700 text-xs">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent className="bg-white border-gray-300">
-                                                            <SelectItem value="0.5">0.5x</SelectItem>
-                                                            <SelectItem value="0.75">0.75x</SelectItem>
-                                                            <SelectItem value="1">1x</SelectItem>
-                                                            <SelectItem value="1.25">1.25x</SelectItem>
-                                                            <SelectItem value="1.5">1.5x</SelectItem>
-                                                            <SelectItem value="2">2x</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        {/* Right Controls */}
-                                        <div className="flex items-center gap-2">
-                                            {onNextAsset && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={onNextAsset}
-                                                    className="text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                                                >
-                                                    Next Asset
-                                                    <ChevronRight className="h-4 w-4 ml-1" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Comments Sidebar */}
-                        <div className="w-80 flex-shrink-0 review-comments-sidebar flex flex-col">
-                            {/* Sidebar Header */}
-                            <div className="p-4 border-b border-[var(--review-border)]">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-medium text-white flex items-center gap-2">
-                                        <MessageSquare className="h-4 w-4" />
-                                        Comments
-                                        <Badge className="bg-[var(--review-bg-tertiary)] text-[var(--review-text-secondary)] text-xs">
-                                            {comments.length}
-                                        </Badge>
-                                    </h3>
-                                    <Badge
-                                        variant="outline"
-                                        className="text-xs border-[var(--review-border)] text-[var(--review-text-muted)]"
-                                    >
-                                        {comments.filter(c => !c.resolved).length} open
-                                    </Badge>
-                                </div>
-                                {/* 🔥 NEW: Show which section feedback is for */}
-                                {currentFileSection && (
-                                    <p className="text-xs text-[var(--review-text-muted)] mt-2">
-                                        Feedback for: <span className="text-[var(--review-text-secondary)]">
-                                            {currentFileSection.folderType} v{currentFileSection.version}
-                                        </span>
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Comment Input */}
-                            <div className="p-3 border-b border-[var(--review-border)]">
-                                <CommentInput
-                                    taskId={asset.id}
-                                    currentTime={currentTime}
-                                    currentTimestamp={formatTime(currentTime)}
-                                    authorId="current-user"
-                                    authorName={userRole === 'qc' ? 'QC Reviewer' : 'You'}
-                                    onSubmit={handleCommentSubmit}
-                                    onCancel={() => setShowCommentInput(false)}
-                                    isExpanded={showCommentInput}
-                                    onToggleExpand={() => setShowCommentInput(true)}
-                                />
-                            </div>
-
-                            {/* Comments List */}
-                            <div
-                                ref={commentsRef}
-                                className="flex-1 overflow-y-auto p-3 review-scrollbar"
-                            >
-                                {comments.length === 0 ? (
-                                    <div className="text-center py-12 text-[var(--review-text-muted)]">
-                                        <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                                        <p className="text-sm">No comments yet</p>
-                                        <p className="text-xs mt-1">Press C to add a comment</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {comments
-                                            .sort((a, b) => a.timestampSeconds - b.timestampSeconds)
-                                            .map((comment) => (
-                                                <div key={comment.id} id={`comment-${comment.id}`}>
-                                                    <ReviewCommentCard
-                                                        comment={comment}
-                                                        isActive={activeCommentId === comment.id}
-                                                        onTimestampClick={handleTimestampClick}
-                                                        onResolve={handleCommentResolve}
-                                                        onDelete={handleCommentDelete}
-                                                    />
-                                                </div>
-                                            ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Sidebar Footer - Action Buttons */}
-                            <div className="p-4 border-t border-[var(--review-border)] space-y-2">
-                                {userRole === 'qc' ? (
-                                    <>
-                                        <Button
-                                            size="sm"
-                                            className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white"
-                                            onClick={() => handleStatusChange('approved')}
-                                            disabled={asset.approvalLocked || savingFeedback}
-                                        >
-                                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                                            Approve & Send to Client
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="w-full bg-transparent border-[var(--review-status-changes)] text-[var(--review-status-changes)] hover:bg-[var(--review-status-changes)]/10"
-                                            onClick={() => handleStatusChange('needs_changes')}
-                                            disabled={comments.filter(c => !c.resolved).length === 0 || savingFeedback}
-                                        >
-                                            {savingFeedback ? (
-                                                <>
-                                                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                                    Saving...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <MessageSquare className="h-4 w-4 mr-2" />
-                                                    Send Back with {comments.filter(c => !c.resolved).length} Comments
-                                                </>
-                                            )}
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="flex items-start gap-2 mb-2">
-                                            <Checkbox
-                                                id="confirm-final"
-                                                checked={confirmFinal}
-                                                onCheckedChange={(checked) => setConfirmFinal(checked as boolean)}
-                                                className="mt-0.5"
-                                            />
-                                            <label
-                                                htmlFor="confirm-final"
-                                                className="text-xs text-[var(--review-text-secondary)] cursor-pointer"
-                                            >
-                                                I confirm this is the final version for publishing
-                                            </label>
-                                        </div>
-                                        <Button
-                                            size="sm"
-                                            className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white"
-                                            onClick={() => handleStatusChange('approved')}
-                                            disabled={!confirmFinal || asset.approvalLocked}
-                                        >
-                                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                                            Approve Version
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="w-full bg-transparent border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-400"
-                                            onClick={() => handleStatusChange('needs_changes')}
-                                            disabled={comments.filter(c => !c.resolved).length === 0}
-                                        >
-                                            <MessageSquare className="h-4 w-4 mr-2" />
-                                            Request Revisions
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Info Panel (slide out) */}
-                        {showInfoPanel && (
-                            <div className="w-72 flex-shrink-0 bg-[var(--review-bg-secondary)] border-l border-[var(--review-border)] p-4 review-animate-slide-in review-scrollbar overflow-y-auto">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-medium text-white">Asset Details</h3>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setShowInfoPanel(false)}
-                                        className="h-6 w-6 p-0 text-[var(--review-text-muted)] hover:text-white"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                </div>
-
-                                <div className="space-y-4 text-sm">
-                                    {/* 🔥 NEW: Show section info */}
-                                    {currentFileSection && (
-                                        <div>
-                                            <div className="text-[var(--review-text-muted)] mb-1">Section</div>
-                                            <div className="text-white capitalize">{currentFileSection.folderType}</div>
-                                        </div>
-                                    )}
-                                    {currentFileSection && (
-                                        <div>
-                                            <div className="text-[var(--review-text-muted)] mb-1">Version</div>
-                                            <div className="text-white">v{currentFileSection.version}</div>
-                                        </div>
-                                    )}
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">Resolution</div>
-                                        <div className="text-white">{asset.resolution}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">File Size</div>
-                                        <div className="text-white">{asset.fileSize}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">Platform</div>
-                                        <div className="text-white">{asset.platform}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">Uploaded</div>
-                                        <div className="text-white">{asset.uploadDate}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[var(--review-text-muted)] mb-1">Uploader</div>
-                                        <div className="text-white">{asset.uploader}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                {viewMode === 'desktop' ? (
+                    <ReviewScreenDesktop {...screenProps} />
+                ) : (
+                    <ReviewScreenMobile {...screenProps} />
+                )}
             </DialogContent>
         </Dialog>
     );

@@ -11,6 +11,7 @@ import { Calendar, Clock, Plus, Video, Image as ImageIcon, FileText, AlertCircle
 import { toast } from 'sonner';
 import { useGlobalTasks } from '../workflow/GlobalTaskManager';
 import { getPostingScheduleForClient, getClients } from '../utils/clientData';
+import { FilePreviewModal } from '../FileViewerModal';
 
 interface ScheduledPost {
   id: string;
@@ -42,6 +43,8 @@ export function SchedulerSchedulingPage() {
     caption: '',
     hashtags: ''
   });
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Load scheduled posts from localStorage
   useEffect(() => {
@@ -59,7 +62,7 @@ export function SchedulerSchedulingPage() {
   useEffect(() => {
     const loadedClients = getClients();
     setClients(loadedClients);
-    
+
     // Set default client if available
     if (loadedClients.length > 0 && !selectedClientId) {
       setSelectedClientId(loadedClients[0].id);
@@ -77,9 +80,9 @@ export function SchedulerSchedulingPage() {
 
   // Get tasks ready for scheduling (approved by QC)
   const schedulingTasks = allTasks.filter(
-    task => task.assignedToRole === 'scheduler' && 
-           task.workflowStep === 'scheduling' && 
-           task.status === 'pending'
+    task => task.assignedToRole === 'scheduler' &&
+      task.workflowStep === 'scheduling' &&
+      task.status === 'pending'
   );
 
   const handleOpenScheduleDialog = (task: any) => {
@@ -137,8 +140,8 @@ export function SchedulerSchedulingPage() {
       hashtags: ''
     });
 
-    toast('✅ Post Scheduled', { 
-      description: `Scheduled for ${newPost.platform} on ${new Date(newPost.scheduledDate).toLocaleDateString()} at ${newPost.scheduledTime}` 
+    toast('✅ Post Scheduled', {
+      description: `Scheduled for ${newPost.platform} on ${new Date(newPost.scheduledDate).toLocaleDateString()} at ${newPost.scheduledTime}`
     });
   };
 
@@ -176,8 +179,8 @@ export function SchedulerSchedulingPage() {
 
   const upcomingPosts = scheduledPosts
     .filter(p => p.status === 'scheduled')
-    .sort((a, b) => 
-      new Date(a.scheduledDate + ' ' + a.scheduledTime).getTime() - 
+    .sort((a, b) =>
+      new Date(a.scheduledDate + ' ' + a.scheduledTime).getTime() -
       new Date(b.scheduledDate + ' ' + b.scheduledTime).getTime()
     );
 
@@ -304,22 +307,23 @@ export function SchedulerSchedulingPage() {
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mb-3">{task.description}</p>
-                      
+
                       {task.files && task.files.length > 0 && (
                         <div className="flex items-center gap-2 text-sm">
                           <CheckCircle className="h-4 w-4 text-green-600" />
                           <span className="text-muted-foreground">
                             {task.files.length} file{task.files.length > 1 ? 's' : ''} approved by QC
                           </span>
-                          {task.files[0]?.url && (
-                            <a 
-                              href={task.files[0].url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
+                          {task.files && task.files[0]?.url && (
+                            <button
+                              onClick={() => {
+                                setPreviewFile(task.files![0]);
+                                setIsPreviewOpen(true);
+                              }}
                               className="text-blue-600 hover:underline flex items-center gap-1"
                             >
                               View <ExternalLink className="h-3 w-3" />
-                            </a>
+                            </button>
                           )}
                         </div>
                       )}
@@ -445,7 +449,7 @@ export function SchedulerSchedulingPage() {
             <div className="flex-1">
               <CardTitle>Recommended Posting Times</CardTitle>
               <CardDescription>
-                {selectedClientId 
+                {selectedClientId
                   ? `Optimal times for ${clients.find(c => c.id === selectedClientId)?.company || 'selected client'}'s audience`
                   : 'Select a client to see custom posting times'}
               </CardDescription>
@@ -609,14 +613,15 @@ export function SchedulerSchedulingPage() {
                           </Badge>
                         )}
                         {post.driveUrl && (
-                          <a 
-                            href={post.driveUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => {
+                              setPreviewFile({ url: post.driveUrl, name: post.contentTitle, mimeType: post.contentType === 'video' ? 'video/mp4' : 'image/jpeg' });
+                              setIsPreviewOpen(true);
+                            }}
                             className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                           >
                             View Content <ExternalLink className="h-3 w-3" />
-                          </a>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -648,6 +653,12 @@ export function SchedulerSchedulingPage() {
           </div>
         </CardContent>
       </Card>
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </div>
   );
 }

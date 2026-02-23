@@ -19,9 +19,10 @@ import {
   Upload,
   Settings as SettingsIcon,
   Sparkles,
-  HardDrive, // 🔥 NEW ICON FOR DRIVE
-  Briefcase,  // 🔥 NEW ICON FOR EMPLOYMENT INFO
-  LogIn  // 🔥 NEW ICON FOR LOGINS
+  HardDrive,
+  Briefcase,
+  LogIn,
+  Instagram
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -30,12 +31,11 @@ export const NAVIGATION_ITEMS = {
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'leaves', label: 'Employee Management', icon: Users },
+    { id: 'analytics', label: 'Client Analytics', icon: BarChart3 },
+    { id: 'leaves', label: 'User Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
-    { id: 'users', label: 'Users', icon: Users },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
@@ -43,6 +43,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
     // { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'resources', label: 'Resources', icon: BookOpen },
+    { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
@@ -51,7 +52,7 @@ export const NAVIGATION_ITEMS = {
   qc: [
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
     { id: 'completed', label: 'Completed', icon: Archive },
-    { id: 'guidelines', label: 'Guidelines', icon: BookOpen },
+    { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'training', label: 'Training', icon: Layout },
@@ -59,13 +60,14 @@ export const NAVIGATION_ITEMS = {
   ],
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
+    { id: 'posted-archive', label: 'Posted Content Archive', icon: Archive },
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'reports', label: 'Analytics', icon: FileSpreadsheet },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-    { id: 'scheduling', label: 'Employment Information', icon: Clock },
+    // { id: 'scheduling', label: 'Employment Information', icon: Clock },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -81,14 +83,16 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
-    { id: 'approvals', label: 'Approvals', icon: CheckSquare },
+    { id: 'approvals', label: 'Content Review', icon: CheckSquare },
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
+    { id: 'youtube-analytics', label: 'YouTube Analytics', icon: TrendingUp },
+    { id: 'instagram-analytics', label: 'Instagram Analytics', icon: Instagram },
     // { id: 'projects', label: 'My Projects', icon: FolderOpen },
     // { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    { id: 'training', label: 'Training', icon: Layout },
+    // { id: 'training', label: 'Training', icon: Layout },
     { id: 'invoices', label: 'Invoices & Billing', icon: Layout },
     { id: 'archive', label: 'Archive', icon: Archive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
@@ -102,6 +106,14 @@ export const NAVIGATION_ITEMS = {
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
 
+    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
+  ],
+  sales: [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'clients', label: 'Clients', icon: FolderOpen },
+    { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
@@ -119,6 +131,7 @@ export const getDefaultPage = (role: string): string => {
     case 'manager': return 'dashboard';
     case 'client': return 'approvals';
     case 'videographer': return 'dashboard';
+    case 'sales': return 'dashboard';
     default: return 'dashboard';
   }
 };
@@ -175,7 +188,7 @@ export const getDefaultPage = (role: string): string => {
 //   qc: [
 //     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
 //     { id: 'completed', label: 'Completed', icon: Archive },
-//     { id: 'guidelines', label: 'Guidelines', icon: BookOpen },
+//     { id: 'guidelines', label: 'Guidelines', icon: FileText },
 //     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
 //     { id: 'training', label: 'Training', icon: Layout },
 //     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },

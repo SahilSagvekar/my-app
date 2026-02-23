@@ -87,7 +87,7 @@ export default function LeaveRequestsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <Button
+            {/* <Button
               variant="ghost"
               size="sm"
               onClick={() => router.push("/employment-information")}
@@ -95,7 +95,7 @@ export default function LeaveRequestsPage() {
             >
               <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               Back
-            </Button>
+            </Button> */}
           </div>
           <h1 className="text-xl sm:text-2xl font-semibold">Leave Requests</h1>
           <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">

@@ -53,8 +53,12 @@ import {
   Repeat,
   DollarSign,
   CreditCard,
+  GripVertical,
+  MessageSquare,
 } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Separator } from "../ui/separator";
+import { Switch } from "../ui/switch";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { VisuallyHidden } from "../ui/visually-hidden";
 import { Checkbox } from "../ui/checkbox";
@@ -89,7 +93,7 @@ type DeliverableType =
   | "Snapchat Episodes"
   | "Beta Short Form";
 
-type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom";
+type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom" | "one-off";
 
 interface MonthlyDeliverable {
   id: string;
@@ -101,6 +105,20 @@ interface MonthlyDeliverable {
   postingDays?: string[]; // e.g., ["Monday", "Wednesday"] or ["1st", "15th"]
   postingTimes: string[]; // e.g., ["10:00", "11:00", "14:00"] - one for each video per day
   description?: string;
+}
+
+interface OneOffDeliverable {
+  id: string;
+  type: DeliverableType;
+  quantity: number;
+  videosPerDay?: number;
+  platforms: SocialPlatform[];
+  postingSchedule: string;
+  postingDays?: string[];
+  postingTimes: string[];
+  description?: string;
+  status: "PENDING" | "GENERATED" | "COMPLETED";
+  createdAt: string;
 }
 
 interface BrandAsset {
@@ -129,6 +147,7 @@ interface Client {
   renewalDate: string;
   status: "active" | "pending" | "expired";
   monthlyDeliverables: MonthlyDeliverable[];
+  oneOffDeliverables: OneOffDeliverable[];
   currentProgress: {
     completed: number;
     total: number;
@@ -138,6 +157,7 @@ interface Client {
   videographerRequired: string;
   requiresClientReview: string;
   requiresVideographer: string;
+  hasPostingServices: boolean;
   brandAssets: BrandAsset[];
   brandGuidelines: {
     primaryColors: string[];
@@ -195,6 +215,9 @@ interface Client {
       bestTimes: string;
     };
   };
+  slackWebhookUrl?: string;
+  slackChannelName?: string;
+  slackEnabled?: boolean;
 }
 
 const mockBrandAssets: BrandAsset[] = [
@@ -266,7 +289,9 @@ export function ClientManagement() {
     status: "active",
     clientReviewRequired: "no",
     videographerRequired: "no",
+    hasPostingServices: true,
     monthlyDeliverables: [],
+    oneOffDeliverables: [],
     brandAssets: [],
     brandGuidelines: {
       primaryColors: [],
@@ -278,13 +303,15 @@ export function ClientManagement() {
       targetAudience: "",
       contentStyle: "",
     },
-
     projectSettings: {
       defaultVideoLength: "60 seconds",
       preferredPlatforms: [],
       contentApprovalRequired: true,
       quickTurnaroundAvailable: false,
     },
+    slackWebhookUrl: "",
+    slackChannelName: "",
+    slackEnabled: false,
   });
 
   const addEmail = () => {
@@ -412,18 +439,18 @@ export function ClientManagement() {
   };
 
   const getStatusBadgeClasses = (status: string) => {
-  switch (status) {
-    case "active":
-      return "bg-green-50 text-green-700 border-green-300";
-    case "pending":
-      return "bg-yellow-50 text-yellow-700 border-yellow-300";
-    case "expired":
-      return "bg-red-50 text-red-700 border-red-300";
-    default:
-      return "bg-gray-50 text-gray-700 border-gray-300";
-  }
-};
- 
+    switch (status) {
+      case "active":
+        return "bg-green-50 text-green-700 border-green-300";
+      case "pending":
+        return "bg-yellow-50 text-yellow-700 border-yellow-300";
+      case "expired":
+        return "bg-red-50 text-red-700 border-red-300";
+      default:
+        return "bg-gray-50 text-gray-700 border-gray-300";
+    }
+  };
+
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -614,191 +641,99 @@ export function ClientManagement() {
   // These call the API instantly when adding, editing, or deleting deliverables
 
   // 🔥 UPDATED: Handle both add and edit - NOW WITH INSTANT API CALLS
+  // Handle both add and edit for Deliverables (Monthly and One-Off)
   const handleAddDeliverable = async () => {
-    console.log(
-      "🔍 BEFORE VALIDATION - newDeliverable:",
-      JSON.stringify(newDeliverable, null, 2)
-    );
-
     if (!newDeliverable.quantity || newDeliverable.quantity === 0) {
       toast.error("Please enter a quantity");
       return;
     }
 
-    if (!newDeliverable.platforms || newDeliverable.platforms.length === 0) {
+    if (newClient.hasPostingServices !== false && (!newDeliverable.platforms || newDeliverable.platforms.length === 0)) {
       toast.error("Please select at least one platform");
       return;
     }
 
-    // 🔥 Need a client ID to save to
     const clientId = editingClient?.id;
+    const isOneOff = newDeliverable.postingSchedule === 'one-off';
+    const apiPath = isOneOff ? 'one-off-deliverables' : 'deliverables';
+
     if (!clientId) {
-      // If we're creating a new client, just update local state
-      // The deliverables will be saved when the client is created
+      // Local state only (new client creation flow)
       if (editingDeliverableId) {
         setNewClient((prev) => ({
           ...prev,
-          monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
-            d.id === editingDeliverableId
-              ? {
-                  ...d,
-                  type: newDeliverable.type,
-                  quantity: newDeliverable.quantity,
-                  videosPerDay: newDeliverable.videosPerDay || 1,
-                  platforms: newDeliverable.platforms,
-                  postingSchedule: newDeliverable.postingSchedule,
-                  postingDays: newDeliverable.postingDays || [],
-                  postingTimes: newDeliverable.postingTimes || ["10:00"],
-                  description: newDeliverable.description || "",
-                }
-              : d
-          ),
+          monthlyDeliverables: !isOneOff ? (prev.monthlyDeliverables || []).map(d => d.id === editingDeliverableId ? { ...d, ...newDeliverable } as any : d) : prev.monthlyDeliverables,
+          oneOffDeliverables: isOneOff ? (prev.oneOffDeliverables || []).map(d => d.id === editingDeliverableId ? { ...d, ...newDeliverable, status: 'PENDING' } as any : d) : prev.oneOffDeliverables,
         }));
-        toast.success(`Updated: ${newDeliverable.type}`);
       } else {
         const deliverable = {
-          id: `deliverable-${Date.now()}`,
-          type: newDeliverable.type,
-          quantity: newDeliverable.quantity,
-          videosPerDay: newDeliverable.videosPerDay || 1,
-          platforms: newDeliverable.platforms,
-          postingSchedule: newDeliverable.postingSchedule,
-          postingDays: newDeliverable.postingDays || [],
-          postingTimes: newDeliverable.postingTimes || ["10:00"],
-          description: newDeliverable.description || "",
+          id: `temp-${Date.now()}`,
+          ...newDeliverable,
+          status: 'PENDING' as const,
+          createdAt: new Date().toISOString()
         };
         setNewClient((prev) => ({
           ...prev,
-          monthlyDeliverables: [
-            ...(prev.monthlyDeliverables || []),
-            deliverable,
-          ],
+          monthlyDeliverables: !isOneOff ? [...(prev.monthlyDeliverables || []), deliverable] : prev.monthlyDeliverables,
+          oneOffDeliverables: isOneOff ? [...(prev.oneOffDeliverables || []), deliverable] : prev.oneOffDeliverables,
         }));
-        toast.success(`Added: ${newDeliverable.type}`);
       }
-
       setShowAddDeliverableDialog(false);
-      setEditingDeliverableId(null);
       resetDeliverableForm();
       return;
     }
 
-    // 🔥 We have a client ID - make API call
+    // API Call (existing client flow)
     try {
-      if (
-        editingDeliverableId &&
-        !editingDeliverableId.startsWith("deliverable-")
-      ) {
-        // 🔥 UPDATE existing deliverable via API
-        console.log("✏️ Updating deliverable via API:", editingDeliverableId);
+      const method = (editingDeliverableId && !editingDeliverableId.startsWith("temp-")) ? "PUT" : "POST";
+      const url = method === "PUT"
+        ? `/api/clients/${clientId}/${apiPath}/${editingDeliverableId}`
+        : `/api/clients/${clientId}/${apiPath}`;
 
-        const res = await fetch(
-          `/api/clients/${clientId}/deliverables/${editingDeliverableId}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: newDeliverable.type,
-              quantity: newDeliverable.quantity,
-              videosPerDay: newDeliverable.videosPerDay || 1,
-              platforms: newDeliverable.platforms,
-              postingSchedule: newDeliverable.postingSchedule,
-              postingDays: newDeliverable.postingDays || [],
-              postingTimes: newDeliverable.postingTimes || ["10:00"],
-              description: newDeliverable.description || "",
-            }),
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newDeliverable),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save deliverable");
+
+      // Update state
+      setClients(prev => prev.map(c => {
+        if (c.id === clientId) {
+          if (isOneOff) {
+            const list = method === "PUT"
+              ? (c.oneOffDeliverables || []).map(d => d.id === editingDeliverableId ? data.deliverable : d)
+              : [...(c.oneOffDeliverables || []), data.deliverable];
+            return { ...c, oneOffDeliverables: list };
+          } else {
+            const list = method === "PUT"
+              ? (c.monthlyDeliverables || []).map(d => d.id === editingDeliverableId ? data.deliverable : d)
+              : [...(c.monthlyDeliverables || []), data.deliverable];
+            return { ...c, monthlyDeliverables: list };
           }
-        );
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          toast.error(data.message || "Failed to update deliverable");
-          return;
         }
+        return c;
+      }));
 
-        // Update local state with the response
-        setNewClient((prev) => ({
-          ...prev,
-          monthlyDeliverables: (prev.monthlyDeliverables || []).map((d) =>
-            d.id === editingDeliverableId ? data.deliverable : d
-          ),
-        }));
-
-        // Also update the main clients list
-        setClients((prev) =>
-          prev.map((c) =>
-            c.id === clientId
-              ? {
-                  ...c,
-                  monthlyDeliverables: (c.monthlyDeliverables || []).map((d) =>
-                    d.id === editingDeliverableId ? data.deliverable : d
-                  ),
-                }
-              : c
-          )
-        );
-
-        toast.success(`Updated: ${newDeliverable.type}`);
-      } else {
-        // 🔥 CREATE new deliverable via API
-        console.log("➕ Creating deliverable via API for client:", clientId);
-
-        const res = await fetch(`/api/clients/${clientId}/deliverables`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: newDeliverable.type,
-            quantity: newDeliverable.quantity,
-            videosPerDay: newDeliverable.videosPerDay || 1,
-            platforms: newDeliverable.platforms,
-            postingSchedule: newDeliverable.postingSchedule,
-            postingDays: newDeliverable.postingDays || [],
-            postingTimes: newDeliverable.postingTimes || ["10:00"],
-            description: newDeliverable.description || "",
-          }),
+      // Update selected client if open
+      if (selectedClient?.id === clientId) {
+        setSelectedClient(prev => {
+          if (!prev) return null;
+          if (isOneOff) {
+            return { ...prev, oneOffDeliverables: method === "PUT" ? (prev.oneOffDeliverables || []).map(d => d.id === editingDeliverableId ? data.deliverable : d) : [...(prev.oneOffDeliverables || []), data.deliverable] };
+          } else {
+            return { ...prev, monthlyDeliverables: method === "PUT" ? (prev.monthlyDeliverables || []).map(d => d.id === editingDeliverableId ? data.deliverable : d) : [...(prev.monthlyDeliverables || []), data.deliverable] };
+          }
         });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          toast.error(data.message || "Failed to add deliverable");
-          return;
-        }
-
-        // Update local state with the new deliverable (has real DB ID now)
-        setNewClient((prev) => ({
-          ...prev,
-          monthlyDeliverables: [
-            ...(prev.monthlyDeliverables || []),
-            data.deliverable,
-          ],
-        }));
-
-        // Also update the main clients list
-        setClients((prev) =>
-          prev.map((c) =>
-            c.id === clientId
-              ? {
-                  ...c,
-                  monthlyDeliverables: [
-                    ...(c.monthlyDeliverables || []),
-                    data.deliverable,
-                  ],
-                }
-              : c
-          )
-        );
-
-        toast.success(`Added: ${newDeliverable.type}`);
       }
 
+      toast.success(`${method === "PUT" ? "Updated" : "Added"}: ${newDeliverable.type}`);
       setShowAddDeliverableDialog(false);
-      setEditingDeliverableId(null);
       resetDeliverableForm();
-    } catch (err) {
-      console.error("Deliverable API error:", err);
-      toast.error("Server error");
+    } catch (err: any) {
+      toast.error(err.message);
     }
   };
 
@@ -823,12 +758,11 @@ export function ClientManagement() {
     const clientId = editingClient?.id;
 
     // If it's a frontend-generated ID or no client yet, just update local state
-    if (!clientId || deliverableId.startsWith("deliverable-")) {
+    if (!clientId || deliverableId.startsWith("temp-")) {
       setNewClient((prev) => ({
         ...prev,
-        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
-          (d) => d.id !== deliverableId
-        ),
+        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(d => d.id !== deliverableId),
+        oneOffDeliverables: (prev.oneOffDeliverables || []).filter(d => d.id !== deliverableId),
       }));
       toast.success("Deliverable removed");
       return;
@@ -836,10 +770,14 @@ export function ClientManagement() {
 
     // 🔥 Make API call to delete
     try {
-      console.log("🗑️ Deleting deliverable via API:", deliverableId);
+      // Determine if it's a monthly or one-off deliverable
+      const isOneOff = (newClient.oneOffDeliverables || []).some(d => d.id === deliverableId);
+      const apiPath = isOneOff ? "one-off-deliverables" : "deliverables";
+
+      console.log(`🗑️ Deleting ${isOneOff ? 'one-off' : 'monthly'} deliverable via API:`, deliverableId);
 
       const res = await fetch(
-        `/api/clients/${clientId}/deliverables/${deliverableId}`,
+        `/api/clients/${clientId}/${apiPath}/${deliverableId}`,
         {
           method: "DELETE",
         }
@@ -855,9 +793,8 @@ export function ClientManagement() {
       // Update local state
       setNewClient((prev) => ({
         ...prev,
-        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(
-          (d) => d.id !== deliverableId
-        ),
+        monthlyDeliverables: (prev.monthlyDeliverables || []).filter(d => d.id !== deliverableId),
+        oneOffDeliverables: (prev.oneOffDeliverables || []).filter(d => d.id !== deliverableId),
       }));
 
       // Also update the main clients list
@@ -865,14 +802,22 @@ export function ClientManagement() {
         prev.map((c) =>
           c.id === clientId
             ? {
-                ...c,
-                monthlyDeliverables: (c.monthlyDeliverables || []).filter(
-                  (d) => d.id !== deliverableId
-                ),
-              }
+              ...c,
+              monthlyDeliverables: (c.monthlyDeliverables || []).filter(d => d.id !== deliverableId),
+              oneOffDeliverables: (c.oneOffDeliverables || []).filter(d => d.id !== deliverableId),
+            }
             : c
         )
       );
+
+      // If viewing details, update selected client
+      if (selectedClient?.id === clientId) {
+        setSelectedClient(prev => prev ? ({
+          ...prev,
+          monthlyDeliverables: (prev.monthlyDeliverables || []).filter(d => d.id !== deliverableId),
+          oneOffDeliverables: (prev.oneOffDeliverables || []).filter(d => d.id !== deliverableId),
+        }) : null);
+      }
 
       toast.success("Deliverable deleted");
     } catch (err) {
@@ -897,6 +842,27 @@ export function ClientManagement() {
     });
     setDeliverableDialogKey((prev) => prev + 1);
     setShowAddDeliverableDialog(true);
+  };
+
+  // 🔥 Handle drag and drop reordering of deliverables
+  const handleDeliverableDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+
+    const sourceIndex = result.source.index;
+    const destIndex = result.destination.index;
+
+    if (sourceIndex === destIndex) return;
+
+    const deliverables = [...(newClient.monthlyDeliverables || [])];
+    const [removed] = deliverables.splice(sourceIndex, 1);
+    deliverables.splice(destIndex, 0, removed);
+
+    setNewClient((prev) => ({
+      ...prev,
+      monthlyDeliverables: deliverables,
+    }));
+
+    toast.success("Deliverable order updated");
   };
 
   // 🔥 NEW: Handle editing a deliverable
@@ -1022,7 +988,7 @@ export function ClientManagement() {
     clientName: string,
     deliverables: MonthlyDeliverable[]
   ) => {
-    const taskManager = GlobalTaskManager.getInstance();
+    const taskManager = globalTaskManager;
     let tasksCreated = 0;
     const today = new Date();
     const currentMonth = today.getMonth();
@@ -1066,8 +1032,8 @@ export function ClientManagement() {
         // Determine task type based on deliverable type
         const taskType =
           deliverable.type === "Long Form Videos" ||
-          deliverable.type === "Square Form Videos" ||
-          deliverable.type === "Snapchat Show Episode"
+            deliverable.type === "Square Form Videos" ||
+            deliverable.type === "Snapchat Episodes"
             ? "video"
             : "design";
 
@@ -1075,19 +1041,17 @@ export function ClientManagement() {
         const estimatedHours =
           deliverable.type === "Long Form Videos"
             ? "4"
-            : deliverable.type === "Snapchat Show Episode"
-            ? "3"
-            : "2";
+            : deliverable.type === "Snapchat Episodes"
+              ? "3"
+              : "2";
 
         // Create the initial editor task
         const platformsText = deliverable.platforms.join(", ");
         const task = taskManager.createTask({
-          title: `${deliverable.type} #${i + 1} - ${clientName}`,
-          description: `${
-            deliverable.type
-          } deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${
-            deliverable.postingSchedule
-          }\\n\\n${deliverable.description || "No additional notes"}`,
+          title: `${deliverable.type} #${dayIndex + 1} - ${clientName}`,
+          description: `${deliverable.type
+            } deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${deliverable.postingSchedule
+            }\\n\\n${deliverable.description || "No additional notes"}`,
           // description: `${deliverable.type} deliverable for ${clientName}\\n\\nPlatforms: ${platformsText}\\nPosting Schedule: ${deliverable.postingSchedule}\\nPosting Time: ${deliverable.defaultPostingTime}\\n\\n${deliverable.description || 'No additional notes'}`,
           type: taskType,
           assignedTo: "editor",
@@ -1249,6 +1213,7 @@ export function ClientManagement() {
       const payload = {
         ...newClient,
         monthlyDeliverables: newClient.monthlyDeliverables || [],
+        oneOffDeliverables: newClient.oneOffDeliverables || [],
       };
 
       console.log("📤 Sending client data:", JSON.stringify(payload, null, 2));
@@ -1341,6 +1306,7 @@ export function ClientManagement() {
       phones: client.phones || [],
       clientReviewRequired: client.requiresClientReview ? "yes" : "no",
       videographerRequired: client.requiresVideographer ? "yes" : "no",
+      hasPostingServices: client.hasPostingServices ?? true,
       accountManagerId: client.accountManagerId,
       startDate: client.startDate,
       renewalDate: client.renewalDate,
@@ -1348,9 +1314,16 @@ export function ClientManagement() {
       // 🔥 Make sure we're copying the deliverables with their IDs
       monthlyDeliverables: (client.monthlyDeliverables ?? []).map((d) => ({
         ...d,
-        id: d.id, // Preserve the database ID
+        id: d.id,
+      })),
+      oneOffDeliverables: (client.oneOffDeliverables ?? []).map((d) => ({
+        ...d,
+        id: d.id,
       })),
       billing: client.billing,
+      slackWebhookUrl: client.slackWebhookUrl || "",
+      slackChannelName: client.slackChannelName || "",
+      slackEnabled: client.slackEnabled ?? false,
       brandGuidelines: client.brandGuidelines ?? {
         primaryColors: [],
         secondaryColors: [],
@@ -1462,6 +1435,43 @@ export function ClientManagement() {
     toast.success("Uploaded successfully");
   };
 
+  const handleGenerateOneOffTasks = async (deliverableId: string) => {
+    if (!selectedClient) return;
+
+    try {
+      toast.loading("Generating tasks...", { id: "gen-tasks" });
+      const res = await fetch(`/api/clients/${selectedClient.id}/one-off-deliverables/${deliverableId}/generate`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to generate tasks", { id: "gen-tasks" });
+        return;
+      }
+
+      toast.success(data.message, { id: "gen-tasks" });
+
+      // Update local state
+      const updatedOneOffs = (selectedClient.oneOffDeliverables || []).map(d =>
+        d.id === deliverableId ? { ...d, status: 'GENERATED' as const } : d
+      );
+
+      setClients(prev => prev.map(c => {
+        if (c.id === selectedClient.id) {
+          return { ...c, oneOffDeliverables: updatedOneOffs };
+        }
+        return c;
+      }));
+
+      setSelectedClient(prev => prev ? ({ ...prev, oneOffDeliverables: updatedOneOffs }) : null);
+
+    } catch (err) {
+      console.error("Generate tasks failed:", err);
+      toast.error("An error occurred while generating tasks", { id: "gen-tasks" });
+    }
+  };
+
   const ClientDetailsDialog = () => {
     if (!selectedClient) return null;
 
@@ -1487,6 +1497,7 @@ export function ClientManagement() {
               <TabsTrigger value="deliverables">
                 Monthly Deliverables
               </TabsTrigger>
+              <TabsTrigger value="oneoff">One-Off Projects</TabsTrigger>
               <TabsTrigger value="brand">Brand Assets</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
@@ -1615,7 +1626,7 @@ export function ClientManagement() {
                           </div>
                           <Badge variant="outline" className="text-gray-700">
                             {deliverable.postingDays &&
-                            deliverable.postingDays.length > 0
+                              deliverable.postingDays.length > 0
                               ? deliverable.postingDays.join(", ")
                               : "Various"}
                           </Badge>
@@ -1663,6 +1674,165 @@ export function ClientManagement() {
                         No monthly deliverables configured
                       </div>
                     ))}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="oneoff" className="space-y-4">
+              <Card className="bg-white border-gray-200">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-gray-900 flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-yellow-500" />
+                      One-Off Projects / Packages
+                    </CardTitle>
+                    <p className="text-sm text-gray-600">
+                      Generate a fixed number of tasks once for a project or bundle.
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => {
+                    setEditingClient(selectedClient);
+                    setNewClient(prev => ({ ...prev, hasPostingServices: selectedClient.hasPostingServices ?? true }));
+                    setNewDeliverable({
+                      type: "Short Form Videos",
+                      quantity: 1,
+                      videosPerDay: 1,
+                      platforms: [],
+                      postingSchedule: 'one-off',
+                      postingDays: [],
+                      postingTimes: ["10:00"],
+                      description: "",
+                    });
+                    setEditingDeliverableId(null);
+                    setShowAddDeliverableDialog(true);
+                  }}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Project
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(selectedClient.oneOffDeliverables ?? []).map((deliverable) => (
+                    <div
+                      key={deliverable.id}
+                      className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          {getDeliverableTypeIcon(deliverable.type)}
+                          <div>
+                            <div className="text-gray-900 font-medium">
+                              {deliverable.type}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {deliverable.quantity} Total Tasks • Status: {deliverable.status}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {deliverable.status === 'PENDING' ? (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => handleGenerateOneOffTasks(deliverable.id)}
+                            >
+                              Generate Tasks
+                            </Button>
+                          ) : (
+                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                              Generated
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-blue-600 hover:text-blue-700"
+                            onClick={() => {
+                              setEditingClient(selectedClient);
+                              setNewClient(prev => ({ ...prev, hasPostingServices: selectedClient.hasPostingServices ?? true }));
+                              setEditingDeliverableId(deliverable.id);
+                              setNewDeliverable({
+                                type: deliverable.type,
+                                quantity: deliverable.quantity,
+                                videosPerDay: deliverable.videosPerDay,
+                                platforms: deliverable.platforms,
+                                postingSchedule: 'one-off',
+                                postingDays: deliverable.postingDays,
+                                postingTimes: deliverable.postingTimes,
+                                description: deliverable.description
+                              });
+                              setShowAddDeliverableDialog(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
+                            if (confirm("Delete this project? Tasks will remain if already generated.")) {
+                              await fetch(`/api/clients/${selectedClient.id}/one-off-deliverables/${deliverable.id}`, { method: 'DELETE' });
+                              setSelectedClient(prev => prev ? ({
+                                ...prev,
+                                oneOffDeliverables: (prev.oneOffDeliverables || []).filter(d => d.id !== deliverable.id)
+                              }) : null);
+                              // Sync with main clients state
+                              setClients(prev => prev.map(c => {
+                                if (c.id === selectedClient.id) {
+                                  return {
+                                    ...c,
+                                    oneOffDeliverables: (c.oneOffDeliverables || []).filter(d => d.id !== deliverable.id)
+                                  };
+                                }
+                                return c;
+                              }));
+                              toast.success("Deleted project");
+                            }
+                          }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {deliverable.platforms.map((platform) => (
+                          <Badge
+                            key={platform}
+                            variant="outline"
+                            className={getPlatformBadgeColor(platform)}
+                          >
+                            {platform}
+                          </Badge>
+                        ))}
+                      </div>
+
+                      {deliverable.description && (
+                        <p className="text-sm text-gray-600 mt-2 italic">
+                          "{deliverable.description}"
+                        </p>
+                      )}
+
+                      <div className="text-xs text-gray-400 mt-3 flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        Created: {new Date(deliverable.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+
+                  {(!selectedClient.oneOffDeliverables || selectedClient.oneOffDeliverables.length === 0) && (
+                    <div className="text-center py-12 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
+                      <Zap className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">No one-off projects or packages found.</p>
+                      <Button variant="link" onClick={() => {
+                        setEditingClient(selectedClient);
+                        setNewClient(prev => ({ ...prev, hasPostingServices: selectedClient.hasPostingServices ?? true }));
+                        setNewDeliverable({
+                          ...newDeliverable,
+                          postingSchedule: 'one-off'
+                        });
+                        setShowAddDeliverableDialog(true);
+                      }}>
+                        Create your first project bundle
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1901,7 +2071,7 @@ export function ClientManagement() {
       {/* Filters */}
       <Card className="bg-white border-gray-200">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -1942,7 +2112,7 @@ export function ClientManagement() {
       </Card>
 
       {/* Client List */}
-      <div className="grid gap-4">
+      <div className="grid gap-6">
         {filteredClients.map((client) => (
           <Card
             key={client.id}
@@ -2144,6 +2314,19 @@ export function ClientManagement() {
                     }
                     className="bg-white border-gray-200 text-gray-900"
                   />
+                </div>
+
+                <div className="flex items-center space-x-2 py-4">
+                  <Switch
+                    id="has-posting-services"
+                    checked={newClient.hasPostingServices ?? true}
+                    onCheckedChange={(checked) =>
+                      setNewClient({ ...newClient, hasPostingServices: checked })
+                    }
+                  />
+                  <Label htmlFor="has-posting-services" className="text-gray-700 font-medium">
+                    Posting Services Provided
+                  </Label>
                 </div>
 
                 {/* Additional Emails Section */}
@@ -2358,6 +2541,110 @@ export function ClientManagement() {
 
             <Separator className="bg-gray-200" />
 
+            {/* One-Off Projects */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-gray-900 flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-yellow-500" />
+                    One-Off Projects / Packages
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    One-time projects or task bundles
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setNewDeliverable({
+                      type: "Short Form Videos",
+                      quantity: 1,
+                      videosPerDay: 1,
+                      platforms: [],
+                      postingSchedule: "one-off",
+                      postingDays: [],
+                      postingTimes: ["10:00"],
+                      description: "",
+                    });
+                    setEditingDeliverableId(null);
+                    setShowAddDeliverableDialog(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Project
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {(newClient.oneOffDeliverables || []).map((deliverable) => (
+                  <div
+                    key={deliverable.id}
+                    className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {getDeliverableTypeIcon(deliverable.type)}
+                        <span className="text-gray-900 font-medium">
+                          {deliverable.type}
+                        </span>
+                        <Badge variant="outline" className="text-gray-600">
+                          {deliverable.quantity} Total
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {deliverable.platforms.join(", ")}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setNewDeliverable({
+                            type: deliverable.type,
+                            quantity: deliverable.quantity,
+                            videosPerDay: deliverable.videosPerDay,
+                            platforms: deliverable.platforms,
+                            postingSchedule: deliverable.postingSchedule as PostingSchedule,
+                            postingDays: deliverable.postingDays,
+                            postingTimes: deliverable.postingTimes,
+                            description: deliverable.description
+                          });
+                          setEditingDeliverableId(deliverable.id);
+                          setShowAddDeliverableDialog(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRemoveDeliverable(deliverable.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                {(!newClient.oneOffDeliverables ||
+                  newClient.oneOffDeliverables.length === 0) && (
+                    <div className="text-center py-6 text-gray-400 bg-gray-50/50 rounded-lg border border-dashed border-gray-200">
+                      No one-off projects added
+                    </div>
+                  )}
+              </div>
+            </div>
+
+            <Separator className="bg-gray-200" />
+
             {/* Monthly Deliverables */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -2396,86 +2683,115 @@ export function ClientManagement() {
                 </Button>
               </div>
 
-              <div className="space-y-2">
-                {(newClient.monthlyDeliverables || []).map((deliverable) => (
-                  <div
-                    key={deliverable.id}
-                    className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {getDeliverableTypeIcon(deliverable.type)}
-                        <span className="text-gray-900">
-                          {deliverable.type}
-                        </span>
-                        <Badge variant="outline" className="text-gray-600">
-                          {deliverable.quantity} per month
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className="text-blue-600 bg-blue-50"
+              <DragDropContext onDragEnd={handleDeliverableDragEnd}>
+                <Droppable droppableId="deliverables-list">
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className="space-y-2"
+                    >
+                      {(newClient.monthlyDeliverables || []).map((deliverable, index) => (
+                        <Draggable
+                          key={deliverable.id}
+                          draggableId={deliverable.id}
+                          index={index}
                         >
-                          {deliverable.videosPerDay || 1} per day
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-gray-600 mb-1">
-                        {deliverable.postingSchedule} •{" "}
-                        {deliverable.postingDays &&
-                        deliverable.postingDays.length > 0
-                          ? deliverable.postingDays.join(", ")
-                          : "Various days"}{" "}
-                        • {(deliverable.postingTimes || ["10:00"]).join(", ")}
-                      </div>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {deliverable.platforms.map((platform) => (
-                          <Badge
-                            key={platform}
-                            variant="outline"
-                            className={`text-xs ${getPlatformBadgeColor(
-                              platform
-                            )}`}
-                          >
-                            {platform}
-                          </Badge>
-                        ))}
-                      </div>
-                      {deliverable.description && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          {deliverable.description}
-                        </p>
-                      )}
-                    </div>
-                    {/* 🔥 NEW: Edit and Delete buttons */}
-                    <div className="flex gap-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEditDeliverable(deliverable)}
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRemoveDeliverable(deliverable.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className={`p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between ${snapshot.isDragging ? "shadow-lg ring-2 ring-blue-500 bg-white" : ""
+                                }`}
+                            >
+                              {/* Drag Handle */}
+                              <div
+                                {...provided.dragHandleProps}
+                                className="flex items-center justify-center p-1 mr-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+                              >
+                                <GripVertical className="h-5 w-5" />
+                              </div>
 
-                {(!newClient.monthlyDeliverables ||
-                  newClient.monthlyDeliverables.length === 0) && (
-                  <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-gray-200">
-                    No monthly deliverables added yet
-                  </div>
-                )}
-              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {getDeliverableTypeIcon(deliverable.type)}
+                                  <span className="text-gray-900">
+                                    {deliverable.type}
+                                  </span>
+                                  <Badge variant="outline" className="text-gray-600">
+                                    {deliverable.quantity} per month
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-blue-600 bg-blue-50"
+                                  >
+                                    {deliverable.videosPerDay || 1} per day
+                                  </Badge>
+                                </div>
+                                <div className="text-sm text-gray-600 mb-1">
+                                  {deliverable.postingSchedule} •{" "}
+                                  {deliverable.postingDays &&
+                                    deliverable.postingDays.length > 0
+                                    ? deliverable.postingDays.join(", ")
+                                    : "Various days"}{" "}
+                                  • {(deliverable.postingTimes || ["10:00"]).join(", ")}
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {deliverable.platforms.map((platform) => (
+                                    <Badge
+                                      key={platform}
+                                      variant="outline"
+                                      className={`text-xs ${getPlatformBadgeColor(
+                                        platform
+                                      )}`}
+                                    >
+                                      {platform}
+                                    </Badge>
+                                  ))}
+                                </div>
+                                {deliverable.description && (
+                                  <p className="text-xs text-gray-500 mt-2">
+                                    {deliverable.description}
+                                  </p>
+                                )}
+                              </div>
+                              {/* Edit and Delete buttons */}
+                              <div className="flex gap-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEditDeliverable(deliverable)}
+                                  className="text-blue-600 hover:text-blue-700"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleRemoveDeliverable(deliverable.id)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+
+                      {(!newClient.monthlyDeliverables ||
+                        newClient.monthlyDeliverables.length === 0) && (
+                          <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-gray-200">
+                            No monthly deliverables added yet
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </div>
 
             <Separator className="bg-gray-200" />
@@ -2592,10 +2908,10 @@ export function ClientManagement() {
                             {day === 1
                               ? "st"
                               : day === 2
-                              ? "nd"
-                              : day === 3
-                              ? "rd"
-                              : "th"}{" "}
+                                ? "nd"
+                                : day === 3
+                                  ? "rd"
+                                  : "th"}{" "}
                             of the month
                           </SelectItem>
                         )
@@ -2707,6 +3023,75 @@ export function ClientManagement() {
                 </div>
               </div>
             </div>
+
+            {/* Slack Channel Notifications */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-gray-900 flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-purple-600" />
+                  Slack Channel Notifications
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Send this client&apos;s task notifications to a dedicated Slack channel
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="slackWebhookUrl" className="text-gray-700">
+                    Webhook URL
+                  </Label>
+                  <Input
+                    id="slackWebhookUrl"
+                    placeholder="https://hooks.slack.com/services/..."
+                    value={(newClient as any).slackWebhookUrl || ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        slackWebhookUrl: e.target.value,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="slackChannelName" className="text-gray-700">
+                    Channel Name
+                  </Label>
+                  <Input
+                    id="slackChannelName"
+                    placeholder="#e8-client-name"
+                    value={(newClient as any).slackChannelName || ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        slackChannelName: e.target.value,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="text-gray-700">Enable Slack Notifications</Label>
+                  <p className="text-sm text-gray-500">
+                    Task updates for this client will be posted to their Slack channel
+                  </p>
+                </div>
+                <Switch
+                  checked={(newClient as any).slackEnabled ?? false}
+                  onCheckedChange={(checked) =>
+                    setNewClient({
+                      ...newClient,
+                      slackEnabled: checked,
+                    })
+                  }
+                />
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
@@ -2753,13 +3138,13 @@ export function ClientManagement() {
             <DialogTitle className="text-gray-900">
               {/* 🔥 Dynamic title based on edit mode */}
               {editingDeliverableId
-                ? "Edit Monthly Deliverable"
-                : "Add Monthly Deliverable"}
+                ? (newDeliverable.postingSchedule === 'one-off' ? "Edit One-Off Deliverable" : "Edit Monthly Deliverable")
+                : (newDeliverable.postingSchedule === 'one-off' ? "Add One-Off Deliverable" : "Add Monthly Deliverable")}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
               {editingDeliverableId
-                ? "Update the deliverable configuration"
-                : "Configure a recurring deliverable for this client"}
+                ? "Update the configuration"
+                : (newDeliverable.postingSchedule === 'one-off' ? "Configure a one-off project or task bundle" : "Configure a recurring deliverable for this client")}
             </DialogDescription>
           </DialogHeader>
 
@@ -2814,7 +3199,7 @@ export function ClientManagement() {
 
               <div className="space-y-2">
                 <Label htmlFor="quantity" className="text-gray-700">
-                  Quantity per Month
+                  {newDeliverable.postingSchedule === 'one-off' ? "Total Quantity" : "Quantity per Month"}
                 </Label>
                 <Input
                   id="quantity"
@@ -2843,6 +3228,7 @@ export function ClientManagement() {
                   type="number"
                   min="1"
                   value={newDeliverable.videosPerDay}
+                  disabled={newClient.hasPostingServices === false}
                   onChange={(e) =>
                     syncPostingTimesWithVideosPerDay(
                       parseInt(e.target.value) || 1
@@ -2858,6 +3244,7 @@ export function ClientManagement() {
                 </Label>
                 <Select
                   value={newDeliverable.postingSchedule}
+                  disabled={newClient.hasPostingServices === false}
                   onValueChange={(value) =>
                     setNewDeliverable({
                       ...newDeliverable,
@@ -2873,6 +3260,7 @@ export function ClientManagement() {
                     <SelectItem value="bi-weekly">Bi-Weekly</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="custom">Custom</SelectItem>
+                    <SelectItem value="one-off">One-Off (Single Batch)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2886,11 +3274,11 @@ export function ClientManagement() {
                   size="sm"
                   variant="outline"
                   onClick={setEveryDay}
-                  className={`h-8 ${
-                    (newDeliverable.postingDays || []).length === 7
-                      ? "bg-blue-50 border-blue-500 text-blue-700"
-                      : "bg-white border-gray-200 text-gray-600"
-                  }`}
+                  disabled={newClient.hasPostingServices === false}
+                  className={`h-8 ${(newDeliverable.postingDays || []).length === 7
+                    ? "bg-blue-50 border-blue-500 text-blue-700"
+                    : "bg-white border-gray-200 text-gray-600"
+                    }`}
                 >
                   {(newDeliverable.postingDays || []).length === 7 ? "✓ " : ""}
                   Everyday
@@ -2908,12 +3296,11 @@ export function ClientManagement() {
                 ].map((day) => (
                   <div
                     key={day}
-                    onClick={() => toggleDay(day)}
-                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors ${
-                      (newDeliverable.postingDays || []).includes(day)
-                        ? "bg-blue-50 border-blue-500 text-blue-700"
-                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
+                    onClick={() => newClient.hasPostingServices !== false && toggleDay(day)}
+                    className={`p-2 rounded border text-center text-sm transition-colors ${newClient.hasPostingServices === false ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${(newDeliverable.postingDays || []).includes(day)
+                      ? "bg-blue-50 border-blue-500 text-blue-700"
+                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
                   >
                     {day.substring(0, 3)}
                   </div>
@@ -2948,6 +3335,7 @@ export function ClientManagement() {
                           (newDeliverable.postingTimes || ["10:00"])[index] ||
                           "10:00"
                         }
+                        disabled={newClient.hasPostingServices === false}
                         onChange={(e) =>
                           updatePostingTime(index, e.target.value)
                         }
@@ -2972,11 +3360,11 @@ export function ClientManagement() {
                   size="sm"
                   variant="outline"
                   onClick={setAllPlatforms}
-                  className={`h-8 ${
-                    (newDeliverable.platforms || []).length === 7
-                      ? "bg-blue-50 border-blue-500 text-blue-700"
-                      : "bg-white border-gray-200 text-gray-600"
-                  }`}
+                  disabled={newClient.hasPostingServices === false}
+                  className={`h-8 ${(newDeliverable.platforms || []).length === 7
+                    ? "bg-blue-50 border-blue-500 text-blue-700"
+                    : "bg-white border-gray-200 text-gray-600"
+                    }`}
                 >
                   {(newDeliverable.platforms || []).length === 7 ? "✓ " : ""}
                   Select All
@@ -2996,12 +3384,11 @@ export function ClientManagement() {
                 ).map((platform) => (
                   <div
                     key={platform}
-                    onClick={() => togglePlatform(platform)}
-                    className={`p-2 rounded border cursor-pointer text-center text-sm transition-colors flex items-center justify-center gap-2 ${
-                      newDeliverable.platforms?.includes(platform)
-                        ? "bg-blue-50 border-blue-500 text-blue-700"
-                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
+                    onClick={() => newClient.hasPostingServices !== false && togglePlatform(platform)}
+                    className={`p-2 rounded border text-center text-sm transition-colors flex items-center justify-center gap-2 ${newClient.hasPostingServices === false ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} ${newDeliverable.platforms?.includes(platform)
+                      ? "bg-blue-50 border-blue-500 text-blue-700"
+                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
                   >
                     {getPlatformIcon(platform)}
                     <span>

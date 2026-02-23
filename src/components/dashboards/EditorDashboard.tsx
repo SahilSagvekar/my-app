@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, DragEvent } from "react";
+import { useState, useEffect, useMemo, useCallback, DragEvent } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -27,9 +27,15 @@ import {
   Filter,
   GripVertical,
   Clock,
+  Share2,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
+import { FilePreviewModal } from "../FileViewerModal";
+import { ShareDialog } from "../review/ShareDialog";
+import { toast } from "sonner";
+import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -72,12 +78,31 @@ function mapTaskTypeToWorkflow(type: string) {
   return "edit";
 }
 
+function getStatusBadgeStyles(status: string) {
+  switch (status) {
+    case "pending":
+      return "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50";
+    case "in_progress":
+      return "bg-yellow-50 text-yellow-700 border-yellow-100 hover:bg-yellow-50";
+    case "ready_for_qc":
+      return "bg-green-50 text-green-700 border-green-100 hover:bg-green-50";
+    case "rejected":
+      return "bg-red-50 text-red-700 border-red-100 hover:bg-red-50";
+    case "completed":
+    case "approved":
+      return "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50";
+    default:
+      return "bg-gray-50 text-gray-700 border-gray-100 hover:bg-gray-50";
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* 🔥 HELPER: Extract task number from title                                   */
 /* -------------------------------------------------------------------------- */
 
 function extractTaskNumber(title: string): number | null {
-  const match = title?.match(/(\d+)/);
+  // 🔥 Match the LAST number in the string (e.g. "Project_01-12-2024_SF21" -> 21)
+  const match = title?.match(/(\d+)$/);
   return match ? parseInt(match[1]) : null;
 }
 
@@ -265,6 +290,7 @@ interface WorkflowTask {
   monthlyDeliverableId?: string;
   monthlyQuantity?: number; // Total tasks per month for this deliverable
   taskNumber?: number; // Task number (extracted from title)
+  clientName?: string; // 🔥 Added client name for filtering
 }
 
 /* -------------------------------------------------------------------------- */
@@ -321,10 +347,12 @@ function FileViewerDialog({
   files,
   open,
   onOpenChange,
+  onPreview,
 }: {
   files: TaskFile[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onPreview: (file: TaskFile) => void;
 }) {
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith("video/"))
@@ -358,7 +386,7 @@ function FileViewerDialog({
             <Card
               key={file.id}
               className="cursor-pointer hover:border-primary hover:shadow-sm transition-all"
-              onClick={() => window.open(file.url, "_blank")}
+              onClick={() => onPreview(file)}
             >
               <CardContent className="p-3">
                 <div className="flex items-center gap-3">
@@ -402,14 +430,27 @@ function TaskCard({
   onStartTask,
   onDragStart,
   isDragging,
+  onPreview,
+  onShare,
 }: {
   task: WorkflowTask;
-  onUploadComplete: (files: any[]) => void;
-  onStartTask: () => void;
+  onUploadComplete: (taskId: string, files: any[]) => void;
+  onStartTask: (taskId: string) => void;
   onDragStart: (e: DragEvent<HTMLDivElement>, task: WorkflowTask) => void;
   isDragging: boolean;
+  onPreview: (file: TaskFile) => void;
+  onShare: (task: WorkflowTask) => void;
 }) {
   const [showFiles, setShowFiles] = useState(false);
+  const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
+
+  const toggleFeedbackExpand = (id: string) => {
+    setExpandedFeedbackIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const isOverdue = new Date(task.dueDate) < new Date();
 
   // 🔥 Tasks in QC review shouldn't be draggable by editors
@@ -424,41 +465,57 @@ function TaskCard({
       <Card
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
-        className={`transition-all ${
-          isDraggable
-            ? "cursor-grab active:cursor-grabbing hover:shadow-md"
-            : "cursor-not-allowed opacity-75"
-        } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}
+        className={`transition-all ${isDraggable
+          ? "cursor-grab active:cursor-grabbing hover:shadow-md"
+          : "cursor-not-allowed opacity-75"
+          } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}
       >
         <CardContent className="p-3">
           {/* Drag Handle + Title */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <h4 className="font-medium text-xs truncate">{task.title}</h4>
+              <h4 className="font-medium text-xs whitespace-normal break-words">{task.title}</h4>
             </div>
-            <Badge
-              variant={task.status === "completed" ? "default" : "secondary"}
-              className="text-[10px] flex-shrink-0 ml-1 px-1.5 py-0 h-4"
-            >
-              {task.status.replace("_", " ").toUpperCase()}
-            </Badge>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShare(task);
+                }}
+              >
+                <Share2 className="h-3 w-3" />
+              </Button>
+              <Badge
+                variant="outline"
+                className={`text-[10px] px-1.5 py-0 h-4 font-medium ${getStatusBadgeStyles(task.status)}`}
+              >
+                {task.status.replace(/_/g, " ").toUpperCase()}
+              </Badge>
+            </div>
           </div>
 
-          {/* Deliverable Type + Description combined */}
-          <div className="mb-2">
+          <div className="flex flex-wrap gap-1 mb-2">
             {task.deliverableType && (
               <Badge
                 variant="outline"
-                className="text-[10px] mb-1 mr-1 px-1.5 py-0 h-4"
+                className="text-[10px] px-1.5 py-0 h-4"
               >
                 {task.deliverableType.replace(/_/g, " ")}
               </Badge>
             )}
-            <p className="text-xs text-muted-foreground line-clamp-1">
-              {task.description}
-            </p>
+            {task.id.startsWith("one-off") || (task as any).isOneOff ? (
+              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                One-Off
+              </Badge>
+            ) : null}
           </div>
+          <p className="text-xs text-muted-foreground line-clamp-1">
+            {task.description}
+          </p>
 
           {/* Compact Upload Progress for In Progress Tasks */}
           {task.status === "in_progress" && uploadValidation && (
@@ -468,18 +525,16 @@ function TaskCard({
                   Upload Progress:
                 </span>
                 <span
-                  className={`text-[10px] ${
-                    uploadValidation.isComplete
-                      ? "text-green-600"
-                      : "text-amber-600"
-                  }`}
+                  className={`text-[10px] ${uploadValidation.isComplete
+                    ? "text-green-600"
+                    : "text-yellow-600"
+                    }`}
                 >
                   {uploadValidation.isComplete
                     ? "✓ Ready"
-                    : `${uploadValidation.uploadedSections.length}/${
-                        uploadValidation.uploadedSections.length +
-                        uploadValidation.missingUploads.length
-                      }`}
+                    : `${uploadValidation.uploadedSections.length}/${uploadValidation.uploadedSections.length +
+                    uploadValidation.missingUploads.length
+                    }`}
                 </span>
               </div>
             </div>
@@ -495,52 +550,66 @@ function TaskCard({
                 </span>
               </div>
 
-              <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
+              <div className="space-y-1.5">
                 {task.taskFeedback
                   .filter(fb => fb.status === "needs_revision")
-                  .map((fb) => (
-                    <Alert
-                      key={fb.id}
-                      variant="destructive"
-                      className="py-1.5"
-                    >
-                      <AlertDescription className="text-[10px]">
-                        {/* Version and Section badges */}
-                        <div className="flex items-center gap-1 mb-1 flex-wrap">
-                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
-                            V{fb.fileVersion || 1}
-                          </Badge>
-                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                            {fb.folderType === "main" ? "📁 Main" :
-                              fb.folderType === "thumbnails" ? "🖼️ Thumb" :
-                                fb.folderType === "tiles" ? "🎨 Tiles" :
-                                  fb.folderType === "music-license" ? "🎵 Music" :
-                                    fb.folderType}
-                          </Badge>
-                          {fb.timestamp && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">
-                              ⏱️ {fb.timestamp}
+                  .map((fb) => {
+                    const isExpanded = expandedFeedbackIds.has(fb.id);
+                    const isLong = fb.feedback && fb.feedback.length > 120;
+                    return (
+                      <Alert
+                        key={fb.id}
+                        variant="destructive"
+                        className="py-1.5"
+                      >
+                        <AlertDescription className="text-[10px]">
+                          {/* Version and Section badges */}
+                          <div className="flex items-center gap-1 mb-1 flex-wrap">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
+                              V{fb.fileVersion || 1}
                             </Badge>
-                          )}
-                          {fb.category && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                              {fb.category}
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                              {fb.folderType === "main" ? "📁 Main" :
+                                fb.folderType === "thumbnails" ? "🖼️ Thumb" :
+                                  fb.folderType === "tiles" ? "🎨 Tiles" :
+                                    fb.folderType === "music-license" ? "🎵 Music" :
+                                      fb.folderType}
                             </Badge>
-                          )}
-                        </div>
+                            {fb.timestamp && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">
+                                ⏱️ {fb.timestamp}
+                              </Badge>
+                            )}
+                            {fb.category && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                                {fb.category}
+                              </Badge>
+                            )}
+                          </div>
 
-                        {/* Feedback text */}
-                        <p className="whitespace-pre-wrap line-clamp-2">{fb.feedback}</p>
-
-                        {/* File reference if available */}
-                        {fb.fileName && (
-                          <p className="text-muted-foreground mt-0.5 text-[9px] truncate">
-                            📎 {fb.fileName}
+                          {/* Feedback text — expandable */}
+                          <p className={`whitespace-pre-wrap break-words ${isExpanded ? '' : 'line-clamp-2'}`}>
+                            {fb.feedback}
                           </p>
-                        )}
-                      </AlertDescription>
-                    </Alert>
-                  ))}
+                          {isLong && (
+                            <button
+                              className="text-[9px] font-semibold text-destructive/80 hover:text-destructive underline mt-0.5 focus:outline-none"
+                              onClick={(e) => { e.stopPropagation(); toggleFeedbackExpand(fb.id); }}
+                            >
+                              {isExpanded ? 'Show less ▲' : 'Show more ▼'}
+                            </button>
+                          )}
+
+                          {/* File reference if available */}
+                          {fb.fileName && (
+                            <p className="text-muted-foreground mt-0.5 text-[9px] truncate">
+                              📎 {fb.fileName}
+                            </p>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -548,18 +617,17 @@ function TaskCard({
           {/* Compact Due Date + Files */}
           <div className="flex items-center justify-between mb-2 text-xs">
             <span
-              className={`text-[10px] ${
-                isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
-              }`}
+              className={`text-[10px] ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
+                }`}
             >
               Due {new Date(task.dueDate).toLocaleDateString()}
               {isOverdue && " ⚠"}
             </span>
 
-            {task.files?.length > 0 && (
+            {(task.files?.length ?? 0) > 0 && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
                 <FileText className="h-2.5 w-2.5 mr-0.5" />
-                {task.files.length}
+                {task.files?.length}
               </Badge>
             )}
           </div>
@@ -574,7 +642,7 @@ function TaskCard({
                     <FilePreviewCard
                       key={file.id}
                       file={file}
-                      onView={() => window.open(file.url, "_blank")}
+                      onView={() => onPreview(file)}
                     />
                   ))}
                   {task.files.length > 1 && (
@@ -595,7 +663,7 @@ function TaskCard({
               size="sm"
               variant="outline"
               className="w-full text-xs"
-              onClick={onStartTask}
+              onClick={() => onStartTask(task.id)}
             >
               {task.status === "rejected" ? "Start Revision" : "Start"}
             </Button>
@@ -604,7 +672,7 @@ function TaskCard({
           {task.status === "in_progress" && (
             <TaskUploadSections
               task={task}
-              onUploadComplete={onUploadComplete}
+              onUploadComplete={(files) => onUploadComplete(task.id, files)}
             />
           )}
         </CardContent>
@@ -613,9 +681,10 @@ function TaskCard({
       {/* File Viewer Dialog */}
       {task.files && task.files.length > 0 && (
         <FileViewerDialog
-          files={task.files}
+          files={task.files || []}
           open={showFiles}
           onOpenChange={setShowFiles}
+          onPreview={onPreview}
         />
       )}
     </>
@@ -641,6 +710,8 @@ interface ColumnProps {
   draggingTaskId: string | null;
   onUploadComplete: (taskId: string, files: any[]) => void;
   onStartTask: (taskId: string) => void;
+  onPreview: (file: TaskFile) => void;
+  onShare: (task: WorkflowTask) => void;
 }
 
 function DroppableColumn({
@@ -658,6 +729,8 @@ function DroppableColumn({
   draggingTaskId,
   onUploadComplete,
   onStartTask,
+  onPreview,
+  onShare,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -695,29 +768,30 @@ function DroppableColumn({
           <TaskCard
             key={task.id}
             task={task}
-            onUploadComplete={(files) => onUploadComplete(task.id, files)}
-            onStartTask={() => onStartTask(task.id)}
+            onUploadComplete={onUploadComplete}
+            onStartTask={onStartTask}
             onDragStart={onDragStart}
             isDragging={draggingTaskId === task.id}
+            onPreview={onPreview}
+            onShare={onShare}
           />
         ))}
 
         {tasks.length === 0 && (
           <div
-            className={`text-center py-8 rounded-lg ${
-              isDragOver && isValidTarget
-                ? "text-green-600"
-                : isDragOver && !isValidTarget
+            className={`text-center py-8 rounded-lg ${isDragOver && isValidTarget
+              ? "text-green-600"
+              : isDragOver && !isValidTarget
                 ? "text-red-500"
                 : "text-muted-foreground"
-            }`}
+              }`}
           >
             <p className="text-sm">
               {isDragOver && isValidTarget
                 ? "✓ Drop task here"
                 : isDragOver && !isValidTarget
-                ? "✗ Cannot drop here"
-                : "No tasks"}
+                  ? "✗ Cannot drop here"
+                  : "No tasks"}
             </p>
           </div>
         )}
@@ -734,9 +808,30 @@ export function EditorDashboard() {
   const [tasks, setTasks] = useState<WorkflowTask[]>([]);
   const [deliverableTypeFilter, setDeliverableTypeFilter] =
     useState<string>("all");
+  const [clientFilter, setClientFilter] = useState<string>("all");
   const [draggingTask, setDraggingTask] = useState<WorkflowTask | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // 🔥 Share states
+  const [shareLink, setShareLink] = useState("");
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const { user } = useAuth();
+
+  // ── Editor task-creation permissions ──────────────────────────────
+  const [permittedClients, setPermittedClients] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/editor/task-permissions', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setPermittedClients(d.clients || []))
+      .catch(() => setPermittedClients([]));
+  }, []);
+  // ─────────────────────────────────────────────────────────────────
 
   const currentUser = {
     id: user?.id?.toString() || "",
@@ -747,76 +842,91 @@ export function EditorDashboard() {
   const router = useRouter();
 
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
+  const loadTasks = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tasks");
+      const data = await res.json();
 
-  useEffect(() => {
-    async function loadTasks() {
-      try {
-        const res = await fetch("/api/tasks");
-        const data = await res.json();
+      console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
 
-        console.log("📋 Raw task data from API:", data.tasks?.[0]);
+      console.log("📋 Raw task data from API:", data.tasks?.[0]);
 
-        const formatted: WorkflowTask[] = (data.tasks || [])
-          .filter((t: any) => t.assignedTo === Number(currentUser.id))
-          .map((t: any) => {
-            console.log("🔍 Mapping task:", {
-              taskId: t.id,
-              clientId: t.clientId,
-              title: t.title,
-              deliverableType: t.monthlyDeliverable?.type,
-            });
-
-            return {
-              id: t.id,
-              title: t.title,
-              description: t.description,
-              type: mapTaskTypeToWorkflow(t.taskType),
-              status: mapStatus(t.status),
-              assignedTo: String(t.assignedTo),
-              assignedToName: currentUser.name,
-              assignedToRole: currentUser.role,
-              createdAt: t.createdAt,
-              dueDate: t.dueDate,
-              folderType: "outputs",
-              outputFolderId: t.outputFolderId,
-              workflowStep: "editing",
-              clientId: t.clientId,
-              projectId: t.clientId,
-              deliverableType: t.monthlyDeliverable?.type,
-              taskNumber: extractTaskNumber(t.title),
-              // 🔥 NEW: Monthly deliverable info for weekly distribution
-              monthlyDeliverableId: t.monthlyDeliverableId || null,
-              monthlyQuantity: t.monthlyDeliverable?.quantity || 4, // Default to 4 if not set
-              files: t.files || [],
-              qcNotes: t.qcNotes || null,
-              rejectionReason: t.rejectionReason || null,
-              feedback: t.feedback || null,
-              // 🔥 Map taskFeedback with file version info from nested file data
-              taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
-                id: fb.id,
-                fileId: fb.fileId,
-                folderType: fb.folderType,
-                feedback: fb.feedback,
-                status: fb.status,
-                timestamp: fb.timestamp,
-                category: fb.category,
-                createdAt: fb.createdAt,
-                resolvedAt: fb.resolvedAt,
-                // Use nested file data from API response
-                fileVersion: fb.file?.version || 1,
-                fileName: fb.file?.name || null,
-              })),
-            };
+      const formatted: WorkflowTask[] = (data.tasks || [])
+        .filter((t: any) => t.assignedTo === Number(currentUser.id))
+        .map((t: any) => {
+          console.log("🔍 Mapping task:", {
+            taskId: t.id,
+            clientId: t.clientId,
+            title: t.title,
+            deliverableType: t.monthlyDeliverable?.type,
           });
 
-        setTasks(formatted);
-      } catch (err) {
-        console.error("Failed to load tasks:", err);
-      }
-    }
+          return {
+            id: t.id,
+            title: t.title,
+            description: t.description,
+            type: mapTaskTypeToWorkflow(t.taskType),
+            status: mapStatus(t.status),
+            assignedTo: String(t.assignedTo),
+            assignedToName: currentUser.name,
+            assignedToRole: currentUser.role,
+            createdAt: t.createdAt,
+            dueDate: t.dueDate,
+            folderType: "outputs",
+            outputFolderId: t.outputFolderId,
+            workflowStep: "editing",
+            clientId: t.clientId,
+            projectId: t.clientId,
+            deliverableType: t.monthlyDeliverable?.type || t.oneOffDeliverable?.type,
+            taskNumber: extractTaskNumber(t.title),
+            isOneOff: !!t.oneOffDeliverable,
+            clientName: t.client?.companyName || t.client?.name || "Unknown Client",
+            // 🔥 NEW: Monthly deliverable info for weekly distribution
+            monthlyDeliverableId: t.monthlyDeliverableId || null,
+            monthlyQuantity: t.monthlyDeliverable?.quantity || t.oneOffDeliverable?.quantity || 4, // Default to 4 if not set
+            files: t.files || [],
+            qcNotes: t.qcNotes || null,
+            rejectionReason: t.rejectionReason || null,
+            feedback: t.feedback || null,
+            // 🔥 Map taskFeedback with file version info from nested file data
+            taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
+              id: fb.id,
+              fileId: fb.fileId,
+              folderType: fb.folderType,
+              feedback: fb.feedback,
+              status: fb.status,
+              timestamp: fb.timestamp,
+              category: fb.category,
+              createdAt: fb.createdAt,
+              resolvedAt: fb.resolvedAt,
+              // Use nested file data from API response
+              fileVersion: fb.file?.version || 1,
+              fileName: fb.file?.name || null,
+            })),
+          };
+        });
 
-    loadTasks();
+      setTasks(formatted);
+    } catch (err) {
+      console.error("Failed to load tasks:", err);
+    }
   }, [currentUser.id]);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  // Global listener for background task updates
+  useEffect(() => {
+    const handleTaskGlobalUpdate = (e: any) => {
+      if (e.detail?.taskId) {
+        console.log("🔔 Global update received for task:", e.detail.taskId);
+        handleUploadComplete(e.detail.taskId, []);
+      }
+    };
+    window.addEventListener('task-updated', handleTaskGlobalUpdate);
+    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
+  }, []);
 
   /* ----------------------------- DERIVED DATA ------------------------------ */
 
@@ -830,6 +940,18 @@ export function EditorDashboard() {
     return Array.from(types).sort();
   }, [tasks]);
 
+  const availableClients = useMemo(() => {
+    const clients = new Map<string, string>(); // clientId -> clientName
+    tasks.forEach((task) => {
+      if (task.clientId && task.clientName) {
+        clients.set(task.clientId, task.clientName);
+      }
+    });
+    return Array.from(clients.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasks]);
+
   // 🔥 WEEKLY TASK DISTRIBUTION LOGIC
   // This calculates which tasks should be visible based on weekly quotas
   const weeklyVisibleTasks = useMemo(() => {
@@ -838,9 +960,8 @@ export function EditorDashboard() {
 
     tasks.forEach((task) => {
       // Create a unique key for each deliverable per client
-      const deliverableKey = `${task.clientId}-${
-        task.monthlyDeliverableId || task.deliverableType || "default"
-      }`;
+      const deliverableKey = `${task.clientId}-${task.monthlyDeliverableId || task.deliverableType || "default"
+        }`;
 
       if (!tasksByDeliverable[deliverableKey]) {
         tasksByDeliverable[deliverableKey] = [];
@@ -927,13 +1048,22 @@ export function EditorDashboard() {
 
   // Apply deliverable type filter on top of weekly visible tasks
   const filteredTasks = useMemo(() => {
-    if (deliverableTypeFilter === "all") {
-      return weeklyVisibleTasks;
+    let result = weeklyVisibleTasks;
+
+    if (deliverableTypeFilter !== "all") {
+      result = result.filter(
+        (task) => task.deliverableType === deliverableTypeFilter
+      );
     }
-    return weeklyVisibleTasks.filter(
-      (task) => task.deliverableType === deliverableTypeFilter
-    );
-  }, [weeklyVisibleTasks, deliverableTypeFilter]);
+
+    if (clientFilter !== "all") {
+      result = result.filter(
+        (task) => task.clientId === clientFilter
+      );
+    }
+
+    return result;
+  }, [weeklyVisibleTasks, deliverableTypeFilter, clientFilter]);
 
   // 🔥 Calculate hidden task count for UI feedback
   const hiddenTaskCount = useMemo(() => {
@@ -956,7 +1086,7 @@ export function EditorDashboard() {
     // Define valid transitions for editor role
     const validTransitions: Record<string, string[]> = {
       pending: ["in_progress"], // Can only start task
-      in_progress: ["ready_for_qc"], // Can only submit for QC
+      in_progress: ["ready_for_qc", "pending", "rejected"], // Can submit for QC or undo start (move back to pending/rejected)
       rejected: ["in_progress"], // Can only start revision
       ready_for_qc: [], // Editor can't move QC tasks - that's QC's job
     };
@@ -978,18 +1108,8 @@ export function EditorDashboard() {
           message: "Cannot move pending tasks to revisions",
         };
       }
-      if (fromStatus === "in_progress" && toStatus === "pending") {
-        return {
-          valid: false,
-          message: "Cannot move task back to pending once started",
-        };
-      }
-      if (fromStatus === "in_progress" && toStatus === "rejected") {
-        return {
-          valid: false,
-          message: "Only QC can reject tasks",
-        };
-      }
+
+
       if (fromStatus === "ready_for_qc") {
         return {
           valid: false,
@@ -1147,7 +1267,7 @@ export function EditorDashboard() {
 
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
-  async function startTask(taskId: string) {
+  const startTask = useCallback(async (taskId: string) => {
     await fetch(`/api/tasks/${taskId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1157,9 +1277,9 @@ export function EditorDashboard() {
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: "in_progress" } : t))
     );
-  }
+  }, []);
 
-  async function handleUploadComplete(taskId: string, files: any[]) {
+  const handleUploadComplete = useCallback(async (taskId: string, files: any[]) => {
     const res = await fetch("/api/tasks");
     const data = await res.json();
 
@@ -1170,15 +1290,53 @@ export function EditorDashboard() {
         t.id === taskId ? { ...t, files: updatedTask?.files || files } : t
       )
     );
-  }
+  }, []);
+
+  const handlePreview = useCallback((file: any) => {
+    setPreviewFile(file);
+    setIsPreviewOpen(true);
+  }, []);
+
+  const handleShare = useCallback(async (task: WorkflowTask) => {
+    setIsSharing(true);
+    setCopied(false);
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expiresAt: null, // Never expires by default
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate share link");
+
+      const data = await res.json();
+      setShareLink(data.shareUrl);
+      setShowShareDialog(true);
+
+      // Auto-copy
+      await navigator.clipboard.writeText(data.shareUrl);
+      setCopied(true);
+      toast.success("Share link created and copied to clipboard");
+      setTimeout(() => setCopied(false), 3000);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate share link");
+    } finally {
+      setIsSharing(false);
+    }
+  }, []);
 
   /* ----------------------------- CLEAR FILTERS ----------------------------- */
 
   function clearAllFilters() {
     setDeliverableTypeFilter("all");
+    setClientFilter("all");
   }
 
-  const hasActiveFilters = deliverableTypeFilter !== "all";
+  const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all";
 
   /* ----------------------------- GROUPING ---------------------------------- */
 
@@ -1238,63 +1396,87 @@ export function EditorDashboard() {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
         <div>
-          <h1 className="text-xl sm:text-2xl">Editor Portal</h1>
-          <p className="text-muted-foreground mt-1 sm:mt-2 text-sm sm:text-base">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            Editor Portal
+          </h1>
+          <p className="text-muted-foreground mt-1 text-lg">
             Manage your assigned tasks and complete work for QC review.
-            <span className="hidden sm:inline text-xs ml-2 text-primary">
-              (Drag tasks to change status)
-            </span>
           </p>
         </div>
-      </div>
-
-      {/* Filter Section */}
-      <Card>
-        <CardContent className="p-3 sm:p-4">
-          <div className="flex flex-col gap-3 sm:gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs sm:text-sm text-muted-foreground">
-                  Filter by:
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 flex-1 sm:flex-initial">
-                <Select
-                  value={deliverableTypeFilter}
-                  onValueChange={setDeliverableTypeFilter}
-                >
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="All Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {availableDeliverableTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type.replace(/_/g, " ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {deliverableTypeFilter !== "all" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeliverableTypeFilter("all")}
-                    className="text-xs shrink-0"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
+        <div className="flex items-center gap-3">
+          <EditorCreateTaskDialog
+            permittedClients={permittedClients}
+            onTaskCreated={() => loadTasks()}
+          />
+        </div>
+        {/* <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => loadTasks()}
+            className="shadow-sm"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div> */}
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs sm:text-sm text-muted-foreground">
+                Filter by:
+              </span>
             </div>
 
-            {/* Show filter info */}
-            {deliverableTypeFilter !== "all" && (
+            <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+              <Select
+                value={deliverableTypeFilter}
+                onValueChange={setDeliverableTypeFilter}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="All Deliverables" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Deliverables</SelectItem>
+                  {availableDeliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="All Clients" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {availableClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="text-xs shrink-0"
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Show filter info */}
+          {/* {deliverableTypeFilter !== "all" && (
               <div className="mt-3 pt-3 border-t">
                 <p className="text-sm text-muted-foreground">
                   Showing{" "}
@@ -1311,10 +1493,72 @@ export function EditorDashboard() {
                   </Badge>
                 </p>
               </div>
-            )}
+            )} */}
+        </div>
+      </div>
+
+      {/* Filter Section */}
+      {/* <Card>
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs sm:text-sm text-muted-foreground">
+                  Filter by:
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+                <Select
+                  value={deliverableTypeFilter}
+                  onValueChange={setDeliverableTypeFilter}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="All Deliverables" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Deliverables</SelectItem>
+                    {availableDeliverableTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type.replace(/_/g, " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={clientFilter}
+                  onValueChange={setClientFilter}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="All Clients" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {availableClients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllFilters}
+                    className="text-xs shrink-0"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Kanban Board with Drag & Drop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -1335,9 +1579,31 @@ export function EditorDashboard() {
             draggingTaskId={draggingTask?.id || null}
             onUploadComplete={handleUploadComplete}
             onStartTask={startTask}
+            onPreview={handlePreview}
+            onShare={handleShare}
           />
         ))}
       </div>
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
+
+      {/* Share Dialog */}
+      <ShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        shareLink={shareLink}
+        onCopy={() => {
+          navigator.clipboard.writeText(shareLink);
+          setCopied(true);
+          toast.success("Link copied to clipboard");
+          setTimeout(() => setCopied(false), 2000);
+        }}
+        copied={copied}
+      />
     </div>
   );
 }

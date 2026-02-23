@@ -15,14 +15,15 @@ export async function POST(req: Request) {
     const taskId = form.get("taskId") as string | null;
     const clientId = form.get("clientId") as string | null;
     const folderType = form.get("folderType") as string | null;
+    const codec = form.get("codec") as string | null;
 
     console.log("📥 FORM DATA RECEIVED:", {
       taskId,
       clientId,
       folderType,
       file: file ? file.name : null,
+      codec
     });
-
     // -------------------------------
     // VALIDATION
     // -------------------------------
@@ -97,6 +98,11 @@ export async function POST(req: Request) {
         url: uploaded.url, // S3 public URL
         mimeType: file.type,
         size: buffer.length,
+        folderType: folderType === "rawFootage" ? "raw" : folderType, // Save the folder type
+        s3Key: uploaded.key,
+        codec: codec,
+        version: 1,
+        isActive: true,
       },
     });
 

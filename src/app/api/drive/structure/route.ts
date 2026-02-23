@@ -76,7 +76,7 @@ const s3Client = new S3Client({
 
 //           console.log('👤 user:', userId);
 //           console.log('👤 user:', user);
-          
+
 //           if (user && user.role === 'client') {
 //             return NextResponse.json(
 //               {
@@ -270,7 +270,8 @@ export async function GET(request: NextRequest) {
       }
 
       companyName = clientRecord.companyName || clientRecord.name;
-      prefix = `${companyName}/raw-footage/`;
+      // prefix = `${companyName}/raw-footage/`;
+      prefix = `${companyName}/`; // 🔥 Expose all files in company folder
 
       console.log('👤 Client prefix:', prefix);
     } else if (role === 'editor') {

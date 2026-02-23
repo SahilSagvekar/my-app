@@ -35,18 +35,19 @@ export function requireAdmin(user: JWTUser | null) {
   return null;
 }
 
-export async function GET(req: NextRequest) {
+import { getCurrentUser2 } from '@/lib/auth';
+
+export async function GET(req: any) {
   const startTime = Date.now();
-  
+
   try {
-    const currentUser = getUserFromToken(req);
-    const authError = requireAdmin(currentUser);
-    
-    if (authError) {
-      return NextResponse.json(
-        { ok: false, message: authError.error },
-        { status: authError.status }
-      );
+    const user = await getCurrentUser2(req);
+    if (!user) {
+      return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (user.role?.toLowerCase() !== 'admin') {
+      return NextResponse.json({ ok: false, message: 'Access denied. Admin only.' }, { status: 403 });
     }
 
     const [
@@ -89,53 +90,89 @@ export async function GET(req: NextRequest) {
 
 async function getKPIData() {
   const now = new Date();
-  const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
-  const stats = await prisma.$queryRaw<Array<{
-    active_projects: bigint;
-    active_team: bigint;
-    completed_this_month: bigint;
-    avg_completion_days: number | null;
-  }>>`
-    SELECT 
-      COUNT(DISTINCT CASE WHEN c.status = 'active' THEN c.id END) as active_projects,
-      COUNT(DISTINCT CASE 
-        WHEN u."employeeStatus" = 'ACTIVE' 
-        AND u.role != 'client' 
-        THEN u.id 
-      END) as active_team,
-      COUNT(DISTINCT CASE 
-        WHEN t.status = 'COMPLETED' 
-        AND t."updatedAt" >= ${thisMonth}
-        THEN t.id 
-      END) as completed_this_month,
-      AVG(CASE 
-        WHEN t.status = 'COMPLETED' 
-        AND t."updatedAt" >= ${thisMonth}
-        THEN EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400
-      END) as avg_completion_days
-    FROM "Client" c
-    CROSS JOIN "User" u
-    CROSS JOIN "Task" t
+  // 1. Team Members (Active staff, not clients)
+  const currentTeamCount = await prisma.user.count({
+    where: {
+      employeeStatus: 'ACTIVE',
+      role: { not: 'client' }
+    }
+  });
+
+  const prevTeamCount = await prisma.user.count({
+    where: {
+      employeeStatus: 'ACTIVE',
+      role: { not: 'client' },
+      createdAt: { lt: thirtyDaysAgo }
+    }
+  });
+
+  // 2. Active Tasks (Pending through Review)
+  const activeStatuses: TaskStatus[] = [
+    'PENDING',
+    'IN_PROGRESS',
+    'READY_FOR_QC',
+    'QC_IN_PROGRESS',
+    'CLIENT_REVIEW',
+    'VIDEOGRAPHER_ASSIGNED'
+  ];
+
+  const currentActiveTasks = await prisma.task.count({
+    where: { status: { in: activeStatuses } }
+  });
+
+  const prevActiveTasks = await prisma.task.count({
+    where: {
+      status: { in: activeStatuses },
+      createdAt: { lt: thirtyDaysAgo }
+    }
+  });
+
+  // 3. Avg. Completion Time (Last 30 days)
+  const avgResult = await prisma.$queryRaw<Array<{ avg: number | null }>>`
+    SELECT AVG(EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400) as avg
+    FROM "Task" t
+    WHERE t.status = 'COMPLETED'
+    AND t."updatedAt" >= ${thirtyDaysAgo}
   `;
 
-  const data = stats[0];
+  const prevAvgResult = await prisma.$queryRaw<Array<{ avg: number | null }>>`
+    SELECT AVG(EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400) as avg
+    FROM "Task" t
+    WHERE t.status = 'COMPLETED'
+    AND t."updatedAt" BETWEEN ${sixtyDaysAgo} AND ${thirtyDaysAgo}
+  `;
+
+  const currentAvg = Number(avgResult[0]?.avg || 0);
+  const prevAvg = Number(prevAvgResult[0]?.avg || 0);
+
+  // Calculate changes
+  const teamChange = currentTeamCount - prevTeamCount;
+  const tasksChange = currentActiveTasks - prevActiveTasks;
+  const avgChange = currentAvg - prevAvg;
 
   return {
-    activeProjects: {
-      value: Number(data.active_projects).toString(),
-      change: '+0',
+    totalRevenue: {
+      value: '$0',
+      change: '+0%',
       trend: 'up' as const
+    },
+    activeProjects: {
+      value: currentActiveTasks.toString(),
+      change: `${tasksChange >= 0 ? '+' : ''}${tasksChange}`,
+      trend: tasksChange >= 0 ? 'up' as const : 'down' as const
     },
     teamMembers: {
-      value: Number(data.active_team).toString(),
-      change: '+0',
-      trend: 'up' as const
+      value: currentTeamCount.toString(),
+      change: `${teamChange >= 0 ? '+' : ''}${teamChange}`,
+      trend: teamChange >= 0 ? 'up' as const : 'down' as const
     },
     avgCompletion: {
-      value: `${(data.avg_completion_days || 0).toFixed(1)} days`,
-      change: '0 days',
-      trend: 'up' as const
+      value: `${currentAvg.toFixed(1)} days`,
+      change: `${avgChange.toFixed(1)} days`,
+      trend: avgChange <= 0 ? 'up' as const : 'down' as const // Lower completion time is "up" trend
     }
   };
 }
@@ -151,7 +188,7 @@ async function getPipelineData() {
   );
 
   const stages = ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED'] as const;
-  
+
   return stages.map(stage => ({
     name: stage.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()),
     projects: countMap.get(stage) || 0,
@@ -180,24 +217,24 @@ async function getProjectHealthData() {
       AND (t.status IS NULL OR t.status != 'COMPLETED')
     GROUP BY c.id
   `;
-  
+
   let onTrack = 0;
   let atRisk = 0;
   let critical = 0;
-  
+
   stats.forEach(stat => {
     const totalTasks = Number(stat.total_tasks);
     const overdueTasks = Number(stat.overdue_tasks);
     const dueSoonTasks = Number(stat.due_soon_tasks);
-    
+
     if (totalTasks === 0) {
       onTrack++;
       return;
     }
-    
+
     const overduePercentage = (overdueTasks / totalTasks) * 100;
     const dueSoonPercentage = (dueSoonTasks / totalTasks) * 100;
-    
+
     if (overdueTasks > 0 && overduePercentage >= 50) {
       critical++;
     } else if (overdueTasks > 0 || dueSoonPercentage >= 30) {
@@ -206,9 +243,9 @@ async function getProjectHealthData() {
       onTrack++;
     }
   });
-  
+
   const total = onTrack + atRisk + critical || 1;
-  
+
   return [
     { name: 'On Track', value: Math.round((onTrack / total) * 100), count: onTrack, color: '#22c55e' },
     { name: 'At Risk', value: Math.round((atRisk / total) * 100), count: atRisk, color: '#f59e0b' },
@@ -255,7 +292,7 @@ async function getRecentActivity() {
 
 async function getSystemStatus() {
   const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-  
+
   const activeUserIds = await prisma.auditLog.groupBy({
     by: ['userId'],
     where: {
@@ -291,7 +328,7 @@ async function getSystemStatus() {
     const responseTimes = recentLogs
       .map(log => (log.metadata as any)?.responseTime || 0)
       .filter(time => time > 0);
-    
+
     if (responseTimes.length > 0) {
       avgResponseTime = Math.round(
         responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
@@ -349,7 +386,7 @@ function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  
+
   if (days > 0) return `${days}d ${hours}h ${minutes}m`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
