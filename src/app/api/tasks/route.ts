@@ -918,8 +918,8 @@ export async function POST(req: any) {
     const dueDate = form.get("dueDate") as string;
     // Editors are always assigned to themselves; admins read from form
     const assignedTo = isEditorCreate ? Number(userId) : Number(form.get("assignedTo"));
-    const qc_specialist = isEditorCreate ? 0 : Number(form.get("qc_specialist"));
-    const scheduler = isEditorCreate ? 0 : Number(form.get("scheduler"));
+    const qc_specialist = isEditorCreate ? 28 : Number(form.get("qc_specialist"));
+    const scheduler = isEditorCreate ? 23 : Number(form.get("scheduler"));
     const videographer = isEditorCreate ? 0 : Number(form.get("videographer"));
     const clientId = form.get("clientId") as string;
     const folderType = form.get("folderType") as string;

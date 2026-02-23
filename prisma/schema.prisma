@@ -48,6 +48,7 @@ model User {
   categoryMetrics     QCCategoryMetrics[]
   monthlyTrends       QCMonthlyTrend[]
   rejectionReasons    QCRejectionReason[]
+  editorClientPermissions EditorClientPermission[] @relation("EditorPermissions")
   salesLeads          SalesLead[]
   sessions            Session[]
   shootDetails        ShootDetail[]       @relation("VideographerShootDetails")
@@ -304,6 +305,7 @@ model Client {
   socialLogins         SocialLogin[]
   tasks                Task[]
   linkedUsers          User[]               @relation("LinkedClientUsers")
+  editorClientPermissions EditorClientPermission[] @relation("EditorClientPerms")
   youtubeChannel       YouTubeChannel?
   youtubeSnapshots     YouTubeSnapshot[]
 
@@ -985,6 +987,17 @@ model SalesLead {
   user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+model EditorClientPermission {
+  id       String @id @default(cuid())
+  editorId Int
+  clientId String
+  editor   User   @relation("EditorPermissions", fields: [editorId], references: [id], onDelete: Cascade)
+  client   Client @relation("EditorClientPerms", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([editorId, clientId])
+  @@index([editorId])
 }
 
 enum Role {
