@@ -969,6 +969,7 @@ model SalesLead {
   socials       String   @default("")
   snapchatShow  String   @default("")
   igDm          Boolean  @default(false)
+  dmPlatform    String   @default("")
   meetingBooked Boolean  @default(false)
   emailed       Boolean  @default(false)
   called        Boolean  @default(false)

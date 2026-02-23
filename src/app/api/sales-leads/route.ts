@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         socials: body.socials ?? '',
         snapchatShow: body.snapchatShow ?? '',
         igDm: body.igDm ?? false,
+        dmPlatform: body.dmPlatform ?? '',
         meetingBooked: body.meetingBooked ?? false,
         emailed: body.emailed ?? false,
         called: body.called ?? false,
