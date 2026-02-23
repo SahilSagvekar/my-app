@@ -48,6 +48,7 @@ model User {
   categoryMetrics     QCCategoryMetrics[]
   monthlyTrends       QCMonthlyTrend[]
   rejectionReasons    QCRejectionReason[]
+  salesLeads          SalesLead[]
   sessions            Session[]
   shootDetails        ShootDetail[]       @relation("VideographerShootDetails")
   updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
@@ -58,7 +59,6 @@ model User {
   linkedClient        Client?             @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin         UserSecurityPin?
   twoFactorAuth       UserTwoFactorAuth?
-  salesLeads          SalesLead[]
 
   @@index([email])
   @@index([role])
@@ -963,7 +963,6 @@ model Guideline {
 model SalesLead {
   id            String   @id @default(cuid())
   userId        Int
-  user          User     @relation(fields: [userId], references: [id])
   name          String   @default("")
   email         String   @default("")
   socials       String   @default("")
@@ -977,6 +976,7 @@ model SalesLead {
   emailTemplate String   @default("")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
