@@ -1130,11 +1130,20 @@ export async function POST(req: any) {
       });
 
       if (deliverable) {
+        // 🔥 Count existing tasks for this deliverable to get the next number
+        const existingCount = await prisma.task.count({
+          where: {
+            clientId,
+            oneOffDeliverableId: deliverable.id,
+          }
+        });
+
         const companyName = client.companyName || client.name;
         const companyNameSlug = companyName.replace(/\s/g, '');
         const deliverableSlug = getDeliverableShortCode(deliverable.type);
         const createdAtStr = formatDateMMDDYYYY(task.createdAt);
-        const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}1`;
+        // existingCount already includes the current task
+        const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${existingCount}`;
 
         // Create folder structure
         const taskFolderPath = await createTaskFolderStructure(companyName, title);

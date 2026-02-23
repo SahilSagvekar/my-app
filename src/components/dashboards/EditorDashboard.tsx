@@ -291,6 +291,7 @@ interface WorkflowTask {
   monthlyQuantity?: number; // Total tasks per month for this deliverable
   taskNumber?: number; // Task number (extracted from title)
   clientName?: string; // 🔥 Added client name for filtering
+  isOneOff?: boolean; // 🔥 Added for visibility logic
 }
 
 /* -------------------------------------------------------------------------- */
@@ -960,7 +961,11 @@ export function EditorDashboard() {
 
     tasks.forEach((task) => {
       // Create a unique key for each deliverable per client
-      const deliverableKey = `${task.clientId}-${task.monthlyDeliverableId || task.deliverableType || "default"
+      // 🔥 One-off tasks should not be grouped/quota'd together; they are separate projects.
+      // By using a unique key (task.id), each one-off will be visible as it won't exceed quota.
+      const deliverableKey = task.isOneOff
+        ? `oneoff-${task.id}`
+        : `${task.clientId}-${task.monthlyDeliverableId || task.deliverableType || "default"
         }`;
 
       if (!tasksByDeliverable[deliverableKey]) {

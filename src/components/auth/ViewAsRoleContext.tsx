@@ -10,7 +10,7 @@ const SWITCHABLE_EMAILS = [
 
 // Map email to their "other" role
 const ROLE_SWITCH_MAP: Record<string, string> = {
-    "eric@e8productions.com": "sales",      // Admin can switch to Sales
+    "eric@e8productions.com": "qc",      // Admin can switch to QC
 };
 
 interface ViewAsRoleContextType {
