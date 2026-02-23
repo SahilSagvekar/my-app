@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!decoded?.userId || decoded.role !== 'sales') {
+    if (!decoded?.userId || (decoded.role !== 'sales' && decoded.role !== 'admin')) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
