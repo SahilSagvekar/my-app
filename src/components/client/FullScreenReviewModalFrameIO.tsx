@@ -388,6 +388,60 @@ export function FullScreenReviewModalFrameIO({
         }
     };
 
+    /* ── Reject with typed comment (mobile reject dialog) ── */
+    const handleRejectWithComment = async (commentText: string) => {
+        if (!asset) return;
+        const id = taskId || asset.id;
+        const label = currentFileSection?.folderType?.toUpperCase() || 'MAIN';
+        const ver = currentFileSection?.version || 1;
+
+        // Build a single feedback item from the typed comment
+        const feedbackItem = {
+            folderType: currentFileSection?.folderType || 'main',
+            fileId: currentFileSection?.fileId || null,
+            feedback: commentText.trim(),
+            timestamp: '0:00',
+            category: 'other',
+        };
+
+        try {
+            setSavingFeedback(true);
+            if (user?.id || shareToken) {
+                const res = await fetch(`/api/tasks/${id}/feedback`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ feedbackItems: [feedbackItem], createdBy: user?.id || 0, shareToken }),
+                });
+                if (!res.ok) throw new Error('Failed to save feedback');
+            }
+            // Also save existing unresolved comments
+            if (comments.filter(c => !c.resolved).length > 0) {
+                await saveFeedbackToDatabase(comments);
+            }
+
+            const revisionData: RevisionRequest = {
+                reason: 'other',
+                notes: `[${label} v${ver}] ${commentText.trim()}`,
+                assignTo: 'editor',
+                entries: [{
+                    id: Date.now().toString(),
+                    timestamp: new Date().toLocaleTimeString(),
+                    reason: 'other',
+                    notes: commentText.trim(),
+                    videoTime: '0:00',
+                }],
+            };
+            if (userRole === 'qc' && onSendBackToEditor) onSendBackToEditor(asset, revisionData);
+            else onRequestRevisions(asset, revisionData);
+            setShowRevisionSuccess(true);
+            setTimeout(() => { setShowRevisionSuccess(false); onOpenChange(false); }, 2000);
+        } catch {
+            toast.error('Failed to send feedback. Please try again.');
+        } finally {
+            setSavingFeedback(false);
+        }
+    };
+
     /* ── Share ── */
     const handleGenerateShareLink = async () => {
         const id = taskId || asset?.id;
@@ -523,6 +577,7 @@ export function FullScreenReviewModalFrameIO({
         formatTime,
         onSwitchToMobile: () => setViewMode('mobile'),
         onSwitchToDesktop: () => setViewMode('desktop'),
+        handleRejectWithComment,
     };
 
     return (

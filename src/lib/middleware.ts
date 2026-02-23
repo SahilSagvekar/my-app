@@ -19,5 +19,6 @@ export const config = {
     "/qc/:path*",
     "/scheduler/:path*",
     "/client/:path*",
+    "/sales/:path*",
   ],
 };

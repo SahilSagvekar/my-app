@@ -20,6 +20,7 @@ import { ManagerDashboard } from "../dashboards/ManagerDashboard";
 import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
 import { VideographerDashboard } from "../dashboards/VideographerDashboard";
+import { SalesDashboard } from "../dashboards/SalesDashboard";
 import { EditorProjects } from "../EditorProjects";
 import { EditorResources } from "../EditorResources";
 import { FeedbackSystem } from "../FeedbackSystem";
@@ -110,6 +111,7 @@ export function renderPage(
       case "leaves":
       case "activity_logs":
       case "guidelines":
+      case "sales-management":
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
@@ -304,6 +306,23 @@ export function renderPage(
         return <FeedbackSystem currentRole={role} />;
       default:
         return <VideographerDashboard />;
+    }
+  }
+
+  if (role === "sales") {
+    switch (page) {
+      case "dashboard":
+        return <SalesDashboard />;
+      case "clients":
+        return <SalesDashboard />;
+      case "training":
+        return <QCTrainingPage currentRole={role} />;
+      case "employment-info":
+        return <EmploymentInfo currentRole={role} />;
+      case "feedback":
+        return <FeedbackSystem currentRole={role} />;
+      default:
+        return <SalesDashboard />;
     }
   }
 

@@ -28,6 +28,7 @@ import {
   Settings as SettingsIcon,
   BarChart3,
   BookOpen,
+  TrendingUp as SalesIcon,
 } from 'lucide-react';
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
@@ -93,6 +94,11 @@ const JobManagementSection = dynamic(() => import('../jobs/JobManagementSection'
 
 const GuidelinesManagementTab = dynamic(() => import('../admin/GuidelinesManagementTab').then(mod => ({ default: mod.GuidelinesManagementTab })), {
   loading: () => <DashboardLoadingFallback componentName="Guidelines Management" />,
+  ssr: false,
+});
+
+const SalesManagementTab = dynamic(() => import('../admin/SalesManagementTab').then(mod => ({ default: mod.SalesManagementTab })), {
+  loading: () => <DashboardLoadingFallback componentName="Sales Management" />,
   ssr: false,
 });
 
@@ -601,6 +607,14 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           Task Management
         </DropdownMenuItem>
 
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('sales-management')}
+          className="gap-2 cursor-pointer"
+        >
+          <SalesIcon className="h-4 w-4 text-yellow-500" />
+          Sales Management
+        </DropdownMenuItem>
+
         <div className="h-px bg-muted my-1" />
         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Operations & Finance
@@ -825,6 +839,17 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               description="Manage rules, standards, and client-specific instructions for the team"
             />
             <GuidelinesManagementTab />
+          </div>
+        );
+
+      case 'sales-management':
+        return (
+          <div className="space-y-6">
+            <AdminPageHeader
+              title="Sales Management"
+              description="View and monitor all lead activity across the entire sales team"
+            />
+            <SalesManagementTab />
           </div>
         );
 

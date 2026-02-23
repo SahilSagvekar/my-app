@@ -109,6 +109,14 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
+  ],
+  sales: [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'clients', label: 'Clients', icon: FolderOpen },
+    { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
+    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ]
 } as const;
 
@@ -123,6 +131,7 @@ export const getDefaultPage = (role: string): string => {
     case 'manager': return 'dashboard';
     case 'client': return 'approvals';
     case 'videographer': return 'dashboard';
+    case 'sales': return 'dashboard';
     default: return 'dashboard';
   }
 };

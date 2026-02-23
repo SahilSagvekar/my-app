@@ -58,6 +58,7 @@ model User {
   linkedClient        Client?             @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin         UserSecurityPin?
   twoFactorAuth       UserTwoFactorAuth?
+  salesLeads          SalesLead[]
 
   @@index([email])
   @@index([role])
@@ -959,6 +960,27 @@ model Guideline {
   client    Client?  @relation(fields: [clientId], references: [id])
 }
 
+model SalesLead {
+  id            String   @id @default(cuid())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  name          String   @default("")
+  email         String   @default("")
+  socials       String   @default("")
+  snapchatShow  String   @default("")
+  igDm          Boolean  @default(false)
+  meetingBooked Boolean  @default(false)
+  emailed       Boolean  @default(false)
+  called        Boolean  @default(false)
+  texted        Boolean  @default(false)
+  notes         String   @default("")
+  emailTemplate String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}
+
 enum Role {
   admin
   manager
@@ -967,6 +989,7 @@ enum Role {
   scheduler
   client
   qc
+  sales
 }
 
 enum EmployeeStatus {

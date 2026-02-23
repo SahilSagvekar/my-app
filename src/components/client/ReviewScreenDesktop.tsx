@@ -84,6 +84,7 @@ export interface ReviewScreenProps {
     handleCommentResolve: (id: string, resolved: boolean) => void;
     handleCommentDelete: (id: string) => void;
     handleStatusChange: (s: 'approved' | 'needs_changes') => void;
+    handleRejectWithComment?: (comment: string) => Promise<void>;
 
     /* ui handlers */
     setShowCommentInput: (v: boolean) => void;
