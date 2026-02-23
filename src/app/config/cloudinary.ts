@@ -41,6 +41,11 @@
 // export { uploadOnCloudinary, cloudinary };
 
 
+
+
+
+
+
 // src/app/config/cloudinary.ts
 import { v2 as cloudinary } from "cloudinary";
 import "dotenv/config";
@@ -84,4 +89,36 @@ const uploadOnCloudinary = async (
   });
 };
 
-export { uploadOnCloudinary, cloudinary };
+// Upload video to Cloudinary (training-videos folder, resource_type: video)
+const uploadVideoOnCloudinary = async (
+  fileBuffer: Buffer,
+  folder: string = "training-videos"
+): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "video",
+      },
+      (error, result) => {
+        if (error) {
+          console.error(`Cloudinary Video Upload Error: ${error.message}`);
+          return resolve(null);
+        }
+        if (result && result.secure_url) {
+          return resolve(result.secure_url);
+        }
+        return resolve(null);
+      }
+    );
+
+    uploadStream.on("error", (error) => {
+      console.error(`Upload stream error: ${error.message}`);
+      resolve(null);
+    });
+
+    uploadStream.end(fileBuffer);
+  });
+};
+
+export { uploadOnCloudinary, uploadVideoOnCloudinary, cloudinary };
