@@ -976,6 +976,11 @@ model SalesLead {
   texted        Boolean  @default(false)
   notes         String   @default("")
   emailTemplate String   @default("")
+  dmAt          DateTime?
+  meetingAt     DateTime?
+  emailedAt     DateTime?
+  calledAt      DateTime?
+  textedAt      DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

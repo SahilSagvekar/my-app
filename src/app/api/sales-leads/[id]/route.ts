@@ -42,6 +42,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         texted: body.texted ?? existing.texted,
         notes: body.notes ?? existing.notes,
         emailTemplate: body.emailTemplate ?? existing.emailTemplate,
+        dmAt: body.dmAt !== undefined ? (body.dmAt ? new Date(body.dmAt) : null) : existing.dmAt,
+        meetingAt: body.meetingAt !== undefined ? (body.meetingAt ? new Date(body.meetingAt) : null) : existing.meetingAt,
+        emailedAt: body.emailedAt !== undefined ? (body.emailedAt ? new Date(body.emailedAt) : null) : existing.emailedAt,
+        calledAt: body.calledAt !== undefined ? (body.calledAt ? new Date(body.calledAt) : null) : existing.calledAt,
+        textedAt: body.textedAt !== undefined ? (body.textedAt ? new Date(body.textedAt) : null) : existing.textedAt,
       },
     });
 

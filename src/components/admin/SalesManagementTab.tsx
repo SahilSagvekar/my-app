@@ -46,6 +46,11 @@ interface Lead {
   texted: boolean;
   notes: string;
   emailTemplate: string;
+  dmAt?: string;
+  meetingAt?: string;
+  emailedAt?: string;
+  calledAt?: string;
+  textedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,6 +63,17 @@ function initials(name: string | null, email: string) {
   }
   return email.slice(0, 2).toUpperCase();
 }
+
+const formatToEST = (iso?: string) => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+  } catch { return ''; }
+};
 
 function displayName(user: SalesUser) {
   return user.name || user.email;
@@ -224,7 +240,7 @@ export function SalesManagementTab() {
 
   // ── Export CSV ──
   const exportCSV = () => {
-    const headers = ['Sales Rep', 'Name', 'Email', 'Socials', 'Snapchat Show', 'Social DM', 'Platform', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes', 'Email Template', 'Added'];
+    const headers = ['Sales Rep', 'Name', 'Email', 'Socials', 'Snapchat Show', 'Social DM', 'Platform', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes', 'Email Template', 'DM Time', 'Meeting Time', 'Email Time', 'Call Time', 'Text Time', 'Added'];
     const rows = filtered.map(l => [
       displayName(l.user),
       l.name, l.email, l.socials, l.snapchatShow || '—',
@@ -235,7 +251,12 @@ export function SalesManagementTab() {
       l.texted ? 'Yes' : 'No',
       `"${l.notes.replace(/"/g, '""')}"`,
       `"${l.emailTemplate.replace(/"/g, '""')}"`,
-      new Date(l.createdAt).toLocaleDateString(),
+      l.dmAt ? formatToEST(l.dmAt) : '—',
+      l.meetingAt ? formatToEST(l.meetingAt) : '—',
+      l.emailedAt ? formatToEST(l.emailedAt) : '—',
+      l.calledAt ? formatToEST(l.calledAt) : '—',
+      l.textedAt ? formatToEST(l.textedAt) : '—',
+      formatToEST(l.createdAt),
     ]);
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -530,12 +551,53 @@ export function SalesManagementTab() {
                                   <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
                                     <p className="text-xs flex justify-between">
                                       <span className="text-gray-400">Created:</span>
-                                      <span className="font-medium text-gray-600">{new Date(lead.createdAt).toLocaleString()}</span>
+                                      <span className="font-medium text-gray-600">{formatToEST(lead.createdAt)}</span>
                                     </p>
                                     <p className="text-xs flex justify-between">
                                       <span className="text-gray-400">Last Sync:</span>
-                                      <span className="font-medium text-gray-600">{new Date(lead.updatedAt).toLocaleString()}</span>
+                                      <span className="font-medium text-gray-600">{formatToEST(lead.updatedAt)}</span>
                                     </p>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                    <HistoryIcon className="h-3 w-3" /> Contact Timeline
+                                  </p>
+                                  <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
+                                    {!lead.dmAt && !lead.meetingAt && !lead.emailedAt && !lead.calledAt && !lead.textedAt && (
+                                      <p className="text-[10px] text-gray-300 italic text-center py-2">No contact recorded</p>
+                                    )}
+                                    {lead.dmAt && (
+                                      <p className="text-[10px] flex justify-between">
+                                        <span className="text-gray-400">Social DM:</span>
+                                        <span className="font-medium text-pink-600">{formatToEST(lead.dmAt)}</span>
+                                      </p>
+                                    )}
+                                    {lead.meetingAt && (
+                                      <p className="text-[10px] flex justify-between">
+                                        <span className="text-gray-400">Meeting:</span>
+                                        <span className="font-medium text-green-600">{formatToEST(lead.meetingAt)}</span>
+                                      </p>
+                                    )}
+                                    {lead.emailedAt && (
+                                      <p className="text-[10px] flex justify-between">
+                                        <span className="text-gray-400">Email:</span>
+                                        <span className="font-medium text-blue-600">{formatToEST(lead.emailedAt)}</span>
+                                      </p>
+                                    )}
+                                    {lead.calledAt && (
+                                      <p className="text-[10px] flex justify-between">
+                                        <span className="text-gray-400">Call:</span>
+                                        <span className="font-medium text-emerald-600">{formatToEST(lead.calledAt)}</span>
+                                      </p>
+                                    )}
+                                    {lead.textedAt && (
+                                      <p className="text-[10px] flex justify-between">
+                                        <span className="text-gray-400">Text:</span>
+                                        <span className="font-medium text-purple-600">{formatToEST(lead.textedAt)}</span>
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
 

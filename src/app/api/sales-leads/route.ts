@@ -60,6 +60,11 @@ export async function POST(req: NextRequest) {
         texted: body.texted ?? false,
         notes: body.notes ?? '',
         emailTemplate: body.emailTemplate ?? '',
+        dmAt: body.dmAt ? new Date(body.dmAt) : null,
+        meetingAt: body.meetingAt ? new Date(body.meetingAt) : null,
+        emailedAt: body.emailedAt ? new Date(body.emailedAt) : null,
+        calledAt: body.calledAt ? new Date(body.calledAt) : null,
+        textedAt: body.textedAt ? new Date(body.textedAt) : null,
       },
     });
 

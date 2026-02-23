@@ -9,6 +9,7 @@ import {
   Link as LinkIcon,
   Info as InfoIcon,
   History as HistoryIcon,
+  Clock,
   Loader2,
   RefreshCw,
   Plus,
@@ -58,6 +59,11 @@ interface Lead {
   dmPlatform: string;
   notes: string;
   emailTemplate: string;
+  dmAt?: string;
+  meetingAt?: string;
+  emailedAt?: string;
+  calledAt?: string;
+  textedAt?: string;
   createdAt?: string;
   updatedAt?: string;
   // UI state flags
@@ -78,6 +84,8 @@ function emptyDraftLead(): Lead {
     name: '', email: '', socials: '', snapchatShow: '',
     igDm: false, meetingBooked: false, emailed: false,
     called: false, texted: false, dmPlatform: '', notes: '', emailTemplate: '',
+    dmAt: undefined, meetingAt: undefined, emailedAt: undefined,
+    calledAt: undefined, textedAt: undefined,
     _saved: false, _dirty: false, _committing: false,
   };
 }
@@ -89,6 +97,8 @@ function dbLeadToLocal(l: any): Lead {
     igDm: l.igDm, meetingBooked: l.meetingBooked, emailed: l.emailed,
     called: l.called, texted: l.texted, dmPlatform: l.dmPlatform || '',
     notes: l.notes, emailTemplate: l.emailTemplate,
+    dmAt: l.dmAt, meetingAt: l.meetingAt, emailedAt: l.emailedAt,
+    calledAt: l.calledAt, textedAt: l.textedAt,
     createdAt: l.createdAt, updatedAt: l.updatedAt,
     _saved: true, _dirty: false, _committing: false,
   };
@@ -147,6 +157,155 @@ function TickCell({
         ? <Check className="h-3.5 w-3.5" />
         : <Icon className="h-3.5 w-3.5 text-gray-300" />}
     </button>
+  );
+}
+const formatToEST = (iso?: string) => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+  } catch { return ''; }
+};
+
+function ManualTimeCell({
+  label, value, onChange, disabled
+}: {
+  label: string; value?: string; onChange: (v: string) => void; disabled?: boolean;
+}) {
+  // Helper: Extract EST components from UTC ISO string
+  const getESTParts = (iso?: string) => {
+    try {
+      const d = iso ? new Date(iso) : new Date();
+      if (isNaN(d.getTime())) return { dStr: '', tStr: '', ampm: 'AM' };
+
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: 'numeric', minute: '2-digit', hour12: true
+      }).formatToParts(d);
+
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const h = parts.find(p => p.type === 'hour')?.value;
+      const m = parts.find(p => p.type === 'minute')?.value;
+      const am = parts.find(p => p.type === 'dayPeriod')?.value;
+
+      return {
+        dStr: `${year}-${month}-${day}`, // YYYY-MM-DD
+        tStr: `${h}:${m}`,
+        ampm: am || 'AM'
+      };
+    } catch { return { dStr: '', tStr: '', ampm: 'AM' }; }
+  };
+
+  const parts = getESTParts(value);
+  const [localTime, setLocalTime] = useState(parts.tStr);
+
+  // Sync internal text state with value prop
+  useEffect(() => { setLocalTime(parts.tStr); }, [value]);
+
+  const commit = (d: string, t: string, ap: string) => {
+    if (!d || !t) return;
+    const [hStr, mStr] = t.split(':');
+    let h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (isNaN(h) || isNaN(m)) return;
+
+    // Convert 12h to 24h
+    if (ap === 'PM' && h < 12) h += 12;
+    if (ap === 'AM' && h === 12) h = 0;
+
+    const [y, mon, day] = d.split('-').map(Number);
+    const target = new Date(y, mon - 1, day, h, m);
+    // Offset correction for EST
+    const nyStr = target.toLocaleString('en-US', { timeZone: 'America/New_York' });
+    const nyDate = new Date(nyStr);
+    const offset = target.getTime() - nyDate.getTime();
+    onChange(new Date(target.getTime() + offset).toISOString());
+  };
+
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tight flex justify-between items-center h-4">
+        <span>{label} <span className="text-yellow-600/40 font-medium">(EST)</span></span>
+        <div className="flex gap-2 items-center">
+          {!disabled && (
+            <button
+              onClick={() => onChange(new Date().toISOString())}
+              className="group flex items-center gap-0.5 text-yellow-600 hover:text-yellow-700 transition-colors"
+            >
+              <Clock className="h-2.5 w-2.5" />
+              <span className="text-[9px]">NOW</span>
+            </button>
+          )}
+          {value && !disabled && (
+            <button onClick={() => onChange('')} className="text-red-400 hover:text-red-600 uppercase text-[9px]">Clear</button>
+          )}
+        </div>
+      </label>
+
+      <div className="flex flex-col gap-1.5 p-2 bg-gray-50/50 rounded-lg border border-gray-100">
+        <div className="flex gap-1">
+          {/* Date Picker */}
+          <input
+            type="date"
+            disabled={disabled}
+            value={parts.dStr}
+            onChange={e => commit(e.target.value, localTime, parts.ampm)}
+            className="w-1/2 px-2 py-1 text-[10px] rounded border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-yellow-400"
+          />
+
+          {/* Time Text Input */}
+          <input
+            type="text"
+            placeholder="12:00"
+            disabled={disabled}
+            value={localTime}
+            onChange={e => setLocalTime(e.target.value)}
+            onBlur={() => commit(parts.dStr, localTime, parts.ampm)}
+            className="w-1/4 px-2 py-1 text-[10px] rounded border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-yellow-400 text-center"
+          />
+
+          {/* AM/PM Toggle */}
+          <div className="flex w-1/4 rounded border border-gray-200 overflow-hidden bg-white">
+            <button
+              disabled={disabled}
+              onClick={() => commit(parts.dStr, localTime, 'AM')}
+              className={cn(
+                "flex-1 text-[9px] font-bold py-1 transition-colors",
+                parts.ampm === 'AM' ? "bg-yellow-400 text-white" : "text-gray-400 hover:bg-gray-50"
+              )}
+            >AM</button>
+            <button
+              disabled={disabled}
+              onClick={() => commit(parts.dStr, localTime, 'PM')}
+              className={cn(
+                "flex-1 text-[9px] font-bold py-1 transition-colors",
+                parts.ampm === 'PM' ? "bg-yellow-400 text-white" : "text-gray-400 hover:bg-gray-50"
+              )}
+            >PM</button>
+          </div>
+        </div>
+
+        {!disabled && (
+          <div className="flex flex-wrap gap-1">
+            {[{ l: '-5m', m: 5 }, { l: '-15m', m: 15 }, { l: '-1h', m: 60 }, { l: '-3h', m: 180 }].map(opt => (
+              <button
+                key={opt.l}
+                onClick={() => onChange(new Date(Date.now() - opt.m * 60000).toISOString())}
+                className="px-1.5 py-0.5 rounded bg-white border border-gray-100 text-gray-400 text-[8px] font-bold hover:border-yellow-200 hover:text-yellow-600 transition-all"
+              >
+                {opt.l}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -328,6 +487,8 @@ export function SalesDashboard() {
             meetingBooked: lead.meetingBooked, emailed: lead.emailed,
             called: lead.called, texted: lead.texted,
             notes: lead.notes, emailTemplate: lead.emailTemplate,
+            dmAt: lead.dmAt, meetingAt: lead.meetingAt, emailedAt: lead.emailedAt,
+            calledAt: lead.calledAt, textedAt: lead.textedAt,
           }),
         });
         const data = await res.json();
@@ -351,6 +512,8 @@ export function SalesDashboard() {
             meetingBooked: lead.meetingBooked, emailed: lead.emailed,
             called: lead.called, texted: lead.texted,
             notes: lead.notes, emailTemplate: lead.emailTemplate,
+            dmAt: lead.dmAt, meetingAt: lead.meetingAt, emailedAt: lead.emailedAt,
+            calledAt: lead.calledAt, textedAt: lead.textedAt,
           }),
         });
         const data = await res.json();
@@ -683,12 +846,45 @@ export function SalesDashboard() {
                                   <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
                                     <p className="text-xs flex justify-between">
                                       <span className="text-gray-400">Added:</span>
-                                      <span className="font-medium">{lead.createdAt ? new Date(lead.createdAt).toLocaleString() : 'Just now'}</span>
+                                      <span className="font-medium">{lead.createdAt ? formatToEST(lead.createdAt) : 'Just now'}</span>
                                     </p>
                                     <p className="text-xs flex justify-between">
                                       <span className="text-gray-400">Last Sync:</span>
-                                      <span className="font-medium">{lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : 'Pending'}</span>
+                                      <span className="font-medium text-yellow-700/60">{lead.updatedAt ? formatToEST(lead.updatedAt) : 'Pending'}</span>
                                     </p>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                    <HistoryIcon className="h-3 w-3" /> Manual Contact Timing
+                                  </p>
+                                  <div className="bg-white p-3 rounded-lg border border-yellow-200/50 grid grid-cols-1 gap-3">
+                                    <ManualTimeCell
+                                      label="Social DM At"
+                                      value={lead.dmAt}
+                                      onChange={v => updateLead(lead.id, { dmAt: v })}
+                                    />
+                                    <ManualTimeCell
+                                      label="Meeting At"
+                                      value={lead.meetingAt}
+                                      onChange={v => updateLead(lead.id, { meetingAt: v })}
+                                    />
+                                    <ManualTimeCell
+                                      label="Emailed At"
+                                      value={lead.emailedAt}
+                                      onChange={v => updateLead(lead.id, { emailedAt: v })}
+                                    />
+                                    <ManualTimeCell
+                                      label="Called At"
+                                      value={lead.calledAt}
+                                      onChange={v => updateLead(lead.id, { calledAt: v })}
+                                    />
+                                    <ManualTimeCell
+                                      label="Texted At"
+                                      value={lead.textedAt}
+                                      onChange={v => updateLead(lead.id, { textedAt: v })}
+                                    />
                                   </div>
                                 </div>
                                 <div className="space-y-1">
