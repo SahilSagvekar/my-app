@@ -233,7 +233,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
   async function loadTasks() {
     try {
       console.log('🔄 [ADMIN] Fetching tasks...');
-      const res = await fetch("/api/tasks");
+      const res = await fetch("/api/tasks", { cache: "no-store" });
       const data = await res.json();
 
       const sorted = (data.tasks || [])
@@ -251,7 +251,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
     try {
       console.log('🔄 [ADMIN] Fetching dashboard overview...');
       setLoading(true);
-      const res = await fetch("/api/admin/dashboard/overview");
+      const res = await fetch("/api/admin/dashboard/overview", { cache: "no-store" });
       const data = await res.json();
 
       if (data.ok) {
