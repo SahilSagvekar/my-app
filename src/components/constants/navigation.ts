@@ -111,6 +111,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   sales: [
+    { id: 'sales-management', label: 'Sales Management', icon: TrendingUp },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     // { id: 'training', label: 'Training', icon: Layout },
@@ -129,7 +130,7 @@ export const getDefaultPage = (role: string): string => {
     case 'manager': return 'dashboard';
     case 'client': return 'approvals';
     case 'videographer': return 'dashboard';
-    case 'sales': return 'dashboard';
+    case 'sales': return 'sales-management';
     default: return 'dashboard';
   }
 };
