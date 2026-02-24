@@ -17,7 +17,8 @@ const roles = [
   { id: 'qc', name: 'QC Specialist', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
   { id: 'scheduler', name: 'Scheduler', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
   { id: 'videographer', name: 'Videographer', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' },
-  { id: 'client', name: 'Client', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' }
+  { id: 'client', name: 'Client', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' },
+  { id: 'sales', name: 'Sales', color: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200' }
 ];
 
 const statusOptions = [
@@ -129,10 +130,10 @@ export function ComprehensiveUserManagement() {
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    
+
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -163,7 +164,7 @@ export function ComprehensiveUserManagement() {
       tasksCompleted: 0,
       avatar: newUser.name.split(' ').map(n => n.charAt(0)).join('').toUpperCase()
     };
-    
+
     setUsers([...users, newUserData]);
     setIsAddUserDialogOpen(false);
     setNewUser({ name: '', email: '', phone: '', role: '', status: 'active' });
@@ -174,7 +175,7 @@ export function ComprehensiveUserManagement() {
   };
 
   const handleUpdateUserStatus = (userId: number, newStatus: string) => {
-    setUsers(users.map(user => 
+    setUsers(users.map(user =>
       user.id === userId ? { ...user, status: newStatus } : user
     ));
   };
@@ -299,7 +300,7 @@ export function ComprehensiveUserManagement() {
               <Users className="h-5 w-5" />
               User Management
             </CardTitle>
-            
+
             <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
