@@ -61,7 +61,7 @@ export function LayoutShell({
   const { user: authUser } = useAuth();
 
   // 🔥 Role switching feature
-  const { canSwitchRole, isViewingAsOther, targetSwitchRole, toggleRole } = useViewAsRole();
+  const { canSwitchRole, isViewingAsOther, switchableRoles, switchToRole, resetToOriginal } = useViewAsRole();
 
   const roleDisplay = currentRole
     ? currentRole.toLowerCase() === 'qc'
@@ -182,23 +182,47 @@ export function LayoutShell({
 
             {/* 🔥 Role Switch Button - Only for authorized users */}
             {canSwitchRole && (
-              <Button
-                variant={isViewingAsOther ? "default" : "outline"}
-                size="sm"
-                onClick={toggleRole}
-                className={`flex items-center gap-2 ${isViewingAsOther
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                  : 'border-gray-300 hover:bg-gray-100'
-                  }`}
-              >
-                <ArrowLeftRight className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {isViewingAsOther
-                    ? `Back to ${authUser?.role === 'admin' ? 'Admin' : 'QC'}`
-                    : `Switch to ${targetSwitchRole === 'admin' ? 'Admin' : 'QC'}`
-                  }
-                </span>
-              </Button>
+              <div className="flex items-center gap-2">
+                {isViewingAsOther ? (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={resetToOriginal}
+                    className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                  >
+                    <ArrowLeftRight className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      Back to {authUser?.role === 'admin' ? 'Admin' : 'QC'}
+                    </span>
+                  </Button>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 border-gray-300 hover:bg-gray-100"
+                      >
+                        <ArrowLeftRight className="h-4 w-4" />
+                        <span className="hidden sm:inline">Switch Role</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel>View Portal As</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {switchableRoles.map((role) => (
+                        <DropdownMenuItem
+                          key={role}
+                          onClick={() => switchToRole(role)}
+                          className="flex items-center justify-between"
+                        >
+                          {role.toLowerCase() === 'qc' ? 'QC specialist' : role.charAt(0).toUpperCase() + role.slice(1)}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             )}
 
             {/* Viewing As Indicator */}

@@ -200,6 +200,7 @@ export function ClientDashboard() {
       const res = await fetch("/api/tasks", {
         method: "GET",
         credentials: "include",
+        cache: "no-store",
       });
 
       if (!res.ok) {

@@ -845,7 +845,7 @@ export function EditorDashboard() {
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
   const loadTasks = useCallback(async () => {
     try {
-      const res = await fetch("/api/tasks");
+      const res = await fetch("/api/tasks", { cache: "no-store" });
       const data = await res.json();
 
       console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
@@ -1285,7 +1285,7 @@ export function EditorDashboard() {
   }, []);
 
   const handleUploadComplete = useCallback(async (taskId: string, files: any[]) => {
-    const res = await fetch("/api/tasks");
+    const res = await fetch("/api/tasks", { cache: "no-store" });
     const data = await res.json();
 
     const updatedTask = data.tasks.find((t: any) => t.id === taskId);

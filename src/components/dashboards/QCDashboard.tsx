@@ -180,6 +180,7 @@ export function QCDashboard() {
       const res = await fetch("/api/tasks?status=READY_FOR_QC", {
         method: "GET",
         credentials: "include",
+        cache: "no-store",
       });
 
       if (!res.ok) throw new Error("Failed fetching QC tasks");
