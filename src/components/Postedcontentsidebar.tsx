@@ -356,10 +356,10 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
             </div>
             <h2 className="text-2xl font-bold text-gray-900">No content found</h2>
             <p className="text-gray-500 mt-2 max-w-xs mx-auto">We couldn't find any posted content matching your current selection.</p>
-            {(searchQuery || selectedPlatforms.length > 0 || selectedDeliverables.length > 0) && (
+            {(searchQuery || selectedPlatforms.length > 0 || selectedDeliverable) && (
               <Button
                 variant="ghost"
-                onClick={() => { setSearchQuery(""); setSelectedPlatforms([]); setSelectedDeliverables([]); }}
+                onClick={() => { setSearchQuery(""); setSelectedPlatforms([]); setSelectedDeliverable(null); }}
                 className="mt-6 text-yellow-600 font-bold hover:bg-yellow-50"
               >
                 Clear all filters
