@@ -1000,6 +1000,39 @@ model EditorClientPermission {
   @@index([editorId])
 }
 
+model TrainingCourse {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  role        Role
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  videos      TrainingVideo[]
+
+  @@index([role])
+  @@index([role, order])
+}
+
+model TrainingVideo {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  videoUrl    String
+  role        Role
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courseId    String?
+  course      TrainingCourse? @relation(fields: [courseId], references: [id])
+
+  @@index([role])
+  @@index([role, order])
+  @@index([courseId, order])
+}
+
 enum Role {
   admin
   manager

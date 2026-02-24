@@ -6,7 +6,8 @@ import { QCCompletedPage } from "../dashboards/QCCompletedPage";
 import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
 import { QCReportsPage } from "../dashboards/QCReportsPage";
 import { QCResourcesPage } from "../dashboards/QCResourcesPage";
-import { QCTrainingPage } from "../dashboards/QCTrainingPage";
+import { TrainingManagementTab } from "../admin/TrainingManagementTab";
+import { TrainingPortalPage } from "../training/TrainingPortalPage";
 import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
 import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
@@ -14,7 +15,6 @@ import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitli
 import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
 import { SchedulerReportsPage } from "../dashboards/SchedulerReportsPage";
-import { SchedulerTrainingPage } from "../dashboards/SchedulerTrainingPage";
 import { SchedulerPostedArchivePage } from "../dashboards/SchedulerPostedArchivePage";
 import { ManagerDashboard } from "../dashboards/ManagerDashboard";
 import { ClientDashboard } from "../dashboards/ClientDashboard";
@@ -122,11 +122,11 @@ export function renderPage(
               <div>
                 <h1 className="text-3xl font-bold tracking-tight text-gray-900">Training Management</h1>
                 <p className="text-muted-foreground mt-1 text-lg">
-                  Oversee employee training modules, certifications, and progress
+                  Upload and manage role-specific training videos (Cloudinary). Staff see them as a course.
                 </p>
               </div>
             </div>
-            <QCTrainingPage currentRole={role} />
+            <TrainingManagementTab />
           </div>
         );
       case "logins":
@@ -173,7 +173,7 @@ export function renderPage(
       case "resources":
         return <EditorResources />;
       case "training":
-        return <QCTrainingPage currentRole={role} />;
+        return <TrainingPortalPage />;
       case "guidelines":
         return <EditorGuidelinesPage />;
       case "employment-info":
@@ -202,7 +202,7 @@ export function renderPage(
       case "resources":
         return <QCResourcesPage />;
       case "training":
-        return <QCTrainingPage currentRole={role} />;
+        return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
@@ -227,7 +227,7 @@ export function renderPage(
       case "reports":
         return <SchedulerReportsPage />;
       case "training":
-        return <SchedulerTrainingPage currentRole={role} />;
+        return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
       case "posted-archive":
@@ -252,7 +252,7 @@ export function renderPage(
       case "reports":
         return <ComingSoonPage title="Reports" />;
       case "training":
-        return <QCTrainingPage currentRole={role} />;
+        return <TrainingPortalPage />;
       case "leaves":
         return <LeavesComponent />;
       case "employment-info":
@@ -278,7 +278,7 @@ export function renderPage(
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "training":
-        return <QCTrainingPage currentRole={role} />;
+        return <TrainingPortalPage />;
       case "archive":
         return <ComingSoonPage title="Archive" />;
       default:
@@ -299,7 +299,7 @@ export function renderPage(
       case "calendar":
         return <VideographerDashboard />; // Shows calendar tab
       case "training":
-        return <QCTrainingPage currentRole={role} />;
+        return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
@@ -316,7 +316,7 @@ export function renderPage(
       case "clients":
         return <SalesDashboard />;
       case "training":
-        return <QCTrainingPage currentRole={role} />;
+        return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
