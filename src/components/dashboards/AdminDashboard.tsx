@@ -35,72 +35,52 @@ import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { RecentTasksCard } from '../tasks/RecentTasksCard';
 
 // ============================================
-// LAZY LOAD SUB-COMPONENTS
+// ROBUST DYNAMIC IMPORT WRAPPER
 // ============================================
-const AnalyticsTab = dynamic(() => import('../admin/AnalyticsTab').then(mod => ({ default: mod.AnalyticsTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Analytics" />,
-  ssr: false,
-});
+const safeDynamic = (importFn: () => Promise<any>, componentName: string) => {
+  return dynamic(
+    () => importFn().catch((error) => {
+      console.error(`❌ [DYNAMIC IMPORT ERROR] ${componentName}:`, error);
 
-const UserManagementTab = dynamic(() => import('../admin/UserManagementTab').then(mod => ({ default: mod.UserManagementTab })), {
-  loading: () => <DashboardLoadingFallback componentName="User Management" />,
-  ssr: false,
-});
+      // Check if it's a chunk load error
+      if (error.name === 'ChunkLoadError' ||
+        error.message?.includes('Loading chunk') ||
+        error.message?.includes('Failed to fetch dynamically imported module')) {
 
-const LeavesComponent = dynamic(() => import('../admin/LeavesComponent'), {
-  loading: () => <DashboardLoadingFallback componentName="Leaves" />,
-  ssr: false,
-});
+        console.warn(`🔄 Attempting to recover from ChunkLoadError for ${componentName}...`);
 
-const ReportsTab = dynamic(() => import('../admin/ReportsTab').then(mod => ({ default: mod.ReportsTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Reports" />,
-  ssr: false,
-});
+        // Prevents infinite reload loops
+        const lastReload = sessionStorage.getItem('last_chunk_error_reload');
+        const now = Date.now();
 
-const AuditLogTab = dynamic(() => import('../admin/AuditLogTab').then(mod => ({ default: mod.AuditLogTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Audit Log" />,
-  ssr: false,
-});
+        if (!lastReload || now - parseInt(lastReload) > 10000) { // 10 second cooldown
+          sessionStorage.setItem('last_chunk_error_reload', now.toString());
+          window.location.reload();
+          return new Promise(() => { }); // Stop execution
+        }
+      }
+      throw error;
+    }),
+    {
+      loading: () => <DashboardLoadingFallback componentName={componentName} />,
+      ssr: false,
+    }
+  );
+};
 
-const FinanceTab = dynamic(() => import('../admin/FinanceTab').then(mod => ({ default: mod.FinanceTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Finance" />,
-  ssr: false,
-});
-
-const TaskManagementTab = dynamic(() => import('../admin/TaskManagementTab').then(mod => ({ default: mod.TaskManagementTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Task Management" />,
-  ssr: false,
-});
-
-const ClientManagement = dynamic(() => import('../management/ClientManagement').then(mod => ({ default: mod.ClientManagement })), {
-  loading: () => <DashboardLoadingFallback componentName="Client Management" />,
-  ssr: false,
-});
-
-const ActivityLogReportTab = dynamic(() => import('../admin/ActivityLogReportTab').then(mod => ({ default: mod.ActivityLogReportTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Activity Logs" />,
-  ssr: false,
-});
-
-const PermissionsTab = dynamic(() => import('../admin/PermissionsTab').then(mod => ({ default: mod.PermissionsTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Permissions" />,
-  ssr: false,
-});
-
-const JobManagementSection = dynamic(() => import('../jobs/JobManagementSection').then(mod => ({ default: mod.JobManagementSection })), {
-  loading: () => <DashboardLoadingFallback componentName="Job Management" />,
-  ssr: false,
-});
-
-const GuidelinesManagementTab = dynamic(() => import('../admin/GuidelinesManagementTab').then(mod => ({ default: mod.GuidelinesManagementTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Guidelines Management" />,
-  ssr: false,
-});
-
-const SalesManagementTab = dynamic(() => import('../admin/SalesManagementTab').then(mod => ({ default: mod.SalesManagementTab })), {
-  loading: () => <DashboardLoadingFallback componentName="Sales Management" />,
-  ssr: false,
-});
+const AnalyticsTab = safeDynamic(() => import('../admin/AnalyticsTab').then(mod => ({ default: mod.AnalyticsTab })), "Analytics");
+const UserManagementTab = safeDynamic(() => import('../admin/UserManagementTab').then(mod => ({ default: mod.UserManagementTab })), "User Management");
+const LeavesComponent = safeDynamic(() => import('../admin/LeavesComponent'), "Leaves");
+const ReportsTab = safeDynamic(() => import('../admin/ReportsTab').then(mod => ({ default: mod.ReportsTab })), "Reports");
+const AuditLogTab = safeDynamic(() => import('../admin/AuditLogTab').then(mod => ({ default: mod.AuditLogTab })), "Audit Log");
+const FinanceTab = safeDynamic(() => import('../admin/FinanceTab').then(mod => ({ default: mod.FinanceTab })), "Finance");
+const TaskManagementTab = safeDynamic(() => import('../admin/TaskManagementTab').then(mod => ({ default: mod.TaskManagementTab })), "Task Management");
+const ClientManagement = safeDynamic(() => import('../management/ClientManagement').then(mod => ({ default: mod.ClientManagement })), "Client Management");
+const ActivityLogReportTab = safeDynamic(() => import('../admin/ActivityLogReportTab').then(mod => ({ default: mod.ActivityLogReportTab })), "Activity Logs");
+const PermissionsTab = safeDynamic(() => import('../admin/PermissionsTab').then(mod => ({ default: mod.PermissionsTab })), "Permissions");
+const JobManagementSection = safeDynamic(() => import('../jobs/JobManagementSection').then(mod => ({ default: mod.JobManagementSection })), "Job Management");
+const GuidelinesManagementTab = safeDynamic(() => import('../admin/GuidelinesManagementTab').then(mod => ({ default: mod.GuidelinesManagementTab })), "Guidelines Management");
+const SalesManagementTab = safeDynamic(() => import('../admin/SalesManagementTab').then(mod => ({ default: mod.SalesManagementTab })), "Sales Management");
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
