@@ -119,9 +119,12 @@ export async function getCurrentUser2(req?: NextRequest) {
 
     if (token && process.env.JWT_SECRET) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET) as Decoded;
-        if (decoded?.userId) {
-          const user = await prisma.user.findUnique({ where: { id: Number(decoded.userId) } });
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
+        // Support both custom 'userId' and NextAuth's 'id' field
+        const effectiveId = decoded?.userId || decoded?.id;
+
+        if (effectiveId) {
+          const user = await prisma.user.findUnique({ where: { id: Number(effectiveId) } });
           if (user) return user;
         }
       } catch (jwtErr) {
