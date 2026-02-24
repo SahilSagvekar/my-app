@@ -39,7 +39,7 @@ interface Lead {
   name: string;
   email: string;
   socials: string;
-  snapchatShow: string;
+  priority: string;
   igDm: boolean;
   dmPlatform?: string;
   meetingBooked: boolean;
@@ -238,15 +238,15 @@ export function SalesManagementTab() {
     total: filtered.length,
     contacted: filtered.filter(l => l.emailed || l.called || l.texted || l.igDm).length,
     meetings: filtered.filter(l => l.meetingBooked).length,
-    snapYes: filtered.filter(l => l.snapchatShow === 'yes').length,
+    highPriority: filtered.filter(l => l.priority === 'high').length,
   };
 
   // ── Export CSV ──
   const exportCSV = () => {
-    const headers = ['Sales Rep', 'Name', 'Email', 'Socials', 'Snapchat Show', 'Social DM', 'Platform', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes', 'Email Template', 'DM Time', 'Meeting Time', 'Email Time', 'Call Time', 'Text Time', 'Added'];
+    const headers = ['Sales Rep', 'Name', 'Email', 'Socials', 'Priority', 'Social DM', 'Platform', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes', 'Email Template', 'DM Time', 'Meeting Time', 'Email Time', 'Call Time', 'Text Time', 'Added'];
     const rows = filtered.map(l => [
       displayName(l.user),
-      l.name, l.email, l.socials, l.snapchatShow || '—',
+      l.name, l.email, l.socials, l.priority || '—',
       l.igDm ? 'Yes' : 'No', l.dmPlatform || '—',
       l.meetingBooked ? 'Yes' : 'No',
       l.emailed ? 'Yes' : 'No',
@@ -333,7 +333,7 @@ export function SalesManagementTab() {
                 { label: 'Total Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
                 { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
                 { label: 'Meetings Booked', value: stats.meetings, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-                { label: 'Snapchat Show: Yes', value: stats.snapYes, color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
+                { label: 'High Priority', value: stats.highPriority, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
               ].map(s => (
                 <div key={s.label} className={cn('rounded-xl border p-4', s.bg)}>
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
@@ -647,7 +647,7 @@ export function SalesManagementTab() {
                                         </p>
                                         <div className="bg-white p-3 rounded-lg border border-yellow-200/50 text-xs text-gray-600 space-y-1">
                                           <p><strong>Platform:</strong> {lead.dmPlatform ? DM_PLATFORMS[lead.dmPlatform]?.label : 'None'}</p>
-                                          <p><strong>Snapchat:</strong> {lead.snapchatShow || 'N/A'}</p>
+                                          <p><strong>Priority:</strong> {lead.priority ? lead.priority.charAt(0).toUpperCase() + lead.priority.slice(1) : 'N/A'}</p>
                                         </div>
                                       </div>
                                     </div>

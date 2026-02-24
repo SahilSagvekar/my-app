@@ -973,7 +973,7 @@ model SalesLead {
   status        String    @default("NEW")
   source        String    @default("")
   value         Float?
-  snapchatShow  String    @default("")
+  priority      String    @default("")
   igDm          Boolean   @default(false)
   meetingBooked Boolean   @default(false)
   emailed       Boolean   @default(false)

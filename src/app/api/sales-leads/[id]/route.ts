@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         status: body.status ?? existing.status,
         source: body.source ?? existing.source,
         value: body.value !== undefined ? (body.value ? parseFloat(body.value) : null) : existing.value,
-        snapchatShow: body.snapchatShow ?? existing.snapchatShow,
+        priority: body.priority ?? existing.priority,
         igDm: body.igDm ?? existing.igDm,
         dmPlatform: body.dmPlatform ?? existing.dmPlatform,
         meetingBooked: body.meetingBooked ?? existing.meetingBooked,

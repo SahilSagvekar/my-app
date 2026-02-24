@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         status: body.status ?? 'NEW',
         source: body.source ?? '',
         value: body.value !== undefined ? parseFloat(body.value) : null,
-        snapchatShow: body.snapchatShow ?? '',
+        priority: body.priority ?? '',
         igDm: body.igDm ?? false,
         dmPlatform: body.dmPlatform ?? '',
         meetingBooked: body.meetingBooked ?? false,

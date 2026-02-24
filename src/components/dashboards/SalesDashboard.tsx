@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import {
@@ -51,8 +51,6 @@ import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SnapchatShow = 'yes' | 'no' | 'maybe' | '';
-
 interface Lead {
   id: string;
   name: string;
@@ -63,7 +61,7 @@ interface Lead {
   status: string;
   source: string;
   value: number | null;
-  snapchatShow: SnapchatShow;
+  priority: string;
   igDm: boolean;
   meetingBooked: boolean;
   emailed: boolean;
@@ -94,8 +92,7 @@ function emptyDraftLead(): Lead {
   return {
     id: tempId(),
     name: '', company: '', email: '', phone: '', socials: '',
-    status: 'NEW', source: '', value: null,
-    snapchatShow: '',
+    status: 'NEW', source: '', value: null, priority: '',
     igDm: false, meetingBooked: false, emailed: false,
     called: false, texted: false, dmPlatform: '', notes: '', emailTemplate: '',
     dmAt: undefined, meetingAt: undefined, emailedAt: undefined,
@@ -115,7 +112,7 @@ function dbLeadToLocal(l: any): Lead {
     status: l.status || 'NEW',
     source: l.source || '',
     value: l.value || null,
-    snapchatShow: l.snapchatShow as SnapchatShow,
+    priority: l.priority || '',
     igDm: l.igDm,
     meetingBooked: l.meetingBooked,
     emailed: l.emailed,
@@ -139,11 +136,11 @@ function dbLeadToLocal(l: any): Lead {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SNAPCHAT_OPTIONS: { value: SnapchatShow; label: string; color: string }[] = [
-  { value: 'yes', label: 'Yes', color: 'bg-green-100 text-green-700 border-green-200' },
-  { value: 'no', label: 'No', color: 'bg-red-100 text-red-700 border-red-200' },
-  { value: 'maybe', label: 'Maybe', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  { value: '', label: '—', color: 'bg-gray-50 text-gray-400 border-gray-200' },
+const PRIORITY_OPTIONS = [
+  { id: 'high', label: 'High', color: 'bg-red-100 text-red-700 border-red-200' },
+  { id: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  { id: 'low', label: 'Low', color: 'bg-green-100 text-green-700 border-green-200' },
+  { id: '', label: '—', color: 'bg-gray-50 text-gray-400 border-gray-200' },
 ];
 
 const DM_PLATFORMS = [
@@ -474,9 +471,19 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: LeadProfileDrawerProps) 
               <div className="w-2 h-8 bg-yellow-400 rounded-full" />
               Lead Profile
             </SheetTitle>
-            {lead._dirty && (
-              <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 animate-pulse">
-                Unsaved Changes
+            {lead._committing && (
+              <div className="flex items-center gap-1.5 text-yellow-600 text-xs font-medium">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+              </div>
+            )}
+            {lead._dirty && !lead._committing && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 animate-pulse text-xs">
+                Saving soon…
+              </Badge>
+            )}
+            {!lead._dirty && !lead._committing && lead._saved && (
+              <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-xs">
+                <Check className="h-3 w-3 mr-1" />Saved
               </Badge>
             )}
           </div>
@@ -530,14 +537,14 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: LeadProfileDrawerProps) 
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 ml-1">Snapchat Show</label>
+                <label className="text-xs font-semibold text-gray-500 ml-1">Priority</label>
                 <select
-                  value={lead.snapchatShow}
-                  onChange={(e) => onUpdate(lead.id, { snapchatShow: e.target.value as SnapchatShow })}
+                  value={lead.priority}
+                  onChange={(e) => onUpdate(lead.id, { priority: e.target.value })}
                   className="w-full h-10 px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-yellow-400"
                 >
-                  {SNAPCHAT_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  {PRIORITY_OPTIONS.map(p => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
                   ))}
                 </select>
               </div>
@@ -549,7 +556,7 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: LeadProfileDrawerProps) 
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Value & Source</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 ml-1">Estimated Value (£)</label>
+                <label className="text-xs font-semibold text-gray-500 ml-1">Estimated Value ($)</label>
                 <div className="relative">
                   <Input
                     type="number"
@@ -559,7 +566,7 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: LeadProfileDrawerProps) 
                     placeholder="0.00"
                   />
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-xs">
-                    £
+                    $
                   </div>
                 </div>
               </div>
@@ -654,6 +661,11 @@ export function SalesDashboard() {
   const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
+  // Refs so async timers always see latest leads
+  const leadsRef = useRef<Lead[]>([]);
+  leadsRef.current = leads;
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {
       const next = new Set(prev);
@@ -671,7 +683,6 @@ export function SalesDashboard() {
         const data = await res.json();
         if (data.ok) {
           const saved = data.leads.map(dbLeadToLocal);
-          // Start with saved rows + one fresh draft at the bottom
           setLeads(saved.length > 0 ? [...saved, emptyDraftLead()] : [emptyDraftLead()]);
         }
       } catch {
@@ -682,122 +693,100 @@ export function SalesDashboard() {
     })();
   }, []);
 
-  // ── Update a field locally (marks row dirty if already saved) ──
+  // Keep drawer in sync with live lead state
+  useEffect(() => {
+    if (drawerLead) {
+      const live = leadsRef.current.find(l => l.id === drawerLead.id);
+      if (live) setDrawerLead(live);
+    }
+  }, [leads]);
+
+  // ── Persist a lead (POST or PATCH) ──
+  const persistLead = useCallback(async (lead: Lead) => {
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, _committing: true } : l));
+    const body = {
+      name: lead.name, company: lead.company, email: lead.email,
+      phone: lead.phone, socials: lead.socials, status: lead.status,
+      source: lead.source, value: lead.value, priority: lead.priority, igDm: lead.igDm,
+      dmPlatform: lead.dmPlatform, meetingBooked: lead.meetingBooked,
+      emailed: lead.emailed, called: lead.called, texted: lead.texted,
+      notes: lead.notes, emailTemplate: lead.emailTemplate,
+      dmAt: lead.dmAt || null, meetingAt: lead.meetingAt || null,
+      emailedAt: lead.emailedAt || null, calledAt: lead.calledAt || null,
+      textedAt: lead.textedAt || null,
+    };
+    try {
+      if (!lead._saved) {
+        const res = await fetch('/api/sales-leads', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.message || 'Failed');
+        setLeads(prev => prev.map(l =>
+          l.id === lead.id
+            ? {
+              ...l, id: data.lead.id, _saved: true, _dirty: false, _committing: false,
+              createdAt: data.lead.createdAt, updatedAt: data.lead.updatedAt
+            }
+            : l
+        ));
+      } else {
+        const res = await fetch(`/api/sales-leads/${lead.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.message || 'Failed');
+        setLeads(prev => prev.map(l =>
+          l.id === lead.id
+            ? { ...l, _dirty: false, _committing: false, updatedAt: data.lead.updatedAt }
+            : l
+        ));
+      }
+    } catch (err: any) {
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, _committing: false } : l));
+      toast.error(err.message || 'Failed to save');
+    }
+  }, []);
+
+  // ── Schedule auto-save (1.5 s debounce) ──
+  const scheduleAutoSave = useCallback((id: string) => {
+    if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
+    saveTimers.current[id] = setTimeout(() => {
+      const lead = leadsRef.current.find(l => l.id === id);
+      if (!lead || lead._committing) return;
+      if (lead._saved && lead._dirty) { persistLead(lead); return; }
+      if (!lead._saved && lead.name.trim()) persistLead(lead);
+    }, 1500);
+  }, [persistLead]);
+
+  // ── Update a field locally then schedule auto-save ──
   const updateLead = useCallback((id: string, patch: Partial<Lead>) => {
     setLeads(prev => prev.map(l =>
-      l.id === id
-        ? { ...l, ...patch, _dirty: l._saved ? true : l._dirty }
-        : l
+      l.id === id ? { ...l, ...patch, _dirty: l._saved ? true : l._dirty } : l
     ));
-  }, []);
+    scheduleAutoSave(id);
+  }, [scheduleAutoSave]);
 
   // ── Add a new blank draft row ──
   const addRow = useCallback(() => {
     setLeads(prev => [...prev, emptyDraftLead()]);
   }, []);
 
-  // ── Commit a row to the DB (the "+" button) ──
-  const commitRow = useCallback(async (id: string) => {
-    const lead = leads.find(l => l.id === id);
-    if (!lead) return;
-
-    // Mark as committing
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, _committing: true } : l));
-
-    try {
-      if (!lead._saved) {
-        // New row → POST
-        const res = await fetch('/api/sales-leads', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: lead.name,
-            company: lead.company,
-            email: lead.email,
-            phone: lead.phone,
-            socials: lead.socials,
-            status: lead.status,
-            source: lead.source,
-            value: lead.value,
-            snapchatShow: lead.snapchatShow,
-            igDm: lead.igDm,
-            dmPlatform: lead.dmPlatform,
-            meetingBooked: lead.meetingBooked,
-            emailed: lead.emailed,
-            called: lead.called,
-            texted: lead.texted,
-            notes: lead.notes,
-            emailTemplate: lead.emailTemplate,
-            dmAt: lead.dmAt,
-            meetingAt: lead.meetingAt,
-            emailedAt: lead.emailedAt,
-            calledAt: lead.calledAt,
-            textedAt: lead.textedAt,
-          }),
-        });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.message || 'Failed');
-        // Replace temp id with real DB id, mark saved
-        setLeads(prev => prev.map(l =>
-          l.id === id
-            ? { ...l, id: data.lead.id, _saved: true, _dirty: false, _committing: false }
-            : l
-        ));
-        toast.success('Lead saved to database');
-      } else {
-        // Existing row → PATCH
-        const res = await fetch(`/api/sales-leads/${lead.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: lead.name,
-            company: lead.company,
-            email: lead.email,
-            phone: lead.phone,
-            socials: lead.socials,
-            status: lead.status,
-            source: lead.source,
-            value: lead.value,
-            snapchatShow: lead.snapchatShow,
-            igDm: lead.igDm,
-            dmPlatform: lead.dmPlatform,
-            meetingBooked: lead.meetingBooked,
-            emailed: lead.emailed,
-            called: lead.called,
-            texted: lead.texted,
-            notes: lead.notes,
-            emailTemplate: lead.emailTemplate,
-            dmAt: lead.dmAt,
-            meetingAt: lead.meetingAt,
-            emailedAt: lead.emailedAt,
-            calledAt: lead.calledAt,
-            textedAt: lead.textedAt,
-          }),
-        });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.message || 'Failed');
-        setLeads(prev => prev.map(l =>
-          l.id === id ? { ...l, _dirty: false, _committing: false } : l
-        ));
-        toast.success('Changes synced');
-      }
-    } catch (err: any) {
-      setLeads(prev => prev.map(l => l.id === id ? { ...l, _committing: false } : l));
-      toast.error(err.message || 'Failed to save');
-    }
-  }, [leads]);
-
   // ── Delete a row ──
   const deleteRow = useCallback(async (id: string) => {
     const lead = leads.find(l => l.id === id);
+    // Cancel any pending auto-save
+    if (saveTimers.current[id]) {
+      clearTimeout(saveTimers.current[id]);
+      delete saveTimers.current[id];
+    }
     setLeads(prev => {
       const next = prev.filter(l => l.id !== id);
-      // Always keep at least one draft row
-      const hasDraft = next.some(l => !l._saved);
-      return hasDraft || next.length === 0 ? (next.length === 0 ? [emptyDraftLead()] : next) : next;
+      return next.length === 0 ? [emptyDraftLead()] : next;
     });
-
-    if (!lead?._saved) return; // draft-only, nothing in DB
+    if (!lead?._saved) return;
     try {
       await fetch(`/api/sales-leads/${id}`, { method: 'DELETE' });
       toast.success('Lead deleted');
@@ -809,10 +798,12 @@ export function SalesDashboard() {
   // ── Export CSV ──
   const exportCSV = () => {
     const saved = leads.filter(l => l._saved);
-    const headers = ['Name', 'Email', 'Socials', 'Snapchat Show', 'Social DM', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes', 'Email Template'];
+    const headers = ['Name', 'Company', 'Email', 'Phone', 'Socials', 'Status', 'Value ($)', 'Source', 'Social DM', 'Platform', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes', 'Email Template'];
     const rows = saved.map(l => [
-      l.name, l.email, l.socials, l.snapchatShow || '—',
-      l.igDm ? 'Yes' : 'No', l.meetingBooked ? 'Yes' : 'No',
+      l.name, l.company, l.email, l.phone, l.socials, l.status,
+      l.value ?? '', l.source,
+      l.igDm ? 'Yes' : 'No', l.dmPlatform || '—',
+      l.meetingBooked ? 'Yes' : 'No',
       l.emailed ? 'Yes' : 'No', l.called ? 'Yes' : 'No', l.texted ? 'Yes' : 'No',
       `"${l.notes.replace(/"/g, '""')}"`,
       `"${l.emailTemplate.replace(/"/g, '""')}"`,
@@ -825,7 +816,7 @@ export function SalesDashboard() {
     a.download = `sales-leads-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Exported saved leads to CSV');
+    toast.success('Exported to CSV');
   };
 
   // ── Filtered rows ──
@@ -833,7 +824,8 @@ export function SalesDashboard() {
     const q = search.toLowerCase();
     return l.name.toLowerCase().includes(q) ||
       l.email.toLowerCase().includes(q) ||
-      l.socials.toLowerCase().includes(q);
+      l.socials.toLowerCase().includes(q) ||
+      l.company.toLowerCase().includes(q);
   });
 
   // ── Stats (saved only) ──
@@ -842,7 +834,7 @@ export function SalesDashboard() {
     total: saved.length,
     contacted: saved.filter(l => l.emailed || l.called || l.texted || l.igDm).length,
     meetings: saved.filter(l => l.meetingBooked).length,
-    snapYes: saved.filter(l => l.snapchatShow === 'yes').length,
+    pipeline: saved.reduce((sum, l) => sum + (l.value ?? 0), 0),
   };
 
   const draftCount = leads.filter(l => !l._saved).length;
@@ -864,15 +856,15 @@ export function SalesDashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Sales Tracker</h1>
-          <p className="text-muted-foreground mt-1 text-base">
-            Fill in a row, then hit <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-xs font-semibold"><Plus className="h-3 w-3" />Save</span> to submit it to the admin
+          <p className="text-muted-foreground mt-1 text-sm flex items-center gap-1.5">
+            ✓ Changes auto-save 1.5 s after you stop typing
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
+          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
             <Download className="h-4 w-4" />
             Export CSV
-          </Button> */}
+          </Button>
           <Button size="sm" onClick={addRow} className="gap-1.5 bg-yellow-500 hover:bg-yellow-600 text-white">
             <Plus className="h-4 w-4" />
             Add Row
@@ -880,13 +872,13 @@ export function SalesDashboard() {
         </div>
       </div>
 
-      {/* ── Stats (saved leads only) ────────────────────────────── */}
+      {/* ── Stats ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Saved Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
           { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
           { label: 'Meetings Booked', value: stats.meetings, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-          { label: 'Snapchat Show: Yes', value: stats.snapYes, color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
+          { label: 'Pipeline Value', value: `$${stats.pipeline.toLocaleString()}`, color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
         ].map(s => (
           <div key={s.label} className={cn('rounded-xl border p-4 flex flex-col items-center justify-center text-center', s.bg)}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
@@ -895,12 +887,12 @@ export function SalesDashboard() {
         ))}
       </div>
 
-      {/* ── Draft banner ────────────────────────────────────────── */}
+      {/* ── Draft banner ─────────────────────────────────────────── */}
       {draftCount > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm">
           <UploadCloud className="h-4 w-4 flex-shrink-0" />
           <span>
-            <strong>{draftCount}</strong> unsaved draft row{draftCount !== 1 ? 's' : ''} — hit the <strong className="text-green-600">+</strong> button on each row to submit to admin
+            <strong>{draftCount}</strong> unsaved row{draftCount !== 1 ? 's' : ''} — type a name and they’ll auto-save
           </span>
         </div>
       )}
@@ -933,25 +925,28 @@ export function SalesDashboard() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-gray-500">
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold border-r border-gray-200 w-10">#</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-44">Name</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">Status</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-44">Email</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-36">Socials</th>
-                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">
-                  DM Platform
-                </th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-40">Name</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">Company</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-28">Status</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-40">Email</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">Phone</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-28">Socials</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-20">$ Value</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-24">Source</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-24">Priority</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">DM Platform</th>
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Meet</th>
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Email</th>
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Call</th>
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Text</th>
-                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">Notes</th>
-                <th className="px-2 py-2.5 text-center text-[10px] font-bold w-12 text-gray-400">Actions</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-28">Notes</th>
+                <th className="px-2 py-2.5 text-center text-[10px] font-bold w-12 text-gray-400">Del</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-16 text-center text-muted-foreground text-sm">
+                  <td colSpan={17} className="py-16 text-center text-muted-foreground text-sm">
                     {search ? 'No leads match your search.' : 'No rows yet — click "Add Row" to get started.'}
                   </td>
                 </tr>
@@ -1001,6 +996,15 @@ export function SalesDashboard() {
                             <InfoIcon className="h-3 w-3" />
                           </button>
                         </td>
+                        {/* Company */}
+                        <td className="border-r border-gray-100 p-0">
+                          <input
+                            value={lead.company}
+                            onChange={e => updateLead(lead.id, { company: e.target.value })}
+                            placeholder="Company"
+                            className="w-full h-full px-2 py-2 bg-transparent outline-none text-xs placeholder:text-gray-200 focus:bg-yellow-50/60"
+                          />
+                        </td>
                         {/* Status */}
                         <td className="border-r border-gray-100 px-2 py-1.5 overflow-hidden">
                           <select
@@ -1026,6 +1030,15 @@ export function SalesDashboard() {
                             className="w-full h-full px-2 py-2 bg-transparent outline-none text-xs placeholder:text-gray-200 focus:bg-yellow-50/60"
                           />
                         </td>
+                        {/* Phone */}
+                        <td className="border-r border-gray-100 p-0">
+                          <input
+                            value={lead.phone}
+                            onChange={e => updateLead(lead.id, { phone: e.target.value })}
+                            placeholder="+44 7..."
+                            className="w-full h-full px-2 py-2 bg-transparent outline-none text-xs placeholder:text-gray-200 focus:bg-yellow-50/60"
+                          />
+                        </td>
                         {/* Socials */}
                         <td className="border-r border-gray-100 p-0">
                           <input
@@ -1034,6 +1047,41 @@ export function SalesDashboard() {
                             placeholder="@handle"
                             className="w-full h-full px-2 py-2 bg-transparent outline-none text-xs placeholder:text-gray-200 focus:bg-yellow-50/60"
                           />
+                        </td>
+                        {/* Value */}
+                        <td className="border-r border-gray-100 p-0">
+                          <input
+                            type="number"
+                            value={lead.value ?? ''}
+                            onChange={e => updateLead(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
+                            placeholder="0"
+                            className="w-full h-full px-2 py-2 bg-transparent outline-none text-xs placeholder:text-gray-200 focus:bg-yellow-50/60 text-center"
+                          />
+                        </td>
+                        {/* Source */}
+                        <td className="border-r border-gray-100 p-0">
+                          <input
+                            value={lead.source}
+                            onChange={e => updateLead(lead.id, { source: e.target.value })}
+                            placeholder="Source"
+                            className="w-full h-full px-2 py-2 bg-transparent outline-none text-xs placeholder:text-gray-200 focus:bg-yellow-50/60"
+                          />
+                        </td>
+
+                        {/* Priority */}
+                        <td className="border-r border-gray-100 px-1 py-1.5">
+                          <select
+                            value={lead.priority}
+                            onChange={e => updateLead(lead.id, { priority: e.target.value })}
+                            className={cn(
+                              "w-full text-[10px] font-bold uppercase tracking-tighter rounded border-none appearance-none h-6 px-2 cursor-pointer transition-colors text-center",
+                              PRIORITY_OPTIONS.find(p => p.id === lead.priority)?.color || "bg-gray-50 text-gray-400"
+                            )}
+                          >
+                            {PRIORITY_OPTIONS.map(p => (
+                              <option key={p.id} value={p.id} className="bg-white text-gray-800 font-sans normal-case">{p.label}</option>
+                            ))}
+                          </select>
                         </td>
 
                         {/* Platform + DM Tick */}
@@ -1091,22 +1139,10 @@ export function SalesDashboard() {
                         <td className="px-2 py-1.5">
                           <div className="flex items-center justify-center gap-1.5">
                             {isWorking ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                            ) : isSaved ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />
+                            ) : (
                               <button onClick={() => deleteRow(lead.id)} className="text-gray-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
                                 <Trash2 className="h-3 w-3" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => commitRow(lead.id)}
-                                className={cn(
-                                  'p-1.5 rounded-md border transition-all',
-                                  isDirty
-                                    ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 shadow-sm'
-                                    : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 shadow-sm'
-                                )}
-                              >
-                                {isDirty ? <RefreshCw className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
                               </button>
                             )}
                           </div>
@@ -1114,100 +1150,102 @@ export function SalesDashboard() {
                       </tr>
 
                       {/* ── Expanded View ── */}
-                      {expandedRows.has(lead.id) && (
-                        <tr className="bg-yellow-50/30">
-                          <td colSpan={13} className="px-6 py-4 border-b border-gray-200">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                              {/* Left: Metadata */}
-                              <div className="space-y-4">
-                                <div className="space-y-1">
-                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                    <HistoryIcon className="h-3 w-3" /> Timestamps
-                                  </p>
-                                  <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
-                                    <p className="text-xs flex justify-between">
-                                      <span className="text-gray-400">Added:</span>
-                                      <span className="font-medium">{lead.createdAt ? formatToEST(lead.createdAt) : 'Just now'}</span>
-                                    </p>
-                                    <p className="text-xs flex justify-between">
-                                      <span className="text-gray-400">Last Sync:</span>
-                                      <span className="font-medium text-yellow-700/60">{lead.updatedAt ? formatToEST(lead.updatedAt) : 'Pending'}</span>
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                    <HistoryIcon className="h-3 w-3" /> Manual Contact Timing
-                                  </p>
-                                  <div className="bg-white p-3 rounded-lg border border-yellow-200/50 grid grid-cols-1 gap-3">
-                                    <ManualTimeCell
-                                      label="Social DM At"
-                                      value={lead.dmAt}
-                                      onChange={v => updateLead(lead.id, { dmAt: v })}
-                                    />
-                                    <ManualTimeCell
-                                      label="Meeting At"
-                                      value={lead.meetingAt}
-                                      onChange={v => updateLead(lead.id, { meetingAt: v })}
-                                    />
-                                    <ManualTimeCell
-                                      label="Emailed At"
-                                      value={lead.emailedAt}
-                                      onChange={v => updateLead(lead.id, { emailedAt: v })}
-                                    />
-                                    <ManualTimeCell
-                                      label="Called At"
-                                      value={lead.calledAt}
-                                      onChange={v => updateLead(lead.id, { calledAt: v })}
-                                    />
-                                    <ManualTimeCell
-                                      label="Texted At"
-                                      value={lead.textedAt}
-                                      onChange={v => updateLead(lead.id, { textedAt: v })}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="space-y-1">
-                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                    <LinkIcon className="h-3 w-3" /> Quick Actions
-                                  </p>
-                                  <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" className="text-xs h-7 bg-white" onClick={() => setEmailModal({ open: true, lead })}>
-                                      <Mail className="h-3 w-3 mr-1" /> Edit Email Temp
-                                    </Button>
-                                    <Button size="sm" variant="outline" className="text-xs h-7 bg-white" onClick={() => setNotesModal({ open: true, lead })}>
-                                      <FileText className="h-3 w-3 mr-1" /> Edit Notes
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Center: Detailed Notes */}
-                              <div className="md:col-span-2 space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {
+                        expandedRows.has(lead.id) && (
+                          <tr className="bg-yellow-50/30">
+                            <td colSpan={17} className="px-6 py-4 border-b border-gray-200">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* Left: Metadata */}
+                                <div className="space-y-4">
                                   <div className="space-y-1">
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                      <InfoIcon className="h-3 w-3" /> Detailed Notes
+                                      <HistoryIcon className="h-3 w-3" /> Timestamps
                                     </p>
-                                    <div className="bg-white p-3 rounded-lg border border-yellow-200/50 min-h-[100px] text-xs leading-relaxed text-gray-600 whitespace-pre-wrap italic">
-                                      {lead.notes || 'No notes added yet...'}
+                                    <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
+                                      <p className="text-xs flex justify-between">
+                                        <span className="text-gray-400">Added:</span>
+                                        <span className="font-medium">{lead.createdAt ? formatToEST(lead.createdAt) : 'Just now'}</span>
+                                      </p>
+                                      <p className="text-xs flex justify-between">
+                                        <span className="text-gray-400">Last Sync:</span>
+                                        <span className="font-medium text-yellow-700/60">{lead.updatedAt ? formatToEST(lead.updatedAt) : 'Pending'}</span>
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                      <HistoryIcon className="h-3 w-3" /> Manual Contact Timing
+                                    </p>
+                                    <div className="bg-white p-3 rounded-lg border border-yellow-200/50 grid grid-cols-1 gap-3">
+                                      <ManualTimeCell
+                                        label="Social DM At"
+                                        value={lead.dmAt}
+                                        onChange={v => updateLead(lead.id, { dmAt: v })}
+                                      />
+                                      <ManualTimeCell
+                                        label="Meeting At"
+                                        value={lead.meetingAt}
+                                        onChange={v => updateLead(lead.id, { meetingAt: v })}
+                                      />
+                                      <ManualTimeCell
+                                        label="Emailed At"
+                                        value={lead.emailedAt}
+                                        onChange={v => updateLead(lead.id, { emailedAt: v })}
+                                      />
+                                      <ManualTimeCell
+                                        label="Called At"
+                                        value={lead.calledAt}
+                                        onChange={v => updateLead(lead.id, { calledAt: v })}
+                                      />
+                                      <ManualTimeCell
+                                        label="Texted At"
+                                        value={lead.textedAt}
+                                        onChange={v => updateLead(lead.id, { textedAt: v })}
+                                      />
                                     </div>
                                   </div>
                                   <div className="space-y-1">
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                      <Mail className="h-3 w-3" /> Current Email Template
+                                      <LinkIcon className="h-3 w-3" /> Quick Actions
                                     </p>
-                                    <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 min-h-[100px] text-xs leading-relaxed text-blue-800/80 whitespace-pre-wrap font-mono">
-                                      {lead.emailTemplate || 'Default template will be used...'}
+                                    <div className="flex gap-2">
+                                      <Button size="sm" variant="outline" className="text-xs h-7 bg-white" onClick={() => setEmailModal({ open: true, lead })}>
+                                        <Mail className="h-3 w-3 mr-1" /> Edit Email Temp
+                                      </Button>
+                                      <Button size="sm" variant="outline" className="text-xs h-7 bg-white" onClick={() => setNotesModal({ open: true, lead })}>
+                                        <FileText className="h-3 w-3 mr-1" /> Edit Notes
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Center: Detailed Notes */}
+                                <div className="md:col-span-2 space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                        <InfoIcon className="h-3 w-3" /> Detailed Notes
+                                      </p>
+                                      <div className="bg-white p-3 rounded-lg border border-yellow-200/50 min-h-[100px] text-xs leading-relaxed text-gray-600 whitespace-pre-wrap italic">
+                                        {lead.notes || 'No notes added yet...'}
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                        <Mail className="h-3 w-3" /> Current Email Template
+                                      </p>
+                                      <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 min-h-[100px] text-xs leading-relaxed text-blue-800/80 whitespace-pre-wrap font-mono">
+                                        {lead.emailTemplate || 'Default template will be used...'}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
+                            </td>
+                          </tr>
+                        )
+                      }
                     </Fragment>
                   );
                 })
@@ -1238,19 +1276,19 @@ export function SalesDashboard() {
         open={emailModal.open}
         lead={emailModal.lead}
         onClose={() => setEmailModal({ open: false, lead: null })}
-        onSave={(id, body) => { updateLead(id, { emailTemplate: body }); toast.success('Template saved — hit + to sync'); }}
+        onSave={(id, body) => { updateLead(id, { emailTemplate: body }); }}
       />
       <NotesModal
         open={notesModal.open}
         lead={notesModal.lead}
         onClose={() => setNotesModal({ open: false, lead: null })}
-        onSave={(id, notes) => { updateLead(id, { notes }); toast.success('Notes saved — hit + to sync'); }}
+        onSave={(id, notes) => { updateLead(id, { notes }); }}
       />
       <LeadProfileDrawer
         lead={drawerLead}
         onClose={() => setDrawerLead(null)}
         onUpdate={updateLead}
       />
-    </div>
+    </div >
   );
 }
