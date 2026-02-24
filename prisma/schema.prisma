@@ -8,58 +8,58 @@ datasource db {
 }
 
 model User {
-  id                  Int                 @id @default(autoincrement())
-  name                String?
-  email               String
-  password            String?
-  image               String?
-  role                Role?
-  hourlyRate          Decimal?            @db.Decimal(10, 2)
-  monthlyBaseHours    Int?
-  employeeStatus      EmployeeStatus?     @default(ACTIVE)
-  joinedAt            DateTime?
-  worksOnSaturday     Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  resetOTP            String?
-  resetOTPExpiry      DateTime?
-  hoursPerWeek        Decimal?            @default(0) @db.Decimal(5, 2)
-  phone               String?             @unique
-  monthlyRate         Int?
-  linkedClientId      String?
-  emailNotifications  Boolean             @default(true)
-  slackNotifications  Boolean             @default(false)
-  slackUserId         String?
-  accounts            Account[]
-  auditLogs           AuditLog[]
-  bids                Bid[]
-  bonuses             Bonus[]
-  client              Client?
-  deductions          Deduction[]
-  feedbackSent        Feedback[]          @relation("FeedbackSender")
-  feedbackResponses   FeedbackResponse[]  @relation("FeedbackResponseSender")
-  assignedJobs        Job[]               @relation("JobAssignee")
-  createdJobs         Job[]               @relation("JobCreator")
-  leaves              Leave[]
-  loginAuditLogs      LoginAuditLog[]
-  payrolls            Payroll[]
-  achievements        QCAchievement[]
-  qcAnalytics         QCAnalytics[]
-  categoryMetrics     QCCategoryMetrics[]
-  monthlyTrends       QCMonthlyTrend[]
-  rejectionReasons    QCRejectionReason[]
+  id                      Int                      @id @default(autoincrement())
+  name                    String?
+  email                   String
+  password                String?
+  image                   String?
+  role                    Role?
+  hourlyRate              Decimal?                 @db.Decimal(10, 2)
+  monthlyBaseHours        Int?
+  employeeStatus          EmployeeStatus?          @default(ACTIVE)
+  joinedAt                DateTime?
+  worksOnSaturday         Boolean                  @default(false)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  resetOTP                String?
+  resetOTPExpiry          DateTime?
+  hoursPerWeek            Decimal?                 @default(0) @db.Decimal(5, 2)
+  phone                   String?                  @unique
+  monthlyRate             Int?
+  linkedClientId          String?
+  emailNotifications      Boolean                  @default(true)
+  slackNotifications      Boolean                  @default(false)
+  slackUserId             String?
+  accounts                Account[]
+  auditLogs               AuditLog[]
+  bids                    Bid[]
+  bonuses                 Bonus[]
+  client                  Client?
+  deductions              Deduction[]
   editorClientPermissions EditorClientPermission[] @relation("EditorPermissions")
-  salesLeads          SalesLead[]
-  sessions            Session[]
-  shootDetails        ShootDetail[]       @relation("VideographerShootDetails")
-  updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
-  assignedTasks       Task[]              @relation("AssignedTasks")
-  clientTasks         Task[]              @relation("ClientUserTasks")
-  qcReviewedTasks     Task[]              @relation("QCReviewedTasks")
-  taskFeedback        TaskFeedback[]      @relation("TaskFeedbackAuthor")
-  linkedClient        Client?             @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
-  securityPin         UserSecurityPin?
-  twoFactorAuth       UserTwoFactorAuth?
+  feedbackSent            Feedback[]               @relation("FeedbackSender")
+  feedbackResponses       FeedbackResponse[]       @relation("FeedbackResponseSender")
+  assignedJobs            Job[]                    @relation("JobAssignee")
+  createdJobs             Job[]                    @relation("JobCreator")
+  leaves                  Leave[]
+  loginAuditLogs          LoginAuditLog[]
+  payrolls                Payroll[]
+  achievements            QCAchievement[]
+  qcAnalytics             QCAnalytics[]
+  categoryMetrics         QCCategoryMetrics[]
+  monthlyTrends           QCMonthlyTrend[]
+  rejectionReasons        QCRejectionReason[]
+  salesLeads              SalesLead[]
+  sessions                Session[]
+  shootDetails            ShootDetail[]            @relation("VideographerShootDetails")
+  updatedSocialLogins     SocialLogin[]            @relation("LoginUpdatedBy")
+  assignedTasks           Task[]                   @relation("AssignedTasks")
+  clientTasks             Task[]                   @relation("ClientUserTasks")
+  qcReviewedTasks         Task[]                   @relation("QCReviewedTasks")
+  taskFeedback            TaskFeedback[]           @relation("TaskFeedbackAuthor")
+  linkedClient            Client?                  @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
+  securityPin             UserSecurityPin?
+  twoFactorAuth           UserTwoFactorAuth?
 
   @@index([email])
   @@index([role])
@@ -259,55 +259,55 @@ model RecurringTask {
 }
 
 model Client {
-  id                   String               @id @default(cuid())
-  userId               Int?                 @unique
-  name                 String
-  email                String
-  companyName          String?
-  phone                String
-  createdBy            String?
-  status               String               @default("active")
-  accountManagerId     String?
-  startDate            DateTime?
-  renewalDate          DateTime?
-  lastActivity         DateTime?
-  requiresClientReview Boolean              @default(false)
-  requiresVideographer Boolean              @default(false)
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  uploadedFiles        Json?
-  brandGuidelines      Json?
-  projectSettings      Json?
-  billing              Json?
-  postingSchedule      Json?
-  currentProgress      Json?
-  driveFolderId        String?
-  rawFootageFolderId   String?
-  essentialsFolderId   String?
-  emails               String[]             @default([])
-  phones               String[]             @default([])
-  outputsFolderId      String?
-  slackChannelName     String?
-  slackEnabled         Boolean              @default(false)
-  slackWebhookUrl      String?
-  hasPostingServices   Boolean              @default(true)
-  brandAssets          BrandAsset[]
-  user                 User?                @relation(fields: [userId], references: [id])
-  revenues             ClientRevenue[]
-  guidelines           Guideline[]
-  jobs                 Job[]
-  metaAccount          MetaAccount?
-  metaSnapshots        MetaSnapshot[]
-  monthlyDeliverables  MonthlyDeliverable[]
-  monthlyRuns          MonthlyRun[]
-  oneOffDeliverables   OneOffDeliverable[]
-  recurringTasks       RecurringTask[]
-  socialLogins         SocialLogin[]
-  tasks                Task[]
-  linkedUsers          User[]               @relation("LinkedClientUsers")
+  id                      String                   @id @default(cuid())
+  userId                  Int?                     @unique
+  name                    String
+  email                   String
+  companyName             String?
+  phone                   String
+  createdBy               String?
+  status                  String                   @default("active")
+  accountManagerId        String?
+  startDate               DateTime?
+  renewalDate             DateTime?
+  lastActivity            DateTime?
+  requiresClientReview    Boolean                  @default(false)
+  requiresVideographer    Boolean                  @default(false)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  uploadedFiles           Json?
+  brandGuidelines         Json?
+  projectSettings         Json?
+  billing                 Json?
+  postingSchedule         Json?
+  currentProgress         Json?
+  driveFolderId           String?
+  rawFootageFolderId      String?
+  essentialsFolderId      String?
+  emails                  String[]                 @default([])
+  phones                  String[]                 @default([])
+  outputsFolderId         String?
+  slackChannelName        String?
+  slackEnabled            Boolean                  @default(false)
+  slackWebhookUrl         String?
+  hasPostingServices      Boolean                  @default(true)
+  brandAssets             BrandAsset[]
+  user                    User?                    @relation(fields: [userId], references: [id])
+  revenues                ClientRevenue[]
   editorClientPermissions EditorClientPermission[] @relation("EditorClientPerms")
-  youtubeChannel       YouTubeChannel?
-  youtubeSnapshots     YouTubeSnapshot[]
+  guidelines              Guideline[]
+  jobs                    Job[]
+  metaAccount             MetaAccount?
+  metaSnapshots           MetaSnapshot[]
+  monthlyDeliverables     MonthlyDeliverable[]
+  monthlyRuns             MonthlyRun[]
+  oneOffDeliverables      OneOffDeliverable[]
+  recurringTasks          RecurringTask[]
+  socialLogins            SocialLogin[]
+  tasks                   Task[]
+  linkedUsers             User[]                   @relation("LinkedClientUsers")
+  youtubeChannel          YouTubeChannel?
+  youtubeSnapshots        YouTubeSnapshot[]
 
   @@index([status])
 }
@@ -963,28 +963,28 @@ model Guideline {
 }
 
 model SalesLead {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        Int
-  name          String   @default("")
-  email         String   @default("")
-  socials       String   @default("")
-  snapchatShow  String   @default("")
-  igDm          Boolean  @default(false)
-  dmPlatform    String   @default("")
-  meetingBooked Boolean  @default(false)
-  emailed       Boolean  @default(false)
-  called        Boolean  @default(false)
-  texted        Boolean  @default(false)
-  notes         String   @default("")
-  emailTemplate String   @default("")
-  dmAt          DateTime?
-  meetingAt     DateTime?
-  emailedAt     DateTime?
+  name          String    @default("")
+  email         String    @default("")
+  socials       String    @default("")
+  snapchatShow  String    @default("")
+  igDm          Boolean   @default(false)
+  meetingBooked Boolean   @default(false)
+  emailed       Boolean   @default(false)
+  called        Boolean   @default(false)
+  texted        Boolean   @default(false)
+  notes         String    @default("")
+  emailTemplate String    @default("")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   calledAt      DateTime?
+  dmAt          DateTime?
+  dmPlatform    String    @default("")
+  emailedAt     DateTime?
+  meetingAt     DateTime?
   textedAt      DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  user          User     @relation(fields: [userId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
@@ -993,22 +993,21 @@ model EditorClientPermission {
   id       String @id @default(cuid())
   editorId Int
   clientId String
-  editor   User   @relation("EditorPermissions", fields: [editorId], references: [id], onDelete: Cascade)
   client   Client @relation("EditorClientPerms", fields: [clientId], references: [id], onDelete: Cascade)
+  editor   User   @relation("EditorPermissions", fields: [editorId], references: [id], onDelete: Cascade)
 
   @@unique([editorId, clientId])
   @@index([editorId])
 }
 
 model TrainingCourse {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   title       String
-  description String   @default("")
+  description String          @default("")
   role        Role
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  order       Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   videos      TrainingVideo[]
 
   @@index([role])
@@ -1016,15 +1015,14 @@ model TrainingCourse {
 }
 
 model TrainingVideo {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   title       String
-  description String   @default("")
+  description String          @default("")
   videoUrl    String
   role        Role
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  order       Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   courseId    String?
   course      TrainingCourse? @relation(fields: [courseId], references: [id])
 
