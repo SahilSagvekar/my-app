@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useCallback } from 'react';
 import {
   Search, Download, RefreshCw, ChevronDown, ChevronRight,
   Users, Mail, Phone, MessageSquare, Instagram,
   Check, Ghost, FileText, X, Loader2, Send,
   History as HistoryIcon, Link as LinkIcon, Info as InfoIcon,
-  TrendingUp
+  TrendingUp, DollarSign, Clock, BadgePercent, Wallet,
+  CheckCircle, XCircle, ArrowRight
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -178,6 +179,363 @@ function ReadonlyEmailModal({ open, lead, onClose }: {
   );
 }
 
+// ─── Commission Types ──────────────────────────────────────────────────────────
+
+interface CommissionUser {
+  id: number;
+  name: string | null;
+  email: string;
+  image: string | null;
+}
+
+interface CommissionLead {
+  id: string;
+  name: string;
+  company: string;
+  status: string;
+  value: number | null;
+}
+
+interface Commission {
+  id: string;
+  salesUserId: number;
+  leadId: string;
+  clientName: string;
+  dealValue: string;
+  commissionRate: string;
+  commissionAmt: string;
+  month: string;
+  status: string;
+  paidAt: string | null;
+  approvedAt: string | null;
+  approvedBy: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: CommissionUser;
+  lead: CommissionLead;
+}
+
+interface CommissionSummary {
+  totalEarned: number;
+  totalPending: number;
+  totalApproved: number;
+  thisMonth: number;
+  commissionRate: number;
+}
+
+const COMMISSION_STATUS_STYLES: Record<string, { bg: string; text: string; border: string; label: string; icon: any }> = {
+  PENDING: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: 'Pending', icon: Clock },
+  APPROVED: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', label: 'Approved', icon: CheckCircle },
+  PAID: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', label: 'Paid', icon: Check },
+  CANCELLED: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: 'Cancelled', icon: XCircle },
+};
+
+// ─── Commission Management Sub-Component ──────────────────────────────────────
+
+function CommissionManagement() {
+  const [commissions, setCommissions] = useState<Commission[]>([]);
+  const [summary, setSummary] = useState<CommissionSummary>({ totalEarned: 0, totalPending: 0, totalApproved: 0, thisMonth: 0, commissionRate: 0.15 });
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'PAID' | 'CANCELLED'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchCommissions = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/affiliate/commissions?all=true');
+      const data = await res.json();
+      if (data.ok) {
+        setCommissions(data.commissions);
+        setSummary(data.summary);
+      } else {
+        toast.error(data.message || 'Failed to load commissions');
+      }
+    } catch {
+      toast.error('Failed to load commissions');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchCommissions(); }, [fetchCommissions]);
+
+  const updateCommissionStatus = async (id: string, newStatus: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/affiliate/commissions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(`Commission ${newStatus.toLowerCase()} successfully`);
+        fetchCommissions();
+      } else {
+        toast.error(data.message || 'Failed to update');
+      }
+    } catch {
+      toast.error('Failed to update commission');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const formatCurrency = (amt: number | string) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(typeof amt === 'string' ? parseFloat(amt) : amt);
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const filtered = commissions.filter(c => {
+    const matchStatus = statusFilter === 'all' || c.status === statusFilter;
+    const q = searchTerm.toLowerCase();
+    const matchSearch =
+      (c.user?.name || '').toLowerCase().includes(q) ||
+      (c.user?.email || '').toLowerCase().includes(q) ||
+      (c.lead?.name || '').toLowerCase().includes(q) ||
+      (c.lead?.company || '').toLowerCase().includes(q) ||
+      c.clientName.toLowerCase().includes(q);
+    return matchStatus && matchSearch;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-3">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-emerald-500" />
+          <p className="text-sm text-gray-400">Loading commissions…</p>
+        </div>
+      </div>
+    );
+  }
+
+  const pendingCount = commissions.filter(c => c.status === 'PENDING').length;
+  const approvedCount = commissions.filter(c => c.status === 'APPROVED').length;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Stats ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Paid Out', value: formatCurrency(summary.totalEarned), color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: Wallet },
+          { label: 'Pending Approval', value: formatCurrency(summary.totalPending), color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock, badge: pendingCount > 0 ? pendingCount : null },
+          { label: 'Approved (Unpaid)', value: formatCurrency(summary.totalApproved), color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: CheckCircle, badge: approvedCount > 0 ? approvedCount : null },
+          { label: 'This Month', value: formatCurrency(summary.thisMonth), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', icon: TrendingUp },
+        ].map(s => (
+          <div key={s.label} className={cn('rounded-xl border p-4 relative', s.bg)}>
+            <div className="flex items-center gap-2 mb-1">
+              <s.icon className={cn('h-4 w-4', s.color)} />
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
+            </div>
+            <p className={cn('text-2xl font-bold mt-1', s.color)}>{s.value}</p>
+            {(s as any).badge && (
+              <span className="absolute top-2 right-2 min-w-[20px] h-5 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full px-1.5">
+                {(s as any).badge}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Filters ── */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Search by rep, lead, company…"
+            className="pl-9 h-9 text-sm"
+          />
+        </div>
+        <div className="flex bg-gray-100/50 p-1 rounded-lg gap-0.5">
+          {(['all', 'PENDING', 'APPROVED', 'PAID', 'CANCELLED'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={cn(
+                'px-3 py-1 text-[11px] font-bold rounded-md transition-all uppercase tracking-wider',
+                statusFilter === s ? 'bg-white text-yellow-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+              )}
+            >
+              {s === 'all' ? 'All' : s}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
+          {filtered.length} commission{filtered.length !== 1 ? 's' : ''}
+        </span>
+        <Button variant="outline" size="sm" onClick={fetchCommissions} className="gap-1.5">
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </Button>
+      </div>
+
+      {/* ── Table ── */}
+      {commissions.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-muted-foreground">
+          <DollarSign className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+          <p className="text-sm font-medium">No commissions yet</p>
+          <p className="text-xs mt-1">When sales reps close deals (mark leads as "Won"), commissions will appear here.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sales Rep</th>
+                  <th className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lead / Client</th>
+                  <th className="px-4 py-2.5 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Deal Value</th>
+                  <th className="px-4 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Rate</th>
+                  <th className="px-4 py-2.5 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">Commission</th>
+                  <th className="px-4 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Month</th>
+                  <th className="px-4 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                  <th className="px-4 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-muted-foreground text-sm">
+                      No commissions match your filters.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map(c => {
+                    const style = COMMISSION_STATUS_STYLES[c.status] || COMMISSION_STATUS_STYLES.PENDING;
+                    const StatusIcon = style.icon;
+                    const isUpdating = updatingId === c.id;
+
+                    return (
+                      <tr key={c.id} className="bg-white hover:bg-yellow-50/30 transition-colors group">
+                        {/* Sales Rep */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6 flex-shrink-0">
+                              <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
+                                {initials(c.user?.name, c.user?.email || '?')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs font-medium text-gray-700 truncate max-w-[120px]">
+                              {c.user?.name || c.user?.email || 'Unknown'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Lead / Client */}
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-medium text-gray-800">{c.lead?.name || c.clientName || '—'}</p>
+                          {(c.lead?.company || c.clientName) && (
+                            <p className="text-[11px] text-gray-400">{c.lead?.company || c.clientName}</p>
+                          )}
+                        </td>
+
+                        {/* Deal Value */}
+                        <td className="px-4 py-3 text-right font-semibold text-gray-700">
+                          {formatCurrency(c.dealValue)}
+                        </td>
+
+                        {/* Rate */}
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                            <BadgePercent className="h-3 w-3" />
+                            {(parseFloat(c.commissionRate) * 100).toFixed(0)}%
+                          </span>
+                        </td>
+
+                        {/* Commission */}
+                        <td className="px-4 py-3 text-right">
+                          <span className="font-bold text-emerald-600 text-[14px]">
+                            {formatCurrency(c.commissionAmt)}
+                          </span>
+                        </td>
+
+                        {/* Month */}
+                        <td className="px-4 py-3 text-center text-xs text-gray-500">
+                          {new Date(c.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3 text-center">
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border',
+                            style.bg, style.text, style.border
+                          )}>
+                            <StatusIcon className="h-3 w-3" />
+                            {style.label}
+                          </span>
+                          {c.paidAt && (
+                            <p className="text-[10px] text-emerald-500 mt-0.5">Paid {formatDate(c.paidAt)}</p>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {isUpdating ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                            ) : (
+                              <>
+                                {c.status === 'PENDING' && (
+                                  <>
+                                    <button
+                                      onClick={() => updateCommissionStatus(c.id, 'APPROVED')}
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
+                                      title="Approve this commission"
+                                    >
+                                      <Check className="h-3 w-3" /> Approve
+                                    </button>
+                                    <button
+                                      onClick={() => updateCommissionStatus(c.id, 'CANCELLED')}
+                                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
+                                      title="Cancel this commission"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </>
+                                )}
+                                {c.status === 'APPROVED' && (
+                                  <button
+                                    onClick={() => updateCommissionStatus(c.id, 'PAID')}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                                    title="Mark as paid"
+                                  >
+                                    <DollarSign className="h-3 w-3" /> Mark Paid
+                                  </button>
+                                )}
+                                {c.status === 'PAID' && (
+                                  <span className="text-[10px] text-gray-400">Completed</span>
+                                )}
+                                {c.status === 'CANCELLED' && (
+                                  <button
+                                    onClick={() => updateCommissionStatus(c.id, 'PENDING')}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors"
+                                    title="Restore to pending"
+                                  >
+                                    <RefreshCw className="h-3 w-3" /> Restore
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function SalesManagementTab() {
@@ -188,7 +546,7 @@ export function SalesManagementTab() {
   const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [view, setView] = useState<'team' | 'personal'>('team');
+  const [view, setView] = useState<'team' | 'personal' | 'commissions'>('team');
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {
@@ -311,6 +669,16 @@ export function SalesManagementTab() {
             <TrendingUp className="h-3.5 w-3.5" />
             My Personal Sheet
           </button>
+          <button
+            onClick={() => setView('commissions')}
+            className={cn(
+              "px-6 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-2",
+              view === 'commissions' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <DollarSign className="h-3.5 w-3.5" />
+            Commissions
+          </button>
         </div>
         {view === 'team' && (
           <Button onClick={exportCSV} variant="outline" size="sm" className="gap-2 border-dashed">
@@ -322,6 +690,8 @@ export function SalesManagementTab() {
 
       {view === 'personal' ? (
         <SalesDashboard />
+      ) : view === 'commissions' ? (
+        <CommissionManagement />
       ) : (
         <>
           {/* Previous Team Overview Content */}

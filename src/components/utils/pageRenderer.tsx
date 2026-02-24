@@ -21,6 +21,7 @@ import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
 import { VideographerDashboard } from "../dashboards/VideographerDashboard";
 import { SalesDashboard } from "../dashboards/SalesDashboard";
+import { AffiliateSection } from "../dashboards/AffiliateSection";
 import { SalesManagementTab } from "../admin/SalesManagementTab";
 import { EditorProjects } from "../EditorProjects";
 import { EditorResources } from "../EditorResources";
@@ -316,6 +317,8 @@ export function renderPage(
         return <SalesManagementTab />;
       case "dashboard":
         return <SalesDashboard />;
+      case "affiliate":
+        return <AffiliateSection />;
       case "clients":
         return <SalesDashboard />;
       case "training":

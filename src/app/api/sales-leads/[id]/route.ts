@@ -55,6 +55,58 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       },
     });
 
+    // ─── Affiliate Commission Logic ──────────────────────────────────────
+    const newStatus = lead.status;
+    const oldStatus = existing.status;
+    const dealValue = lead.value;
+
+    // Status changed TO "WON" — auto-create commission
+    if (newStatus === 'WON' && oldStatus !== 'WON' && dealValue && dealValue > 0) {
+      try {
+        const existingCommission = await (prisma as any).affiliateCommission.findUnique({
+          where: { leadId: lead.id },
+        });
+        if (!existingCommission) {
+          const commissionAmt = dealValue * 0.15;
+          const now = new Date();
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          await (prisma as any).affiliateCommission.create({
+            data: {
+              salesUserId: decoded.userId,
+              leadId: lead.id,
+              clientName: lead.company || lead.name || '',
+              dealValue,
+              commissionRate: 0.15,
+              commissionAmt,
+              month: monthStart,
+              status: 'PENDING',
+            },
+          });
+          console.log(`[AFFILIATE] Created commission for lead ${lead.id}: $${commissionAmt}`);
+        }
+      } catch (err) {
+        console.error('[AFFILIATE] Failed to create commission:', err);
+      }
+    }
+
+    // Status changed AWAY from "WON" — remove pending commission
+    if (oldStatus === 'WON' && newStatus !== 'WON') {
+      try {
+        const existingCommission = await (prisma as any).affiliateCommission.findUnique({
+          where: { leadId: lead.id },
+        });
+        if (existingCommission && existingCommission.status === 'PENDING') {
+          await (prisma as any).affiliateCommission.delete({
+            where: { id: existingCommission.id },
+          });
+          console.log(`[AFFILIATE] Removed pending commission for lead ${lead.id}`);
+        }
+      } catch (err) {
+        console.error('[AFFILIATE] Failed to remove commission:', err);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     return NextResponse.json({ ok: true, lead });
   } catch (err) {
     console.error('[PATCH /api/sales-leads/:id]', err);
