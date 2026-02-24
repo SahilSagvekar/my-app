@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin(req);
 
@@ -26,6 +26,12 @@ export async function GET(req: Request) {
             companyName: true,
           },
         },
+        // 🔥 NEW: Fetch latest activity for "Last Active" column
+        auditLogs: {
+          take: 1,
+          orderBy: { timestamp: 'desc' },
+          select: { timestamp: true }
+        }
       },
       orderBy: { createdAt: "desc" }
     });

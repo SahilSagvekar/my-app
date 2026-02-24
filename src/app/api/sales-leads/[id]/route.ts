@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!decoded?.userId || decoded.role !== 'sales') {
+    if (!decoded?.userId || (decoded.role !== 'sales' && decoded.role !== 'admin')) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
@@ -30,17 +30,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const lead = await prisma.salesLead.update({
       where: { id: params.id },
       data: {
-        name:          body.name          ?? existing.name,
-        email:         body.email         ?? existing.email,
-        socials:       body.socials       ?? existing.socials,
-        snapchatShow:  body.snapchatShow  ?? existing.snapchatShow,
-        igDm:          body.igDm          ?? existing.igDm,
+        name: body.name ?? existing.name,
+        email: body.email ?? existing.email,
+        socials: body.socials ?? existing.socials,
+        snapchatShow: body.snapchatShow ?? existing.snapchatShow,
+        igDm: body.igDm ?? existing.igDm,
+        dmPlatform: body.dmPlatform ?? existing.dmPlatform,
         meetingBooked: body.meetingBooked ?? existing.meetingBooked,
-        emailed:       body.emailed       ?? existing.emailed,
-        called:        body.called        ?? existing.called,
-        texted:        body.texted        ?? existing.texted,
-        notes:         body.notes         ?? existing.notes,
+        emailed: body.emailed ?? existing.emailed,
+        called: body.called ?? existing.called,
+        texted: body.texted ?? existing.texted,
+        notes: body.notes ?? existing.notes,
         emailTemplate: body.emailTemplate ?? existing.emailTemplate,
+        dmAt: body.dmAt !== undefined ? (body.dmAt ? new Date(body.dmAt) : null) : existing.dmAt,
+        meetingAt: body.meetingAt !== undefined ? (body.meetingAt ? new Date(body.meetingAt) : null) : existing.meetingAt,
+        emailedAt: body.emailedAt !== undefined ? (body.emailedAt ? new Date(body.emailedAt) : null) : existing.emailedAt,
+        calledAt: body.calledAt !== undefined ? (body.calledAt ? new Date(body.calledAt) : null) : existing.calledAt,
+        textedAt: body.textedAt !== undefined ? (body.textedAt ? new Date(body.textedAt) : null) : existing.textedAt,
       },
     });
 

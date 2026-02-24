@@ -918,8 +918,8 @@ export async function POST(req: any) {
     const dueDate = form.get("dueDate") as string;
     // Editors are always assigned to themselves; admins read from form
     const assignedTo = isEditorCreate ? Number(userId) : Number(form.get("assignedTo"));
-    const qc_specialist = isEditorCreate ? 0 : Number(form.get("qc_specialist"));
-    const scheduler = isEditorCreate ? 0 : Number(form.get("scheduler"));
+    const qc_specialist = isEditorCreate ? 28 : Number(form.get("qc_specialist"));
+    const scheduler = isEditorCreate ? 23 : Number(form.get("scheduler"));
     const videographer = isEditorCreate ? 0 : Number(form.get("videographer"));
     const clientId = form.get("clientId") as string;
     const folderType = form.get("folderType") as string;
@@ -1130,11 +1130,20 @@ export async function POST(req: any) {
       });
 
       if (deliverable) {
+        // 🔥 Count existing tasks for this deliverable to get the next number
+        const existingCount = await prisma.task.count({
+          where: {
+            clientId,
+            oneOffDeliverableId: deliverable.id,
+          }
+        });
+
         const companyName = client.companyName || client.name;
         const companyNameSlug = companyName.replace(/\s/g, '');
         const deliverableSlug = getDeliverableShortCode(deliverable.type);
         const createdAtStr = formatDateMMDDYYYY(task.createdAt);
-        const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}1`;
+        // existingCount already includes the current task
+        const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${existingCount}`;
 
         // Create folder structure
         const taskFolderPath = await createTaskFolderStructure(companyName, title);

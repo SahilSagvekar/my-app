@@ -3,9 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn } from 'lucide-react';
+import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History } from 'lucide-react';
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
+import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
+import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 
@@ -129,6 +131,9 @@ export function QCDashboard() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
+  const [showThumbnailReview, setShowThumbnailReview] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
 
   // 🔥 Share states
   const [shareLink, setShareLink] = useState("");
@@ -275,9 +280,53 @@ export function QCDashboard() {
     const mimeType = getMimeType(file);
     if (mimeType.startsWith('video/')) {
       setShowVideoReview(true);
+    } else if (mimeType.startsWith('image/')) {
+      // Open images in the full thumbnail review modal (same as client)
+      setShowThumbnailReview(true);
     } else {
-      // Open images and other files in the in-app preview modal
+      // PDFs and other files use basic preview
       setShowFilePreview(true);
+    }
+  };
+
+  // QC: Approve thumbnail — mark task as COMPLETED and send to scheduler/client
+  const handleThumbnailApprove = async (file: TaskFile) => {
+    if (!selectedTask) return;
+    try {
+      await persistQCResult({
+        taskId: selectedTask.id,
+        approved: true,
+        requiresClientReview: selectedTask.requiresClientReview,
+      });
+      setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
+      toast('✅ Thumbnail Approved', { description: 'Task has been moved to the next stage.' });
+      setShowThumbnailReview(false);
+      setSelectedFile(null);
+      setSelectedTask(null);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to approve thumbnail');
+    }
+  };
+
+  // QC: Request revisions on thumbnail — mark task as REJECTED and send back to editor
+  const handleThumbnailRequestRevisions = async (file: TaskFile, feedbackItems: any[]) => {
+    if (!selectedTask) return;
+    try {
+      const notes = feedbackItems.map((fb: any) => fb.feedback).join('\n');
+      await persistQCResult({
+        taskId: selectedTask.id,
+        approved: false,
+        feedback: notes,
+      });
+      setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
+      toast('📝 Revisions Requested', { description: 'Feedback has been sent back to the editor.' });
+      setShowThumbnailReview(false);
+      setSelectedFile(null);
+      setSelectedTask(null);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to request revisions');
     }
   };
 
@@ -806,8 +855,23 @@ export function QCDashboard() {
                               {group.files.length !== 1 ? "s" : ""}
                             </Badge>
                           </div>
-                          {/* Show if there are multiple versions */}
-                          {group.files.some((f) => (f.version || 1) > 1) && (
+                          {/* Compare Versions button for thumbnails with multiple versions */}
+                          {group.folderType === 'thumbnails' && group.files.length > 1 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="bg-white/50 hover:bg-white text-xs h-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setComparisonFiles(group.files);
+                                setShowComparison(true);
+                              }}
+                            >
+                              <History className="h-3.5 w-3.5 mr-1.5" />
+                              Compare Versions
+                            </Button>
+                          )}
+                          {group.folderType !== 'thumbnails' && group.files.some((f) => (f.version || 1) > 1) && (
                             <Badge variant="outline" className="text-xs">
                               Multiple versions
                             </Badge>
@@ -938,6 +1002,32 @@ export function QCDashboard() {
                                         <Download className="h-4 w-4" />
                                       </Button>
                                     </div>
+                                  ) : file.mimeType?.startsWith('image/') ? (
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleFileSelect(file);
+                                        }}
+                                      >
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        Review
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-9 w-9 p-0"
+                                        title="Download File"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDownload(file);
+                                        }}
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                    </div>
                                   ) : (
                                     <div className="flex items-center gap-2">
                                       <Button
@@ -1021,11 +1111,44 @@ export function QCDashboard() {
         )
       }
 
-      {/* In-App File Preview Modal - Full Screen Overlay */}
+      {/* Fullscreen Thumbnail Review Modal (QC) */}
+      {selectedTask &&
+        selectedFile &&
+        selectedFile.mimeType?.startsWith('image/') && (
+          <ThumbnailReviewModal
+            open={showThumbnailReview}
+            onOpenChange={(open: boolean) => {
+              setShowThumbnailReview(open);
+              if (!open) {
+                setSelectedFile(null);
+              }
+            }}
+            file={selectedFile}
+            allFiles={selectedTask.files || []}
+            taskId={selectedTask.id}
+            taskTitle={selectedTask.title}
+            onApprove={handleThumbnailApprove}
+            onRequestRevisions={handleThumbnailRequestRevisions}
+            userRole="qc"
+          />
+        )}
+
+      {/* Thumbnail Comparison Modal (QC) */}
+      {selectedTask && (
+        <ThumbnailComparisonModal
+          isOpen={showComparison}
+          onOpenChange={setShowComparison}
+          thumbnails={comparisonFiles}
+          taskTitle={selectedTask.title}
+        />
+      )}
+
+      {/* In-App File Preview Modal - Full Screen Overlay (PDFs / other non-image, non-video) */}
       {
         selectedTask &&
         selectedFile &&
-        !selectedFile.mimeType?.startsWith("video/") &&
+        !selectedFile.mimeType?.startsWith('video/') &&
+        !selectedFile.mimeType?.startsWith('image/') &&
         showFilePreview && (
           <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col">
             {/* Header */}

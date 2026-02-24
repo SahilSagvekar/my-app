@@ -17,23 +17,31 @@ export interface AuditLogData {
  * Create an audit log entry
  */
 export async function createAuditLog(data: AuditLogData) {
-  try {
-    const auditLog = await prisma.auditLog.create({
-      data: {
-        userId: data.userId,
-        action: data.action,
-        entity: data.entity,
-        entityId: data.entityId?.toString(),
-        details: data.details,
-        metadata: data.metadata ? JSON.parse(JSON.stringify(data.metadata)) : null,
-        ipAddress: data.ipAddress,
-        userAgent: data.userAgent,
-        timestamp: new Date()
-      }
-    });
+  const payload = {
+    action: data.action,
+    entity: data.entity,
+    entityId: data.entityId?.toString(),
+    details: data.details,
+    metadata: data.metadata ? JSON.parse(JSON.stringify(data.metadata)) : null,
+    ipAddress: data.ipAddress,
+    userAgent: data.userAgent,
+    timestamp: new Date(),
+    userId: data.userId ?? null,
+  };
 
-    return auditLog;
-  } catch (error) {
+  try {
+    return await prisma.auditLog.create({ data: payload });
+  } catch (error: any) {
+    // If the userId FK fails (user was deleted/recreated), retry without the
+    // user reference so the audit entry is still preserved in the log.
+    if (error?.code === 'P2003') {
+      try {
+        return await prisma.auditLog.create({ data: { ...payload, userId: null } });
+      } catch (retryErr) {
+        console.error('Failed to create audit log (retry):', retryErr);
+        return null;
+      }
+    }
     console.error('Failed to create audit log:', error);
     // Don't throw - audit logging should never break the main operation
     return null;

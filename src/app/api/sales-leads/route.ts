@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!decoded?.userId || decoded.role !== 'sales') {
+    if (!decoded?.userId || (decoded.role !== 'sales' && decoded.role !== 'admin')) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!decoded?.userId || decoded.role !== 'sales') {
+    if (!decoded?.userId || (decoded.role !== 'sales' && decoded.role !== 'admin')) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
@@ -53,12 +53,18 @@ export async function POST(req: NextRequest) {
         socials: body.socials ?? '',
         snapchatShow: body.snapchatShow ?? '',
         igDm: body.igDm ?? false,
+        dmPlatform: body.dmPlatform ?? '',
         meetingBooked: body.meetingBooked ?? false,
         emailed: body.emailed ?? false,
         called: body.called ?? false,
         texted: body.texted ?? false,
         notes: body.notes ?? '',
         emailTemplate: body.emailTemplate ?? '',
+        dmAt: body.dmAt ? new Date(body.dmAt) : null,
+        meetingAt: body.meetingAt ? new Date(body.meetingAt) : null,
+        emailedAt: body.emailedAt ? new Date(body.emailedAt) : null,
+        calledAt: body.calledAt ? new Date(body.calledAt) : null,
+        textedAt: body.textedAt ? new Date(body.textedAt) : null,
       },
     });
 

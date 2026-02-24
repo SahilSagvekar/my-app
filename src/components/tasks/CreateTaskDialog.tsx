@@ -714,34 +714,10 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         }
       }
 
-      // 🔥 Fetch existing tasks for this client to filter out already-assigned deliverables
-      let existingDeliverableIds: Set<string> = new Set();
-      try {
-        const tasksRes = await fetch(`/api/tasks?clientId=${formData.clientId}`);
-        if (tasksRes.ok) {
-          const tasksData = await tasksRes.json();
-          const tasks = Array.isArray(tasksData) ? tasksData : (tasksData.tasks || []);
+      // 🔥 ALLOW multiple tasks per deliverable - removing the restrictive filter
+      const availableDeliverables = allDeliverables;
 
-          console.log(`🔍 Found ${tasks.length} existing tasks for client ${formData.clientId}`);
-
-          // Collect all deliverable IDs that already have tasks
-          tasks.forEach((task: any) => {
-            if (task.monthlyDeliverableId) {
-              existingDeliverableIds.add(String(task.monthlyDeliverableId));
-              console.log(`  - Task "${task.title}" uses deliverable: ${task.monthlyDeliverableId}`);
-            }
-          });
-
-          console.log(`🚫 Deliverable IDs with existing tasks:`, Array.from(existingDeliverableIds));
-        }
-      } catch (err) {
-        console.error("Error fetching existing tasks:", err);
-      }
-
-      // Filter out deliverables that already have tasks
-      const availableDeliverables = allDeliverables.filter(
-        (d: any) => !existingDeliverableIds.has(String(d.id))
-      );
+      console.log(`✅ Available deliverables: ${availableDeliverables.length}`);
 
       console.log(`✅ Available deliverables after filtering: ${availableDeliverables.length} of ${allDeliverables.length}`);
 

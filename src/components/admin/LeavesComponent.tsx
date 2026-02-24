@@ -561,8 +561,15 @@ export default function LeavesComponent() {
                   : u.employeeStatus === "TERMINATED"
                     ? "terminated"
                     : "active",
-            joinDate: u.joinedAt || null,
-            lastActive: "N/A",
+            joinDate: u.joinedAt || u.createdAt,
+            lastActive: u.auditLogs?.[0]?.timestamp
+              ? new Date(u.auditLogs[0].timestamp).toLocaleString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+              : "Never logged in",
             tasksCompleted: tasksCount,
             avatar: initials,
           };
@@ -1344,7 +1351,7 @@ export default function LeavesComponent() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-sm">
-                      {employee.joinDate ? new Date(employee.joinDate).toLocaleDateString() : 'N/A'}
+                      {formatDate(employee.joinDate)}
                     </td>
                     <td className="py-3 px-4 text-sm">{employee.lastActive}</td>
                     <td className="py-3 px-4">

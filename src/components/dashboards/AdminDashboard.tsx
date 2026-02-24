@@ -824,7 +824,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         return (
           <div className="space-y-6">
             <AdminPageHeader
-              title="Leave Management"
+              title="User Management"
               description="Manage employee leaves, assignments, and team availability"
             />
             <LeavesComponent />

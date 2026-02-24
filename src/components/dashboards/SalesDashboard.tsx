@@ -1,7 +1,17 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import {
+  X,
+  Check,
+  ChevronRight,
+  Send,
+  Link as LinkIcon,
+  Info as InfoIcon,
+  History as HistoryIcon,
+  Clock,
+  Loader2,
+  RefreshCw,
   Plus,
   Trash2,
   Download,
@@ -10,14 +20,8 @@ import {
   Mail,
   Phone,
   MessageSquare,
-  Instagram,
   FileText,
-  X,
-  Check,
-  Ghost,
-  Loader2,
   UploadCloud,
-  RefreshCw,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -52,8 +56,16 @@ interface Lead {
   emailed: boolean;
   called: boolean;
   texted: boolean;
+  dmPlatform: string;
   notes: string;
   emailTemplate: string;
+  dmAt?: string;
+  meetingAt?: string;
+  emailedAt?: string;
+  calledAt?: string;
+  textedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
   // UI state flags
   _saved: boolean;       // true = exists in DB
   _dirty: boolean;       // true = has unsaved local edits since last commit
@@ -71,7 +83,9 @@ function emptyDraftLead(): Lead {
     id: tempId(),
     name: '', email: '', socials: '', snapchatShow: '',
     igDm: false, meetingBooked: false, emailed: false,
-    called: false, texted: false, notes: '', emailTemplate: '',
+    called: false, texted: false, dmPlatform: '', notes: '', emailTemplate: '',
+    dmAt: undefined, meetingAt: undefined, emailedAt: undefined,
+    calledAt: undefined, textedAt: undefined,
     _saved: false, _dirty: false, _committing: false,
   };
 }
@@ -81,7 +95,11 @@ function dbLeadToLocal(l: any): Lead {
     id: l.id, name: l.name, email: l.email, socials: l.socials,
     snapchatShow: l.snapchatShow as SnapchatShow,
     igDm: l.igDm, meetingBooked: l.meetingBooked, emailed: l.emailed,
-    called: l.called, texted: l.texted, notes: l.notes, emailTemplate: l.emailTemplate,
+    called: l.called, texted: l.texted, dmPlatform: l.dmPlatform || '',
+    notes: l.notes, emailTemplate: l.emailTemplate,
+    dmAt: l.dmAt, meetingAt: l.meetingAt, emailedAt: l.emailedAt,
+    calledAt: l.calledAt, textedAt: l.textedAt,
+    createdAt: l.createdAt, updatedAt: l.updatedAt,
     _saved: true, _dirty: false, _committing: false,
   };
 }
@@ -89,10 +107,19 @@ function dbLeadToLocal(l: any): Lead {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SNAPCHAT_OPTIONS: { value: SnapchatShow; label: string; color: string }[] = [
-  { value: 'yes',   label: 'Yes',   color: 'bg-green-100 text-green-700 border-green-200' },
-  { value: 'no',    label: 'No',    color: 'bg-red-100 text-red-700 border-red-200' },
+  { value: 'yes', label: 'Yes', color: 'bg-green-100 text-green-700 border-green-200' },
+  { value: 'no', label: 'No', color: 'bg-red-100 text-red-700 border-red-200' },
   { value: 'maybe', label: 'Maybe', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  { value: '',      label: '—',     color: 'bg-gray-50 text-gray-400 border-gray-200' },
+  { value: '', label: '—', color: 'bg-gray-50 text-gray-400 border-gray-200' },
+];
+
+const DM_PLATFORMS = [
+  { id: 'instagram', label: 'Instagram', color: 'text-pink-600 bg-pink-50' },
+  { id: 'facebook', label: 'Facebook', color: 'text-blue-600 bg-blue-50' },
+  { id: 'linkedin', label: 'LinkedIn', color: 'text-cyan-700 bg-cyan-50' },
+  { id: 'twitter', label: 'Twitter/X', color: 'text-gray-900 bg-gray-50' },
+  { id: 'tiktok', label: 'TikTok', color: 'text-black bg-gray-100' },
+  { id: 'other', label: 'Other', color: 'text-gray-600 bg-gray-100' },
 ];
 
 const EMAIL_TEMPLATES = [
@@ -103,10 +130,6 @@ const EMAIL_TEMPLATES = [
   {
     label: 'Follow-up',
     body: `Hi [Name],\n\nJust following up on my previous message — I wanted to make sure it didn't get lost in your inbox!\n\nWe've recently helped brands like yours grow their engagement by 3× in just 90 days. I'd love to share how.\n\nAre you available for a quick chat this week?\n\nBest,\n[Your Name]`,
-  },
-  {
-    label: 'Snapchat Show Pitch',
-    body: `Hi [Name],\n\nI came across your brand and immediately thought you'd be a perfect fit for a Snapchat Show collaboration.\n\nSnapchat Shows are a powerful way to reach millions of new viewers authentically. We handle the full production — all you need to do is show up.\n\nWould love to walk you through what that looks like. When are you free for a call?\n\nBest,\n[Your Name]`,
   },
 ];
 
@@ -136,32 +159,185 @@ function TickCell({
     </button>
   );
 }
+const formatToEST = (iso?: string) => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+  } catch { return ''; }
+};
 
-function SnapchatCell({ value, onChange }: {
-  value: SnapchatShow; onChange: (v: SnapchatShow) => void;
+function ManualTimeCell({
+  label, value, onChange, disabled
+}: {
+  label: string; value?: string; onChange: (v: string) => void; disabled?: boolean;
 }) {
-  const current = SNAPCHAT_OPTIONS.find(o => o.value === value) ?? SNAPCHAT_OPTIONS[3];
+  // Helper: Extract EST components from UTC ISO string
+  const getESTParts = (iso?: string) => {
+    try {
+      const d = iso ? new Date(iso) : new Date();
+      if (isNaN(d.getTime())) return { dStr: '', tStr: '', ampm: 'AM' };
+
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: 'numeric', minute: '2-digit', hour12: true
+      }).formatToParts(d);
+
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const h = parts.find(p => p.type === 'hour')?.value;
+      const m = parts.find(p => p.type === 'minute')?.value;
+      const am = parts.find(p => p.type === 'dayPeriod')?.value;
+
+      return {
+        dStr: `${year}-${month}-${day}`, // YYYY-MM-DD
+        tStr: `${h}:${m}`,
+        ampm: am || 'AM'
+      };
+    } catch { return { dStr: '', tStr: '', ampm: 'AM' }; }
+  };
+
+  const parts = getESTParts(value);
+  const [localTime, setLocalTime] = useState(parts.tStr);
+
+  // Sync internal text state with value prop
+  useEffect(() => { setLocalTime(parts.tStr); }, [value]);
+
+  const commit = (d: string, t: string, ap: string) => {
+    if (!d || !t) return;
+    const [hStr, mStr] = t.split(':');
+    let h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (isNaN(h) || isNaN(m)) return;
+
+    // Convert 12h to 24h
+    if (ap === 'PM' && h < 12) h += 12;
+    if (ap === 'AM' && h === 12) h = 0;
+
+    const [y, mon, day] = d.split('-').map(Number);
+    const target = new Date(y, mon - 1, day, h, m);
+    // Offset correction for EST
+    const nyStr = target.toLocaleString('en-US', { timeZone: 'America/New_York' });
+    const nyDate = new Date(nyStr);
+    const offset = target.getTime() - nyDate.getTime();
+    onChange(new Date(target.getTime() + offset).toISOString());
+  };
+
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tight flex justify-between items-center h-4">
+        <span>{label} <span className="text-yellow-600/40 font-medium">(EST)</span></span>
+        <div className="flex gap-2 items-center">
+          {!disabled && (
+            <button
+              onClick={() => onChange(new Date().toISOString())}
+              className="group flex items-center gap-0.5 text-yellow-600 hover:text-yellow-700 transition-colors"
+            >
+              <Clock className="h-2.5 w-2.5" />
+              <span className="text-[9px]">NOW</span>
+            </button>
+          )}
+          {value && !disabled && (
+            <button onClick={() => onChange('')} className="text-red-400 hover:text-red-600 uppercase text-[9px]">Clear</button>
+          )}
+        </div>
+      </label>
+
+      <div className="flex flex-col gap-1.5 p-2 bg-gray-50/50 rounded-lg border border-gray-100">
+        <div className="flex gap-1">
+          {/* Date Picker */}
+          <input
+            type="date"
+            disabled={disabled}
+            value={parts.dStr}
+            onChange={e => commit(e.target.value, localTime, parts.ampm)}
+            className="w-1/2 px-2 py-1 text-[10px] rounded border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-yellow-400"
+          />
+
+          {/* Time Text Input */}
+          <input
+            type="text"
+            placeholder="12:00"
+            disabled={disabled}
+            value={localTime}
+            onChange={e => setLocalTime(e.target.value)}
+            onBlur={() => commit(parts.dStr, localTime, parts.ampm)}
+            className="w-1/4 px-2 py-1 text-[10px] rounded border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-yellow-400 text-center"
+          />
+
+          {/* AM/PM Toggle */}
+          <div className="flex w-1/4 rounded border border-gray-200 overflow-hidden bg-white">
+            <button
+              disabled={disabled}
+              onClick={() => commit(parts.dStr, localTime, 'AM')}
+              className={cn(
+                "flex-1 text-[9px] font-bold py-1 transition-colors",
+                parts.ampm === 'AM' ? "bg-yellow-400 text-white" : "text-gray-400 hover:bg-gray-50"
+              )}
+            >AM</button>
+            <button
+              disabled={disabled}
+              onClick={() => commit(parts.dStr, localTime, 'PM')}
+              className={cn(
+                "flex-1 text-[9px] font-bold py-1 transition-colors",
+                parts.ampm === 'PM' ? "bg-yellow-400 text-white" : "text-gray-400 hover:bg-gray-50"
+              )}
+            >PM</button>
+          </div>
+        </div>
+
+        {!disabled && (
+          <div className="flex flex-wrap gap-1">
+            {[{ l: '-5m', m: 5 }, { l: '-15m', m: 15 }, { l: '-1h', m: 60 }, { l: '-3h', m: 180 }].map(opt => (
+              <button
+                key={opt.l}
+                onClick={() => onChange(new Date(Date.now() - opt.m * 60000).toISOString())}
+                className="px-1.5 py-0.5 rounded bg-white border border-gray-100 text-gray-400 text-[8px] font-bold hover:border-yellow-200 hover:text-yellow-600 transition-all"
+              >
+                {opt.l}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlatformCell({ value, onChange, disabled }: {
+  value: string; onChange: (v: string) => void; disabled?: boolean;
+}) {
+  const current = DM_PLATFORMS.find(o => o.id === value);
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={disabled}>
         <button className={cn(
-          'flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium w-full justify-center transition-colors',
-          current.color
+          'flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-bold w-full justify-center transition-colors uppercase tracking-tight h-7',
+          current ? 'border-transparent ' + current.color : 'border-gray-100 bg-white text-gray-300',
+          disabled && 'opacity-30'
         )}>
-          {current.label}
-          <ChevronDown className="h-3 w-3 opacity-60 flex-shrink-0" />
+          {current ? current.label : 'Select'}
+          {!disabled && <ChevronDown className="h-3 w-3 opacity-60 flex-shrink-0" />}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center" className="w-28">
-        {SNAPCHAT_OPTIONS.map(opt => (
+      <DropdownMenuContent align="center" className="w-32">
+        {DM_PLATFORMS.map(opt => (
           <DropdownMenuItem
-            key={opt.value}
-            onClick={() => onChange(opt.value)}
+            key={opt.id}
+            onClick={() => onChange(opt.id)}
             className={cn('text-xs font-medium', opt.color)}
           >
             {opt.label}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuItem onClick={() => onChange('')} className="text-xs text-gray-400">
+          Clear
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -246,6 +422,16 @@ export function SalesDashboard() {
   const [search, setSearch] = useState('');
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // ── Load saved leads from DB on mount ──
   useEffect(() => {
@@ -297,9 +483,12 @@ export function SalesDashboard() {
           body: JSON.stringify({
             name: lead.name, email: lead.email, socials: lead.socials,
             snapchatShow: lead.snapchatShow, igDm: lead.igDm,
+            dmPlatform: lead.dmPlatform,
             meetingBooked: lead.meetingBooked, emailed: lead.emailed,
             called: lead.called, texted: lead.texted,
             notes: lead.notes, emailTemplate: lead.emailTemplate,
+            dmAt: lead.dmAt, meetingAt: lead.meetingAt, emailedAt: lead.emailedAt,
+            calledAt: lead.calledAt, textedAt: lead.textedAt,
           }),
         });
         const data = await res.json();
@@ -319,9 +508,12 @@ export function SalesDashboard() {
           body: JSON.stringify({
             name: lead.name, email: lead.email, socials: lead.socials,
             snapchatShow: lead.snapchatShow, igDm: lead.igDm,
+            dmPlatform: lead.dmPlatform,
             meetingBooked: lead.meetingBooked, emailed: lead.emailed,
             called: lead.called, texted: lead.texted,
             notes: lead.notes, emailTemplate: lead.emailTemplate,
+            dmAt: lead.dmAt, meetingAt: lead.meetingAt, emailedAt: lead.emailedAt,
+            calledAt: lead.calledAt, textedAt: lead.textedAt,
           }),
         });
         const data = await res.json();
@@ -359,13 +551,13 @@ export function SalesDashboard() {
   // ── Export CSV ──
   const exportCSV = () => {
     const saved = leads.filter(l => l._saved);
-    const headers = ['Name','Email','Socials','Snapchat Show','IG DM','Meeting','Emailed','Called','Texted','Notes','Email Template'];
+    const headers = ['Name', 'Email', 'Socials', 'Snapchat Show', 'Social DM', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes', 'Email Template'];
     const rows = saved.map(l => [
       l.name, l.email, l.socials, l.snapchatShow || '—',
-      l.igDm?'Yes':'No', l.meetingBooked?'Yes':'No',
-      l.emailed?'Yes':'No', l.called?'Yes':'No', l.texted?'Yes':'No',
-      `"${l.notes.replace(/"/g,'""')}"`,
-      `"${l.emailTemplate.replace(/"/g,'""')}"`,
+      l.igDm ? 'Yes' : 'No', l.meetingBooked ? 'Yes' : 'No',
+      l.emailed ? 'Yes' : 'No', l.called ? 'Yes' : 'No', l.texted ? 'Yes' : 'No',
+      `"${l.notes.replace(/"/g, '""')}"`,
+      `"${l.emailTemplate.replace(/"/g, '""')}"`,
     ]);
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -419,10 +611,10 @@ export function SalesDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
+          {/* <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
             <Download className="h-4 w-4" />
             Export CSV
-          </Button>
+          </Button> */}
           <Button size="sm" onClick={addRow} className="gap-1.5 bg-yellow-500 hover:bg-yellow-600 text-white">
             <Plus className="h-4 w-4" />
             Add Row
@@ -433,10 +625,10 @@ export function SalesDashboard() {
       {/* ── Stats (saved leads only) ────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Saved Leads',        value: stats.total,     color: 'text-gray-800',   bg: 'bg-gray-50 border-gray-200' },
-          { label: 'Contacted',          value: stats.contacted, color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200' },
-          { label: 'Meetings Booked',    value: stats.meetings,  color: 'text-green-700',  bg: 'bg-green-50 border-green-200' },
-          { label: 'Snapchat Show: Yes', value: stats.snapYes,   color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
+          { label: 'Saved Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
+          { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+          { label: 'Meetings Booked', value: stats.meetings, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
+          { label: 'Snapchat Show: Yes', value: stats.snapYes, color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
         ].map(s => (
           <div key={s.label} className={cn('rounded-xl border p-4 flex flex-col items-center justify-center text-center', s.bg)}>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
@@ -481,31 +673,20 @@ export function SalesDashboard() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-400 border-r border-gray-200 w-10">#</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-44">Name</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-52">Email</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-40">Socials</th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-28">
-                  <div className="flex items-center justify-center gap-1"><Ghost className="h-3.5 w-3.5 text-yellow-500" />Snap Show</div>
+              <tr className="bg-gray-50 border-b border-gray-200 text-gray-500">
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold border-r border-gray-200 w-10">#</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-44">Name</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-52">Email</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-40">Socials</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">
+                  DM Platform
                 </th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-24">
-                  <div className="flex items-center justify-center gap-1"><Instagram className="h-3.5 w-3.5 text-pink-500" />IG DM</div>
-                </th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-24">Meeting</th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-24">
-                  <div className="flex items-center justify-center gap-1"><Mail className="h-3.5 w-3.5 text-blue-500" />Emailed</div>
-                </th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-24">
-                  <div className="flex items-center justify-center gap-1"><Phone className="h-3.5 w-3.5 text-green-500" />Called</div>
-                </th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-24">
-                  <div className="flex items-center justify-center gap-1"><MessageSquare className="h-3.5 w-3.5 text-purple-500" />Texted</div>
-                </th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-36">Notes</th>
-                <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-28">Email Tmpl</th>
-                {/* Action column — wider to fit both buttons */}
-                <th className="px-2 py-2.5 text-center text-xs font-semibold text-gray-400 w-20">Actions</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Meet</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Email</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Call</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Text</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-36">Notes</th>
+                <th className="px-2 py-2.5 text-center text-[10px] font-bold w-12 text-gray-400">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -517,161 +698,236 @@ export function SalesDashboard() {
                 </tr>
               ) : (
                 filtered.map((lead, idx) => {
-                  const isDraft    = !lead._saved;
-                  const isDirty    = lead._saved && lead._dirty;
-                  const isSaved    = lead._saved && !lead._dirty;
-                  const isWorking  = lead._committing;
+                  const isDraft = !lead._saved;
+                  const isDirty = lead._saved && lead._dirty;
+                  const isSaved = lead._saved && !lead._dirty;
+                  const isWorking = lead._committing;
 
                   return (
-                    <tr
-                      key={lead.id}
-                      className={cn(
-                        'group transition-colors',
-                        isDraft  && 'bg-amber-50/60 hover:bg-amber-50',
-                        isDirty  && 'bg-blue-50/40 hover:bg-blue-50/60',
-                        isSaved  && 'bg-white hover:bg-yellow-50/30',
-                      )}
-                    >
-                      {/* Row # / status dot */}
-                      <td className="px-3 py-2 text-center text-xs border-r border-gray-100 select-none">
-                        {isWorking
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin mx-auto text-gray-400" />
-                          : isSaved
-                            ? <span className="text-gray-400">{idx + 1}</span>
-                            : isDirty
-                              ? <span className="inline-block w-2 h-2 rounded-full bg-blue-400 mx-auto" title="Unsaved edits" />
-                              : <span className="inline-block w-2 h-2 rounded-full bg-amber-400 mx-auto" title="Draft" />}
-                      </td>
+                    <Fragment key={lead.id}>
+                      <tr
+                        className={cn(
+                          'group transition-colors border-b border-gray-100',
+                          isDraft && 'bg-amber-50/60 hover:bg-amber-50',
+                          isDirty && 'bg-blue-50/40 hover:bg-blue-50/60',
+                          isSaved && 'bg-white hover:bg-yellow-50/30',
+                          expandedRows.has(lead.id) && 'bg-yellow-50/50'
+                        )}
+                      >
+                        {/* Expand / # */}
+                        <td className="px-3 py-2 text-center text-xs border-r border-gray-100 select-none">
+                          <div className="flex items-center flex-col gap-1">
+                            {lead._saved && (
+                              <button onClick={() => toggleRow(lead.id)} className="hover:text-amber-600">
+                                <ChevronRight className={cn('h-3 w-3 transition-transform', expandedRows.has(lead.id) && 'rotate-90')} />
+                              </button>
+                            )}
+                            {isWorking ? <Loader2 className="h-3 w-3 animate-spin text-gray-400" /> : <span className="text-[10px] text-gray-300 font-mono">{idx + 1}</span>}
+                          </div>
+                        </td>
 
-                      {/* Name */}
-                      <td className="border-r border-gray-100 p-0">
-                        <input
-                          value={lead.name}
-                          onChange={e => updateLead(lead.id, { name: e.target.value })}
-                          placeholder="Full name"
-                          className="w-full h-full px-3 py-2 bg-transparent outline-none text-sm placeholder:text-gray-300 focus:bg-yellow-50/60"
-                        />
-                      </td>
-                      {/* Email */}
-                      <td className="border-r border-gray-100 p-0">
-                        <input
-                          value={lead.email}
-                          onChange={e => updateLead(lead.id, { email: e.target.value })}
-                          placeholder="email@example.com"
-                          type="email"
-                          className="w-full h-full px-3 py-2 bg-transparent outline-none text-sm placeholder:text-gray-300 focus:bg-yellow-50/60"
-                        />
-                      </td>
-                      {/* Socials */}
-                      <td className="border-r border-gray-100 p-0">
-                        <input
-                          value={lead.socials}
-                          onChange={e => updateLead(lead.id, { socials: e.target.value })}
-                          placeholder="@handle / url"
-                          className="w-full h-full px-3 py-2 bg-transparent outline-none text-sm placeholder:text-gray-300 focus:bg-yellow-50/60"
-                        />
-                      </td>
-                      {/* Snapchat */}
-                      <td className="border-r border-gray-100 px-2 py-1.5">
-                        <SnapchatCell value={lead.snapchatShow} onChange={v => updateLead(lead.id, { snapchatShow: v })} />
-                      </td>
-                      {/* IG DM */}
-                      <td className="border-r border-gray-100 px-2 py-1.5">
-                        <TickCell checked={lead.igDm} onChange={v => updateLead(lead.id, { igDm: v })} icon={Instagram} activeColor="bg-pink-100 text-pink-600" />
-                      </td>
-                      {/* Meeting */}
-                      <td className="border-r border-gray-100 px-2 py-1.5">
-                        <TickCell checked={lead.meetingBooked} onChange={v => updateLead(lead.id, { meetingBooked: v })} icon={Check} activeColor="bg-green-100 text-green-600" />
-                      </td>
-                      {/* Emailed */}
-                      <td className="border-r border-gray-100 px-2 py-1.5">
-                        <TickCell checked={lead.emailed} onChange={v => updateLead(lead.id, { emailed: v })} icon={Mail} activeColor="bg-blue-100 text-blue-600" />
-                      </td>
-                      {/* Called */}
-                      <td className="border-r border-gray-100 px-2 py-1.5">
-                        <TickCell checked={lead.called} onChange={v => updateLead(lead.id, { called: v })} icon={Phone} activeColor="bg-emerald-100 text-emerald-600" />
-                      </td>
-                      {/* Texted */}
-                      <td className="border-r border-gray-100 px-2 py-1.5">
-                        <TickCell checked={lead.texted} onChange={v => updateLead(lead.id, { texted: v })} icon={MessageSquare} activeColor="bg-purple-100 text-purple-600" />
-                      </td>
-                      {/* Notes */}
-                      <td className="border-r border-gray-100 px-2 py-1.5">
-                        <button
-                          onClick={() => setNotesModal({ open: true, lead })}
-                          className={cn(
-                            'w-full text-left text-xs px-2 py-1.5 rounded-md border transition-colors truncate max-w-[130px]',
-                            lead.notes
-                              ? 'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100'
-                              : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
-                          )}
-                          title={lead.notes || 'Add notes'}
-                        >
-                          {lead.notes ? lead.notes.slice(0, 28) + (lead.notes.length > 28 ? '…' : '') : '+ Add notes'}
-                        </button>
-                      </td>
-                      {/* Email Template */}
-                      <td className="border-r border-gray-100 px-2 py-1.5">
-                        <button
-                          onClick={() => setEmailModal({ open: true, lead })}
-                          className={cn(
-                            'w-full text-xs px-2 py-1.5 rounded-md border transition-colors flex items-center justify-center gap-1',
-                            lead.emailTemplate
-                              ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                              : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100'
-                          )}
-                        >
-                          <Mail className="h-3 w-3 flex-shrink-0" />
-                          {lead.emailTemplate ? 'Edit' : 'Add'}
-                        </button>
-                      </td>
+                        {/* Name */}
+                        <td className="border-r border-gray-100 p-0">
+                          <input
+                            value={lead.name}
+                            onChange={e => updateLead(lead.id, { name: e.target.value })}
+                            placeholder="Full name"
+                            className="w-full h-full px-3 py-2 bg-transparent outline-none text-sm placeholder:text-gray-200 focus:bg-yellow-50/60 font-medium"
+                          />
+                        </td>
+                        {/* Email */}
+                        <td className="border-r border-gray-100 p-0">
+                          <input
+                            value={lead.email}
+                            onChange={e => updateLead(lead.id, { email: e.target.value })}
+                            placeholder="email@example.com"
+                            type="email"
+                            className="w-full h-full px-2 py-2 bg-transparent outline-none text-xs placeholder:text-gray-200 focus:bg-yellow-50/60"
+                          />
+                        </td>
+                        {/* Socials */}
+                        <td className="border-r border-gray-100 p-0">
+                          <input
+                            value={lead.socials}
+                            onChange={e => updateLead(lead.id, { socials: e.target.value })}
+                            placeholder="@handle"
+                            className="w-full h-full px-2 py-2 bg-transparent outline-none text-xs placeholder:text-gray-200 focus:bg-yellow-50/60"
+                          />
+                        </td>
 
-                      {/* ── Action buttons: [+/sync] [delete] ── */}
-                      <td className="px-2 py-1.5">
-                        <div className="flex items-center justify-center gap-1">
+                        {/* Platform + DM Tick */}
+                        <td className="border-r border-gray-100 px-2 py-1.5 ">
+                          <div className="flex items-center gap-1.5">
+                            <TickCell
+                              checked={lead.igDm}
+                              onChange={v => updateLead(lead.id, { igDm: v, dmPlatform: v ? (lead.dmPlatform || 'instagram') : '' })}
+                              icon={Send}
+                              activeColor="bg-pink-100 text-pink-600"
+                            />
+                            <div className="flex-1 min-w-[80px]">
+                              <PlatformCell
+                                value={lead.dmPlatform}
+                                onChange={v => updateLead(lead.id, { dmPlatform: v, igDm: !!v })}
+                                disabled={!lead.igDm}
+                              />
+                            </div>
+                          </div>
+                        </td>
 
-                          {/* Commit / re-sync button */}
-                          {isWorking ? (
-                            <span className="p-1.5">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
-                            </span>
-                          ) : isSaved ? (
-                            // Saved + no dirty edits — show faint tick
-                            <span
-                              className="p-1.5 rounded-md text-green-500"
-                              title="Saved"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                            </span>
-                          ) : (
-                            // Draft OR dirty — show + / sync button
-                            <button
-                              onClick={() => commitRow(lead.id)}
-                              title={isDirty ? 'Sync changes to admin' : 'Save to database'}
-                              className={cn(
-                                'p-1.5 rounded-md border transition-all font-bold',
-                                isDirty
-                                  ? 'border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100'
-                                  : 'border-green-300 bg-green-50 text-green-600 hover:bg-green-100'
-                              )}
-                            >
-                              {isDirty
-                                ? <RefreshCw className="h-3.5 w-3.5" />
-                                : <Plus className="h-3.5 w-3.5" />}
-                            </button>
-                          )}
+                        {/* Meeting */}
+                        <td className="border-r border-gray-100 px-1 py-1.5">
+                          <TickCell checked={lead.meetingBooked} onChange={v => updateLead(lead.id, { meetingBooked: v })} icon={Check} activeColor="bg-green-100 text-green-600" />
+                        </td>
+                        {/* Emailed */}
+                        <td className="border-r border-gray-100 px-1 py-1.5">
+                          <TickCell checked={lead.emailed} onChange={v => updateLead(lead.id, { emailed: v })} icon={Mail} activeColor="bg-blue-100 text-blue-600" />
+                        </td>
+                        {/* Called */}
+                        <td className="border-r border-gray-100 px-1 py-1.5">
+                          <TickCell checked={lead.called} onChange={v => updateLead(lead.id, { called: v })} icon={Phone} activeColor="bg-emerald-100 text-emerald-600" />
+                        </td>
+                        {/* Texted */}
+                        <td className="border-r border-gray-100 px-1 py-1.5">
+                          <TickCell checked={lead.texted} onChange={v => updateLead(lead.id, { texted: v })} icon={MessageSquare} activeColor="bg-purple-100 text-purple-600" />
+                        </td>
 
-                          {/* Delete */}
+                        {/* Notes Snippet */}
+                        <td className="border-r border-gray-100 px-2 py-1.5">
                           <button
-                            onClick={() => deleteRow(lead.id)}
-                            className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                            title="Delete row"
+                            onClick={() => setNotesModal({ open: true, lead })}
+                            className={cn(
+                              'w-full text-left text-[10px] px-2 py-1.5 rounded-md border transition-colors truncate',
+                              lead.notes
+                                ? 'border-purple-100 bg-purple-50 text-purple-700 hover:bg-purple-100'
+                                : 'border-gray-50 bg-gray-50/50 text-gray-300 hover:bg-gray-100'
+                            )}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            {lead.notes ? lead.notes : '+ Notes'}
                           </button>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {isWorking ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                            ) : isSaved ? (
+                              <button onClick={() => deleteRow(lead.id)} className="text-gray-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => commitRow(lead.id)}
+                                className={cn(
+                                  'p-1.5 rounded-md border transition-all',
+                                  isDirty
+                                    ? 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 shadow-sm'
+                                    : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 shadow-sm'
+                                )}
+                              >
+                                {isDirty ? <RefreshCw className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* ── Expanded View ── */}
+                      {expandedRows.has(lead.id) && (
+                        <tr className="bg-yellow-50/30">
+                          <td colSpan={13} className="px-6 py-4 border-b border-gray-200">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                              {/* Left: Metadata */}
+                              <div className="space-y-4">
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                    <HistoryIcon className="h-3 w-3" /> Timestamps
+                                  </p>
+                                  <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
+                                    <p className="text-xs flex justify-between">
+                                      <span className="text-gray-400">Added:</span>
+                                      <span className="font-medium">{lead.createdAt ? formatToEST(lead.createdAt) : 'Just now'}</span>
+                                    </p>
+                                    <p className="text-xs flex justify-between">
+                                      <span className="text-gray-400">Last Sync:</span>
+                                      <span className="font-medium text-yellow-700/60">{lead.updatedAt ? formatToEST(lead.updatedAt) : 'Pending'}</span>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                    <HistoryIcon className="h-3 w-3" /> Manual Contact Timing
+                                  </p>
+                                  <div className="bg-white p-3 rounded-lg border border-yellow-200/50 grid grid-cols-1 gap-3">
+                                    <ManualTimeCell
+                                      label="Social DM At"
+                                      value={lead.dmAt}
+                                      onChange={v => updateLead(lead.id, { dmAt: v })}
+                                    />
+                                    <ManualTimeCell
+                                      label="Meeting At"
+                                      value={lead.meetingAt}
+                                      onChange={v => updateLead(lead.id, { meetingAt: v })}
+                                    />
+                                    <ManualTimeCell
+                                      label="Emailed At"
+                                      value={lead.emailedAt}
+                                      onChange={v => updateLead(lead.id, { emailedAt: v })}
+                                    />
+                                    <ManualTimeCell
+                                      label="Called At"
+                                      value={lead.calledAt}
+                                      onChange={v => updateLead(lead.id, { calledAt: v })}
+                                    />
+                                    <ManualTimeCell
+                                      label="Texted At"
+                                      value={lead.textedAt}
+                                      onChange={v => updateLead(lead.id, { textedAt: v })}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                    <LinkIcon className="h-3 w-3" /> Quick Actions
+                                  </p>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" className="text-xs h-7 bg-white" onClick={() => setEmailModal({ open: true, lead })}>
+                                      <Mail className="h-3 w-3 mr-1" /> Edit Email Temp
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="text-xs h-7 bg-white" onClick={() => setNotesModal({ open: true, lead })}>
+                                      <FileText className="h-3 w-3 mr-1" /> Edit Notes
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Center: Detailed Notes */}
+                              <div className="md:col-span-2 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                      <InfoIcon className="h-3 w-3" /> Detailed Notes
+                                    </p>
+                                    <div className="bg-white p-3 rounded-lg border border-yellow-200/50 min-h-[100px] text-xs leading-relaxed text-gray-600 whitespace-pre-wrap italic">
+                                      {lead.notes || 'No notes added yet...'}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                      <Mail className="h-3 w-3" /> Current Email Template
+                                    </p>
+                                    <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 min-h-[100px] text-xs leading-relaxed text-blue-800/80 whitespace-pre-wrap font-mono">
+                                      {lead.emailTemplate || 'Default template will be used...'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })
               )}
