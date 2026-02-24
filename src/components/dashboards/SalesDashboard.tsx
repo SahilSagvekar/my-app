@@ -22,6 +22,7 @@ import {
   MessageSquare,
   FileText,
   UploadCloud,
+  Instagram,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -38,6 +39,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '../ui/sheet';
+import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -46,10 +54,15 @@ import { cn } from '@/lib/utils';
 type SnapchatShow = 'yes' | 'no' | 'maybe' | '';
 
 interface Lead {
-  id: string;            // real DB id once committed, '__tmp_xxx' while draft
+  id: string;
   name: string;
+  company: string;
   email: string;
+  phone: string;
   socials: string;
+  status: string;
+  source: string;
+  value: number | null;
   snapchatShow: SnapchatShow;
   igDm: boolean;
   meetingBooked: boolean;
@@ -66,10 +79,9 @@ interface Lead {
   textedAt?: string;
   createdAt?: string;
   updatedAt?: string;
-  // UI state flags
-  _saved: boolean;       // true = exists in DB
-  _dirty: boolean;       // true = has unsaved local edits since last commit
-  _committing: boolean;  // true = POST/PATCH in-flight
+  _saved: boolean;
+  _dirty: boolean;
+  _committing: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -81,7 +93,9 @@ function tempId() {
 function emptyDraftLead(): Lead {
   return {
     id: tempId(),
-    name: '', email: '', socials: '', snapchatShow: '',
+    name: '', company: '', email: '', phone: '', socials: '',
+    status: 'NEW', source: '', value: null,
+    snapchatShow: '',
     igDm: false, meetingBooked: false, emailed: false,
     called: false, texted: false, dmPlatform: '', notes: '', emailTemplate: '',
     dmAt: undefined, meetingAt: undefined, emailedAt: undefined,
@@ -92,15 +106,34 @@ function emptyDraftLead(): Lead {
 
 function dbLeadToLocal(l: any): Lead {
   return {
-    id: l.id, name: l.name, email: l.email, socials: l.socials,
+    id: l.id,
+    name: l.name,
+    company: l.company || '',
+    email: l.email,
+    phone: l.phone || '',
+    socials: l.socials,
+    status: l.status || 'NEW',
+    source: l.source || '',
+    value: l.value || null,
     snapchatShow: l.snapchatShow as SnapchatShow,
-    igDm: l.igDm, meetingBooked: l.meetingBooked, emailed: l.emailed,
-    called: l.called, texted: l.texted, dmPlatform: l.dmPlatform || '',
-    notes: l.notes, emailTemplate: l.emailTemplate,
-    dmAt: l.dmAt, meetingAt: l.meetingAt, emailedAt: l.emailedAt,
-    calledAt: l.calledAt, textedAt: l.textedAt,
-    createdAt: l.createdAt, updatedAt: l.updatedAt,
-    _saved: true, _dirty: false, _committing: false,
+    igDm: l.igDm,
+    meetingBooked: l.meetingBooked,
+    emailed: l.emailed,
+    called: l.called,
+    texted: l.texted,
+    dmPlatform: l.dmPlatform || '',
+    notes: l.notes,
+    emailTemplate: l.emailTemplate,
+    dmAt: l.dmAt,
+    meetingAt: l.meetingAt,
+    emailedAt: l.emailedAt,
+    calledAt: l.calledAt,
+    textedAt: l.textedAt,
+    createdAt: l.createdAt,
+    updatedAt: l.updatedAt,
+    _saved: true,
+    _dirty: false,
+    _committing: false,
   };
 }
 
@@ -120,6 +153,15 @@ const DM_PLATFORMS = [
   { id: 'twitter', label: 'Twitter/X', color: 'text-gray-900 bg-gray-50' },
   { id: 'tiktok', label: 'TikTok', color: 'text-black bg-gray-100' },
   { id: 'other', label: 'Other', color: 'text-gray-600 bg-gray-100' },
+];
+
+const LEAD_STATUSES = [
+  { id: 'NEW', label: 'New', color: 'bg-blue-100 text-blue-700' },
+  { id: 'CONTACTED', label: 'Contacted', color: 'bg-purple-100 text-purple-700' },
+  { id: 'WORKING', label: 'Working', color: 'bg-amber-100 text-amber-700' },
+  { id: 'QUALIFIED', label: 'Qualified', color: 'bg-green-100 text-green-700' },
+  { id: 'WON', label: 'Closed Won', color: 'bg-emerald-500 text-white' },
+  { id: 'LOST', label: 'Closed Lost', color: 'bg-red-100 text-red-700' },
 ];
 
 const EMAIL_TEMPLATES = [
@@ -414,12 +456,200 @@ function NotesModal({ open, lead, onClose, onSave }: {
   );
 }
 
+interface LeadProfileDrawerProps {
+  lead: Lead | null;
+  onClose: () => void;
+  onUpdate: (id: string, patch: Partial<Lead>) => void;
+}
+
+function LeadProfileDrawer({ lead, onClose, onUpdate }: LeadProfileDrawerProps) {
+  if (!lead) return null;
+
+  return (
+    <Sheet open={!!lead} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto bg-white border-l shadow-2xl p-0">
+        <SheetHeader className="p-6 border-b bg-gray-50/50 sticky top-0 z-10">
+          <div className="flex justify-between items-center pr-8">
+            <SheetTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <div className="w-2 h-8 bg-yellow-400 rounded-full" />
+              Lead Profile
+            </SheetTitle>
+            {lead._dirty && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 animate-pulse">
+                Unsaved Changes
+              </Badge>
+            )}
+          </div>
+        </SheetHeader>
+
+        <div className="p-8 space-y-8">
+          {/* Section: Primary Identity */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Primary Details</h3>
+            <div className="grid grid-cols-1 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 ml-1">Full Name</label>
+                <Input
+                  value={lead.name}
+                  onChange={(e) => onUpdate(lead.id, { name: e.target.value })}
+                  className="bg-white border-gray-200 focus:ring-yellow-400 focus:border-yellow-400"
+                  placeholder="John Doe"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 ml-1">Company / Organization</label>
+                <div className="relative">
+                  <Input
+                    value={lead.company}
+                    onChange={(e) => onUpdate(lead.id, { company: e.target.value })}
+                    className="bg-white border-gray-200 pl-9"
+                    placeholder="E8 Productions"
+                  />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Pipeline Status */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Pipeline Status</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 ml-1">Lead Stage</label>
+                <select
+                  value={lead.status}
+                  onChange={(e) => onUpdate(lead.id, { status: e.target.value })}
+                  className="w-full h-10 px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                >
+                  {LEAD_STATUSES.map(s => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 ml-1">Snapchat Show</label>
+                <select
+                  value={lead.snapchatShow}
+                  onChange={(e) => onUpdate(lead.id, { snapchatShow: e.target.value as SnapchatShow })}
+                  className="w-full h-10 px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                >
+                  {SNAPCHAT_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Financials & Attribution */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Value & Source</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 ml-1">Estimated Value (£)</label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    value={lead.value || ''}
+                    onChange={(e) => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
+                    className="bg-white border-gray-200 pl-8"
+                    placeholder="0.00"
+                  />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-xs">
+                    £
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 ml-1">Lead Source</label>
+                <Input
+                  value={lead.source}
+                  onChange={(e) => onUpdate(lead.id, { source: e.target.value })}
+                  className="bg-white border-gray-200"
+                  placeholder="Referral, Ads, etc."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Contact Info */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Contact Channels</h3>
+            <div className="space-y-3 bg-blue-50/30 p-4 rounded-xl border border-blue-100/50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                  <Mail className="h-4 w-4" />
+                </div>
+                <Input
+                  value={lead.email}
+                  onChange={(e) => onUpdate(lead.id, { email: e.target.value })}
+                  className="flex-1 bg-white border-blue-200"
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
+                  <Phone className="h-4 w-4" />
+                </div>
+                <Input
+                  value={lead.phone}
+                  onChange={(e) => onUpdate(lead.id, { phone: e.target.value })}
+                  className="flex-1 bg-white border-emerald-200"
+                  placeholder="+44 7..."
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-pink-100 flex items-center justify-center text-pink-600">
+                  <Instagram className="h-4 w-4" />
+                </div>
+                <Input
+                  value={lead.socials}
+                  onChange={(e) => onUpdate(lead.id, { socials: e.target.value })}
+                  className="flex-1 bg-white border-pink-200"
+                  placeholder="@handle"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Comprehensive Notes */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Engagement Notes</h3>
+            <Textarea
+              value={lead.notes}
+              onChange={(e) => onUpdate(lead.id, { notes: e.target.value })}
+              className="min-h-[150px] bg-white border-gray-200 focus:ring-yellow-400"
+              placeholder="Detailed activity log, preferences, background info..."
+            />
+          </div>
+
+          {/* Timestamps */}
+          <div className="pt-6 border-t border-gray-100 grid grid-cols-2 gap-4 text-[10px] font-medium text-gray-400 uppercase tracking-tighter">
+            <div className="bg-gray-50 p-2 rounded flex flex-col items-center justify-center">
+              <span>Created</span>
+              <span className="text-gray-600 font-bold">{lead.createdAt ? formatToEST(lead.createdAt).split(',')[0] : 'Today'}</span>
+            </div>
+            <div className="bg-gray-50 p-2 rounded flex flex-col items-center justify-center">
+              <span>Last Sync</span>
+              <span className="text-gray-600 font-bold">{lead.updatedAt ? formatToEST(lead.updatedAt) : 'Pending'}</span>
+            </div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function SalesDashboard() {
   const [leads, setLeads] = useState<Lead[]>([emptyDraftLead()]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -481,14 +711,28 @@ export function SalesDashboard() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: lead.name, email: lead.email, socials: lead.socials,
-            snapchatShow: lead.snapchatShow, igDm: lead.igDm,
+            name: lead.name,
+            company: lead.company,
+            email: lead.email,
+            phone: lead.phone,
+            socials: lead.socials,
+            status: lead.status,
+            source: lead.source,
+            value: lead.value,
+            snapchatShow: lead.snapchatShow,
+            igDm: lead.igDm,
             dmPlatform: lead.dmPlatform,
-            meetingBooked: lead.meetingBooked, emailed: lead.emailed,
-            called: lead.called, texted: lead.texted,
-            notes: lead.notes, emailTemplate: lead.emailTemplate,
-            dmAt: lead.dmAt, meetingAt: lead.meetingAt, emailedAt: lead.emailedAt,
-            calledAt: lead.calledAt, textedAt: lead.textedAt,
+            meetingBooked: lead.meetingBooked,
+            emailed: lead.emailed,
+            called: lead.called,
+            texted: lead.texted,
+            notes: lead.notes,
+            emailTemplate: lead.emailTemplate,
+            dmAt: lead.dmAt,
+            meetingAt: lead.meetingAt,
+            emailedAt: lead.emailedAt,
+            calledAt: lead.calledAt,
+            textedAt: lead.textedAt,
           }),
         });
         const data = await res.json();
@@ -506,14 +750,28 @@ export function SalesDashboard() {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: lead.name, email: lead.email, socials: lead.socials,
-            snapchatShow: lead.snapchatShow, igDm: lead.igDm,
+            name: lead.name,
+            company: lead.company,
+            email: lead.email,
+            phone: lead.phone,
+            socials: lead.socials,
+            status: lead.status,
+            source: lead.source,
+            value: lead.value,
+            snapchatShow: lead.snapchatShow,
+            igDm: lead.igDm,
             dmPlatform: lead.dmPlatform,
-            meetingBooked: lead.meetingBooked, emailed: lead.emailed,
-            called: lead.called, texted: lead.texted,
-            notes: lead.notes, emailTemplate: lead.emailTemplate,
-            dmAt: lead.dmAt, meetingAt: lead.meetingAt, emailedAt: lead.emailedAt,
-            calledAt: lead.calledAt, textedAt: lead.textedAt,
+            meetingBooked: lead.meetingBooked,
+            emailed: lead.emailed,
+            called: lead.called,
+            texted: lead.texted,
+            notes: lead.notes,
+            emailTemplate: lead.emailTemplate,
+            dmAt: lead.dmAt,
+            meetingAt: lead.meetingAt,
+            emailedAt: lead.emailedAt,
+            calledAt: lead.calledAt,
+            textedAt: lead.textedAt,
           }),
         });
         const data = await res.json();
@@ -676,8 +934,9 @@ export function SalesDashboard() {
               <tr className="bg-gray-50 border-b border-gray-200 text-gray-500">
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold border-r border-gray-200 w-10">#</th>
                 <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-44">Name</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-52">Email</th>
-                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-40">Socials</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">Status</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-44">Email</th>
+                <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-36">Socials</th>
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">
                   DM Platform
                 </th>
@@ -685,7 +944,7 @@ export function SalesDashboard() {
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Email</th>
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Call</th>
                 <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Text</th>
-                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-36">Notes</th>
+                <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-32">Notes</th>
                 <th className="px-2 py-2.5 text-center text-[10px] font-bold w-12 text-gray-400">Actions</th>
               </tr>
             </thead>
@@ -727,13 +986,35 @@ export function SalesDashboard() {
                         </td>
 
                         {/* Name */}
-                        <td className="border-r border-gray-100 p-0">
+                        <td className="border-r border-gray-100 p-0 relative group/cell">
                           <input
                             value={lead.name}
                             onChange={e => updateLead(lead.id, { name: e.target.value })}
                             placeholder="Full name"
                             className="w-full h-full px-3 py-2 bg-transparent outline-none text-sm placeholder:text-gray-200 focus:bg-yellow-50/60 font-medium"
                           />
+                          <button
+                            onClick={() => setDrawerLead(lead)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/cell:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm border shadow-sm rounded p-1 hover:text-yellow-600"
+                            title="Open Profile"
+                          >
+                            <InfoIcon className="h-3 w-3" />
+                          </button>
+                        </td>
+                        {/* Status */}
+                        <td className="border-r border-gray-100 px-2 py-1.5 overflow-hidden">
+                          <select
+                            value={lead.status}
+                            onChange={e => updateLead(lead.id, { status: e.target.value })}
+                            className={cn(
+                              "w-full text-[10px] font-bold uppercase tracking-tighter rounded border-none appearance-none flex items-center justify-center h-6 px-2 cursor-pointer transition-colors",
+                              LEAD_STATUSES.find(s => s.id === lead.status)?.color || "bg-gray-100 text-gray-600"
+                            )}
+                          >
+                            {LEAD_STATUSES.map(s => (
+                              <option key={s.id} value={s.id} className="bg-white text-gray-800 font-sans normal-case">{s.label}</option>
+                            ))}
+                          </select>
                         </td>
                         {/* Email */}
                         <td className="border-r border-gray-100 p-0">
@@ -964,6 +1245,11 @@ export function SalesDashboard() {
         lead={notesModal.lead}
         onClose={() => setNotesModal({ open: false, lead: null })}
         onSave={(id, notes) => { updateLead(id, { notes }); toast.success('Notes saved — hit + to sync'); }}
+      />
+      <LeadProfileDrawer
+        lead={drawerLead}
+        onClose={() => setDrawerLead(null)}
+        onUpdate={updateLead}
       />
     </div>
   );

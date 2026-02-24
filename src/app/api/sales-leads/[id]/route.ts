@@ -31,8 +31,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       where: { id: params.id },
       data: {
         name: body.name ?? existing.name,
+        company: body.company ?? existing.company,
         email: body.email ?? existing.email,
+        phone: body.phone ?? existing.phone,
         socials: body.socials ?? existing.socials,
+        status: body.status ?? existing.status,
+        source: body.source ?? existing.source,
+        value: body.value !== undefined ? (body.value ? parseFloat(body.value) : null) : existing.value,
         snapchatShow: body.snapchatShow ?? existing.snapchatShow,
         igDm: body.igDm ?? existing.igDm,
         dmPlatform: body.dmPlatform ?? existing.dmPlatform,

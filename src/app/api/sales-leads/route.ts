@@ -49,8 +49,13 @@ export async function POST(req: NextRequest) {
       data: {
         userId: decoded.userId,
         name: body.name ?? '',
+        company: body.company ?? '',
         email: body.email ?? '',
+        phone: body.phone ?? '',
         socials: body.socials ?? '',
+        status: body.status ?? 'NEW',
+        source: body.source ?? '',
+        value: body.value !== undefined ? parseFloat(body.value) : null,
         snapchatShow: body.snapchatShow ?? '',
         igDm: body.igDm ?? false,
         dmPlatform: body.dmPlatform ?? '',

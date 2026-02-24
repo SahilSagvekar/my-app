@@ -966,8 +966,13 @@ model SalesLead {
   id            String    @id @default(cuid())
   userId        Int
   name          String    @default("")
+  company       String    @default("")
   email         String    @default("")
+  phone         String    @default("")
   socials       String    @default("")
+  status        String    @default("NEW")
+  source        String    @default("")
+  value         Float?
   snapchatShow  String    @default("")
   igDm          Boolean   @default(false)
   meetingBooked Boolean   @default(false)
@@ -987,6 +992,7 @@ model SalesLead {
   user          User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([status])
 }
 
 model EditorClientPermission {
