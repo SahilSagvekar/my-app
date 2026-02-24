@@ -87,14 +87,14 @@ export const NAVIGATION_ITEMS = {
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
-    { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
-    { id: 'youtube-analytics', label: 'YouTube Analytics', icon: TrendingUp },
-    { id: 'instagram-analytics', label: 'Instagram Analytics', icon: Instagram },
+    // { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
+    // { id: 'youtube-analytics', label: 'YouTube Analytics', icon: TrendingUp },
+    // { id: 'instagram-analytics', label: 'Instagram Analytics', icon: Instagram },
     // { id: 'projects', label: 'My Projects', icon: FolderOpen },
     // { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     // { id: 'training', label: 'Training', icon: Layout },
-    { id: 'invoices', label: 'Invoices & Billing', icon: Layout },
-    { id: 'archive', label: 'Archive', icon: Archive },
+    // { id: 'invoices', label: 'Invoices & Billing', icon: Layout },
+    // { id: 'archive', label: 'Archive', icon: Archive },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
 
   ],
@@ -112,10 +112,8 @@ export const NAVIGATION_ITEMS = {
   ],
   sales: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    { id: 'training', label: 'Training', icon: Layout },
-    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    // { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ]
 } as const;
