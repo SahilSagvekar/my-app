@@ -145,10 +145,11 @@ export function FullScreenReviewModalFrameIO({
 
     /* ── Video source ── */
     const videoSource = useMemo(() => {
-        if (currentVideoUrl) return getVideoSource(currentVideoUrl);
-        if (asset) return getVideoSource(asset.videoUrl);
+        const fileId = currentVersion || asset?.currentVersion;
+        if (currentVideoUrl) return getVideoSource(currentVideoUrl, fileId);
+        if (asset) return getVideoSource(asset.videoUrl, fileId);
         return { type: 'video' as const, src: '' };
-    }, [currentVideoUrl, asset]);
+    }, [currentVideoUrl, asset, currentVersion]);
 
     /* ── Initialise on asset change ── */
     useEffect(() => {
