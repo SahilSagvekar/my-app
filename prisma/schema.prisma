@@ -53,6 +53,7 @@ model User {
   sessions            Session[]
   shootDetails        ShootDetail[]       @relation("VideographerShootDetails")
   updatedSocialLogins SocialLogin[]       @relation("LoginUpdatedBy")
+  createdSocialLogins SocialLogin[]       @relation("LoginCreatedBy")
   assignedTasks       Task[]              @relation("AssignedTasks")
   clientTasks         Task[]              @relation("ClientUserTasks")
   qcReviewedTasks     Task[]              @relation("QCReviewedTasks")
@@ -537,6 +538,7 @@ model SocialLogin {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   updatedById         Int
+  createdById         Int?
   adminOnly           Boolean         @default(false)
   backupCodesLocation String?
   loginUrl            String?
@@ -544,11 +546,13 @@ model SocialLogin {
   auditLogs           LoginAuditLog[]
   client              Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedByUser       User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
+  createdByUser       User?           @relation("LoginCreatedBy", fields: [createdById], references: [id])
 
   @@unique([clientId, platform])
   @@index([clientId])
   @@index([platform])
   @@index([adminOnly])
+  @@index([createdById])
 }
 
 model UserSecurityPin {

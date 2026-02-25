@@ -152,9 +152,6 @@ export function EditorCreateTaskDialog({
         }
     };
 
-    // Hide the button entirely if this editor has no permissions
-    if (permittedClients.length === 0) return null;
-
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>

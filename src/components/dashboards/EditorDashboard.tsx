@@ -29,6 +29,7 @@ import {
   Clock,
   Share2,
   RefreshCw,
+  Info,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -36,6 +37,7 @@ import { FilePreviewModal } from "../FileViewerModal";
 import { ShareDialog } from "../review/ShareDialog";
 import { toast } from "sonner";
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -444,6 +446,56 @@ function TaskCard({
 }) {
   const [showFiles, setShowFiles] = useState(false);
   const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
+  const [showGuidelines, setShowGuidelines] = useState(false);
+  const [guidelinesLoading, setGuidelinesLoading] = useState(false);
+  const [guidelines, setGuidelines] = useState<{
+    id: string;
+    title: string;
+    content: string;
+    category: string;
+    clientName?: string | null;
+  }[]>([]);
+  const [guidelinesError, setGuidelinesError] = useState<string | null>(null);
+
+  const loadGuidelines = async () => {
+    if (!task.clientId) {
+      setGuidelines([]);
+      setGuidelinesError("No client linked to this task.");
+      setShowGuidelines(true);
+      return;
+    }
+
+    try {
+      setGuidelinesLoading(true);
+      setGuidelinesError(null);
+      const res = await fetch(
+        `/api/guidelines?role=editor&clientId=${encodeURIComponent(task.clientId)}`
+      );
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        setGuidelinesError(data.message || "Failed to load guidelines");
+        setGuidelines([]);
+      } else {
+        const mapped = (data.guidelines || []).map((g: any) => ({
+          id: g.id,
+          title: g.title,
+          content: g.content,
+          category: g.category,
+          clientName: g.client?.companyName || g.client?.name || null,
+        }));
+        setGuidelines(mapped);
+      }
+      setShowGuidelines(true);
+    } catch (err) {
+      console.error("Failed to load guidelines for task:", err);
+      setGuidelinesError("Failed to load guidelines");
+      setGuidelines([]);
+      setShowGuidelines(true);
+    } finally {
+      setGuidelinesLoading(false);
+    }
+  };
 
   const toggleFeedbackExpand = (id: string) => {
     setExpandedFeedbackIds(prev => {
@@ -476,9 +528,30 @@ function TaskCard({
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <h4 className="font-medium text-xs whitespace-normal break-words">{task.title}</h4>
+              <h4 className="font-medium text-xs whitespace-normal break-words">
+                {task.title}
+              </h4>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {task.clientId && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        loadGuidelines();
+                      }}
+                      className="h-5 w-5 rounded-full border border-dashed border-primary/60 text-[9px] font-semibold flex items-center justify-center text-primary hover:bg-primary/5"
+                    >
+                      G
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" sideOffset={6}>
+                    Guidelines – click to view
+                  </TooltipContent>
+                </Tooltip>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -492,7 +565,9 @@ function TaskCard({
               </Button>
               <Badge
                 variant="outline"
-                className={`text-[10px] px-1.5 py-0 h-4 font-medium ${getStatusBadgeStyles(task.status)}`}
+                className={`text-[10px] px-1.5 py-0 h-4 font-medium ${getStatusBadgeStyles(
+                  task.status
+                )}`}
               >
                 {task.status.replace(/_/g, " ").toUpperCase()}
               </Badge>
@@ -678,6 +753,52 @@ function TaskCard({
           )}
         </CardContent>
       </Card>
+
+      {/* Guidelines Dialog */}
+      <Dialog open={showGuidelines} onOpenChange={setShowGuidelines}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              Guidelines
+            </DialogTitle>
+          </DialogHeader>
+
+          {guidelinesLoading ? (
+            <div className="py-6 text-sm text-muted-foreground">
+              Loading guidelines...
+            </div>
+          ) : guidelinesError ? (
+            <div className="py-6 text-sm text-destructive">
+              {guidelinesError}
+            </div>
+          ) : guidelines.length === 0 ? (
+            <div className="py-6 text-sm text-muted-foreground">
+              No guidelines found for this client.
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              {guidelines.map((g) => (
+                <div
+                  key={g.id}
+                  className="border rounded-md p-3 bg-muted/40 space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-semibold text-sm">{g.title}</div>
+                    {g.clientName && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">
+                        {g.clientName}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground whitespace-pre-wrap">
+                    {g.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* File Viewer Dialog */}
       {task.files && task.files.length > 0 && (
@@ -1410,22 +1531,6 @@ export function EditorDashboard() {
             Manage your assigned tasks and complete work for QC review.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <EditorCreateTaskDialog
-            permittedClients={permittedClients}
-            onTaskCreated={() => loadTasks()}
-          />
-        </div>
-        {/* <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={() => loadTasks()}
-            className="shadow-sm"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div> */}
         <div className="flex flex-col gap-3 sm:gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-2">
@@ -1477,6 +1582,14 @@ export function EditorDashboard() {
                   Clear Filters
                 </Button>
               )}
+
+              {/* Create Task button aligned to the right of filters */}
+              <div className="ml-auto">
+                <EditorCreateTaskDialog
+                  permittedClients={permittedClients}
+                  onTaskCreated={() => loadTasks()}
+                />
+              </div>
             </div>
           </div>
 
@@ -1501,69 +1614,6 @@ export function EditorDashboard() {
             )} */}
         </div>
       </div>
-
-      {/* Filter Section */}
-      {/* <Card>
-        <CardContent className="p-3 sm:p-4">
-          <div className="flex flex-col gap-3 sm:gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs sm:text-sm text-muted-foreground">
-                  Filter by:
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 flex-1 sm:flex-initial">
-                <Select
-                  value={deliverableTypeFilter}
-                  onValueChange={setDeliverableTypeFilter}
-                >
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="All Deliverables" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Deliverables</SelectItem>
-                    {availableDeliverableTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type.replace(/_/g, " ")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={clientFilter}
-                  onValueChange={setClientFilter}
-                >
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="All Clients" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Clients</SelectItem>
-                    {availableClients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {hasActiveFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearAllFilters}
-                    className="text-xs shrink-0"
-                  >
-                    Clear Filters
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card> */}
 
       {/* Kanban Board with Drag & Drop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
