@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // app/api/upload/abort/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, AbortMultipartUploadCommand } from '@aws-sdk/client-s3';

@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { NAVIGATION_ITEMS, type NavigationRole } from '@/components/constants/navigation';
