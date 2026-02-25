@@ -7,8 +7,12 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category');
+        const showAll = searchParams.get('all') === 'true'; // admin: fetch all including inactive
 
-        const where: any = { isActive: true };
+        const where: any = {};
+        if (!showAll) {
+            where.isActive = true;
+        }
         if (category) {
             where.category = category;
         }
