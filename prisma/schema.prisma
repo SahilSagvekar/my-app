@@ -1031,6 +1031,36 @@ model TrainingVideo {
   @@index([courseId, order])
 }
 
+model PortfolioLead {
+  id             String   @id @default(cuid())
+  firstName      String
+  lastName       String
+  phone          String
+  email          String
+  serviceNeeded  String
+  createdAt      DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+model PortfolioVideo {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  videoUrl    String
+  thumbnailUrl String?
+  category    String
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([category, order])
+  @@index([isActive])
+}
+
 enum Role {
   admin
   manager
