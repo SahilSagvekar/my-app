@@ -489,21 +489,28 @@ export function FullScreenReviewModalFrameIO({
     const handleDownload = async () => {
         if (!asset) return;
         try {
-            toast.loading('Preparing download...', { id: 'dl' });
-            const res = await fetch(asset.videoUrl);
-            if (!res.ok) throw new Error('Download failed');
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${asset.title.replace(/\s+/g, '_')}_V${asset.currentVersion}.mp4`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            toast.success('Download complete', { id: 'dl' });
+            // Use the download API for S3 files — generates a presigned URL
+            // and redirects the browser's native download manager (full speed)
+            const fileId = currentVersion || asset.currentVersion;
+            const isS3 = asset.videoUrl?.includes('amazonaws.com');
+
+            if (isS3 && fileId) {
+                // Open in new tab — browser will redirect to presigned S3 download URL
+                window.open(`/api/files/${fileId}/download`, '_blank');
+                toast.success('Download started');
+            } else {
+                // Fallback for non-S3 files (Google Drive, etc.)
+                const a = document.createElement('a');
+                a.href = asset.videoUrl;
+                a.download = `${asset.title.replace(/\s+/g, '_')}_V${asset.currentVersion}.mp4`;
+                a.target = '_blank';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                toast.success('Download started');
+            }
         } catch {
-            toast.error('Failed to download video', { id: 'dl' });
+            toast.error('Failed to start download');
         }
     };
 

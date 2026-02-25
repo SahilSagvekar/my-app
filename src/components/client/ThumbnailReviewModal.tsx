@@ -206,12 +206,16 @@ export function ThumbnailReviewModal({
 
     const handleDownload = () => {
         if (!currentFile) return;
-        const link = document.createElement('a');
-        link.href = currentFile.downloadUrl || currentFile.url;
-        link.setAttribute('download', currentFile.name);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Use download API for S3 files (presigned URL with Content-Disposition: attachment)
+        const isS3 = currentFile.url?.includes('amazonaws.com');
+        if (isS3) {
+            window.open(`/api/files/${currentFile.id}/download`, '_blank');
+            toast.success('Download started');
+        } else if (currentFile.downloadUrl) {
+            window.open(currentFile.downloadUrl, '_blank');
+        } else {
+            window.open(currentFile.url, '_blank');
+        }
     };
 
     if (!currentFile) return null;
