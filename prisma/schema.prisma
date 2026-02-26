@@ -976,6 +976,9 @@ model SalesLead {
   linkedin      Boolean   @default(false)
   twitter       Boolean   @default(false)
   tiktok        Boolean   @default(false)
+   dmPlatform    String    @default("")
+   igDm          Boolean   @default(false)
+   snapchatShow  String    @default("")
   status        String    @default("NEW")
   source        String    @default("")
   value         Float?
