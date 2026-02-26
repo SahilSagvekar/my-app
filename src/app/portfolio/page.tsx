@@ -132,9 +132,6 @@ function GateForm({ onUnlock }: { onUnlock: () => void }) {
                             height={36}
                             className="h-8 w-auto mb-5"
                         />
-                        <div className="w-14 h-14 bg-black rounded-2xl flex items-center justify-center mb-4">
-                            <Lock className="w-6 h-6 text-white" />
-                        </div>
                         <h1 className="text-2xl sm:text-3xl font-bold text-black text-center">
                             Unlock Our Portfolio
                         </h1>
@@ -194,8 +191,8 @@ function GateForm({ onUnlock }: { onUnlock: () => void }) {
                                 type="button"
                                 onClick={() => setDropdownOpen(!dropdownOpen)}
                                 className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border ${errors.serviceNeeded
-                                        ? 'border-red-300 bg-red-50/50'
-                                        : 'border-black/10 bg-black/[0.02]'
+                                    ? 'border-red-300 bg-red-50/50'
+                                    : 'border-black/10 bg-black/[0.02]'
                                     } transition-all hover:border-black/20 text-left`}
                             >
                                 <Briefcase className="w-4 h-4 text-black/40 shrink-0" />
@@ -212,7 +209,7 @@ function GateForm({ onUnlock }: { onUnlock: () => void }) {
                             </button>
 
                             {dropdownOpen && (
-                                <div className="absolute z-20 mt-1 w-full bg-white border border-black/10 rounded-xl shadow-xl overflow-hidden animate-dropdown">
+                                <div className="absolute z-20 bottom-full mb-1 w-full bg-white border border-black/10 rounded-xl shadow-xl overflow-hidden animate-dropdown max-h-[240px] overflow-y-auto">
                                     {SERVICE_OPTIONS.map((opt) => (
                                         <button
                                             key={opt}
@@ -222,8 +219,8 @@ function GateForm({ onUnlock }: { onUnlock: () => void }) {
                                                 setDropdownOpen(false);
                                             }}
                                             className={`w-full text-left px-4 py-3 text-sm transition-colors ${form.serviceNeeded === opt
-                                                    ? 'bg-black text-white'
-                                                    : 'text-black/70 hover:bg-black/5'
+                                                ? 'bg-black text-white'
+                                                : 'text-black/70 hover:bg-black/5'
                                                 }`}
                                         >
                                             {opt}
@@ -297,8 +294,8 @@ function Field({
         <div>
             <div
                 className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all ${error
-                        ? 'border-red-300 bg-red-50/50'
-                        : 'border-black/10 bg-black/[0.02] focus-within:border-black/30'
+                    ? 'border-red-300 bg-red-50/50'
+                    : 'border-black/10 bg-black/[0.02] focus-within:border-black/30'
                     }`}
             >
                 <span className="text-black/40 shrink-0">{icon}</span>
@@ -356,8 +353,8 @@ function PortfolioNav({
                                         key={cat.key}
                                         onClick={() => onSelect(cat.key)}
                                         className={`flex items-center gap-1.5 px-3 xl:px-4 py-2 rounded-full text-sm transition-all ${active === cat.key
-                                                ? 'bg-black text-white shadow-lg shadow-black/10'
-                                                : 'text-black/60 hover:text-black hover:bg-black/5'
+                                            ? 'bg-black text-white shadow-lg shadow-black/10'
+                                            : 'text-black/60 hover:text-black hover:bg-black/5'
                                             }`}
                                     >
                                         <Icon className="w-3.5 h-3.5" />
@@ -407,8 +404,8 @@ function PortfolioNav({
                                             setMobileMenuOpen(false);
                                         }}
                                         className={`flex items-center gap-3 w-full px-5 py-3.5 text-base rounded-xl transition-all ${active === cat.key
-                                                ? 'bg-black text-white'
-                                                : 'text-black/70 hover:text-black hover:bg-black/5'
+                                            ? 'bg-black text-white'
+                                            : 'text-black/70 hover:text-black hover:bg-black/5'
                                             }`}
                                     >
                                         <Icon className="w-5 h-5" />
@@ -647,8 +644,8 @@ function PortfolioContent() {
                                         key={cat.key}
                                         onClick={() => setActiveCategory(cat.key)}
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm whitespace-nowrap shrink-0 transition-all font-medium ${activeCategory === cat.key
-                                                ? 'bg-black text-white shadow-lg shadow-black/10'
-                                                : 'bg-black/[0.04] text-black/60 hover:bg-black/10 hover:text-black'
+                                            ? 'bg-black text-white shadow-lg shadow-black/10'
+                                            : 'bg-black/[0.04] text-black/60 hover:bg-black/10 hover:text-black'
                                             }`}
                                     >
                                         <Icon className="w-4 h-4" />
