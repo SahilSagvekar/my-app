@@ -382,8 +382,8 @@ function CommissionManagement() {
           <p className="text-xs mt-1">When sales reps close deals (mark leads as "Won"), commissions will appear here.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-x-auto no-scrollbar">
+          <div className="min-w-max">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -808,8 +808,8 @@ export function SalesManagementTab() {
                 <p className="text-xs mt-1">Sales team members haven't added any leads yet.</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-x-auto no-scrollbar">
+                <div className="min-w-max">
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">

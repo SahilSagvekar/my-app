@@ -990,11 +990,6 @@ model SalesLead {
   emailedAt     DateTime?
   meetingAt     DateTime?
   textedAt      DateTime?
-  company       String    @default("")
-  phone         String    @default("")
-  source        String    @default("")
-  status        String    @default("NEW")
-  value         Float?
   user          User                  @relation(fields: [userId], references: [id])
   commissions   AffiliateCommission[]
 
