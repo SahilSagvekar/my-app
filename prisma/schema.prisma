@@ -990,11 +990,29 @@ model SalesLead {
   emailedAt     DateTime?
   meetingAt     DateTime?
   textedAt      DateTime?
+  metadata      Json      @default("{}")
   user          User                  @relation(fields: [userId], references: [id])
   commissions   AffiliateCommission[]
 
   @@index([userId])
   @@index([status])
+}
+
+model SalesDashboardColumn {
+  id        String   @id @default(cuid())
+  userId    Int
+  name      String   // Internal ID (slug)
+  label     String   // Display label
+  type      String   // 'text', 'number', 'checkbox'
+  width     String?  @default("w-[150px]")
+  order     Int      @default(0)
+  isVisible Boolean  @default(true)
+  isCustom  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 model AffiliateCommission {

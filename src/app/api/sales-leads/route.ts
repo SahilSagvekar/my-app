@@ -21,12 +21,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const leads = await prisma.salesLead.findMany({
-      where: { userId: decoded.userId },
-      orderBy: { createdAt: 'asc' },
-    });
+    const [leads, columns] = await Promise.all([
+      prisma.salesLead.findMany({
+        where: { userId: decoded.userId },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.salesDashboardColumn.findMany({
+        where: { userId: decoded.userId },
+        orderBy: { order: 'asc' },
+      }),
+    ]);
 
-    return NextResponse.json({ ok: true, leads });
+    return NextResponse.json({ ok: true, leads, columns });
   } catch (err) {
     console.error('[GET /api/sales-leads]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });

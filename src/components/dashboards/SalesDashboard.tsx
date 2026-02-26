@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useRef, useEffect, useCallback, Fragment, useMemo } from 'react';
 import {
@@ -38,17 +38,23 @@ interface Lead {
   texted: boolean;
   dmPlatform: string;
   notes: string;
-  emailTemplate: string;
-  dmAt?: string;
-  meetingAt?: string;
-  emailedAt?: string;
-  calledAt?: string;
-  textedAt?: string;
+  metadata: Record<string, any>;
   createdAt?: string;
   updatedAt?: string;
   _saved: boolean;
   _dirty: boolean;
   _committing: boolean;
+}
+
+interface SalesColumn {
+  id: string;
+  name: string;
+  label: string;
+  type: string;
+  width?: string;
+  order: number;
+  isVisible: boolean;
+  isCustom: boolean;
 }
 
 interface ColumnDef {
@@ -130,7 +136,7 @@ const DM_PLATFORMS = [
   { id: 'other', label: 'Other', color: '#6B7280' },
 ];
 
-const ALL_COLUMNS: ColumnDef[] = [
+const CORE_COLUMNS: ColumnDef[] = [
   { id: 'name', label: 'Lead', width: 'min-w-[220px] w-[220px]', sticky: true },
   { id: 'company', label: 'Company', width: 'min-w-[150px] w-[150px]' },
   { id: 'status', label: 'Status', width: 'min-w-[130px] w-[130px]', align: 'center' },
@@ -147,6 +153,8 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'texted', label: 'Texted', width: 'min-w-[80px] w-[80px]', align: 'center' },
   { id: 'notes', label: 'Notes', width: 'min-w-[120px] w-[120px]', align: 'center' },
 ];
+
+const ALL_COLUMNS = CORE_COLUMNS; // For backward compatibility in some utility parts
 
 const DEFAULT_EMAIL_TEMPLATES = [
   {
@@ -499,32 +507,86 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
 
 // ─── Column Visibility Toggle ─────────────────────────────────────────────────
 
-function ColumnToggle({ visible, setVisible }: { visible: string[]; setVisible: (v: string[]) => void }) {
+function ColumnToggle({
+  visible, setVisible, allCols, onAdd, onDelete
+}: {
+  visible: string[]; setVisible: (v: string[]) => void;
+  allCols: any[]; onAdd: (name: string, label: string, type: string) => void;
+  onDelete: (id: string, name: string) => void;
+}) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newCol, setNewCol] = useState({ label: '', type: 'text' });
+
+  const handleAdd = () => {
+    if (!newCol.label.trim()) return;
+    const name = newCol.label.toLowerCase().replace(/[^a-z0-0]/g, '_') + '_' + Math.random().toString(36).substr(2, 4);
+    onAdd(name, newCol.label, newCol.type);
+    setNewCol({ label: '', type: 'text' });
+    setIsAdding(false);
+  };
+
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs border-gray-200 text-gray-600 hover:bg-gray-50">
+        <Button variant="outline" size="sm" className="gap-1.5 text-xs border-gray-200 text-gray-600 hover:bg-gray-50 h-8">
           <Columns3 className="h-3.5 w-3.5" />
           Columns
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-2" align="end">
-        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-2 pb-2">Show / Hide</p>
-        {ALL_COLUMNS.map(col => (
-          <label key={col.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-[13px]">
-            <input
-              type="checkbox"
-              checked={visible.includes(col.id)}
-              onChange={() => {
-                setVisible(visible.includes(col.id)
-                  ? visible.filter(c => c !== col.id)
-                  : [...visible, col.id]);
-              }}
-              className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA]"
-            />
-            {col.label}
-          </label>
-        ))}
+      <PopoverContent className="w-[240px] p-0 overflow-hidden shadow-xl border-gray-200" align="end">
+        <div className="p-3 bg-gray-50 border-b">
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Dashboard Columns</p>
+        </div>
+        
+        <div className="max-h-[300px] overflow-y-auto p-2 space-y-0.5">
+          {allCols.map(col => (
+            <div key={col.id} className="flex items-center justify-between group/col px-2 py-1.5 rounded hover:bg-gray-50 transition-colors">
+              <label className="flex items-center gap-2 flex-1 cursor-pointer text-[13px]">
+                <input
+                  type="checkbox"
+                  checked={visible.includes(col.id)}
+                  onChange={() => {
+                    setVisible(visible.includes(col.id)
+                      ? visible.filter(c => c !== col.id)
+                      : [...visible, col.id]);
+                  }}
+                  className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA]"
+                />
+                <span className={cn(col.isCustom ? "text-[#0073EA] font-medium" : "text-gray-700")}>{col.label}</span>
+              </label>
+              {col.isCustom && (
+                <button onClick={() => onDelete(col.dbId, col.label)}
+                  className="opacity-0 group-hover/col:opacity-100 p-1 text-gray-300 hover:text-red-500 rounded hover:bg-red-50 transition-all">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="p-3 border-t bg-white">
+          {!isAdding ? (
+            <button onClick={() => setIsAdding(true)}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-bold text-[#0073EA] hover:bg-blue-50 rounded border border-dashed border-blue-200 transition-colors">
+              <Plus className="h-3 w-3" /> ADD CUSTOM COLUMN
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <input autoFocus placeholder="Column Name..." value={newCol.label} onChange={e => setNewCol({ ...newCol, label: e.target.value })}
+                className="w-full h-8 px-2 text-[13px] border rounded focus:outline-none focus:ring-1 focus:ring-[#0073EA]" />
+              <select value={newCol.type} onChange={e => setNewCol({ ...newCol, type: e.target.value })}
+                className="w-full h-8 px-2 text-[11px] border rounded focus:outline-none bg-gray-50">
+                <option value="text">Type: Text</option>
+                <option value="number">Type: Number</option>
+                <option value="checkbox">Type: Checkbox</option>
+              </select>
+              <div className="flex gap-1">
+                <Button size="sm" className="flex-1 h-7 text-[11px] bg-[#0073EA]" onClick={handleAdd}>Add</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setIsAdding(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );
@@ -587,9 +649,10 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
 
 export function SalesDashboard() {
   const [leads, setLeads] = useState<Lead[]>([emptyDraftLead()]);
+  const [customColumns, setCustomColumns] = useState<SalesColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [visibleCols, setVisibleCols] = useState<string[]>(ALL_COLUMNS.map(c => c.id));
+  const [visibleCols, setVisibleCols] = useState<string[]>(CORE_COLUMNS.map(c => c.id));
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
@@ -599,7 +662,7 @@ export function SalesDashboard() {
   leadsRef.current = leads;
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // ── Load leads ──
+  // ── Load leads & columns ──
   useEffect(() => {
     (async () => {
       try {
@@ -608,8 +671,14 @@ export function SalesDashboard() {
         if (data.ok) {
           const saved = data.leads.map(dbLeadToLocal);
           setLeads(saved.length > 0 ? [...saved, emptyDraftLead()] : [emptyDraftLead()]);
+          setCustomColumns(data.columns || []);
+          // Ensure visibleCols includes any new custom columns that are visible
+          if (data.columns) {
+            const customVisible = data.columns.filter((c: any) => c.isVisible).map((c: any) => c.name);
+            setVisibleCols(prev => [...new Set([...prev, ...customVisible])]);
+          }
         }
-      } catch { toast.error('Failed to load leads'); }
+      } catch { toast.error('Failed to load dashboard data'); }
       finally { setLoading(false); }
     })();
   }, []);
@@ -633,6 +702,7 @@ export function SalesDashboard() {
       meetingBooked: lead.meetingBooked, emailed: lead.emailed,
       called: lead.called, texted: lead.texted,
       notes: lead.notes, emailTemplate: lead.emailTemplate,
+      metadata: lead.metadata,
       dmAt: lead.dmAt || null, meetingAt: lead.meetingAt || null,
       emailedAt: lead.emailedAt || null, calledAt: lead.calledAt || null,
       textedAt: lead.textedAt || null,
@@ -690,6 +760,36 @@ export function SalesDashboard() {
     setCollapsedGroups(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   };
 
+  // ── Column Management ──
+  const addColumn = async (name: string, label: string, type: string) => {
+    try {
+      const res = await fetch('/api/sales-columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, label, type })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setCustomColumns(prev => [...prev, data.column]);
+        setVisibleCols(prev => [...prev, data.column.name]);
+        toast.success(`Column "${label}" added`);
+      }
+    } catch { toast.error('Failed to add column'); }
+  };
+
+  const deleteColumn = async (colId: string, colName: string) => {
+    if (!confirm(`Are you sure you want to PERMANENTLY delete the "${colName}" column and all its data?`)) return;
+    try {
+      const res = await fetch(`/api/sales-columns/${colId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setCustomColumns(prev => prev.filter(c => c.id !== colId));
+        setVisibleCols(prev => prev.filter(c => c !== colName));
+        // Also clean up local lead metadata if you want, or just let it be
+        toast.success('Column deleted');
+      }
+    } catch { toast.error('Failed to delete column'); }
+  };
+
   // ── Export CSV ──
   const exportCSV = () => {
     const saved = leads.filter(l => l._saved);
@@ -733,7 +833,21 @@ export function SalesDashboard() {
     pipeline: saved.reduce((s, l) => s + (l.value ?? 0), 0),
   };
 
-  const activeColumns = ALL_COLUMNS.filter(c => visibleCols.includes(c.id));
+  const allAvailableColumns = useMemo(() => {
+    const custom = customColumns.map(c => ({
+      id: c.name,
+      label: c.label,
+      width: c.width || 'min-w-[150px] w-[150px]',
+      align: (c.type === 'number' || c.type === 'checkbox') ? 'center' as const : 'left' as const,
+      isCustom: true,
+      dbId: c.id
+    }));
+    return [...CORE_COLUMNS, ...custom];
+  }, [customColumns]);
+
+  const activeColumns = useMemo(() => {
+    return allAvailableColumns.filter(c => visibleCols.includes(c.id));
+  }, [allAvailableColumns, visibleCols]);
 
   if (loading) {
     return (
@@ -765,7 +879,7 @@ export function SalesDashboard() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
               className="h-8 pl-8 pr-3 rounded-md border border-gray-200 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-[#0073EA]/30 focus:border-[#0073EA] w-[200px]" />
           </div>
-          <ColumnToggle visible={visibleCols} setVisible={setVisibleCols} />
+          <ColumnToggle visible={visibleCols} setVisible={setVisibleCols} allCols={allAvailableColumns} onAdd={addColumn} onDelete={deleteColumn} />
           <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5 text-xs border-gray-200 text-gray-600 h-8">
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
@@ -892,6 +1006,24 @@ export function SalesDashboard() {
                                     lead.notes ? "text-[#323338] bg-[#F5F6F8] hover:bg-gray-200" : "text-gray-300 hover:bg-[#F5F6F8]")}>
                                   {lead.notes ? lead.notes.slice(0, 30) : '+ Add'}
                                 </button>
+                              )}
+                              
+                              {/* Custom Column Fallback */}
+                              {(col as any).isCustom && (
+                                <div className="flex items-center justify-center h-full">
+                                  {customColumns.find(cc => cc.name === col.id)?.type === 'checkbox' ? (
+                                    <MondayTick checked={!!lead.metadata?.[col.id]} onChange={v => updateLead(lead.id, { metadata: { ...lead.metadata, [col.id]: v } })} />
+                                  ) : (
+                                    <input 
+                                      type={customColumns.find(cc => cc.name === col.id)?.type === 'number' ? 'number' : 'text'}
+                                      value={lead.metadata?.[col.id] ?? ''} 
+                                      onChange={e => updateLead(lead.id, { metadata: { ...lead.metadata, [col.id]: e.target.value } })}
+                                      placeholder="—" 
+                                      className={cn("w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded", 
+                                        customColumns.find(cc => cc.name === col.id)?.type === 'number' && "text-center")} 
+                                    />
+                                  )}
+                                </div>
                               )}
                             </td>
                           ))}

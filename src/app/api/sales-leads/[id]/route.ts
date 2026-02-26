@@ -48,6 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         texted: body.texted ?? existing.texted,
         notes: body.notes ?? existing.notes,
         emailTemplate: body.emailTemplate ?? existing.emailTemplate,
+        metadata: body.metadata !== undefined ? body.metadata : existing.metadata,
         dmAt: body.dmAt !== undefined ? (body.dmAt ? new Date(body.dmAt) : null) : existing.dmAt,
         meetingAt: body.meetingAt !== undefined ? (body.meetingAt ? new Date(body.meetingAt) : null) : existing.meetingAt,
         emailedAt: body.emailedAt !== undefined ? (body.emailedAt ? new Date(body.emailedAt) : null) : existing.emailedAt,
