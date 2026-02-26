@@ -21,6 +21,7 @@ import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
 import { VideographerDashboard } from "../dashboards/VideographerDashboard";
 import { SalesDashboard } from "../dashboards/SalesDashboard";
+import { AffiliateSection } from "../dashboards/AffiliateSection";
 import { SalesManagementTab } from "../admin/SalesManagementTab";
 import { EditorProjects } from "../EditorProjects";
 import { EditorResources } from "../EditorResources";
@@ -317,10 +318,11 @@ export function renderPage(
 
   if (role === "sales") {
     switch (page) {
-      case "sales-management":
-        return <SalesManagementTab />;
       case "dashboard":
+      case "sales-management": // Redirect sales reps away from management tab if they click it
         return <SalesDashboard />;
+      case "affiliate":
+        return <AffiliateSection />;
       case "clients":
         return <SalesDashboard />;
       case "training":
@@ -330,7 +332,7 @@ export function renderPage(
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:
-        return <SalesManagementTab />;
+        return <SalesDashboard />;
     }
   }
 

@@ -55,6 +55,7 @@ export function LayoutShell({
   children,
 }: LayoutShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [permittedItems, setPermittedItems] = useState<any[]>([]);
   const [navLoading, setNavLoading] = useState(true);
@@ -151,6 +152,14 @@ export function LayoutShell({
 
             {/* Logo */}
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden lg:flex"
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
               <Image
                 src={logo}
                 alt="E8 Logo"
@@ -313,9 +322,9 @@ export function LayoutShell({
       {/* Sidebar */}
       <aside
         className={`
-        fixed top-16 left-0 z-20 w-72 h-[calc(100vh-4rem)] bg-white/80 backdrop-blur-md border-r border-gray-200 transform transition-transform duration-200 ease-in-out
+        fixed top-16 left-0 z-20 w-72 h-[calc(100vh-4rem)] bg-white/80 backdrop-blur-md border-r border-gray-200 transform transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0
+        ${isSidebarCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0'}
       `}
       >
         <div className="flex flex-col h-full">
@@ -379,7 +388,7 @@ export function LayoutShell({
       )}
 
       {/* Main Content */}
-      <main className="lg:ml-72 pt-16">
+      <main className={`transition-all duration-300 ease-in-out pt-16 ${isSidebarCollapsed ? 'lg:ml-0' : 'lg:ml-72'}`}>
         <div className="p-6 sm:p-8">{children}</div>
       </main>
 
