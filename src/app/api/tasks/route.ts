@@ -1158,6 +1158,24 @@ export async function POST(req: any) {
         });
 
         console.log(`✅ One-off task updated: ${title}`);
+
+        // 🔥 NOTIFY CLIENT SLACK CHANNEL (Editor One-off only)
+        if (isEditorCreate) {
+          const editorName = user.name || user.email;
+          const clientName = client.name;
+
+          await notifyUser({
+            userId: null,
+            type: "task_created",
+            title: "New Task Created",
+            body: `${editorName} has created a task for ${clientName}`,
+            payload: {
+              taskId: task.id,
+              clientId: clientId
+            }
+          });
+        }
+
         return NextResponse.json(updatedOneOff, { status: 201 });
       }
     }

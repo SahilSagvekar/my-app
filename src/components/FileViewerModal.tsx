@@ -75,7 +75,7 @@ export function FilePreviewModal({
                 src={file.url}
                 controls
                 className="max-w-full max-h-full"
-                preload="auto"
+                preload="metadata"
                 playsInline
                 autoPlay
               />

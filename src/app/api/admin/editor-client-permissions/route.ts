@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/admin/editor-client-permissions/route.ts
 //
 // GET  - list all editors with their permitted clients

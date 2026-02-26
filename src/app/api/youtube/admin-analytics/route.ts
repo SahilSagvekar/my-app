@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/youtube/admin-analytics/route.ts
 // Admin-only: returns YouTube data for ALL clients
 

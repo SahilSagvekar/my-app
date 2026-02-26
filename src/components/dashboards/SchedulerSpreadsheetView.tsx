@@ -271,23 +271,16 @@ export function SchedulerSpreadsheetView() {
     // Download file
     async function downloadFile(file: any) {
         try {
-            toast.loading('Preparing download...', { id: 'download' });
-
-            const response = await fetch(file.url);
-            if (!response.ok) throw new Error('Download failed');
-
-            const blob = await response.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = file.name;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-
-            toast.success('Downloaded!', { id: 'download' });
+            const isS3 = file.url?.includes('amazonaws.com');
+            if (isS3 && file.id) {
+                // Use the download API — generates presigned S3 URL, browser handles at full speed
+                window.open(`/api/files/${file.id}/download`, '_blank');
+                toast.success('Download started', { id: 'download' });
+            } else {
+                // Fallback for non-S3 files
+                window.open(file.url, '_blank');
+                toast.success('Download started', { id: 'download' });
+            }
         } catch (error) {
             toast.error('Download failed', { id: 'download' });
         }

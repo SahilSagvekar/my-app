@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // app/api/upload/complete/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';

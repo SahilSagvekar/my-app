@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/cron/check-titling-jobs/route.ts
 
 import { NextResponse } from 'next/server';

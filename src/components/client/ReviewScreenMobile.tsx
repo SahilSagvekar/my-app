@@ -335,7 +335,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                             onPause={() => p.setIsPlaying(false)}
                             onError={() => p.setVideoError(true)}
                             playsInline
-                            preload="auto"
+                            preload="metadata"
                         />
                         {/* Big play button overlay */}
                         <div className="absolute inset-0 flex items-center justify-center" onClick={p.togglePlay}>

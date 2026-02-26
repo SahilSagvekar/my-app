@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // app/api/cron/youtube-sync/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { syncAllYouTubeChannels } from '@/lib/youtube-sync-service';

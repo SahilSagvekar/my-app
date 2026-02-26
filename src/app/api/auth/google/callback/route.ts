@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // import { NextResponse } from "next/server";
 // import { google } from "googleapis";
 // import jwt from "jsonwebtoken";
@@ -60,7 +61,7 @@ export async function GET(req: Request) {
   const response = NextResponse.redirect(`${process.env.BASE_URL}/dashboard`);
   response.cookies.set("authToken", token, {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60,
     path: "/",

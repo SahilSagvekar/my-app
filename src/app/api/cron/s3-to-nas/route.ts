@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // // src/app/api/cron/s3-to-nas/route.ts
 // import { NextRequest, NextResponse } from 'next/server';
 // import { S3Client, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';

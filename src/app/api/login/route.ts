@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from '@/lib/prisma';
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     response.cookies.set("authToken", token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",

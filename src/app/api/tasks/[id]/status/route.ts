@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/tasks/[id]/status/route.ts
 // 
 // UPDATED VERSION - Add titling trigger on QC approval

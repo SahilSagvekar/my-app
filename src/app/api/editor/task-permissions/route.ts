@@ -1,26 +1,22 @@
 // src/app/api/editor/task-permissions/route.ts
 // Returns the list of clients for which the calling editor can create one-off tasks.
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import jwt from 'jsonwebtoken';
+import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
-    const cookieHeader = req.headers.get('cookie');
-    const match = cookieHeader?.match(/authToken=([^;]+)/);
-    const token = match ? match[1] : null;
-
-    if (!token) {
-        return NextResponse.json({ clients: [] }, { status: 401 });
-    }
-
     try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!decoded?.userId || decoded.role !== 'editor') {
+        const user = await getCurrentUser2(req);
+
+        // Ensure user exists and has the editor role (checks DB state)
+        if (!user || user.role !== 'editor') {
             return NextResponse.json({ clients: [] });
         }
 
         const permissions: any[] = await (prisma as any).editorClientPermission.findMany({
-            where: { editorId: Number(decoded.userId) },
+            where: { editorId: user.id },
             include: {
                 client: { select: { id: true, name: true, companyName: true } },
             },
@@ -37,3 +33,4 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ clients: [] });
     }
 }
+

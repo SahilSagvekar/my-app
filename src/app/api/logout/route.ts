@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { prisma } from '@/lib/prisma';
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
     // Clear the authToken cookie
     response.cookies.set("authToken", "", {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: "lax",
       maxAge: 0, // expires immediately
       path: "/",

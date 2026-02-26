@@ -8,17 +8,17 @@ const SWITCHABLE_EMAILS = [
     "eric@e8productions.com", // Admin can switch to QC
 ];
 
-// Map email to their "other" role
-const ROLE_SWITCH_MAP: Record<string, string> = {
-    "eric@e8productions.com": "qc",      // Admin can switch to QC
+// Map email to their "other" roles
+const ROLE_SWITCH_MAP: Record<string, string[]> = {
+    "eric@e8productions.com": ["qc", "sales"],      // Admin can switch to QC or Sales
 };
 
 interface ViewAsRoleContextType {
     viewingAsRole: string | null;
     canSwitchRole: boolean;
-    targetSwitchRole: string | null;
+    switchableRoles: string[];
     isViewingAsOther: boolean;
-    toggleRole: () => void;
+    switchToRole: (role: string) => void;
     resetToOriginal: () => void;
 }
 
@@ -35,10 +35,8 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
     const [isViewingAsOther, setIsViewingAsOther] = useState(false);
 
     // Check if this user can switch roles
-    const canSwitchRole = userEmail ? SWITCHABLE_EMAILS.includes(userEmail.toLowerCase()) : false;
-
-    // What role would they switch to?
-    const targetSwitchRole = userEmail ? ROLE_SWITCH_MAP[userEmail.toLowerCase()] || null : null;
+    const switchableRoles = userEmail ? ROLE_SWITCH_MAP[userEmail.toLowerCase()] || [] : [];
+    const canSwitchRole = switchableRoles.length > 0;
 
     // Reset viewing role when actual user role changes
     useEffect(() => {
@@ -51,26 +49,25 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
     useEffect(() => {
         if (canSwitchRole && userEmail) {
             const saved = localStorage.getItem(`viewingAs_${userEmail}`);
-            if (saved && saved !== userRole) {
+            if (saved && saved !== userRole && switchableRoles.includes(saved)) {
                 setViewingAsRole(saved);
                 setIsViewingAsOther(true);
             }
         }
-    }, [canSwitchRole, userEmail, userRole]);
+    }, [canSwitchRole, userEmail, userRole, switchableRoles]);
 
-    const toggleRole = () => {
-        if (!canSwitchRole || !targetSwitchRole || !userEmail) return;
+    const switchToRole = (targetRole: string) => {
+        if (!canSwitchRole || !userEmail) return;
 
-        if (isViewingAsOther) {
-            // Switch back to original role
-            setViewingAsRole(userRole);
-            setIsViewingAsOther(false);
-            localStorage.removeItem(`viewingAs_${userEmail}`);
-        } else {
-            // Switch to other role
-            setViewingAsRole(targetSwitchRole);
+        if (targetRole === userRole) {
+            resetToOriginal();
+            return;
+        }
+
+        if (switchableRoles.includes(targetRole)) {
+            setViewingAsRole(targetRole);
             setIsViewingAsOther(true);
-            localStorage.setItem(`viewingAs_${userEmail}`, targetSwitchRole);
+            localStorage.setItem(`viewingAs_${userEmail}`, targetRole);
         }
     };
 
@@ -87,9 +84,9 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
             value={{
                 viewingAsRole,
                 canSwitchRole,
-                targetSwitchRole,
+                switchableRoles,
                 isViewingAsOther,
-                toggleRole,
+                switchToRole,
                 resetToOriginal,
             }}
         >

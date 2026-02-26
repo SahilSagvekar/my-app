@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/youtube/callback/route.ts
 // Handles the OAuth callback from Google
 

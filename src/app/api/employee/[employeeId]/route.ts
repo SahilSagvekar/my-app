@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -17,6 +18,7 @@ const PatchSchema = z.object({
       "qc",
       "scheduler",
       "client",
+      "sales",
     ])
     .optional(), // Changed 'qc_specialist' to 'qc'
   hourlyRate: z.number().min(0).optional(), // Added back hourlyRate

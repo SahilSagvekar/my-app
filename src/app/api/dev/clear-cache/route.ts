@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/dev/clear-cache/route.ts
 import { redis } from '@/lib/redis';
 

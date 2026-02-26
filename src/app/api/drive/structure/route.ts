@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/drive/structure/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';

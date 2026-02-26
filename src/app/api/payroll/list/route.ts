@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { NextResponse, type NextRequest } from "next/server";

@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // app/api/youtube/dashboard-stats/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';

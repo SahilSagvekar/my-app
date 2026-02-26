@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/social-media-link/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
