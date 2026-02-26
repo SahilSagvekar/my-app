@@ -6,7 +6,7 @@ import {
   History as HistoryIcon, Clock, Loader2, RefreshCw, Plus, Trash2,
   Download, Search, ChevronDown, Mail, Phone, MessageSquare, FileText,
   UploadCloud, Instagram, Eye, EyeOff, GripVertical, Flag, ChevronUp,
-  Settings2, Columns3,
+  Settings2, Columns3, Sparkles, Zap
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -99,7 +99,7 @@ function dbLeadToLocal(l: any): Lead {
   return {
     id: l.id, name: l.name, company: l.company || '', email: l.email,
     phone: l.phone || '', socials: l.socials || '',
-    instagram: !!l.instagram, facebook: !!l.facebook, 
+    instagram: !!l.instagram, facebook: !!l.facebook,
     linkedin: !!l.linkedin, twitter: !!l.twitter, tiktok: !!l.tiktok,
     status: l.status || 'NEW',
     source: l.source || '', value: l.value || null, priority: l.priority || '',
@@ -388,6 +388,116 @@ function NotesModal({ open, lead, onClose, onSave }: {
   );
 }
 
+// ─── Mass Email Modal ─────────────────────────────────────────────────────────
+
+function MassEmailModal({ open, selectedLeads, leads, onClose, onSent }: {
+  open: boolean;
+  selectedLeads: Set<string>;
+  leads: Lead[];
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  const [subject, setSubject] = useState('Checking in - E8 Productions');
+  const [body, setBody] = useState('Hi {name},\n\nHope you are doing well!\n\nBest,\nYour Name');
+  const [sending, setSending] = useState(false);
+
+  const selectedCount = selectedLeads.size;
+
+  const handleSend = async () => {
+    if (!subject.trim() || !body.trim()) {
+      toast.error('Subject and body are required');
+      return;
+    }
+
+    setSending(true);
+    try {
+      const res = await fetch('/api/sales-leads/bulk-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadIds: Array.from(selectedLeads),
+          subject,
+          body
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(`Sent ${data.results.success} emails successfully!`);
+        if (data.results.failed > 0) {
+          toast.warning(`${data.results.failed} emails failed. Check console for details.`);
+          console.error('Bulk email errors:', data.results.errors);
+        }
+        onSent();
+        onClose();
+      } else {
+        throw new Error(data.message || 'Failed to send bulk emails');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send bulk emails');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+              <Mail className="h-5 w-5" />
+            </div>
+            Send Mass Email
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-800 flex items-start gap-3">
+            <InfoIcon className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold">Recipients: {selectedCount} leads selected</p>
+              <p className="text-blue-600/80 text-[12px]">Use <code className="bg-blue-100 px-1 rounded">{"{name}"}</code> or <code className="bg-blue-100 px-1 rounded">{"{company}"}</code> to personalize your message.</p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Subject Line</label>
+            <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Email Subject..." className="h-10" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Message Body</label>
+            <Textarea
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              rows={12}
+              className="font-sans text-[13px] leading-relaxed resize-none p-4"
+              placeholder="Write your message here..."
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center bg-gray-50 -mx-6 -mb-6 p-4 rounded-b-lg border-t">
+          <div className="text-[11px] text-gray-400 font-medium whitespace-nowrap overflow-hidden text-ellipsis mr-4">
+            Emails sent via professional SMTP.
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={onClose} disabled={sending}>Cancel</Button>
+            <Button
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-500 text-white gap-2 font-bold min-w-[120px]"
+              onClick={handleSend}
+              disabled={sending}
+            >
+              {sending ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</> : <><Send className="h-4 w-4" /> Send Now</>}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Lead Profile Drawer ──────────────────────────────────────────────────────
 
 function LeadProfileDrawer({ lead, onClose, onUpdate }: {
@@ -559,7 +669,7 @@ function ColumnToggle({
         <div className="p-3 bg-gray-50 border-b">
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Dashboard Columns</p>
         </div>
-        
+
         <div className="max-h-[300px] overflow-y-auto p-2 space-y-0.5">
           {allCols.map(col => (
             <div key={col.id} className="flex items-center justify-between group/col px-2 py-1.5 rounded hover:bg-gray-50 transition-colors">
@@ -614,14 +724,51 @@ function ColumnToggle({
   );
 }
 
+// ─── Bulk Action Toolbar ──────────────────────────────────────────────────────
+
+function BulkActionToolbar({ count, onClear, onMassEmail }: { count: number; onClear: () => void; onMassEmail: () => void }) {
+  if (count === 0) return null;
+  return (
+    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="flex items-center gap-4 bg-gray-900 text-white px-6 py-3 rounded-2xl shadow-2xl border border-white/20 backdrop-blur-md">
+        <div className="flex items-center gap-2 border-r border-white/20 pr-4">
+          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white shadow-lg shadow-blue-500/30">
+            {count}
+          </div>
+          <span className="text-sm font-bold tracking-tight">SELECTED</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={onMassEmail} className="bg-blue-600 hover:bg-blue-500 text-white gap-2 font-bold px-4 h-9 shadow-lg shadow-blue-600/20">
+            <Mail className="h-4 w-4" />
+            Send Mass Email
+          </Button>
+          <button onClick={onClear} className="text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider px-2 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Group Header ─────────────────────────────────────────────────────────────
 
-function GroupHeader({ group, count, collapsed, onToggle, onAddItem }: {
+function GroupHeader({ group, count, collapsed, onToggle, onAddItem, onSelectAll, isAllSelected }: {
   group: typeof STATUS_GROUPS[0]; count: number; collapsed: boolean;
   onToggle: () => void; onAddItem: () => void;
+  onSelectAll: () => void; isAllSelected: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 py-2 px-2 select-none group/gh">
+    <div className="flex items-center gap-2 py-2 px-1 select-none group/gh">
+      <div className="flex items-center justify-center w-[40px] h-[30px]">
+        <input
+          type="checkbox"
+          checked={isAllSelected}
+          onChange={e => { e.stopPropagation(); onSelectAll(); }}
+          className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
+        />
+      </div>
       <button onClick={onToggle} className="flex items-center gap-1.5 font-semibold text-[15px] hover:opacity-80 transition-opacity"
         style={{ color: group.color }}>
         <ChevronRight className={cn("h-4 w-4 transition-transform", !collapsed && "rotate-90")} />
@@ -645,9 +792,10 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
   if (saved.length === 0) return null;
   return (
     <tr className="bg-gray-50/60 border-t-2" style={{ borderTopColor: groupColor + '40' }}>
-      <td className="px-3 py-2 text-[11px] font-semibold text-gray-400 sticky left-0 bg-gray-50/60 z-10"
+      <td className="w-[40px] sticky left-0 z-30 bg-gray-50/60 border-r border-gray-100" />
+      <td className="px-3 py-2 text-[11px] font-semibold text-gray-400 sticky left-[40px] bg-gray-50/60 z-10"
         style={{ borderLeft: `3px solid ${groupColor}` }}>
-        {saved.length} saved
+        {saved.length} {saved.length === 1 ? 'lead' : 'leads'}
       </td>
       {visibleCols.filter(c => c !== 'name').map(colId => (
         <td key={colId} className="px-2 py-2 text-center text-[11px] text-gray-400">
@@ -683,6 +831,42 @@ export function SalesDashboard() {
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [massEmailModal, setMassEmailModal] = useState(false);
+
+  // ── Selection Logic ──
+  const toggleSelect = (id: string) => {
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllGlobal = () => {
+    const saved = leads.filter(l => l._saved);
+    if (selectedLeads.size === saved.length) {
+      setSelectedLeads(new Set());
+    } else {
+      setSelectedLeads(new Set(saved.map(l => l.id)));
+    }
+  };
+
+  const selectAllInGroup = (groupId: string) => {
+    const groupLeads = leads.filter(l => l.status === groupId && l._saved);
+    const groupIds = groupLeads.map(l => l.id);
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      const allSelected = groupIds.every(id => next.has(id));
+      if (allSelected) {
+        groupIds.forEach(id => next.delete(id));
+      } else {
+        groupIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
 
   const leadsRef = useRef<Lead[]>([]);
   leadsRef.current = leads;
@@ -940,8 +1124,16 @@ export function SalesDashboard() {
           <table className="w-full text-[13px] border-collapse">
             {/* Table header */}
             <thead>
-              <tr className="bg-[#F5F6F8] border-b border-gray-200">
-                 <th className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 sticky left-0 bg-[#F5F6F8] z-20",
+              <tr className="bg-[#F5F6F8] border-b border-gray-200 z-30">
+                <th className="w-[40px] px-2 py-2 bg-[#F5F6F8] sticky left-0 z-40 border-r border-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={selectedLeads.size === leads.filter(l => l._saved).length && leads.filter(l => l._saved).length > 0}
+                    onChange={selectAllGlobal}
+                    className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
+                  />
+                </th>
+                <th className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 sticky left-[40px] bg-[#F5F6F8] z-30",
                   CORE_COLUMNS[0].width)}>
                   Lead
                 </th>
@@ -960,22 +1152,41 @@ export function SalesDashboard() {
               {grouped.map(group => {
                 const isCollapsed = collapsedGroups.has(group.id);
                 if (group.leads.length === 0) return null;
+
+                const groupSavedLeads = group.leads.filter(l => l._saved);
+                const isAllGroupSelected = groupSavedLeads.length > 0 && groupSavedLeads.every(l => selectedLeads.has(l.id));
+
                 return (
                   <Fragment key={group.id}>
                     {/* Group header row */}
                     <tr>
-                      <td colSpan={activeColumns.length + 1} className="p-0 border-b border-gray-100">
+                      <td colSpan={activeColumns.length + 2} className="p-0 border-b border-gray-100">
                         <GroupHeader group={group} count={group.leads.length} collapsed={isCollapsed}
-                          onToggle={() => toggleGroup(group.id)} onAddItem={() => addRow(group.id)} />
+                          onToggle={() => toggleGroup(group.id)} onAddItem={() => addRow(group.id)}
+                          onSelectAll={() => selectAllInGroup(group.id)} isAllSelected={isAllGroupSelected} />
                       </td>
                     </tr>
                     {/* Group items */}
                     {!isCollapsed && group.leads.map((lead) => {
                       const isWorking = lead._committing;
+                      const isSelected = selectedLeads.has(lead.id);
                       return (
-                        <tr key={lead.id} className="group border-b border-gray-100 hover:bg-[#F0F7FF] transition-colors">
+                        <tr key={lead.id} className={cn("group border-b border-gray-100 hover:bg-[#F0F7FF] transition-colors", isSelected && "bg-blue-50/50")}>
+                          {/* Selection Checkbox */}
+                          <td className="w-[40px] px-0 py-0 border-r border-gray-100 sticky left-0 z-30 bg-white group-hover:bg-[#F0F7FF] transition-colors">
+                            <div className="flex items-center justify-center h-[38px]">
+                              {lead._saved && (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelect(lead.id)}
+                                  className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
+                                />
+                              )}
+                            </div>
+                          </td>
                           {/* Name — sticky */}
-                          <td className={cn("px-0 py-0 border-r border-gray-100 sticky left-0 bg-white group-hover:bg-[#F0F7FF] z-10",
+                          <td className={cn("px-0 py-0 border-r border-gray-100 sticky left-[40px] bg-white group-hover:bg-[#F0F7FF] z-20 transition-colors",
                             CORE_COLUMNS[0].width)}
                             style={{ borderLeft: `3px solid ${group.color}` }}>
                             <div className="flex items-center h-[38px]">
@@ -1033,20 +1244,20 @@ export function SalesDashboard() {
                                   {lead.notes ? lead.notes.slice(0, 30) : '+ Add'}
                                 </button>
                               )}
-                              
+
                               {/* Custom Column Fallback */}
                               {(col as any).isCustom && (
                                 <div className="flex items-center justify-center h-full">
                                   {customColumns.find(cc => cc.name === col.id)?.type === 'checkbox' ? (
                                     <MondayTick checked={!!lead.metadata?.[col.id]} onChange={v => updateLead(lead.id, { metadata: { ...lead.metadata, [col.id]: v } })} />
                                   ) : (
-                                    <input 
+                                    <input
                                       type={customColumns.find(cc => cc.name === col.id)?.type === 'number' ? 'number' : 'text'}
-                                      value={lead.metadata?.[col.id] ?? ''} 
+                                      value={lead.metadata?.[col.id] ?? ''}
                                       onChange={e => updateLead(lead.id, { metadata: { ...lead.metadata, [col.id]: e.target.value } })}
-                                      placeholder="—" 
-                                      className={cn("w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded", 
-                                        customColumns.find(cc => cc.name === col.id)?.type === 'number' && "text-center")} 
+                                      placeholder="—"
+                                      className={cn("w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded",
+                                        customColumns.find(cc => cc.name === col.id)?.type === 'number' && "text-center")}
                                     />
                                   )}
                                 </div>
@@ -1100,6 +1311,26 @@ export function SalesDashboard() {
         onClose={() => setNotesModal({ open: false, lead: null })}
         onSave={(id, notes) => { updateLead(id, { notes }); }} />
       <LeadProfileDrawer lead={drawerLead} onClose={() => setDrawerLead(null)} onUpdate={updateLead} />
+      <BulkActionToolbar
+        count={selectedLeads.size}
+        onClear={() => setSelectedLeads(new Set())}
+        onMassEmail={() => setMassEmailModal(true)}
+      />
+      <MassEmailModal
+        open={massEmailModal}
+        selectedLeads={selectedLeads}
+        leads={leads}
+        onClose={() => setMassEmailModal(false)}
+        onSent={() => {
+          setSelectedLeads(new Set());
+          // Refresh leads to show updated 'emailed' status
+          (async () => {
+            const res = await fetch('/api/sales-leads');
+            const data = await res.json();
+            if (data.ok) setLeads(data.leads.map(dbLeadToLocal).concat([emptyDraftLead()]));
+          })();
+        }}
+      />
     </div>
   );
 }
