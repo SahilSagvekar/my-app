@@ -990,6 +990,11 @@ model SalesLead {
   emailedAt     DateTime?
   meetingAt     DateTime?
   textedAt      DateTime?
+  company       String    @default("")
+  phone         String    @default("")
+  source        String    @default("")
+  status        String    @default("NEW")
+  value         Float?
   user          User                  @relation(fields: [userId], references: [id])
   commissions   AffiliateCommission[]
 
@@ -1063,6 +1068,62 @@ model TrainingVideo {
   @@index([role])
   @@index([role, order])
   @@index([courseId, order])
+}
+
+model PortfolioLead {
+  id            String   @id @default(cuid())
+  firstName     String
+  lastName      String
+  phone         String
+  email         String
+  serviceNeeded String
+  ipAddress     String?
+  createdAt     DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+}
+
+model PortfolioCategory {
+  id            String                 @id @default(cuid())
+  key           String                 @unique
+  label         String
+  iconName      String                 @default("Film")
+  order         Int                    @default(0)
+  isActive      Boolean                @default(true)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  subcategories PortfolioSubcategory[]
+}
+
+model PortfolioSubcategory {
+  id         String            @id @default(cuid())
+  categoryId String
+  key        String            @unique
+  label      String
+  iconName   String            @default("Video")
+  order      Int               @default(0)
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  category   PortfolioCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+}
+
+model PortfolioVideo {
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @default("")
+  videoUrl     String
+  thumbnailUrl String?
+  category     String
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
+  @@index([category, order])
+  @@index([isActive])
 }
 
 enum Role {

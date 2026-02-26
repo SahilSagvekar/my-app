@@ -89,19 +89,30 @@ export function extractGoogleDriveFileId(url: string): string | null {
 export function convertToGoogleDrivePreview(url: string): string | null {
   const fileId = extractGoogleDriveFileId(url);
   if (!fileId) return null;
-  
+
   return `https://drive.google.com/file/d/${fileId}/preview`;
 }
 
 /**
- * Gets the appropriate video source for a video element or iframe
+ * Gets the appropriate video source for a video element or iframe.
+ * When a fileId is provided and the URL points to S3, uses the streaming
+ * proxy endpoint for efficient byte-range video playback.
+ * 
+ * @param url - The original video URL
+ * @param fileId - Optional TaskFile ID to enable streaming proxy for S3 files
  */
-export function getVideoSource(url: string): { type: 'video' | 'iframe', src: string } {
+export function getVideoSource(url: string, fileId?: string): { type: 'video' | 'iframe', src: string } {
   const info = analyzeVideoUrl(url);
-  
+
   if (info.requiresIframe && info.embedUrl) {
     return { type: 'iframe', src: info.embedUrl };
   }
-  
+
+  // Use streaming proxy for S3-hosted files (supports HTTP Range requests)
+  const isS3 = url && url.includes('amazonaws.com');
+  if (isS3 && fileId) {
+    return { type: 'video', src: `/api/files/${fileId}/stream` };
+  }
+
   return { type: 'video', src: url };
 }

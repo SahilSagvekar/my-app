@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { syncYouTubeChannel } from "@/lib/youtube-sync-service";
 import { prisma } from "@/lib/prisma";

@@ -1,0 +1,98 @@
+[
+    {
+        "key": "video_content",
+        "label": "Video Content Styles",
+        "icon": "Film",
+        "isActive": true,
+        "subcategories": [
+            {
+                "key": "short_form",
+                "label": "Short Form Videos",
+                "icon": "Clapperboard",
+                "isActive": true
+            },
+            {
+                "key": "long_form",
+                "label": "Long Form Videos",
+                "icon": "Video",
+                "isActive": true
+            },
+            {
+                "key": "montage",
+                "label": "Montage Edits",
+                "icon": "Scissors",
+                "isActive": true
+            },
+            {
+                "key": "ugc",
+                "label": "UGC Content",
+                "icon": "Camera",
+                "isActive": true
+            },
+            {
+                "key": "talking_head",
+                "label": "Talking Head Videos",
+                "icon": "Mic",
+                "isActive": true
+            }
+        ]
+    },
+    {
+        "key": "videography_showcase",
+        "label": "Videography Showcase",
+        "icon": "Video",
+        "isActive": true,
+        "subcategories": [
+            {
+                "key": "drone_work",
+                "label": "Drone Work",
+                "icon": "Camera",
+                "isActive": true
+            },
+            {
+                "key": "b_roll",
+                "label": "Cinematic B-Roll",
+                "icon": "Film",
+                "isActive": true
+            },
+            {
+                "key": "interview_style",
+                "label": "Interview Style",
+                "icon": "Mic",
+                "isActive": true
+            },
+            {
+                "key": "iphone_content",
+                "label": "iPhone Content",
+                "icon": "Camera",
+                "isActive": true
+            }
+        ]
+    },
+    {
+        "key": "photography",
+        "label": "Photography",
+        "icon": "Camera",
+        "isActive": true,
+        "subcategories": [
+            {
+                "key": "real_estate",
+                "label": "Real Estate",
+                "icon": "Camera",
+                "isActive": true
+            },
+            {
+                "key": "cars",
+                "label": "Cars",
+                "icon": "Camera",
+                "isActive": true
+            },
+            {
+                "key": "product_photography",
+                "label": "Product",
+                "icon": "Camera",
+                "isActive": true
+            }
+        ]
+    }
+]

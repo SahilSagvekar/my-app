@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/reports/daily-summary/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { generateDailySummaryReport } from '@/lib/daily-summary-report';

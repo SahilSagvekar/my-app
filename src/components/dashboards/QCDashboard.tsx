@@ -582,28 +582,27 @@ export function QCDashboard() {
 
   const handleDownload = async (file: TaskFile) => {
     try {
-      toast.loading('Preparing download...', { id: 'download-file' });
+      // Priority 1: Use pre-generated downloadUrl (from addSignedUrlsToFiles)
+      if ((file as any).downloadUrl) {
+        window.open((file as any).downloadUrl, '_blank');
+        toast.success('Download started', { id: 'download-file' });
+        return;
+      }
 
-      const response = await fetch(file.url);
-      if (!response.ok) throw new Error('Download failed');
+      // Priority 2: Use the download API for S3 files
+      const isS3 = file.url?.includes('amazonaws.com') || !!file.s3Key;
+      if (isS3) {
+        window.open(`/api/files/${file.id}/download`, '_blank');
+        toast.success('Download started', { id: 'download-file' });
+        return;
+      }
 
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = file.name;
-      document.body.appendChild(link);
-      link.click();
-
-      // Cleanup
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-
-      toast.success('Download completed', { id: 'download-file' });
+      // Priority 3: Fallback — open URL directly
+      window.open(file.url, '_blank');
+      toast.success('Download started', { id: 'download-file' });
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to download file. Browser restrictions may apply.', { id: 'download-file' });
+      toast.error('Failed to start download', { id: 'download-file' });
     }
   };
 

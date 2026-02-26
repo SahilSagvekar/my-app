@@ -33,6 +33,7 @@ import { EmploymentInfo } from "../EmploymentInfo";
 import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
 import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
+import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 import { Loader2 } from "lucide-react";
@@ -115,6 +116,8 @@ export function renderPage(
       case "guidelines":
       case "sales-management":
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
+      case "portfolio":
+        return <PortfolioManagementTab />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "training":
@@ -259,6 +262,8 @@ export function renderPage(
         return <LeavesComponent />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
+      case "portfolio":
+        return <PortfolioManagementTab />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:
