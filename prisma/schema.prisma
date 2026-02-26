@@ -984,9 +984,15 @@ model SalesLead {
   emailedAt     DateTime?
   meetingAt     DateTime?
   textedAt      DateTime?
+  company       String    @default("")
+  phone         String    @default("")
+  source        String    @default("")
+  status        String    @default("NEW")
+  value         Float?
   user          User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([status])
 }
 
 model EditorClientPermission {
@@ -1032,55 +1038,55 @@ model TrainingVideo {
 }
 
 model PortfolioLead {
-  id             String   @id @default(cuid())
-  firstName      String
-  lastName       String
-  phone          String
-  email          String
-  serviceNeeded  String
-  ipAddress      String?
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  firstName     String
+  lastName      String
+  phone         String
+  email         String
+  serviceNeeded String
+  ipAddress     String?
+  createdAt     DateTime @default(now())
 
   @@index([email])
   @@index([createdAt])
 }
 
 model PortfolioCategory {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  label     String
-  iconName  String   @default("Film")
-  order     Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String                 @id @default(cuid())
+  key           String                 @unique
+  label         String
+  iconName      String                 @default("Film")
+  order         Int                    @default(0)
+  isActive      Boolean                @default(true)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
   subcategories PortfolioSubcategory[]
 }
 
 model PortfolioSubcategory {
-  id          String   @id @default(cuid())
-  categoryId  String
-  key         String   @unique
-  label       String
-  iconName    String   @default("Video")
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  category    PortfolioCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id         String            @id @default(cuid())
+  categoryId String
+  key        String            @unique
+  label      String
+  iconName   String            @default("Video")
+  order      Int               @default(0)
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  category   PortfolioCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 }
 
 model PortfolioVideo {
-  id          String   @id @default(cuid())
-  title       String
-  description String   @default("")
-  videoUrl    String
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @default("")
+  videoUrl     String
   thumbnailUrl String?
-  category    String
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  category     String
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([category])
   @@index([category, order])
