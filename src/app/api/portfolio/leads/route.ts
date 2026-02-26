@@ -26,13 +26,15 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        const ip = req.headers.get('x-forwarded-for') || (req as any).ip || 'unknown';
+
         const lead = await prisma.portfolioLead.create({
             data: {
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),
                 phone: phone.trim(),
                 email: email.trim().toLowerCase(),
-                serviceNeeded,
+                serviceNeeded: `${serviceNeeded} | IP: ${ip}`,
             },
         });
 

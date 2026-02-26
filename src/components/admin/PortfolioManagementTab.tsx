@@ -58,6 +58,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Play,
+    Settings as SettingsIcon,
+    Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -69,6 +71,7 @@ interface PortfolioLead {
     phone: string;
     email: string;
     serviceNeeded: string;
+    ipAddress?: string; // Optional field
     createdAt: string;
 }
 
@@ -85,14 +88,20 @@ interface PortfolioVideo {
     updatedAt: string;
 }
 
-/* ───────────────────────── constants ───────────────────────── */
-const CATEGORIES = [
-    { key: "short_form", label: "Short Form Videos" },
-    { key: "long_form", label: "Long Form Videos" },
-    { key: "montage", label: "Montage Edits" },
-    { key: "ugc", label: "UGC Content" },
-    { key: "talking_head", label: "Talking Head Videos" },
-];
+interface Subcategory {
+    key: string;
+    label: string;
+    icon: string;
+    isActive: boolean;
+}
+
+interface Category {
+    key: string;
+    label: string;
+    icon: string;
+    isActive: boolean;
+    subcategories: Subcategory[];
+}
 
 const SERVICE_OPTIONS = [
     "Videography",
@@ -399,7 +408,7 @@ function LeadManagement() {
 /* ═══════════════════════════════════════════════════════════════
    PORTFOLIO CONTENT CONTROL TAB
    ═══════════════════════════════════════════════════════════════ */
-function ContentControl() {
+function ContentControl({ sections }: { sections: Category[] }) {
     const [videos, setVideos] = useState<PortfolioVideo[]>([]);
     const [loading, setLoading] = useState(true);
     const [categoryFilter, setCategoryFilter] = useState("all");
@@ -407,6 +416,12 @@ function ContentControl() {
     const [editingVideo, setEditingVideo] = useState<PortfolioVideo | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [previewVideo, setPreviewVideo] = useState<PortfolioVideo | null>(null);
+
+    // Flatten subcategories for easier select options
+    const allSubcategories = sections.flatMap(c => c.subcategories.map(s => ({
+        ...s,
+        parentLabel: c.label
+    })));
 
     const [formData, setFormData] = useState({
         title: "",
@@ -416,6 +431,32 @@ function ContentControl() {
         category: "short_form",
         order: "0",
     });
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'videoUrl' | 'thumbnailUrl') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const formDataPayload = new FormData();
+        formDataPayload.append('file', file);
+
+        const toastId = toast.loading(`Uploading ${field === 'videoUrl' ? 'video' : 'thumbnail'}...`);
+
+        try {
+            const res = await fetch('/api/portfolio/upload', {
+                method: 'POST',
+                body: formDataPayload,
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setFormData(prev => ({ ...prev, [field]: data.url }));
+                toast.success('Upload successful', { id: toastId });
+            } else {
+                toast.error(data.message || 'Upload failed', { id: toastId });
+            }
+        } catch (err) {
+            toast.error('Upload failed', { id: toastId });
+        }
+    };
 
     const fetchVideos = useCallback(async () => {
         try {
@@ -606,10 +647,11 @@ function ContentControl() {
     }, {});
 
     // Category stats
-    const categoryStats = CATEGORIES.map((cat) => ({
-        ...cat,
-        total: videos.filter((v) => v.category === cat.key).length,
-        active: videos.filter((v) => v.category === cat.key && v.isActive).length,
+    const categoryStats = allSubcategories.map((sub) => ({
+        key: sub.key,
+        label: sub.label,
+        total: videos.filter((v) => v.category === sub.key).length,
+        active: videos.filter((v) => v.category === sub.key && v.isActive).length,
     }));
 
     return (
@@ -655,7 +697,7 @@ function ContentControl() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All Categories</SelectItem>
-                                    {CATEGORIES.map((c) => (
+                                    {allSubcategories.map((c) => (
                                         <SelectItem key={c.key} value={c.key}>
                                             {c.label}
                                         </SelectItem>
@@ -689,7 +731,7 @@ function ContentControl() {
                         <div className="space-y-8">
                             {Object.entries(byCategory).map(([catKey, catVideos]) => {
                                 const catLabel =
-                                    CATEGORIES.find((c) => c.key === catKey)?.label || catKey;
+                                    allSubcategories.find((c) => c.key === catKey)?.label || catKey;
                                 return (
                                     <div key={catKey}>
                                         <div className="flex items-center justify-between mb-3">
@@ -865,28 +907,66 @@ function ContentControl() {
                         </div>
                         <div className="space-y-2">
                             <Label>Video URL *</Label>
-                            <Input
-                                value={formData.videoUrl}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, videoUrl: e.target.value })
-                                }
-                                placeholder="https://youtube.com/watch?v=... or Vimeo URL"
-                                required
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Supports YouTube, Vimeo, and direct embed URLs
+                            <div className="flex gap-2">
+                                <Input
+                                    value={formData.videoUrl}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, videoUrl: e.target.value })
+                                    }
+                                    placeholder="https://youtube.com/... or upload"
+                                    required
+                                />
+                                <div className="relative">
+                                    <input
+                                        type="file"
+                                        id="video-upload"
+                                        className="hidden"
+                                        accept="video/*"
+                                        onChange={(e) => handleFileUpload(e, 'videoUrl')}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => document.getElementById('video-upload')?.click()}
+                                    >
+                                        <Upload className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
+                                YouTube, Vimeo, or direct upload to Cloudinary
                             </p>
                         </div>
                         <div className="space-y-2">
                             <Label>Custom Thumbnail URL (optional)</Label>
-                            <Input
-                                value={formData.thumbnailUrl}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, thumbnailUrl: e.target.value })
-                                }
-                                placeholder="https://... (leave blank for auto-detect)"
-                            />
-                            <p className="text-xs text-muted-foreground">
+                            <div className="flex gap-2">
+                                <Input
+                                    value={formData.thumbnailUrl || ""}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, thumbnailUrl: e.target.value })
+                                    }
+                                    placeholder="https://... or upload"
+                                />
+                                <div className="relative">
+                                    <input
+                                        type="file"
+                                        id="thumb-upload"
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={(e) => handleFileUpload(e, 'thumbnailUrl')}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => document.getElementById('thumb-upload')?.click()}
+                                    >
+                                        <ImageIcon className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
                                 YouTube thumbnails are auto-detected. Use this to override.
                             </p>
                         </div>
@@ -903,9 +983,9 @@ function ContentControl() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {CATEGORIES.map((c) => (
+                                        {allSubcategories.map((c) => (
                                             <SelectItem key={c.key} value={c.key}>
-                                                {c.label}
+                                                {c.parentLabel} - {c.label}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -989,9 +1069,182 @@ function getEmbedUrl(url: string): string {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MAIN EXPORTED COMPONENT — 2 tabs
+   PORTFOLIO SECTIONS MANAGEMENT
+   ═══════════════════════════════════════════════════════════════ */
+function SectionsManagement({ sections, onRefresh }: { sections: Category[], onRefresh: () => void }) {
+    const [saving, setSaving] = useState(false);
+    const [editingSections, setEditingSections] = useState<Category[]>([]);
+
+    useEffect(() => {
+        setEditingSections(JSON.parse(JSON.stringify(sections)));
+    }, [sections]);
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const res = await fetch("/api/portfolio/sections", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sections: editingSections }),
+            });
+            if (res.ok) {
+                toast.success("Sections updated successfully");
+                onRefresh();
+            } else {
+                toast.error("Failed to update sections");
+            }
+        } catch {
+            toast.error("Network error updating sections");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const toggleMainCategory = (idx: number) => {
+        const newSections = [...editingSections];
+        newSections[idx].isActive = !newSections[idx].isActive;
+        setEditingSections(newSections);
+    };
+
+    const toggleSubcategory = (catIdx: number, subIdx: number) => {
+        const newSections = [...editingSections];
+        newSections[catIdx].subcategories[subIdx].isActive = !newSections[catIdx].subcategories[subIdx].isActive;
+        setEditingSections(newSections);
+    };
+
+    const updateMainLabel = (idx: number, label: string) => {
+        const newSections = [...editingSections];
+        newSections[idx].label = label;
+        setEditingSections(newSections);
+    };
+
+    const updateSubLabel = (catIdx: number, subIdx: number, label: string) => {
+        const newSections = [...editingSections];
+        newSections[catIdx].subcategories[subIdx].label = label;
+        setEditingSections(newSections);
+    };
+
+    const moveMain = (idx: number, dir: 'up' | 'down') => {
+        const newSections = [...editingSections];
+        const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= newSections.length) return;
+        [newSections[idx], newSections[swapIdx]] = [newSections[swapIdx], newSections[idx]];
+        setEditingSections(newSections);
+    };
+
+    const moveSub = (catIdx: number, subIdx: number, dir: 'up' | 'down') => {
+        const newSections = [...editingSections];
+        const subs = [...newSections[catIdx].subcategories];
+        const swapIdx = dir === 'up' ? subIdx - 1 : subIdx + 1;
+        if (swapIdx < 0 || swapIdx >= subs.length) return;
+        [subs[subIdx], subs[swapIdx]] = [subs[swapIdx], subs[subIdx]];
+        newSections[catIdx].subcategories = subs;
+        setEditingSections(newSections);
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Reorder & Manage Sections</CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Control which categories and subcategories appear in the public portfolio.
+                            </p>
+                        </div>
+                        <Button onClick={handleSave} disabled={saving}>
+                            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            Save Configuration
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {editingSections.map((cat, catIdx) => (
+                        <div key={cat.key} className="border rounded-lg p-4 bg-muted/20">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="flex flex-col gap-1">
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={catIdx === 0} onClick={() => moveMain(catIdx, 'up')}>
+                                        <ChevronLeft className="h-4 w-4 rotate-90" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={catIdx === editingSections.length - 1} onClick={() => moveMain(catIdx, 'down')}>
+                                        <ChevronLeft className="h-4 w-4 -rotate-90" />
+                                    </Button>
+                                </div>
+                                <div className="flex-1 flex items-center gap-3">
+                                    <Input
+                                        value={cat.label}
+                                        onChange={(e) => updateMainLabel(catIdx, e.target.value)}
+                                        className="font-bold text-lg bg-transparent border-none focus-visible:ring-1 max-w-sm"
+                                    />
+                                    <Badge variant={cat.isActive ? "default" : "outline"}>
+                                        {cat.isActive ? "Visible" : "Hidden"}
+                                    </Badge>
+                                </div>
+                                <Switch checked={cat.isActive} onCheckedChange={() => toggleMainCategory(catIdx)} />
+                            </div>
+
+                            <div className="ml-10 space-y-2 border-l-2 pl-6">
+                                {cat.subcategories.map((sub, subIdx) => (
+                                    <div key={sub.key} className="flex items-center gap-3 p-2 rounded-md hover:bg-card transition-colors">
+                                        <div className="flex flex-col gap-0.5">
+                                            <Button variant="ghost" size="icon" className="h-5 w-5" disabled={subIdx === 0} onClick={() => moveSub(catIdx, subIdx, 'up')}>
+                                                <ArrowUp className="h-3 w-3" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-5 w-5" disabled={subIdx === cat.subcategories.length - 1} onClick={() => moveSub(catIdx, subIdx, 'down')}>
+                                                <ArrowDown className="h-3 w-3" />
+                                            </Button>
+                                        </div>
+                                        <Input
+                                            value={sub.label}
+                                            onChange={(e) => updateSubLabel(catIdx, subIdx, e.target.value)}
+                                            className="h-8 max-w-xs"
+                                        />
+                                        <div className="flex-1" />
+                                        <Switch checked={sub.isActive} onCheckedChange={() => toggleSubcategory(catIdx, subIdx)} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN EXPORTED COMPONENT — 3 tabs
    ═══════════════════════════════════════════════════════════════ */
 export function PortfolioManagementTab() {
+    const [sections, setSections] = useState<Category[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchSections = useCallback(async () => {
+        try {
+            setLoading(true);
+            const res = await fetch("/api/portfolio/sections");
+            const data = await res.json();
+            if (data.ok) setSections(data.sections);
+        } catch {
+            toast.error("Failed to load sections configuration");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchSections();
+    }, [fetchSections]);
+
+    if (loading && sections.length === 0) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2 pb-6 border-b border-gray-200">
@@ -1014,14 +1267,18 @@ export function PortfolioManagementTab() {
             </div>
 
             <Tabs defaultValue="leads" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 max-w-md">
+                <TabsList className="grid w-full grid-cols-3 max-w-xl">
                     <TabsTrigger value="leads" className="flex items-center gap-2">
                         <Users className="h-4 w-4" />
-                        Lead Management
+                        Leads
+                    </TabsTrigger>
+                    <TabsTrigger value="sections" className="flex items-center gap-2">
+                        <SettingsIcon className="h-4 w-4" />
+                        Sections
                     </TabsTrigger>
                     <TabsTrigger value="content" className="flex items-center gap-2">
                         <Film className="h-4 w-4" />
-                        Content Control
+                        Videos
                     </TabsTrigger>
                 </TabsList>
 
@@ -1029,8 +1286,12 @@ export function PortfolioManagementTab() {
                     <LeadManagement />
                 </TabsContent>
 
+                <TabsContent value="sections" className="mt-6">
+                    <SectionsManagement sections={sections} onRefresh={fetchSections} />
+                </TabsContent>
+
                 <TabsContent value="content" className="mt-6">
-                    <ContentControl />
+                    <ContentControl sections={sections} />
                 </TabsContent>
             </Tabs>
         </div>

@@ -1038,10 +1038,36 @@ model PortfolioLead {
   phone          String
   email          String
   serviceNeeded  String
+  ipAddress      String?
   createdAt      DateTime @default(now())
 
   @@index([email])
   @@index([createdAt])
+}
+
+model PortfolioCategory {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  label     String
+  iconName  String   @default("Film")
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  subcategories PortfolioSubcategory[]
+}
+
+model PortfolioSubcategory {
+  id          String   @id @default(cuid())
+  categoryId  String
+  key         String   @unique
+  label       String
+  iconName    String   @default("Video")
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  category    PortfolioCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 }
 
 model PortfolioVideo {
