@@ -652,6 +652,16 @@ interface EmployeeApiResponse {
   }>;
 }
 
+function formatDateMDY(value: string | null | undefined): string {
+  if (!value) return "N/A";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "N/A";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+}
+
 export function UserManagementTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -687,7 +697,7 @@ export function UserManagementTab() {
                   : u.employeeStatus === "INACTIVE"
                     ? "inactive"
                     : "active",
-              joinDate: u.joinedAt || "",
+              joinDate: formatDateMDY(u.joinedAt || null),
               lastActive: "N/A",
               tasksCompleted: 0,
               avatar: initials,

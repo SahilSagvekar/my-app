@@ -1,7 +1,10 @@
 import { Navigation } from '@/components/landing/Navigation';
 import { Footer } from '@/components/landing/Footer';
 import ContactForm from '@/components/landing/ContactForm';
-import { Mail, Phone, MapPin } from 'lucide-react';
+import { CalendlyEmbed } from '@/components/landing/CalendlyEmbed';
+import { Mail, Phone, MapPin, Calendar } from 'lucide-react';
+
+// Set NEXT_PUBLIC_CALENDLY_URL in .env to your Calendly link (e.g. https://calendly.com/your-username/30min) to show "Book a meeting".
 
 export default function ContactPage() {  // ← Changed: Added "default"
   return (
@@ -84,6 +87,26 @@ export default function ContactPage() {  // ← Changed: Added "default"
               </div>
             </div>
           </div>
+
+          {/* Calendly – Book a meeting with Eric (only when NEXT_PUBLIC_CALENDLY_URL is set) */}
+          {process.env.NEXT_PUBLIC_CALENDLY_URL?.trim() ? (
+            <div className="mt-12 sm:mt-16 px-4 sm:px-0">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0">
+                  <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-black/70" />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl text-black">
+                    Book a meeting
+                  </h3>
+                  <p className="text-sm sm:text-base text-black/60 mt-0.5">
+                    Schedule a call with Eric at a time that works for you.
+                  </p>
+                </div>
+              </div>
+              <CalendlyEmbed />
+            </div>
+          ) : null}
           </div>
         </section>
       </div>

@@ -134,6 +134,14 @@ export function QCDashboard() {
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
+  const [sidebarLoading, setSidebarLoading] = useState(true);
+  const [sidebarError, setSidebarError] = useState<string | null>(null);
+  const [qcRejections, setQcRejections] = useState<
+    { taskId: string; title: string; editorName: string | null; reason: string; count: number }[]
+  >([]);
+  const [clientRejections, setClientRejections] = useState<
+    { taskId: string; title: string; clientName: string | null; reason: string; count: number }[]
+  >([]);
 
   // 🔥 Share states
   const [shareLink, setShareLink] = useState("");
@@ -159,6 +167,28 @@ export function QCDashboard() {
 
   useEffect(() => {
     loadQCTasks();
+  }, []);
+
+  useEffect(() => {
+    async function loadSidebar() {
+      try {
+        setSidebarLoading(true);
+        setSidebarError(null);
+        const res = await fetch("/api/qc/rejection-sidebar");
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data.message || "Failed to load rejection analytics");
+        }
+        setQcRejections(data.qcRejections || []);
+        setClientRejections(data.clientRejections || []);
+      } catch (err: any) {
+        console.error("QC sidebar error:", err);
+        setSidebarError(err?.message || "Failed to load sidebar");
+      } finally {
+        setSidebarLoading(false);
+      }
+    }
+    loadSidebar();
   }, []);
 
   // Global listener for background task updates
@@ -642,7 +672,7 @@ export function QCDashboard() {
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
-            <div className="flex flex-col">
+            <div className="flex flex-col items-center text-center">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
                 Pending Reviews
               </span>
@@ -657,7 +687,9 @@ export function QCDashboard() {
         </div>
       </div>
 
-      <div className="flex-1">
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
+        {/* Main QC grid */}
+        <div className="flex-1">
         {/* <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -820,6 +852,99 @@ export function QCDashboard() {
             })}
           </div>
         )}
+        </div>
+
+        {/* Sidebar – repeated rejections */}
+        <div className="w-full xl:w-80 flex-shrink-0">
+          <Card className="border border-zinc-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">Rejection Patterns</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Tasks rejected 3+ times for the same reason.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {sidebarLoading && (
+                <p className="text-xs text-muted-foreground">Loading...</p>
+              )}
+              {sidebarError && !sidebarLoading && (
+                <p className="text-xs text-destructive">{sidebarError}</p>
+              )}
+
+              {/* QC Rejections */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">
+                  QC / Admin Rejections
+                </p>
+                {(!qcRejections || qcRejections.length === 0) && !sidebarLoading ? (
+                  <p className="text-xs text-muted-foreground">
+                    No repeated QC rejections detected.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5 text-xs">
+                    {qcRejections.map((item) => (
+                      <li
+                        key={`${item.taskId}-${item.reason}`}
+                        className="border rounded-md px-2 py-1.5 bg-muted/40"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium line-clamp-1">{item.title}</span>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            ×{item.count}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                          {item.reason}
+                        </p>
+                        {item.editorName && (
+                          <p className="text-[10px] text-zinc-500 mt-0.5">
+                            Editor: {item.editorName}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Client Rejections */}
+              <div className="space-y-2 pt-2 border-t border-dashed border-zinc-200">
+                <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wide">
+                  Client Rejections
+                </p>
+                {(!clientRejections || clientRejections.length === 0) && !sidebarLoading ? (
+                  <p className="text-xs text-muted-foreground">
+                    No repeated client rejections detected.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5 text-xs">
+                    {clientRejections.map((item) => (
+                      <li
+                        key={`${item.taskId}-${item.reason}`}
+                        className="border rounded-md px-2 py-1.5 bg-muted/40"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium line-clamp-1">{item.title}</span>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            ×{item.count}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                          {item.reason}
+                        </p>
+                        {item.clientName && (
+                          <p className="text-[10px] text-zinc-500 mt-0.5">
+                            Client: {item.clientName}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {

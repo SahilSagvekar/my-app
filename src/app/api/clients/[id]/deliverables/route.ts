@@ -2,18 +2,38 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+// Helper: safely extract clientId from URL and params
+function getClientId(req: Request, paramsObj: { id?: string } = {}): string | null {
+  if (paramsObj.id) return paramsObj.id;
+  try {
+    const url = new URL(req.url);
+    const segments = url.pathname.split("/").filter(Boolean);
+    const clientsIndex = segments.indexOf("clients");
+    if (clientsIndex !== -1 && segments[clientsIndex + 1]) {
+      return segments[clientsIndex + 1];
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 // POST - Create a new deliverable for a client
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params;
-    const data = await req.json();
+    const clientId = getClientId(req, params);
 
     console.log("➕ Creating deliverable for client:", clientId);
+    const data = await req.json();
+
     console.log("📦 Deliverable data:", data);
 
+    if (!clientId) {
+      return NextResponse.json({ message: "Client ID missing in request URL" }, { status: 400 });
+    }
     // Verify client exists
     const client = await prisma.client.findUnique({
       where: { id: clientId },
@@ -53,10 +73,14 @@ export async function POST(
 // GET - Get all deliverables for a client
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: clientId } = await params;
+    const clientId = getClientId(req, params);
+
+    if (!clientId) {
+      return NextResponse.json({ message: "Client ID missing in request URL" }, { status: 400 });
+    }
 
     const deliverables = await prisma.monthlyDeliverable.findMany({
       where: { clientId },

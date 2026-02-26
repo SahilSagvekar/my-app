@@ -1215,7 +1215,12 @@ export function SocialLogins() {
         setLogins((prev) => prev.filter((l) => l.id !== deleteConfirmLogin.id));
         toast.success("Credentials deleted");
       } else {
-        toast.error("Failed to delete");
+        const data = await res.json().catch(() => null);
+        if (res.status === 403 && data?.message) {
+          toast.error(data.message);
+        } else {
+          toast.error(data?.message || "Failed to delete");
+        }
       }
 
       setDeleteConfirmLogin(null);

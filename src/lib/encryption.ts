@@ -65,11 +65,13 @@ export function decrypt(encryptedText: string): string {
     // Decrypt
     let decrypted = decipher.update(encrypted, "base64", "utf8");
     decrypted += decipher.final("utf8");
-    
+
     return decrypted;
   } catch (error) {
+    // In production, you might want to handle legacy/bad data more gracefully.
+    // For now, log the error and return a safe placeholder so callers don't crash.
     console.error("Decryption failed:", error);
-    throw new Error("Failed to decrypt data");
+    return "[decryption failed]";
   }
 }
 
