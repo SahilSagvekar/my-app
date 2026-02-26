@@ -7,7 +7,7 @@ import {
     X, Play, ChevronDown, Film, Video, Scissors, Camera, Mic,
     Lock, ArrowRight, Loader2, Check, Phone, Mail, User, Briefcase,
     Clapperboard, Smartphone, Home, Car, Package, ImageIcon, ChevronRight,
-    Settings, LayoutGrid
+    Settings, LayoutGrid, Calendar, CheckCircle
 } from 'lucide-react';
 import logoImage from '../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
 
@@ -510,6 +510,15 @@ function PortfolioNav({
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
     const dropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    const handleBookMeeting = () => {
+        const calendlyUrl = 'https://calendly.com/e8productions'; // Placeholder, should be configurable
+        if ((window as any).Calendly) {
+            (window as any).Calendly.initPopupWidget({ url: calendlyUrl });
+        } else {
+            window.open(calendlyUrl, '_blank');
+        }
+    };
+
     // Close dropdown on outside click
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -536,9 +545,9 @@ function PortfolioNav({
     return (
         <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-black/5">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-14 sm:h-16">
-                    {/* Logo */}
-                    <div className="flex-shrink-0">
+                <div className="flex items-center justify-between h-14 sm:h-16 relative">
+                    {/* Logo (Left) */}
+                    <div className="flex-shrink-0 z-10">
                         <Link href="/" className="text-black transition-opacity hover:opacity-60">
                             <Image
                                 src={logoImage}
@@ -551,8 +560,8 @@ function PortfolioNav({
                         </Link>
                     </div>
 
-                    {/* Desktop Navigation */}
-                    <div className="hidden lg:flex items-center gap-1">
+                    {/* Desktop Navigation (Center) */}
+                    <div className="hidden lg:flex items-center justify-center gap-1.5 absolute inset-x-0 mx-auto w-fit">
                         {categories.filter(c => c.isActive).map((cat) => {
                             const Icon = ICON_MAP[cat.icon as string] || Film;
                             const isActive = activeCategory === cat.key;
@@ -571,23 +580,24 @@ function PortfolioNav({
                                             setOpenDropdown(isOpen ? null : cat.key);
                                             // Select the first subcategory if clicking a new category
                                             if (!isActive) {
-                                                onSelectSub(cat.key, cat.subcategories[0].key);
+                                                const firstSub = cat.subcategories.find(s => s.isActive);
+                                                if (firstSub) onSelectSub(cat.key, firstSub.key);
                                             }
                                         }}
-                                        className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${isActive
+                                        className={`flex items-center gap-1.5 px-6 py-2 rounded-full text-sm font-semibold transition-all ${isActive
                                             ? 'bg-black text-white shadow-lg shadow-black/10'
                                             : 'text-black/60 hover:text-black hover:bg-black/5'
                                             }`}
                                     >
-                                        <Icon className="w-3.5 h-3.5" />
+                                        <Icon className="w-4 h-4" />
                                         {cat.label}
-                                        <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                                     </button>
 
                                     {/* Subcategory dropdown */}
                                     {isOpen && (
-                                        <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-black/8 rounded-xl shadow-2xl overflow-hidden animate-subnav-in">
-                                            <div className="py-1.5">
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 bg-white border border-black/[0.08] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden animate-subnav-in">
+                                            <div className="p-2 space-y-1">
                                                 {cat.subcategories.filter(s => s.isActive).map((sub) => {
                                                     const SubIcon = ICON_MAP[sub.icon as string] || Video;
                                                     const isSubActive = activeSubcategory === sub.key;
@@ -598,14 +608,16 @@ function PortfolioNav({
                                                                 onSelectSub(cat.key, sub.key);
                                                                 setOpenDropdown(null);
                                                             }}
-                                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-all ${isSubActive
+                                                            className={`w-full flex items-center gap-3 px-4 py-3 text-sm rounded-xl transition-all ${isSubActive
                                                                 ? 'bg-black text-white'
                                                                 : 'text-black/70 hover:bg-black/5 hover:text-black'
                                                                 }`}
                                                         >
-                                                            <SubIcon className="w-4 h-4 shrink-0" />
-                                                            <span className="flex-1 text-left">{sub.label}</span>
-                                                            {isSubActive && <Check className="w-3.5 h-3.5 shrink-0" />}
+                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isSubActive ? 'bg-white/20' : 'bg-black/5'}`}>
+                                                                <SubIcon className="w-4 h-4 shrink-0" />
+                                                            </div>
+                                                            <span className="flex-1 text-left font-medium">{sub.label}</span>
+                                                            {isSubActive && <CheckCircle className="w-4 h-4 shrink-0" />}
                                                         </button>
                                                     );
                                                 })}
@@ -617,12 +629,24 @@ function PortfolioNav({
                         })}
                     </div>
 
+                    {/* Desktop Actions (Right) */}
+                    <div className="hidden lg:flex items-center gap-4 z-10">
+                        <button
+                            onClick={handleBookMeeting}
+                            className="bg-black text-white px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-gray-800 transition-all shadow-lg shadow-black/10 active:scale-95"
+                        >
+                            <Calendar className="w-4 h-4" />
+                            Book Meeting
+                        </button>
+                    </div>
+
                     {/* Mobile menu button */}
                     <button
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                        className="lg:hidden p-2 text-black"
+                        className="lg:hidden p-2 text-black z-10"
                         aria-label="Toggle menu"
                     >
+                        {/* ... svg remains same ... */}
                         <svg
                             className="w-5 h-5 sm:w-6 sm:h-6"
                             fill="none"

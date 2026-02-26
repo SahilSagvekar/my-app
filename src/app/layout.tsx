@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 // import "../styles/globals.css";
 import { AuthProvider } from "./../components/auth/AuthContext";
@@ -33,15 +34,26 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link
+          href="https://assets.calendly.com/assets/external/widget.css"
+          rel="stylesheet"
+        />
+      </head>
       <body
         className={`${inter.className} ${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-         <AuthProvider>
+        <AuthProvider>
           <NotificationProvider>
-          {children}
+            {children}
           </NotificationProvider>
           <Toaster position="bottom-right" />
         </AuthProvider>
+        {/* Calendly Widget Script */}
+        <Script
+          src="https://assets.calendly.com/assets/external/widget.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
