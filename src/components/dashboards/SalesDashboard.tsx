@@ -859,6 +859,7 @@ export function SalesDashboard() {
     total: saved.length,
     contacted: saved.filter(l => l.emailed || l.called || l.texted || l.instagram || l.facebook || l.linkedin || l.twitter || l.tiktok).length,
     meetings: saved.filter(l => l.meetingBooked).length,
+    highPriority: saved.filter(l => l.priority === 'critical' || l.priority === 'high').length,
     pipeline: saved.reduce((s, l) => s + (l.value ?? 0), 0),
   };
 
@@ -919,19 +920,16 @@ export function SalesDashboard() {
       </div>
 
       {/* ── Stats Bar ── */}
-      <div className="flex items-center gap-6 px-4 py-2.5 rounded-lg bg-white border border-gray-100 shadow-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Leads', value: stats.total, color: '#323338' },
-          { label: 'Contacted', value: stats.contacted, color: '#579BFC' },
-          { label: 'Meetings', value: stats.meetings, color: '#00C875' },
-          { label: 'Pipeline', value: `$${stats.pipeline.toLocaleString()}`, color: '#FDAB3D' },
+          { label: 'Total Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
+          { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-100/50 border-blue-200' },
+          { label: 'Meetings Booked', value: stats.meetings, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
+          { label: 'High Priority', value: stats.highPriority, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
         ].map(s => (
-          <div key={s.label} className="flex items-center gap-2">
-            <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: s.color }} />
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{s.label}</p>
-              <p className="text-[18px] font-bold leading-tight" style={{ color: s.color }}>{s.value}</p>
-            </div>
+          <div key={s.label} className={cn('rounded-xl border p-4 flex flex-col items-center justify-center text-center transition-all hover:shadow-md cursor-default', s.bg)}>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{s.label}</p>
+            <p className={cn('text-3xl font-black mt-0.5', s.color)}>{s.value}</p>
           </div>
         ))}
       </div>

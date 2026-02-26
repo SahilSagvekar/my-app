@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     DollarSign, TrendingUp, Clock, Check, Loader2, ChevronRight,
-    Calendar, Users, Wallet, BadgePercent, ArrowUpRight, ArrowDownRight
+    Calendar, Users, Wallet, BadgePercent, ArrowUpRight, ArrowDownRight,
+    CheckCircle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -75,37 +76,6 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string; 
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function StatCard({ icon: Icon, label, value, subtext, color, trend }: {
-    icon: any; label: string; value: string; subtext?: string; color: string;
-    trend?: 'up' | 'down' | 'neutral';
-}) {
-    return (
-        <div className="group relative bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
-            {/* Colored top border */}
-            <div className="absolute top-0 left-0 right-0 h-1 rounded-t-xl" style={{ backgroundColor: color }} />
-            <div className="p-5 pt-6">
-                <div className="flex items-start justify-between">
-                    <div className="space-y-2.5">
-                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
-                        <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
-                        {subtext && (
-                            <div className="flex items-center gap-1.5">
-                                {trend === 'up' && <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />}
-                                {trend === 'down' && <ArrowDownRight className="h-3.5 w-3.5 text-red-500" />}
-                                <p className={cn("text-xs font-medium",
-                                    trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-red-600' : 'text-gray-500'
-                                )}>{subtext}</p>
-                            </div>
-                        )}
-                    </div>
-                    <div className="p-2.5 rounded-lg transition-colors" style={{ backgroundColor: color + '14' }}>
-                        <Icon className="h-5 w-5" style={{ color }} />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 function CommissionStatusBadge({ status }: { status: string }) {
     const style = STATUS_STYLES[status] || STATUS_STYLES.PENDING;
@@ -323,6 +293,9 @@ export function AffiliateSection() {
         );
     }
 
+    const pendingCount = commissions.filter(c => c.status === 'PENDING').length;
+    const approvedCount = commissions.filter(c => c.status === 'APPROVED').length;
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // RENDER
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -337,40 +310,27 @@ export function AffiliateSection() {
                 </p>
             </div>
 
-            {/* ── Stats Cards ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                    icon={Wallet}
-                    label="Total Earned"
-                    value={formatCurrency(summary.totalEarned)}
-                    subtext="All-time paid commissions"
-                    color="#10B981"
-                    trend="neutral"
-                />
-                <StatCard
-                    icon={Clock}
-                    label="Pending Approval"
-                    value={formatCurrency(summary.totalPending)}
-                    subtext={`${commissions.filter(c => c.status === 'PENDING').length} deals awaiting approval`}
-                    color="#F59E0B"
-                    trend="neutral"
-                />
-                <StatCard
-                    icon={Check}
-                    label="Approved"
-                    value={formatCurrency(summary.totalApproved)}
-                    subtext="Approved, awaiting payout"
-                    color="#3B82F6"
-                    trend="neutral"
-                />
-                <StatCard
-                    icon={TrendingUp}
-                    label="This Month"
-                    value={formatCurrency(summary.thisMonth)}
-                    subtext="Current month projection"
-                    color="#8B5CF6"
-                    trend="up"
-                />
+            {/* ── Stats Bar ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                    { label: 'Total Paid Out', value: formatCurrency(summary.totalEarned), color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: Wallet },
+                    { label: 'Pending Approval', value: formatCurrency(summary.totalPending), color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock, badge: pendingCount > 0 ? pendingCount : null },
+                    { label: 'Approved (Unpaid)', value: formatCurrency(summary.totalApproved), color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: CheckCircle, badge: approvedCount > 0 ? approvedCount : null },
+                    { label: 'This Month', value: formatCurrency(summary.thisMonth), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', icon: TrendingUp },
+                ].map(s => (
+                    <div key={s.label} className={cn('rounded-xl border p-4 relative flex flex-col items-center justify-center text-center transition-all hover:shadow-md cursor-default', s.bg)}>
+                        <div className="flex items-center gap-2 mb-1">
+                            <s.icon className={cn('h-4 w-4', s.color)} />
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{s.label}</p>
+                        </div>
+                        <p className={cn('text-2xl font-black mt-1', s.color)}>{s.value}</p>
+                        {(s as any).badge && (
+                            <span className="absolute top-2 right-2 min-w-[20px] h-5 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full px-1.5 shadow-sm">
+                                {(s as any).badge}
+                            </span>
+                        )}
+                    </div>
+                ))}
             </div>
 
             {/* ── Earnings Chart (Simple Bar) ── */}

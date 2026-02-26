@@ -330,14 +330,14 @@ function CommissionManagement() {
           { label: 'Approved (Unpaid)', value: formatCurrency(summary.totalApproved), color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: CheckCircle, badge: approvedCount > 0 ? approvedCount : null },
           { label: 'This Month', value: formatCurrency(summary.thisMonth), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', icon: TrendingUp },
         ].map(s => (
-          <div key={s.label} className={cn('rounded-xl border p-4 relative', s.bg)}>
+          <div key={s.label} className={cn('rounded-xl border p-4 relative flex flex-col items-center justify-center text-center transition-all hover:shadow-md cursor-default', s.bg)}>
             <div className="flex items-center gap-2 mb-1">
               <s.icon className={cn('h-4 w-4', s.color)} />
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{s.label}</p>
             </div>
-            <p className={cn('text-2xl font-bold mt-1', s.color)}>{s.value}</p>
+            <p className={cn('text-2xl font-black mt-1', s.color)}>{s.value}</p>
             {(s as any).badge && (
-              <span className="absolute top-2 right-2 min-w-[20px] h-5 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full px-1.5">
+              <span className="absolute top-2 right-2 min-w-[20px] h-5 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full px-1.5 shadow-sm">
                 {(s as any).badge}
               </span>
             )}
@@ -630,9 +630,9 @@ export function SalesManagementTab() {
   // ── Aggregate stats across filtered leads ──
   const stats = {
     total: filtered.length,
-    contacted: filtered.filter(l => l.emailed || l.called || l.texted || l.igDm).length,
+    contacted: filtered.filter(l => l.emailed || l.called || l.texted || l.instagram || l.facebook || l.linkedin || l.twitter || l.tiktok).length,
     meetings: filtered.filter(l => l.meetingBooked).length,
-    highPriority: filtered.filter(l => l.priority === 'high').length,
+    highPriority: filtered.filter(l => l.priority === 'critical' || l.priority === 'high').length,
   };
 
   // ── Export CSV ──
@@ -737,13 +737,13 @@ export function SalesManagementTab() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
                 { label: 'Total Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
-                { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-100/50 border-blue-200' },
                 { label: 'Meetings Booked', value: stats.meetings, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
                 { label: 'High Priority', value: stats.highPriority, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
               ].map(s => (
-                <div key={s.label} className={cn('rounded-xl border p-4', s.bg)}>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{s.label}</p>
-                  <p className={cn('text-3xl font-bold mt-1', s.color)}>{s.value}</p>
+                <div key={s.label} className={cn('rounded-xl border p-4 flex flex-col items-center justify-center text-center transition-all hover:shadow-md cursor-default', s.bg)}>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{s.label}</p>
+                  <p className={cn('text-3xl font-black mt-0.5', s.color)}>{s.value}</p>
                 </div>
               ))}
             </div>

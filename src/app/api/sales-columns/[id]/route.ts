@@ -11,8 +11,9 @@ function getTokenFromCookies(req: Request) {
 }
 
 // PATCH /api/sales-columns/[id] — update column (rename, width, order, visible)
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
@@ -20,13 +21,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!decoded?.userId) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const existing = await prisma.salesDashboardColumn.findFirst({
-        where: { id: params.id, userId: decoded.userId }
+      where: { id, userId: decoded.userId }
     });
     if (!existing) return NextResponse.json({ ok: false, message: 'Not found' }, { status: 404 });
 
     const body = await req.json();
     const column = await prisma.salesDashboardColumn.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         label: body.label ?? existing.label,
         width: body.width ?? existing.width,
@@ -43,8 +44,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/sales-columns/[id] — permanently remove a custom column
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
@@ -52,11 +54,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     if (!decoded?.userId) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const existing = await prisma.salesDashboardColumn.findFirst({
-        where: { id: params.id, userId: decoded.userId }
+      where: { id, userId: decoded.userId }
     });
     if (!existing || !existing.isCustom) return NextResponse.json({ ok: false, message: 'Cannot delete core column' }, { status: 400 });
 
-    await prisma.salesDashboardColumn.delete({ where: { id: params.id } });
+    await prisma.salesDashboardColumn.delete({ where: { id } });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

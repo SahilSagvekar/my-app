@@ -11,8 +11,9 @@ function getTokenFromCookies(req: Request) {
 }
 
 // PATCH /api/sales-leads/[id] — update a lead (ownership enforced)
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
@@ -22,14 +23,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const existing = await prisma.salesLead.findFirst({
-      where: { id: params.id, userId: decoded.userId },
+      where: { id, userId: decoded.userId },
     });
     if (!existing) return NextResponse.json({ ok: false, message: 'Not found' }, { status: 404 });
 
     const body = await req.json();
 
     const lead = await prisma.salesLead.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name: body.name ?? existing.name,
         company: body.company ?? existing.company,
@@ -120,22 +121,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/sales-leads/[id]
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!decoded?.userId || decoded.role !== 'sales') {
+    // Allow sales rep to delete their own, or admin to delete any
+    if (!decoded?.userId || (decoded.role !== 'sales' && decoded.role !== 'admin')) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
     const existing = await prisma.salesLead.findFirst({
-      where: { id: params.id, userId: decoded.userId },
+      where: decoded.role === 'admin' ? { id } : { id, userId: decoded.userId },
     });
     if (!existing) return NextResponse.json({ ok: false, message: 'Not found' }, { status: 404 });
 
-    await prisma.salesLead.delete({ where: { id: params.id } });
+    // Handle foreign key constraint for commissions
+    await (prisma as any).affiliateCommission.deleteMany({
+      where: { leadId: id }
+    });
+
+    await prisma.salesLead.delete({ where: { id } });
 
     return NextResponse.json({ ok: true });
   } catch (err) {
