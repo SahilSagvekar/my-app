@@ -7,8 +7,9 @@ import {
   Check, Ghost, FileText, X, Loader2, Send,
   History as HistoryIcon, Link as LinkIcon, Info as InfoIcon,
   TrendingUp, DollarSign, Clock, BadgePercent, Wallet,
-  CheckCircle, XCircle, ArrowRight
+  CheckCircle, XCircle, ArrowRight, ShieldCheck
 } from 'lucide-react';
+import { useAuth } from '@/components/auth/AuthContext';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
@@ -40,8 +41,12 @@ interface Lead {
   name: string;
   email: string;
   socials: string;
+  instagram: boolean;
+  facebook: boolean;
+  linkedin: boolean;
+  twitter: boolean;
+  tiktok: boolean;
   priority: string;
-  igDm: boolean;
   dmPlatform?: string;
   meetingBooked: boolean;
   emailed: boolean;
@@ -539,6 +544,7 @@ function CommissionManagement() {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function SalesManagementTab() {
+  const { user, loading: authLoading } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -547,6 +553,36 @@ export function SalesManagementTab() {
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [view, setView] = useState<'team' | 'personal' | 'commissions'>('team');
+
+  // ── Role Authorization Check ──
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-yellow-500" />
+      </div>
+    );
+  }
+
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm text-center px-8">
+        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6">
+          <ShieldCheck className="h-8 w-8 text-red-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+        <p className="text-gray-500 max-w-md mx-auto text-sm leading-relaxed">
+          The Sales Management portal is strictly for administrators. 
+          Your current role (<span className="font-bold text-gray-700 capitalize">{user?.role || 'Guest'}</span>) 
+          does not have permission to view team sales data or sensitive commission structures.
+        </p>
+        <div className="mt-8">
+          <Button variant="outline" size="sm" onClick={() => window.location.href = '/dashboard'}>
+            Return to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {
@@ -817,13 +853,12 @@ export function SalesManagementTab() {
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-36">Sales Rep</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-40">Lead Name</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-48">Email</th>
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-36">Socials</th>
-                        <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-24">
-                          <div className="flex items-center justify-center gap-1"><Ghost className="h-3.5 w-3.5 text-yellow-500" />Snap</div>
-                        </th>
-                        <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-28">
-                          Social DM
-                        </th>
+                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">Insta</th>
+                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">FB</th>
+                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">LI</th>
+                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">X/TW</th>
+                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">TikTok</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-40">Handles</th>
                         <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Meet</th>
                         <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Email</th>
                         <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Call</th>
@@ -882,19 +917,28 @@ export function SalesManagementTab() {
                                 </span>
                               </td>
 
-                              {/* Socials */}
+                              {/* Social Checkboxes */}
+                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
+                                <TickBadge on={lead.instagram} activeColor="bg-pink-100 text-pink-600" />
+                              </td>
+                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
+                                <TickBadge on={lead.facebook} activeColor="bg-blue-100 text-blue-600" />
+                              </td>
+                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
+                                <TickBadge on={lead.linkedin} activeColor="bg-cyan-100 text-cyan-700" />
+                              </td>
+                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
+                                <TickBadge on={lead.twitter} activeColor="bg-gray-100 text-gray-900" />
+                              </td>
+                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
+                                <TickBadge on={lead.tiktok} activeColor="bg-gray-200 text-black" />
+                              </td>
+                              
+                              {/* Social Handles */}
                               <td className="px-3 py-2.5 border-r border-gray-100">
-                                <span className="text-xs text-gray-600 truncate block max-w-[130px]" title={lead.socials}>
+                                <span className="text-xs text-gray-600 truncate block max-w-[150px]" title={lead.socials}>
                                   {lead.socials || <span className="text-gray-300">—</span>}
                                 </span>
-                              </td>
-
-                              {/* Social DM */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <div className="flex flex-col items-center gap-1">
-                                  <TickBadge on={lead.igDm} activeColor="bg-pink-100 text-pink-600" />
-                                  <PlatformBadge platform={lead.dmPlatform} />
-                                </div>
                               </td>
 
                               {/* Meeting */}

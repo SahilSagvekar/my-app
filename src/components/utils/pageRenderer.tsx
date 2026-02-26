@@ -318,9 +318,8 @@ export function renderPage(
 
   if (role === "sales") {
     switch (page) {
-      case "sales-management":
-        return <SalesManagementTab />;
       case "dashboard":
+      case "sales-management": // Redirect sales reps away from management tab if they click it
         return <SalesDashboard />;
       case "affiliate":
         return <AffiliateSection />;
@@ -333,7 +332,7 @@ export function renderPage(
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:
-        return <SalesManagementTab />;
+        return <SalesDashboard />;
     }
   }
 

@@ -134,7 +134,7 @@ export const getDefaultPage = (role: string): string => {
     case 'manager': return 'dashboard';
     case 'client': return 'approvals';
     case 'videographer': return 'dashboard';
-    case 'sales': return 'sales-management';
+    case 'sales': return 'dashboard';
     default: return 'dashboard';
   }
 };

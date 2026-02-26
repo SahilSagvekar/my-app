@@ -27,23 +27,33 @@ interface Lead {
   email: string;
   phone: string;
   socials: string;
+  instagram: boolean;
+  facebook: boolean;
+  linkedin: boolean;
+  twitter: boolean;
+  tiktok: boolean;
   status: string;
   source: string;
   value: number | null;
   priority: string;
-  igDm: boolean;
   meetingBooked: boolean;
   emailed: boolean;
   called: boolean;
   texted: boolean;
-  dmPlatform: string;
   notes: string;
-  metadata: Record<string, any>;
+  emailTemplate: string;
+  metadata?: Record<string, any>;
+  dmAt?: string;
+  meetingAt?: string;
+  emailedAt?: string;
+  calledAt?: string;
+  textedAt?: string;
   createdAt?: string;
   updatedAt?: string;
-  _saved: boolean;
-  _dirty: boolean;
-  _committing: boolean;
+  // Local UI-only fields
+  _saved?: boolean;
+  _dirty?: boolean;
+  _committing?: boolean;
 }
 
 interface SalesColumn {
@@ -75,9 +85,10 @@ function emptyDraftLead(status = 'NEW'): Lead {
   return {
     id: tempId(),
     name: '', company: '', email: '', phone: '', socials: '',
+    instagram: false, facebook: false, linkedin: false, twitter: false, tiktok: false,
     status, source: '', value: null, priority: '',
-    igDm: false, meetingBooked: false, emailed: false,
-    called: false, texted: false, dmPlatform: '', notes: '', emailTemplate: '',
+    meetingBooked: false, emailed: false,
+    called: false, texted: false, notes: '', emailTemplate: '',
     dmAt: undefined, meetingAt: undefined, emailedAt: undefined,
     calledAt: undefined, textedAt: undefined,
     _saved: false, _dirty: false, _committing: false,
@@ -87,10 +98,13 @@ function emptyDraftLead(status = 'NEW'): Lead {
 function dbLeadToLocal(l: any): Lead {
   return {
     id: l.id, name: l.name, company: l.company || '', email: l.email,
-    phone: l.phone || '', socials: l.socials, status: l.status || 'NEW',
+    phone: l.phone || '', socials: l.socials || '',
+    instagram: !!l.instagram, facebook: !!l.facebook, 
+    linkedin: !!l.linkedin, twitter: !!l.twitter, tiktok: !!l.tiktok,
+    status: l.status || 'NEW',
     source: l.source || '', value: l.value || null, priority: l.priority || '',
-    igDm: l.igDm, meetingBooked: l.meetingBooked, emailed: l.emailed,
-    called: l.called, texted: l.texted, dmPlatform: l.dmPlatform || '',
+    meetingBooked: l.meetingBooked, emailed: l.emailed,
+    called: l.called, texted: l.texted,
     notes: l.notes, emailTemplate: l.emailTemplate,
     dmAt: l.dmAt, meetingAt: l.meetingAt, emailedAt: l.emailedAt,
     calledAt: l.calledAt, textedAt: l.textedAt,
@@ -143,10 +157,14 @@ const CORE_COLUMNS: ColumnDef[] = [
   { id: 'priority', label: 'Priority', width: 'min-w-[120px] w-[120px]', align: 'center' },
   { id: 'email', label: 'Email', width: 'min-w-[180px] w-[180px]' },
   { id: 'phone', label: 'Phone', width: 'min-w-[140px] w-[140px]' },
-  { id: 'socials', label: 'Socials', width: 'min-w-[130px] w-[130px]' },
+  { id: 'instagram', label: 'Instagram', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'facebook', label: 'Facebook', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'linkedin', label: 'LinkedIn', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'twitter', label: 'Twitter', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'tiktok', label: 'TikTok', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'socials', label: 'Social Handles', width: 'min-w-[150px] w-[150px]' },
   { id: 'value', label: 'Deal Value', width: 'min-w-[110px] w-[110px]', align: 'center' },
   { id: 'source', label: 'Source', width: 'min-w-[120px] w-[120px]' },
-  { id: 'dm', label: 'DM', width: 'min-w-[150px] w-[150px]', align: 'center' },
   { id: 'meeting', label: 'Meeting', width: 'min-w-[80px] w-[80px]', align: 'center' },
   { id: 'emailed', label: 'Emailed', width: 'min-w-[80px] w-[80px]', align: 'center' },
   { id: 'called', label: 'Called', width: 'min-w-[80px] w-[80px]', align: 'center' },
@@ -430,9 +448,9 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-gray-500">Socials</label>
+                  <label className="text-[11px] font-semibold text-gray-500">Social Handles</label>
                   <Input value={lead.socials} onChange={e => onUpdate(lead.id, { socials: e.target.value })}
-                    className="h-9 text-sm bg-white" placeholder="@handle" />
+                    className="h-9 text-sm bg-white" placeholder="@instagram, facebook.com/..." />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-gray-500">Source</label>
@@ -466,17 +484,21 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
           {/* Contact Actions */}
           <div className="space-y-3">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contact Actions</h3>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 gap-y-4 gap-x-2 text-center p-3 bg-gray-50 rounded-lg border">
               {[
-                { label: 'DM', checked: lead.igDm, key: 'igDm' as const, color: '#E1306C' },
+                { label: 'Instagram', checked: lead.instagram, key: 'instagram' as const, color: '#E1306C' },
+                { label: 'Facebook', checked: lead.facebook, key: 'facebook' as const, color: '#1877F2' },
+                { label: 'LinkedIn', checked: lead.linkedin, key: 'linkedin' as const, color: '#0A66C2' },
+                { label: 'Twitter', checked: lead.twitter, key: 'twitter' as const, color: '#1DA1F2' },
+                { label: 'TikTok', checked: lead.tiktok, key: 'tiktok' as const, color: '#000000' },
                 { label: 'Meet', checked: lead.meetingBooked, key: 'meetingBooked' as const, color: '#00C875' },
                 { label: 'Email', checked: lead.emailed, key: 'emailed' as const, color: '#579BFC' },
                 { label: 'Call', checked: lead.called, key: 'called' as const, color: '#00C875' },
                 { label: 'Text', checked: lead.texted, key: 'texted' as const, color: '#A25DDC' },
               ].map(c => (
-                <div key={c.key} className="text-center space-y-1">
+                <div key={c.key} className="space-y-1">
                   <MondayTick checked={c.checked} onChange={v => onUpdate(lead.id, { [c.key]: v })} color={c.color} />
-                  <p className="text-[10px] text-gray-400">{c.label}</p>
+                  <p className="text-[10px] text-gray-400 font-medium">{c.label}</p>
                 </div>
               ))}
             </div>
@@ -634,8 +656,12 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
               colId === 'emailed' ? saved.filter(l => l.emailed).length || '' :
                 colId === 'called' ? saved.filter(l => l.called).length || '' :
                   colId === 'texted' ? saved.filter(l => l.texted).length || '' :
-                    colId === 'dm' ? saved.filter(l => l.igDm).length || '' :
-                      ''}
+                    colId === 'instagram' ? saved.filter(l => l.instagram).length || '' :
+                      colId === 'facebook' ? saved.filter(l => l.facebook).length || '' :
+                        colId === 'linkedin' ? saved.filter(l => l.linkedin).length || '' :
+                          colId === 'twitter' ? saved.filter(l => l.twitter).length || '' :
+                            colId === 'tiktok' ? saved.filter(l => l.tiktok).length || '' :
+                              ''}
         </td>
       ))}
       <td />
@@ -698,7 +724,8 @@ export function SalesDashboard() {
       name: lead.name, company: lead.company, email: lead.email,
       phone: lead.phone, socials: lead.socials, status: lead.status,
       source: lead.source, value: lead.value, priority: lead.priority,
-      igDm: lead.igDm, dmPlatform: lead.dmPlatform,
+      instagram: lead.instagram, facebook: lead.facebook, linkedin: lead.linkedin,
+      twitter: lead.twitter, tiktok: lead.tiktok,
       meetingBooked: lead.meetingBooked, emailed: lead.emailed,
       called: lead.called, texted: lead.texted,
       notes: lead.notes, emailTemplate: lead.emailTemplate,
@@ -793,10 +820,11 @@ export function SalesDashboard() {
   // ── Export CSV ──
   const exportCSV = () => {
     const saved = leads.filter(l => l._saved);
-    const headers = ['Name', 'Company', 'Status', 'Priority', 'Email', 'Phone', 'Socials', 'Value ($)', 'Source', 'DM', 'Platform', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes'];
+    const headers = ['Name', 'Company', 'Status', 'Priority', 'Email', 'Phone', 'Social Handles', 'Insta', 'FB', 'LI', 'X', 'TT', 'Value ($)', 'Source', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes'];
     const rows = saved.map(l => [
       l.name, l.company, l.status, l.priority || '—', l.email, l.phone, l.socials,
-      l.value ?? '', l.source, l.igDm ? 'Yes' : 'No', l.dmPlatform || '—',
+      l.instagram ? 'Yes' : 'No', l.facebook ? 'Yes' : 'No', l.linkedin ? 'Yes' : 'No', l.twitter ? 'Yes' : 'No', l.tiktok ? 'Yes' : 'No',
+      l.value ?? '', l.source,
       l.meetingBooked ? 'Yes' : 'No', l.emailed ? 'Yes' : 'No', l.called ? 'Yes' : 'No', l.texted ? 'Yes' : 'No',
       `"${l.notes.replace(/"/g, '""')}"`,
     ]);
@@ -814,7 +842,8 @@ export function SalesDashboard() {
     const q = search.toLowerCase();
     return leads.filter(l =>
       l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q) ||
-      l.socials.toLowerCase().includes(q) || l.company.toLowerCase().includes(q));
+      l.company.toLowerCase().includes(q) || l.socials.toLowerCase().includes(q)
+    );
   }, [leads, search]);
 
   const grouped = useMemo(() => {
@@ -828,7 +857,7 @@ export function SalesDashboard() {
   const saved = leads.filter(l => l._saved);
   const stats = {
     total: saved.length,
-    contacted: saved.filter(l => l.emailed || l.called || l.texted || l.igDm).length,
+    contacted: saved.filter(l => l.emailed || l.called || l.texted || l.instagram || l.facebook || l.linkedin || l.twitter || l.tiktok).length,
     meetings: saved.filter(l => l.meetingBooked).length,
     pipeline: saved.reduce((s, l) => s + (l.value ?? 0), 0),
   };
@@ -914,8 +943,8 @@ export function SalesDashboard() {
             {/* Table header */}
             <thead>
               <tr className="bg-[#F5F6F8] border-b border-gray-200">
-                <th className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 sticky left-0 bg-[#F5F6F8] z-20",
-                  ALL_COLUMNS[0].width)}>
+                 <th className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 sticky left-0 bg-[#F5F6F8] z-20",
+                  CORE_COLUMNS[0].width)}>
                   Lead
                 </th>
                 {activeColumns.filter(c => c.id !== 'name').map(col => (
@@ -949,7 +978,7 @@ export function SalesDashboard() {
                         <tr key={lead.id} className="group border-b border-gray-100 hover:bg-[#F0F7FF] transition-colors">
                           {/* Name — sticky */}
                           <td className={cn("px-0 py-0 border-r border-gray-100 sticky left-0 bg-white group-hover:bg-[#F0F7FF] z-10",
-                            ALL_COLUMNS[0].width)}
+                            CORE_COLUMNS[0].width)}
                             style={{ borderLeft: `3px solid ${group.color}` }}>
                             <div className="flex items-center h-[38px]">
                               <input value={lead.name} onChange={e => updateLead(lead.id, { name: e.target.value })}
@@ -978,6 +1007,11 @@ export function SalesDashboard() {
                                 <input value={lead.phone} onChange={e => updateLead(lead.id, { phone: e.target.value })}
                                   placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
                               )}
+                              {col.id === 'instagram' && <MondayTick checked={lead.instagram} onChange={v => updateLead(lead.id, { instagram: v })} color="#E1306C" />}
+                              {col.id === 'facebook' && <MondayTick checked={lead.facebook} onChange={v => updateLead(lead.id, { facebook: v })} color="#1877F2" />}
+                              {col.id === 'linkedin' && <MondayTick checked={lead.linkedin} onChange={v => updateLead(lead.id, { linkedin: v })} color="#0A66C2" />}
+                              {col.id === 'twitter' && <MondayTick checked={lead.twitter} onChange={v => updateLead(lead.id, { twitter: v })} color="#1DA1F2" />}
+                              {col.id === 'tiktok' && <MondayTick checked={lead.tiktok} onChange={v => updateLead(lead.id, { tiktok: v })} color="#000000" />}
                               {col.id === 'socials' && (
                                 <input value={lead.socials} onChange={e => updateLead(lead.id, { socials: e.target.value })}
                                   placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
@@ -989,12 +1023,6 @@ export function SalesDashboard() {
                               {col.id === 'source' && (
                                 <input value={lead.source} onChange={e => updateLead(lead.id, { source: e.target.value })}
                                   placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-                              )}
-                              {col.id === 'dm' && (
-                                <div className="flex items-center gap-1">
-                                  <MondayTick checked={lead.igDm} onChange={v => updateLead(lead.id, { igDm: v, dmPlatform: v ? (lead.dmPlatform || 'instagram') : '' })} color="#E1306C" />
-                                  <PlatformSelect value={lead.dmPlatform} onChange={v => updateLead(lead.id, { dmPlatform: v, igDm: !!v })} disabled={!lead.igDm} />
-                                </div>
                               )}
                               {col.id === 'meeting' && <MondayTick checked={lead.meetingBooked} onChange={v => updateLead(lead.id, { meetingBooked: v })} color="#00C875" />}
                               {col.id === 'emailed' && <MondayTick checked={lead.emailed} onChange={v => updateLead(lead.id, { emailed: v })} color="#579BFC" />}

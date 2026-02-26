@@ -971,11 +971,15 @@ model SalesLead {
   email         String    @default("")
   phone         String    @default("")
   socials       String    @default("")
+  instagram     Boolean   @default(false)
+  facebook      Boolean   @default(false)
+  linkedin      Boolean   @default(false)
+  twitter       Boolean   @default(false)
+  tiktok        Boolean   @default(false)
   status        String    @default("NEW")
   source        String    @default("")
   value         Float?
   priority      String    @default("")
-  igDm          Boolean   @default(false)
   meetingBooked Boolean   @default(false)
   emailed       Boolean   @default(false)
   called        Boolean   @default(false)
@@ -986,7 +990,6 @@ model SalesLead {
   updatedAt     DateTime  @updatedAt
   calledAt      DateTime?
   dmAt          DateTime?
-  dmPlatform    String    @default("")
   emailedAt     DateTime?
   meetingAt     DateTime?
   textedAt      DateTime?
