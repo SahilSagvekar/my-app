@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/cron/client-review-reminder/route.ts
 //
 // Schedule: once daily (e.g. 9 AM UTC)

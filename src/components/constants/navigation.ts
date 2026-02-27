@@ -22,7 +22,8 @@ import {
   HardDrive,
   Briefcase,
   LogIn,
-  Instagram
+  Instagram,
+  Film
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -37,6 +38,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
+    { id: 'portfolio', label: 'Portfolio', icon: Film },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   editor: [
@@ -80,6 +82,7 @@ export const NAVIGATION_ITEMS = {
 
     { id: 'leaves', label: 'Employee Management', icon: Users },
     { id: 'training', label: 'Training Management', icon: Layout },
+    { id: 'portfolio', label: 'Portfolio', icon: Film },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
@@ -111,7 +114,9 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   sales: [
+    // { id: 'sales-management', label: 'Sales Management', icon: TrendingUp },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     // { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }

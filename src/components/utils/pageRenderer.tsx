@@ -21,6 +21,8 @@ import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
 import { VideographerDashboard } from "../dashboards/VideographerDashboard";
 import { SalesDashboard } from "../dashboards/SalesDashboard";
+import { AffiliateSection } from "../dashboards/AffiliateSection";
+import { SalesManagementTab } from "../admin/SalesManagementTab";
 import { EditorProjects } from "../EditorProjects";
 import { EditorResources } from "../EditorResources";
 import { FeedbackSystem } from "../FeedbackSystem";
@@ -31,6 +33,7 @@ import { EmploymentInfo } from "../EmploymentInfo";
 import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
 import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
+import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 import { Loader2 } from "lucide-react";
@@ -113,6 +116,8 @@ export function renderPage(
       case "guidelines":
       case "sales-management":
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
+      case "portfolio":
+        return <PortfolioManagementTab />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "training":
@@ -257,6 +262,8 @@ export function renderPage(
         return <LeavesComponent />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
+      case "portfolio":
+        return <PortfolioManagementTab />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:
@@ -312,7 +319,10 @@ export function renderPage(
   if (role === "sales") {
     switch (page) {
       case "dashboard":
+      case "sales-management": // Redirect sales reps away from management tab if they click it
         return <SalesDashboard />;
+      case "affiliate":
+        return <AffiliateSection />;
       case "clients":
         return <SalesDashboard />;
       case "training":

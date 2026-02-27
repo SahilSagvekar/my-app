@@ -216,6 +216,15 @@ html {
   border: 0;
 }
 
+/* Hide scrollbar but allow scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
 /* Full-screen modal overrides */
 .fullscreen-dialog {
   /* Force full-screen positioning */

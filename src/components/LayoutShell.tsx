@@ -55,13 +55,14 @@ export function LayoutShell({
   children,
 }: LayoutShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [permittedItems, setPermittedItems] = useState<any[]>([]);
   const [navLoading, setNavLoading] = useState(true);
   const { user: authUser } = useAuth();
 
   // 🔥 Role switching feature
-  const { canSwitchRole, isViewingAsOther, targetSwitchRole, toggleRole } = useViewAsRole();
+  const { canSwitchRole, isViewingAsOther, switchableRoles, switchToRole, resetToOriginal } = useViewAsRole();
 
   const roleDisplay = currentRole
     ? currentRole.toLowerCase() === 'qc'
@@ -151,6 +152,14 @@ export function LayoutShell({
 
             {/* Logo */}
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden lg:flex"
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
               <Image
                 src={logo}
                 alt="E8 Logo"
@@ -182,23 +191,47 @@ export function LayoutShell({
 
             {/* 🔥 Role Switch Button - Only for authorized users */}
             {canSwitchRole && (
-              <Button
-                variant={isViewingAsOther ? "default" : "outline"}
-                size="sm"
-                onClick={toggleRole}
-                className={`flex items-center gap-2 ${isViewingAsOther
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                  : 'border-gray-300 hover:bg-gray-100'
-                  }`}
-              >
-                <ArrowLeftRight className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {isViewingAsOther
-                    ? `Back to ${authUser?.role === 'admin' ? 'Admin' : 'QC'}`
-                    : `Switch to ${targetSwitchRole === 'admin' ? 'Admin' : 'QC'}`
-                  }
-                </span>
-              </Button>
+              <div className="flex items-center gap-2">
+                {isViewingAsOther ? (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={resetToOriginal}
+                    className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                  >
+                    <ArrowLeftRight className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      Back to {authUser?.role === 'admin' ? 'Admin' : 'QC'}
+                    </span>
+                  </Button>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 border-gray-300 hover:bg-gray-100"
+                      >
+                        <ArrowLeftRight className="h-4 w-4" />
+                        <span className="hidden sm:inline">Switch Role</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel>View Portal As</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {switchableRoles.map((role) => (
+                        <DropdownMenuItem
+                          key={role}
+                          onClick={() => switchToRole(role)}
+                          className="flex items-center justify-between"
+                        >
+                          {role.toLowerCase() === 'qc' ? 'QC specialist' : role.charAt(0).toUpperCase() + role.slice(1)}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             )}
 
             {/* Viewing As Indicator */}
@@ -289,9 +322,9 @@ export function LayoutShell({
       {/* Sidebar */}
       <aside
         className={`
-        fixed top-16 left-0 z-20 w-72 h-[calc(100vh-4rem)] bg-white/80 backdrop-blur-md border-r border-gray-200 transform transition-transform duration-200 ease-in-out
+        fixed top-16 left-0 z-20 w-72 h-[calc(100vh-4rem)] bg-white/80 backdrop-blur-md border-r border-gray-200 transform transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0
+        ${isSidebarCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0'}
       `}
       >
         <div className="flex flex-col h-full">
@@ -355,7 +388,7 @@ export function LayoutShell({
       )}
 
       {/* Main Content */}
-      <main className="lg:ml-72 pt-16">
+      <main className={`transition-all duration-300 ease-in-out pt-16 ${isSidebarCollapsed ? 'lg:ml-0' : 'lg:ml-72'}`}>
         <div className="p-6 sm:p-8">{children}</div>
       </main>
 

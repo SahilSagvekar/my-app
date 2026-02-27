@@ -200,6 +200,7 @@ export function ClientDashboard() {
       const res = await fetch("/api/tasks", {
         method: "GET",
         credentials: "include",
+        cache: "no-store",
       });
 
       if (!res.ok) {
@@ -613,19 +614,21 @@ export function ClientDashboard() {
 
     try {
       setIsSubmitting(true);
-      setShowDownloadSelector(false); // Close early to show progress via toast maybe, or keep open? Let's close.
+      setShowDownloadSelector(false);
       toast.info(`Starting download for ${filesToDownload.length} file(s)...`);
 
       for (const file of filesToDownload) {
-        const urlToUse = file.downloadUrl || file.url;
-        if (!urlToUse) continue;
-
-        const link = document.createElement('a');
-        link.href = urlToUse;
-        link.setAttribute('download', file.name);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Priority: downloadUrl > download API for S3 > direct URL
+        if (file.downloadUrl) {
+          window.open(file.downloadUrl, '_blank');
+        } else {
+          const isS3 = file.url?.includes('amazonaws.com') || !!file.s3Key;
+          if (isS3) {
+            window.open(`/api/files/${file.id}/download`, '_blank');
+          } else {
+            window.open(file.url, '_blank');
+          }
+        }
 
         // Small delay for multiple files
         await new Promise(resolve => setTimeout(resolve, 1000));

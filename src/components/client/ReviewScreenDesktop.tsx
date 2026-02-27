@@ -323,7 +323,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             onPause={() => p.setIsPlaying(false)}
                                             onError={() => p.setVideoError(true)}
                                             playsInline
-                                            preload="auto"
+                                            preload="metadata"
                                         />
                                         <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={p.togglePlay}>
                                             {!p.isPlaying && (

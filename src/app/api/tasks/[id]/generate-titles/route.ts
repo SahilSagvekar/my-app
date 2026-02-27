@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/tasks/[id]/generate-titles/route.ts
 
 import { NextResponse } from 'next/server';

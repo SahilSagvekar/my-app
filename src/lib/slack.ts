@@ -31,6 +31,7 @@ export interface SlackNotification {
 // ---------------------------------------------------------------------------
 const TYPE_EMOJI: Record<string, string> = {
   task_assigned: "📋",
+  task_created: "📝",
   content_ready: "✅",
   task_rejected: "❌",
   qc_approval: "✅",

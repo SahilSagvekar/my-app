@@ -169,7 +169,9 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
     }
   };
 
-  useEffect(() => { fetchPostedTasks(); }, [clientId]);
+  useEffect(() => {
+    fetchPostedTasks();
+  }, [clientId]);
 
   const availableDeliverables = useMemo(() => {
     const typeMap = new Map<string, string>();
@@ -209,7 +211,9 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
   }, [filteredItems]);
 
   const togglePlatform = (id: string) => {
-    setSelectedPlatforms(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+    setSelectedPlatforms(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
   };
 
   if (loading) return (
@@ -223,13 +227,12 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
 
   return (
     <div className={cn("flex flex-col min-h-screen bg-[#fafafa] font-sans", className)}>
-      {/* Premium Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-6 shadow-sm">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
-                {/* <LayoutGrid className="h-8 w-8 text-yellow-500" /> */}
+                <LayoutGrid className="h-8 w-8 text-yellow-500" />
                 Posted Content Gallery
               </h1>
               <p className="text-sm text-gray-500 mt-1 font-medium italic">
@@ -324,7 +327,11 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
               {(searchQuery || selectedPlatforms.length > 0 || selectedDeliverable) && (
                 <Button
                   variant="ghost"
-                  onClick={() => { setSearchQuery(""); setSelectedPlatforms([]); setSelectedDeliverable(null); }}
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedPlatforms([]);
+                    setSelectedDeliverable(null);
+                  }}
                   className="h-10 w-10 p-0 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50"
                   title="Clear all filters"
                 >
@@ -335,19 +342,28 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
               <div className="flex bg-gray-100 p-1 rounded-xl">
                 <button
                   onClick={() => setViewLayout('grid')}
-                  className={cn("p-1.5 rounded-lg transition-all", viewLayout === 'grid' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600")}
-                ><LayoutGrid className="h-4 w-4" /></button>
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    viewLayout === 'grid' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
                 <button
                   onClick={() => setViewLayout('list')}
-                  className={cn("p-1.5 rounded-lg transition-all", viewLayout === 'list' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600")}
-                ><List className="h-4 w-4" /></button>
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all",
+                    viewLayout === 'list' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <List className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Content Area */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-8">
         {groupedByDate.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-32 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -356,10 +372,10 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
             </div>
             <h2 className="text-2xl font-bold text-gray-900">No content found</h2>
             <p className="text-gray-500 mt-2 max-w-xs mx-auto">We couldn't find any posted content matching your current selection.</p>
-            {(searchQuery || selectedPlatforms.length > 0 || selectedDeliverables.length > 0) && (
+            {(searchQuery || selectedPlatforms.length > 0 || selectedDeliverable) && (
               <Button
                 variant="ghost"
-                onClick={() => { setSearchQuery(""); setSelectedPlatforms([]); setSelectedDeliverables([]); }}
+                onClick={() => { setSearchQuery(""); setSelectedPlatforms([]); setSelectedDeliverable(null); }}
                 className="mt-6 text-yellow-600 font-bold hover:bg-yellow-50"
               >
                 Clear all filters
@@ -370,7 +386,6 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
           <div className="space-y-16">
             {groupedByDate.map(([date, items]) => (
               <section key={date} className="relative">
-                {/* Date Vertical Line Indicator */}
                 <div className="absolute -left-4 top-0 bottom-0 w-px bg-gradient-to-b from-yellow-200 via-gray-100 to-transparent hidden md:block" />
 
                 <div className="flex items-center gap-4 mb-8">
@@ -390,9 +405,13 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
                     : "flex flex-col gap-4"
                 )}>
                   {items.map(({ task, link }, idx) => {
-                    const cfg = PLATFORM_CONFIG[link.platform.toLowerCase()] || { icon: <Video />, color: "bg-gray-500", label: link.platform };
+                    const cfg = PLATFORM_CONFIG[link.platform.toLowerCase()] || {
+                      icon: <Video />,
+                      color: "bg-gray-500",
+                      label: link.platform
+                    };
 
-                    return (viewLayout === 'grid' ? (
+                    return viewLayout === 'grid' ? (
                       <div
                         key={`${task.id}-${idx}`}
                         className="group relative bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-2xl hover:shadow-gray-200/50 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
@@ -419,7 +438,10 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
 
                         <div className="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between">
                           <span className="text-xs font-bold text-gray-400 flex items-center gap-1">
-                            <span className={cn("w-1.5 h-1.5 rounded-full", task.status?.toUpperCase() === 'POSTED' ? "bg-green-500" : "bg-blue-500")} />
+                            <span className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              task.status?.toUpperCase() === 'POSTED' ? "bg-green-500" : "bg-blue-500"
+                            )} />
                             {task.status?.toLowerCase()}
                           </span>
                           <button
@@ -469,7 +491,7 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
                           <ExternalLink className="h-4 w-4 text-gray-300 group-hover:text-yellow-500 transition-colors" />
                         </div>
                       </div>
-                    ));
+                    );
                   })}
                 </div>
               </section>
@@ -478,7 +500,6 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
         )}
       </main>
 
-      {/* Subtle Footer */}
       <footer className="max-w-7xl mx-auto w-full px-8 py-12 border-t border-gray-100 text-center">
         <p className="text-xs text-gray-400 font-medium tracking-widest uppercase">
           E8 Productions • Automated Content Feed

@@ -157,7 +157,7 @@ export function FullScreenReviewModal({
   const lastTimeUpdateRef = useRef<number>(0);
 
   // Determine video source type
-  const videoSource = useMemo(() => asset ? getVideoSource(asset.videoUrl) : { type: 'video' as const, src: '' }, [asset]);
+  const videoSource = useMemo(() => asset ? getVideoSource(asset.videoUrl, currentVersion || asset.currentVersion) : { type: 'video' as const, src: '' }, [asset, currentVersion]);
 
   useEffect(() => {
     if (asset) {
@@ -669,7 +669,7 @@ export function FullScreenReviewModal({
                       setVideoError(true);
                     }}
                     playsInline
-                    preload="auto"
+                    preload="metadata"
                   >
                     Your browser does not support the video tag.
                   </video>

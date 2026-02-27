@@ -391,17 +391,41 @@ import { Button } from "../ui/button";
 import { useEffect, useState } from "react";
 
 // ============================================
-// LAZY LOAD SUB-COMPONENTS
+// ROBUST DYNAMIC IMPORT WRAPPER
 // ============================================
-const ClientManagement = dynamic(() => import('../management/ClientManagement').then(mod => ({ default: mod.ClientManagement })), {
-  loading: () => <DashboardLoadingFallback componentName="Client Management" />,
-  ssr: false,
-});
+const safeDynamic = (importFn: () => Promise<any>, componentName: string) => {
+  return dynamic(
+    () => importFn().catch((error) => {
+      console.error(`❌ [DYNAMIC IMPORT ERROR] ${componentName}:`, error);
 
-const DeliverablesOverview = dynamic(() => import('../management/DeliverablesOverview').then(mod => ({ default: mod.DeliverablesOverview })), {
-  loading: () => <DashboardLoadingFallback componentName="Deliverables" />,
-  ssr: false,
-});
+      // Check if it's a chunk load error
+      if (error.name === 'ChunkLoadError' ||
+        error.message?.includes('Loading chunk') ||
+        error.message?.includes('Failed to fetch dynamically imported module')) {
+
+        console.warn(`🔄 Attempting to recover from ChunkLoadError for ${componentName}...`);
+
+        // Prevents infinite reload loops
+        const lastReload = sessionStorage.getItem('last_chunk_error_reload');
+        const now = Date.now();
+
+        if (!lastReload || now - parseInt(lastReload) > 10000) { // 10 second cooldown
+          sessionStorage.setItem('last_chunk_error_reload', now.toString());
+          window.location.reload();
+          return new Promise(() => { }); // Stop execution
+        }
+      }
+      throw error;
+    }),
+    {
+      loading: () => <DashboardLoadingFallback componentName={componentName} />,
+      ssr: false,
+    }
+  );
+};
+
+const ClientManagement = safeDynamic(() => import('../management/ClientManagement').then(mod => ({ default: mod.ClientManagement })), "Client Management");
+const DeliverablesOverview = safeDynamic(() => import('../management/DeliverablesOverview').then(mod => ({ default: mod.DeliverablesOverview })), "Deliverables");
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING

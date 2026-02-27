@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // app/api/logins/set-pin/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";

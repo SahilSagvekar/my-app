@@ -321,6 +321,40 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
+  // Download file via presigned S3 URL
+  const handleDownloadClick = async (item: DriveItem) => {
+    if (item.type !== "file") return;
+
+    try {
+      const s3Key = item.s3Key || getS3Key(item);
+
+      const response = await fetch("/api/drive/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          s3Key,
+          fileName: item.name,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate download link");
+      }
+
+      const data = await response.json();
+      // Redirect to presigned URL — browser's native download manager handles it
+      window.open(data.downloadUrl, '_blank');
+      toast.success('Download started');
+    } catch (error: any) {
+      console.error("Download error:", error);
+      // Fallback: open the file URL directly
+      if (item.url) {
+        window.open(item.url, '_blank');
+      }
+      toast.error("Failed to start download");
+    }
+  };
+
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase();
 
@@ -628,7 +662,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                               Open
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => window.open(item.url, "_blank")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadClick(item);
+                              }}
                             >
                               <Download className="h-4 w-4 mr-2" />
                               Download
@@ -750,9 +787,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                     Open
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() =>
-                                      window.open(item.url, "_blank")
-                                    }
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownloadClick(item);
+                                    }}
                                   >
                                     <Download className="h-4 w-4 mr-2" />
                                     Download

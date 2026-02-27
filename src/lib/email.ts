@@ -130,6 +130,39 @@ export async function sendOTPEmail(email: string, otp: string) {
   }
 }
 
+export async function sendRawEmail({
+  to,
+  subject,
+  html,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📧 EMAIL NOT CONFIGURED - Development Mode');
+    console.log(`To: ${to}`);
+    console.log(`Subject: ${subject}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    return { success: true, debug: true };
+  }
+
+  try {
+    await transporter.sendMail(addGlobalBcc({
+      from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+      to,
+      subject,
+      html,
+    }));
+    return { success: true };
+  } catch (error) {
+    console.error(`❌ Failed to send email to ${to}:`, error);
+    return { success: false, error: (error as any).message };
+  }
+}
+
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",

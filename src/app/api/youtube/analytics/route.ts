@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // src/app/api/youtube/analytics/route.ts
 // Smart caching: Returns cached data instantly, refreshes from YouTube API only when needed
 

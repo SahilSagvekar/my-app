@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // app/api/admin/reports/export/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';

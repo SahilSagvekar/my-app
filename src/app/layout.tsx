@@ -28,15 +28,26 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link
+          href="https://assets.calendly.com/assets/external/widget.css"
+          rel="stylesheet"
+        />
+      </head>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} antialiased`}
       >
-         <AuthProvider>
+        <AuthProvider>
           <NotificationProvider>
-          {children}
+            {children}
           </NotificationProvider>
           <Toaster position="bottom-right" />
         </AuthProvider>
+        {/* Calendly Widget Script */}
+        <Script
+          src="https://assets.calendly.com/assets/external/widget.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

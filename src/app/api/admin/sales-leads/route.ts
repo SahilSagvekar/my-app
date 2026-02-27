@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!decoded?.userId || (decoded.role !== 'admin' && decoded.role !== 'manager')) {
+    if (!decoded?.userId || decoded.role !== 'admin') {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
