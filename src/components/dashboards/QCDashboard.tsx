@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History } from 'lucide-react';
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
@@ -142,6 +143,8 @@ export function QCDashboard() {
   const [clientRejections, setClientRejections] = useState<
     { taskId: string; title: string; clientName: string | null; reason: string; count: number }[]
   >([]);
+  const [clientFilter, setClientFilter] = useState<string>("all");
+  const [deliverableFilter, setDeliverableFilter] = useState<string>("all");
 
   // 🔥 Share states
   const [shareLink, setShareLink] = useState("");
@@ -246,6 +249,45 @@ export function QCDashboard() {
       setLoading(false);
     }
   }, []);
+
+  const clientOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    qcTasks.forEach((t) => {
+      if (t.clientId) {
+        const name = t.client?.companyName || t.client?.name || t.clientId;
+        map.set(t.clientId, name);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [qcTasks]);
+
+  const deliverableOptions = useMemo(() => {
+    const set = new Set<string>();
+    qcTasks.forEach((t: any) => {
+      const type =
+        t.monthlyDeliverable?.type ||
+        t.oneOffDeliverable?.type ||
+        t.taskCategory ||
+        "";
+      if (type) set.add(type);
+    });
+    return Array.from(set);
+  }, [qcTasks]);
+
+  const filteredTasks = useMemo(() => {
+    return qcTasks.filter((t: any) => {
+      const matchesClient =
+        clientFilter === "all" || t.clientId === clientFilter;
+      const type =
+        t.monthlyDeliverable?.type ||
+        t.oneOffDeliverable?.type ||
+        t.taskCategory ||
+        "";
+      const matchesDeliverable =
+        deliverableFilter === "all" || type === deliverableFilter;
+      return matchesClient && matchesDeliverable;
+    });
+  }, [qcTasks, clientFilter, deliverableFilter]);
 
   const handleSendToClient = async (asset: any) => {
     if (!selectedTask) return;
@@ -636,7 +678,7 @@ export function QCDashboard() {
     }
   };
 
-  const pendingReviews = qcTasks.length;
+  const pendingReviews = filteredTasks.length;
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -670,7 +712,43 @@ export function QCDashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col md:flex-row items-center gap-3 md:gap-4">
+          <div className="flex items-center gap-2">
+            <Select
+              value={clientFilter}
+              onValueChange={setClientFilter}
+            >
+              <SelectTrigger size="sm" className="w-40">
+                <SelectValue placeholder="Filter by client" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All clients</SelectItem>
+                {clientOptions.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={deliverableFilter}
+              onValueChange={setDeliverableFilter}
+            >
+              <SelectTrigger size="sm" className="w-40">
+                <SelectValue placeholder="Filter by deliverable" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All deliverables</SelectItem>
+                {deliverableOptions.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
             <div className="flex flex-col items-center text-center">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
@@ -709,7 +787,7 @@ export function QCDashboard() {
             <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
             <p className="font-medium">Loading QC tasks...</p>
           </div>
-        ) : qcTasks.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
             <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
             <p className="font-medium">No QC tasks available</p>
@@ -717,7 +795,7 @@ export function QCDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            {qcTasks.map((task, index) => {
+            {filteredTasks.map((task, index) => {
               const thumbnail = getTaskThumbnail(task);
               return (
                 <Card

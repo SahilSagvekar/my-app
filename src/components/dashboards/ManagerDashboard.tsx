@@ -548,7 +548,6 @@ function WorkloadHeatmap() {
           className="flex items-center gap-4 p-3 rounded-lg border"
         >
           <Avatar className="h-10 w-10">
-            <AvatarImage src="" />
             <AvatarFallback>{member.avatar}</AvatarFallback>
           </Avatar>
 
