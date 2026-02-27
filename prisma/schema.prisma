@@ -62,6 +62,7 @@ model User {
   linkedClient            Client?                  @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin             UserSecurityPin?
   twoFactorAuth           UserTwoFactorAuth?
+  trainingProgress        TrainingVideoProgress[]
 
   @@index([email])
   @@index([role])
@@ -994,10 +995,25 @@ model TrainingVideo {
 
   courseId    String?
   course      TrainingCourse? @relation(fields: [courseId], references: [id])
+  progress    TrainingVideoProgress[]
 
   @@index([role])
   @@index([role, order])
   @@index([courseId, order])
+}
+
+model TrainingVideoProgress {
+  id        String   @id @default(cuid())
+  userId    Int
+  videoId   String
+  completed Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     TrainingVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([userId])
+  @@index([videoId])
 }
 
 model SalesLead {
@@ -1095,36 +1111,6 @@ model EditorClientPermission {
   @@index([editorId])
 }
 
-model TrainingCourse {
-  id          String          @id @default(cuid())
-  title       String
-  description String          @default("")
-  role        Role
-  order       Int             @default(0)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  videos      TrainingVideo[]
-
-  @@index([role])
-  @@index([role, order])
-}
-
-model TrainingVideo {
-  id          String          @id @default(cuid())
-  title       String
-  description String          @default("")
-  videoUrl    String
-  role        Role
-  order       Int             @default(0)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  courseId    String?
-  course      TrainingCourse? @relation(fields: [courseId], references: [id])
-
-  @@index([role])
-  @@index([role, order])
-  @@index([courseId, order])
-}
 
 model PortfolioLead {
   id            String   @id @default(cuid())

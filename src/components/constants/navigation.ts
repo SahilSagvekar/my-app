@@ -114,11 +114,10 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   sales: [
-    // { id: 'sales-management', label: 'Sales Management', icon: TrendingUp },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    // { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ]
 } as const;

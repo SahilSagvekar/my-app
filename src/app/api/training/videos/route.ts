@@ -45,12 +45,23 @@ export async function GET(req: NextRequest) {
 
     const videos = await prisma.trainingVideo.findMany({
       where,
+      include: {
+        progress: {
+          where: { userId: user.id }
+        }
+      },
       orderBy: courseId
         ? [{ order: "asc" }]
         : [{ role: "asc" }, { order: "asc" }],
     });
 
-    return NextResponse.json({ videos });
+    const videosWithCompletion = videos.map(v => ({
+      ...v,
+      completed: v.progress && v.progress.length > 0 ? v.progress[0].completed : false,
+      progress: undefined // remove the relation data from response
+    }));
+
+    return NextResponse.json({ videos: videosWithCompletion });
   } catch (err) {
     console.error("GET /api/training/videos error:", err);
     return NextResponse.json({ error: "Failed to fetch training videos" }, { status: 500 });

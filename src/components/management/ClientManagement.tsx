@@ -383,7 +383,7 @@ export function ClientManagement() {
     platforms: [],
     postingSchedule: "weekly",
     postingDays: [],
-    postingTimes: ["10:00"],
+    postingTimes: ["10:00 AM"],
     description: "",
   });
 
@@ -597,32 +597,51 @@ export function ClientManagement() {
     }
   };
 
-  const updatePostingTime = (index: number, time: string) => {
-    const currentTimes = newDeliverable.postingTimes || ["10:00"];
+  const updatePostingTime = (index: number, newValue: string) => {
+    const currentTimes = newDeliverable.postingTimes || ["10:00 AM"];
     const newTimes = [...currentTimes];
-    newTimes[index] = time;
+    newTimes[index] = newValue;
     setNewDeliverable({
       ...newDeliverable,
       postingTimes: newTimes,
     });
   };
 
+  const updatePostingTimeText = (index: number, timeText: string) => {
+    const currentTimes = newDeliverable.postingTimes || ["10:00 AM"];
+    const currentFull = currentTimes[index] || "10:00 AM";
+    // Preserve existing AM/PM, just update the time text part
+    const parts = currentFull.split(" ");
+    const ampm = parts.length > 1 ? parts[parts.length - 1] : "AM";
+    updatePostingTime(index, `${timeText} ${ampm}`);
+  };
+
+  const updatePostingTimeAmPm = (index: number, ampm: "AM" | "PM") => {
+    const currentTimes = newDeliverable.postingTimes || ["10:00 AM"];
+    const currentFull = currentTimes[index] || "10:00 AM";
+    // Preserve existing time text, just update AM/PM
+    const parts = currentFull.split(" ");
+    const timeText = parts[0] || "10:00";
+    updatePostingTime(index, `${timeText} ${ampm}`);
+  };
+
+  const getTimeText = (fullTime: string) => {
+    return fullTime.split(" ")[0] || "10:00";
+  };
+
+  const getAmPm = (fullTime: string): "AM" | "PM" => {
+    const parts = fullTime.split(" ");
+    return (parts[1] as "AM" | "PM") || "AM";
+  };
+
   const syncPostingTimesWithVideosPerDay = (videosPerDay: number) => {
-    const currentTimes = newDeliverable.postingTimes || ["10:00"];
+    const defaultTimes = ["10:00 AM", "12:00 PM", "02:00 PM", "04:00 PM", "06:00 PM", "08:00 PM"];
+    const currentTimes = newDeliverable.postingTimes || ["10:00 AM"];
     const newTimes = [...currentTimes];
 
-    // If we need more times, add default ones
+    // If we need more times, add defaults
     while (newTimes.length < videosPerDay) {
-      // Add times spaced 2 hours apart
-      const lastTime = newTimes[newTimes.length - 1];
-      const [hours, minutes] = lastTime.split(":").map(Number);
-      const newHours = (hours + 2) % 24;
-      newTimes.push(
-        `${String(newHours).padStart(2, "0")}:${String(minutes).padStart(
-          2,
-          "0"
-        )}`
-      );
+      newTimes.push(defaultTimes[newTimes.length % defaultTimes.length]);
     }
 
     // If we have too many times, trim
@@ -747,7 +766,7 @@ export function ClientManagement() {
         platforms: [],
         postingSchedule: "weekly",
         postingDays: [],
-        postingTimes: ["10:00"],
+        postingTimes: ["10:00 AM"],
         description: "",
       });
     }, 100);
@@ -1602,7 +1621,7 @@ export function ClientManagement() {
                     These deliverables automatically generate tasks each month
                   </p>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                   {/* {selectedClient.monthlyDeliverables.map((deliverable) => ( */}
                   {(selectedClient.monthlyDeliverables ?? []).map(
                     (deliverable) => (
@@ -2566,7 +2585,7 @@ export function ClientManagement() {
                       platforms: [],
                       postingSchedule: "one-off",
                       postingDays: [],
-                      postingTimes: ["10:00"],
+                      postingTimes: ["10:00 AM"],
                       description: "",
                     });
                     setEditingDeliverableId(null);
@@ -3127,7 +3146,7 @@ export function ClientManagement() {
               platforms: [],
               postingSchedule: "weekly",
               postingDays: [],
-              postingTimes: ["10:00"],
+              postingTimes: ["10:00 AM"],
               description: "",
             });
           }
@@ -3320,34 +3339,71 @@ export function ClientManagement() {
               </Label>
               <div className="grid grid-cols-2 gap-3">
                 {Array.from({ length: newDeliverable.videosPerDay || 1 }).map(
-                  (_, index) => (
-                    <div key={index} className="space-y-1">
-                      <Label
-                        htmlFor={`postingTime-${index}`}
-                        className="text-xs text-gray-600"
-                      >
-                        Video {index + 1} Time
-                      </Label>
-                      <Input
-                        id={`postingTime-${index}`}
-                        type="time"
-                        value={
-                          (newDeliverable.postingTimes || ["10:00"])[index] ||
-                          "10:00"
-                        }
-                        disabled={newClient.hasPostingServices === false}
-                        onChange={(e) =>
-                          updatePostingTime(index, e.target.value)
-                        }
-                        className="bg-white border-gray-200 text-gray-900"
-                      />
-                    </div>
-                  )
+                  (_, index) => {
+                    const fullTime = (newDeliverable.postingTimes || ["10:00 AM"])[index] || "10:00 AM";
+                    const timeText = getTimeText(fullTime);
+                    const ampm = getAmPm(fullTime);
+                    return (
+                      <div key={index} className="space-y-1">
+                        <Label
+                          htmlFor={`postingTime-${index}`}
+                          className="text-xs text-gray-600"
+                        >
+                          Video {index + 1} Time
+                        </Label>
+                        <div className="flex gap-1">
+                          <Input
+                            id={`postingTime-${index}`}
+                            type="text"
+                            placeholder="HH:MM"
+                            value={timeText}
+                            disabled={newClient.hasPostingServices === false}
+                            onChange={(e) =>
+                              updatePostingTimeText(index, e.target.value)
+                            }
+                            className="bg-white border-gray-200 text-gray-900 flex-1 min-w-0"
+                          />
+                          <button
+                            type="button"
+                            disabled={newClient.hasPostingServices === false}
+                            onClick={() => updatePostingTimeAmPm(index, "AM")}
+                            className={`px-2 py-1 rounded-l border text-xs font-semibold transition-colors ${
+                              newClient.hasPostingServices === false
+                                ? "opacity-50 cursor-not-allowed"
+                                : "cursor-pointer"
+                            } ${
+                              ampm === "AM"
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                            }`}
+                          >
+                            AM
+                          </button>
+                          <button
+                            type="button"
+                            disabled={newClient.hasPostingServices === false}
+                            onClick={() => updatePostingTimeAmPm(index, "PM")}
+                            className={`px-2 py-1 rounded-r border-t border-b border-r text-xs font-semibold transition-colors ${
+                              newClient.hasPostingServices === false
+                                ? "opacity-50 cursor-not-allowed"
+                                : "cursor-pointer"
+                            } ${
+                              ampm === "PM"
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                            }`}
+                          >
+                            PM
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
                 )}
               </div>
               {(newDeliverable.videosPerDay || 1) > 1 && (
                 <p className="text-xs text-gray-500">
-                  Times: {(newDeliverable.postingTimes || ["10:00"]).join(", ")}
+                  Times: {(newDeliverable.postingTimes || ["10:00 AM"]).join(", ")}
                 </p>
               )}
             </div>

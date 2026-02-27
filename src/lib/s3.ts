@@ -1,6 +1,6 @@
 // src/lib/s3.ts
 
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -326,4 +326,21 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
       }
     })
   );
+}
+
+export async function deleteFileFromS3(key: string) {
+  const s3 = getS3();
+  try {
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+      })
+    );
+    console.log("✅ DELETED FROM S3:", key);
+    return true;
+  } catch (error) {
+    console.error("❌ S3 Deletion Failed:", error);
+    throw new Error("Failed to delete file from S3");
+  }
 }

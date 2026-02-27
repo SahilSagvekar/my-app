@@ -213,7 +213,7 @@ function LeadManagement() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                     <CardContent className="pt-6">
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center justify-center text-center gap-2">
                             <div className="p-2 bg-blue-50 rounded-lg">
                                 <Users className="h-5 w-5 text-blue-600" />
                             </div>
@@ -226,7 +226,7 @@ function LeadManagement() {
                 </Card>
                 <Card>
                     <CardContent className="pt-6">
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center justify-center text-center gap-2">
                             <div className="p-2 bg-green-50 rounded-lg">
                                 <Clock className="h-5 w-5 text-green-600" />
                             </div>
@@ -239,7 +239,7 @@ function LeadManagement() {
                 </Card>
                 <Card>
                     <CardContent className="pt-6">
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center justify-center text-center gap-2">
                             <div className="p-2 bg-purple-50 rounded-lg">
                                 <BarChart3 className="h-5 w-5 text-purple-600" />
                             </div>

@@ -29,6 +29,7 @@ interface TrainingVideoType {
   order: number;
   createdAt: string;
   updatedAt: string;
+  completed?: boolean;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -40,6 +41,14 @@ const ROLE_LABELS: Record<string, string> = {
   sales: "Sales",
 };
 
+const getYouTubeEmbedUrl = (url: string) => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  if (match && match[2].length === 11) {
+    return `https://www.youtube.com/embed/${match[2]}`;
+  }
+  return null;
+};
 export function TrainingPortalPage() {
   const { user } = useAuth();
   const [videos, setVideos] = useState<TrainingVideoType[]>([]);
@@ -52,6 +61,22 @@ export function TrainingPortalPage() {
   useEffect(() => {
     loadVideos();
   }, []);
+
+  async function markAsCompleted(videoId: string) {
+    try {
+      const res = await fetch("/api/training/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId }),
+      });
+      if (res.ok) {
+        // Refresh video list to unlock next one
+        loadVideos();
+      }
+    } catch (e) {
+      console.error("Failed to mark as completed", e);
+    }
+  }
 
   async function loadVideos() {
     try {
@@ -97,33 +122,57 @@ export function TrainingPortalPage() {
             </p>
           ) : (
             <ul className="space-y-3">
-              {videos.map((v, index) => (
-                <li
-                  key={v.id}
-                  className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <span className="shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{v.title}</p>
-                      {v.description && (
-                        <p className="text-sm text-muted-foreground truncate mt-0.5">{v.description}</p>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setPlaying(v)}
-                    className="shrink-0"
+              {videos.map((v, index) => {
+                const isFirst = index === 0;
+                const prevCompleted = index > 0 ? videos[index - 1].completed : false;
+                const isLocked = !isFirst && !prevCompleted && !v.completed;
+
+                return (
+                  <li
+                    key={v.id}
+                    className={`flex items-center justify-between gap-4 p-4 rounded-lg border transition-colors ${
+                      isLocked ? "bg-gray-50 opacity-75" : "bg-card hover:bg-muted/50"
+                    }`}
                   >
-                    <PlayCircle className="h-4 w-4 mr-2" />
-                    Watch
-                  </Button>
-                </li>
-              ))}
+                    <div className="flex items-center gap-4 min-w-0">
+                      <span className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                        v.completed 
+                          ? "bg-green-100 text-green-700" 
+                          : isLocked 
+                            ? "bg-gray-200 text-gray-400" 
+                            : "bg-primary/10 text-primary"
+                      }`}>
+                        {v.completed ? "✓" : index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={`font-medium truncate ${isLocked ? "text-muted-foreground" : ""}`}>
+                            {v.title}
+                          </p>
+                          {isLocked && (
+                            <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded uppercase font-bold">
+                              Locked
+                            </span>
+                          )}
+                        </div>
+                        {v.description && (
+                          <p className="text-sm text-muted-foreground truncate mt-0.5">{v.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant={isLocked ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => !isLocked && setPlaying(v)}
+                      className="shrink-0"
+                      disabled={isLocked}
+                    >
+                      <PlayCircle className="h-4 w-4 mr-2" />
+                      {isLocked ? "Locked" : v.completed ? "Watch Again" : "Watch"}
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>
@@ -137,18 +186,51 @@ export function TrainingPortalPage() {
               Training video player. Press play to start the lesson.
             </DialogDescription>
           </DialogHeader>
-          <div className="p-4">
+          <div className="p-4 space-y-4">
             {playing?.videoUrl && (
-              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
-                <video
-                  key={playing.id}
-                  src={playing.videoUrl}
-                  controls
-                  className="w-full h-full"
-                  playsInline
+              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black shadow-inner">
+                {getYouTubeEmbedUrl(playing.videoUrl) ? (
+                  <iframe
+                    src={`${getYouTubeEmbedUrl(playing.videoUrl)!}?autoplay=1&rel=0`}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title={playing.title}
+                  />
+                ) : (
+                  <video
+                    key={playing.id}
+                    src={playing.videoUrl}
+                    controls
+                    className="w-full h-full"
+                    playsInline
+                    autoPlay
+                    onEnded={() => {
+                      if (playing && !playing.completed) {
+                        markAsCompleted(playing.id);
+                      }
+                    }}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                )}
+              </div>
+            )}
+
+            {!playing?.completed && (
+              <div className="flex justify-end pt-2 border-t border-gray-100">
+                <Button 
+                  onClick={() => {
+                    if (playing) {
+                      markAsCompleted(playing.id);
+                      setPlaying(null);
+                      toast.success("Progress saved! Next video unlocked.");
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white"
                 >
-                  Your browser does not support the video tag.
-                </video>
+                  Mark as Completed
+                </Button>
               </div>
             )}
           </div>

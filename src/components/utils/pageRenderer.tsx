@@ -34,6 +34,7 @@ import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
 import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
+import { ClientManagement } from "../management/ClientManagement";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 import { Loader2 } from "lucide-react";
@@ -324,7 +325,7 @@ export function renderPage(
       case "affiliate":
         return <AffiliateSection />;
       case "clients":
-        return <SalesDashboard />;
+        return <ClientManagement />;
       case "training":
         return <TrainingPortalPage />;
       case "employment-info":

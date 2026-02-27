@@ -45,6 +45,14 @@ const ROLES = [
   { id: "sales", name: "Sales" },
 ];
 
+const getYouTubeEmbedUrl = (url: string) => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  if (match && match[2].length === 11) {
+    return `https://www.youtube.com/embed/${match[2]}`;
+  }
+  return null;
+};
 export function TrainingManagementTab() {
   const [videos, setVideos] = useState<TrainingVideoType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -432,15 +440,25 @@ export function TrainingManagementTab() {
           <div className="p-4">
             {previewing?.videoUrl && (
               <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
-                <video
-                  key={previewing.id}
-                  src={previewing.videoUrl}
-                  controls
-                  className="w-full h-full"
-                  playsInline
-                >
-                  Your browser does not support the video tag.
-                </video>
+                {getYouTubeEmbedUrl(previewing.videoUrl) ? (
+                  <iframe
+                    src={getYouTubeEmbedUrl(previewing.videoUrl)!}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title={previewing.title}
+                  />
+                ) : (
+                  <video
+                    key={previewing.id}
+                    src={previewing.videoUrl}
+                    controls
+                    className="w-full h-full"
+                    playsInline
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                )}
               </div>
             )}
           </div>

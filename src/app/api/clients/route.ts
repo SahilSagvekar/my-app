@@ -251,14 +251,29 @@ function getTokenFromCookies(req: Request) {
 }
 
 // ---------- GET /api/clients ----------
-export async function GET() {
+// ---------- GET /api/clients ----------
+export async function GET(req: Request) {
   try {
+    const token = getTokenFromCookies(req);
+    if (!token)
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    const isSales = decoded.role === "sales";
+    const userId = decoded.userId;
+
     // Get current month date range
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+    const where: any = {};
+    if (isSales) {
+      where.createdBy = userId.toString();
+    }
+
     const clients = await prisma.client.findMany({
+      where,
       orderBy: { name: "asc" },
       include: {
         monthlyDeliverables: true,
@@ -353,7 +368,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!["admin", "manager"].includes(decoded.role))
+    if (!["admin", "manager", "sales"].includes(decoded.role))
       return NextResponse.json(
         { message: "Permission denied" },
         { status: 403 }

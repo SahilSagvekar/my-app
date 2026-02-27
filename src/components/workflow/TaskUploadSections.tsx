@@ -263,6 +263,41 @@ export function TaskUploadSections({
     return uploadedFiles[folderType]?.length || 0;
   };
 
+  const handleDeleteFile = async (fileId: string, folderType: string) => {
+    if (!confirm("Are you sure you want to delete this file?")) return;
+
+    try {
+      const res = await fetch(`/api/upload?fileId=${fileId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Failed to delete file");
+      }
+
+      // Update local state
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [folderType]: prev[folderType].filter((f) => f.id !== fileId),
+      }));
+
+      // Update sections status if list becomes empty
+      setSections((prev) =>
+        prev.map((s) =>
+          s.folderType === folderType
+            ? { ...s, uploaded: uploadedFiles[folderType].length > 1 }
+            : s
+        )
+      );
+
+      toast.success("File deleted successfully");
+    } catch (error: any) {
+      console.error("Delete error:", error);
+      toast.error(error.message || "Failed to delete file");
+    }
+  };
+
   return (
     <div className="space-y-1.5">
       {/* Compact Status Bar */}
@@ -391,15 +426,30 @@ export function TaskUploadSections({
                               ({(file.size / 1024).toFixed(0)} KB)
                             </span>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(file.url, "_blank");
-                            }}
-                            className="p-1 hover:bg-gray-200 rounded ml-2"
-                          >
-                            <Eye className="h-3 w-3 text-gray-600" />
-                          </button>
+                          <div className="flex items-center gap-1 ml-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(file.url, "_blank");
+                              }}
+                              className="p-1 hover:bg-gray-200 rounded"
+                              title="View"
+                            >
+                              <Eye className="h-3 w-3 text-gray-600" />
+                            </button>
+                            {task.status === "in_progress" && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteFile(file.id, section.folderType);
+                                }}
+                                className="p-1 hover:bg-red-100 rounded text-red-600"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

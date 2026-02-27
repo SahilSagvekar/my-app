@@ -2,7 +2,8 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { uploadBufferToS3 } from "@/lib/s3";  // ⬅️ your S3 function
+import { uploadBufferToS3, deleteFileFromS3 } from "@/lib/s3";  // ⬅️ added deleteFileFromS3
+import { getCurrentUser2 } from "@/lib/auth"; // ⬅️ added auth helper
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -126,10 +127,76 @@ export async function POST(req: Request) {
     );
 
   } catch (error: any) {
-    console.error("❌ S3 Upload Error:", error);
     return NextResponse.json(
       { message: "Upload failed", error: error.message },
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await getCurrentUser2(req as any); 
+    if (!user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const fileId = searchParams.get("fileId");
+
+    if (!fileId) {
+      return NextResponse.json({ message: "File ID is required" }, { status: 400 });
+    }
+
+    const fileRecord = await prisma.file.findUnique({
+      where: { id: fileId },
+      include: { task: true },
+    });
+
+    if (!fileRecord) {
+      return NextResponse.json({ message: "File not found" }, { status: 404 });
+    }
+
+    // Role check
+    const isOwner = fileRecord.uploadedBy === user.id;
+    const isAssigned = fileRecord.task.assignedTo === user.id.toString();
+    const isAdmin = user.role === "admin" || user.role === "manager";
+
+    if (!isAdmin && !isOwner && !isAssigned) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    // 🔥 Check task status constraint
+    if (fileRecord.task.status !== "IN_PROGRESS" && !isAdmin) {
+      return NextResponse.json({
+        message: "Can only delete files when task is IN_PROGRESS"
+      }, { status: 400 });
+    }
+
+    // 1. Delete from S3
+    if (fileRecord.s3Key) {
+      try {
+        await deleteFileFromS3(fileRecord.s3Key);
+      } catch (s3Err) {
+        console.warn("⚠️ S3 key not found or deletion failed, continuing...", s3Err);
+      }
+    }
+
+    // 2. Remove from task.driveLinks
+    const updatedDriveLinks = fileRecord.task.driveLinks.filter(link => link !== fileRecord.url);
+    await prisma.task.update({
+      where: { id: fileRecord.taskId },
+      data: { driveLinks: updatedDriveLinks },
+    });
+
+    // 3. Delete from Prisma
+    await prisma.file.delete({
+      where: { id: fileId },
+    });
+
+    return NextResponse.json({ message: "Deleted successfully" });
+  } catch (error: any) {
+    console.error("❌ Deletion error:", error);
+    return NextResponse.json({ message: "Deletion failed", error: error.message }, { status: 500 });
   }
 }
