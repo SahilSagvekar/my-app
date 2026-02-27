@@ -43,13 +43,24 @@ function parseTimeToDate(base: Date, timeStr: string): Date {
     return d;
 }
 
+function getCurrentMonthFolder(): string {
+    const date = new Date();
+    const month = date.toLocaleDateString("en-US", { month: "long" });
+    const year = date.getFullYear();
+    return `${month}-${year}`;
+}
+
 async function createTaskFolderStructure(
     companyName: string,
-    taskTitle: string
+    taskTitle: string,
+    monthFolder: string
 ): Promise<string> {
-    const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+    // Monthly grouped path: CompanyName/outputs/Month-Year/TaskTitle/
+    const monthFolderPath = `${companyName}/outputs/${monthFolder}/`;
+    const taskFolderPath = `${monthFolderPath}${taskTitle}/`;
     try {
         const folders = [
+            monthFolderPath,
             taskFolderPath,
             `${taskFolderPath}thumbnails/`,
             `${taskFolderPath}tiles/`,
@@ -134,7 +145,8 @@ export async function POST(
 
                 let outputFolderId: string | null = null;
                 try {
-                    outputFolderId = await createTaskFolderStructure(companyName, title);
+                    const monthFolder = getCurrentMonthFolder();
+                    outputFolderId = await createTaskFolderStructure(companyName, title, monthFolder);
                 } catch (error) {
                     console.error(`⚠️ S3 folder creation failed for ${title}`);
                 }

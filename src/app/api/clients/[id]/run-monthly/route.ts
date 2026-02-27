@@ -61,11 +61,15 @@ function parseDayOfMonthLabel(label: string): number | null {
 
 async function createTaskFolderStructure(
   companyName: string,
-  taskTitle: string
+  taskTitle: string,
+  monthFolder: string
 ): Promise<string> {
-  const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+  // Monthly grouped path: CompanyName/outputs/Month-Year/TaskTitle/
+  const monthFolderPath = `${companyName}/outputs/${monthFolder}/`;
+  const taskFolderPath = `${monthFolderPath}${taskTitle}/`;
   try {
     const folders = [
+      monthFolderPath,
       taskFolderPath,
       `${taskFolderPath}thumbnails/`,
       `${taskFolderPath}tiles/`,
@@ -234,13 +238,17 @@ export async function POST(
       const createdDateStr = formatDateMMDDYYYY(now);
       const startIndex = existingTasks + 1;
 
+      // Monthly folder for task grouping
+      const monthLabel = new Date(targetYear, targetMonth).toLocaleDateString("en-US", { month: "long" });
+      const monthYearFolder = `${monthLabel}-${targetYear}`;
+
       for (let i = 0; i < dueDates.length; i++) {
         const taskNumber = startIndex + i;
         const title = `${companyName}_${createdDateStr}_${deliverableSlug}${taskNumber}`;
 
         let outputFolderId: string | null = null;
         try {
-          outputFolderId = await createTaskFolderStructure(companyName, title);
+          outputFolderId = await createTaskFolderStructure(companyName, title, monthYearFolder);
         } catch (error) {
           console.error(`⚠️ S3 folder creation failed for ${title}`);
         }

@@ -434,12 +434,21 @@ function formatDateMMDDYYYY(date: Date) {
 
 async function createTaskFolderStructure(
   companyName: string,
-  taskTitle: string
+  taskTitle: string,
+  monthFolder?: string
 ): Promise<string> {
-  // Main task folder: CompanyName/outputs/TaskTitle/
-  const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+  // Monthly grouped path: CompanyName/outputs/Month-Year/TaskTitle/
+  const outputBase = monthFolder
+    ? `${companyName}/outputs/${monthFolder}/`
+    : `${companyName}/outputs/`;
+  const taskFolderPath = `${outputBase}${taskTitle}/`;
 
   await Promise.all([
+    ...(monthFolder ? [s3Client.send(new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: outputBase,
+      ContentType: "application/x-directory",
+    }))] : []),
     s3Client.send(new PutObjectCommand({
       Bucket: process.env.AWS_S3_BUCKET!,
       Key: taskFolderPath,
@@ -1145,8 +1154,9 @@ export async function POST(req: any) {
         // existingCount already includes the current task
         const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${existingCount}`;
 
-        // Create folder structure
-        const taskFolderPath = await createTaskFolderStructure(companyName, title);
+        // Create folder structure (grouped by month)
+        const currentMonth = getCurrentMonthFolder();
+        const taskFolderPath = await createTaskFolderStructure(companyName, title, currentMonth);
 
         // Update task with title and folder
         const updatedOneOff = await prisma.task.update({
