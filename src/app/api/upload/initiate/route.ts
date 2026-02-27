@@ -31,18 +31,21 @@ async function ensureS3FolderExists(folderPath: string) {
   }
 }
 
-// 🔥 Helper: Create task folder structure (NO "task" subfolder)
+// 🔥 Helper: Create task folder structure (grouped by month)
 async function createTaskFolderStructure(
   companyName: string,
-  taskTitle: string
+  taskTitle: string,
+  monthFolder: string
 ): Promise<string> {
-  // Main task folder: CompanyName/outputs/TaskTitle/
-  const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+  // Monthly grouped path: CompanyName/outputs/Month-Year/TaskTitle/
+  const monthFolderPath = `${companyName}/outputs/${monthFolder}/`;
+  const taskFolderPath = `${monthFolderPath}${taskTitle}/`;
 
   console.log("📁 Creating task folder structure in parallel:", taskFolderPath);
 
-  // 🔥 Create main folder and subfolders in parallel to save time
+  // 🔥 Create month folder, main folder and subfolders in parallel to save time
   await Promise.all([
+    ensureS3FolderExists(monthFolderPath),
     ensureS3FolderExists(taskFolderPath),
     ensureS3FolderExists(`${taskFolderPath}thumbnails/`),
     ensureS3FolderExists(`${taskFolderPath}tiles/`),
@@ -135,8 +138,9 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Create task folder structure
-      const taskFolderPath = await createTaskFolderStructure(companyName, taskTitle);
+      // Create task folder structure (grouped by month)
+      const currentMonth = getCurrentMonthFolder();
+      const taskFolderPath = await createTaskFolderStructure(companyName, taskTitle, currentMonth);
 
       // 🔥 Build S3 key based on subfolder
       // if (subfolder && subfolder.trim() !== "") {

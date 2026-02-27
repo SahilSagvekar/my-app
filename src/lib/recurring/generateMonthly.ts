@@ -295,14 +295,32 @@ function formatDateMMDDYYYY(date: Date) {
 }
 
 
-// 🔥 NEW: Create task folder structure in S3
+// 🔥 Helper: Get month folder name from a date
+function getMonthFolderFromDate(date: Date): string {
+  const month = date.toLocaleDateString("en-US", { month: "long" });
+  const year = date.getFullYear();
+  return `${month}-${year}`; // "February-2026"
+}
+
+// 🔥 NEW: Create task folder structure in S3 (grouped by month)
 async function createTaskFolderStructure(
   companyName: string,
-  taskTitle: string
+  taskTitle: string,
+  monthFolder: string
 ): Promise<string> {
   try {
-    // Main task folder: CompanyName/outputs/TaskTitle/
-    const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+    // Monthly grouped path: CompanyName/outputs/Month-Year/TaskTitle/
+    const monthFolderPath = `${companyName}/outputs/${monthFolder}/`;
+    const taskFolderPath = `${monthFolderPath}${taskTitle}/`;
+
+    // Create month folder
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET!,
+        Key: monthFolderPath,
+        ContentType: "application/x-directory",
+      })
+    );
 
     // Create main task folder
     await s3Client.send(
@@ -339,6 +357,7 @@ async function createTaskFolderStructure(
     );
 
     console.log("✅ Task folder structure created:", {
+      monthFolder: monthFolderPath,
       main: taskFolderPath,
       thumbnails: `${taskFolderPath}thumbnails/`,
       tiles: `${taskFolderPath}tiles/`,
@@ -461,8 +480,9 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   let count = 1;
   const title1 = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
-  // 🔥 Create folder structure for template task
-  const taskFolderPath1 = await createTaskFolderStructure(companyName, title1);
+  // 🔥 Create folder structure for template task (grouped by month)
+  const monthFolder = getMonthFolderFromDate(firstDate);
+  const taskFolderPath1 = await createTaskFolderStructure(companyName, title1, monthFolder);
 
   await prisma.task.update({
     where: { id: taskId },
@@ -525,8 +545,8 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
       count++;
       const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
-      // Create folder structure for this task
-      const taskFolderPath = await createTaskFolderStructure(companyName, title);
+      // Create folder structure for this task (grouped by month)
+      const taskFolderPath = await createTaskFolderStructure(companyName, title, monthFolder);
 
       creates.push(
         prisma.task.create({

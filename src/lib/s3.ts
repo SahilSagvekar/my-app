@@ -93,15 +93,20 @@ export async function createMonthFolder(companyName: string, monthYear: string) 
   return monthPrefix;
 }
 
-// 🔥 Create task output folder
+// 🔥 Create task output folder (grouped by month)
 export async function createTaskOutputFolder(
   companyName: string,
   taskId: string,
-  taskTitle: string
+  taskTitle: string,
+  monthFolder?: string
 ) {
   const s3 = getS3();
   const sanitizedTitle = taskTitle.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
-  const taskPrefix = `${companyName}/outputs/${taskId}-${sanitizedTitle}/`;
+  // If monthFolder provided, group under monthly subfolder
+  const outputBase = monthFolder
+    ? `${companyName}/outputs/${monthFolder}/`
+    : `${companyName}/outputs/`;
+  const taskPrefix = `${outputBase}${taskId}-${sanitizedTitle}/`;
 
   try {
     await s3.send(
