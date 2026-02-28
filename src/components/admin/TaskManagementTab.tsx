@@ -9,7 +9,8 @@ import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
-import { Plus } from 'lucide-react';
+import { CreateInvoiceDialog } from '../invoices/CreateInvoiceDialog';
+import { Plus, Receipt } from 'lucide-react';
 import { DateRangePicker } from '../ui/date-range-picker';
 import {
   ListTodo,
@@ -1103,6 +1104,20 @@ export function TaskManagementTab() {
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit Task
                               </DropdownMenuItem>
+                              {task.clientId && task.client && (
+                                <CreateInvoiceDialog
+                                  taskId={task.id}
+                                  clientId={task.clientId}
+                                  clientName={task.client?.companyName || task.client?.name || 'Client'}
+                                  taskTitle={task.title || task.description?.slice(0, 50) || 'Task'}
+                                  trigger={
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                      <Receipt className="h-4 w-4 mr-2" />
+                                      Create Invoice
+                                    </DropdownMenuItem>
+                                  }
+                                />
+                              )}
                               <DropdownMenuSeparator />
                               {/* <DropdownMenuItem className="text-red-600">
                                                                 <Trash2 className="h-4 w-4 mr-2" />

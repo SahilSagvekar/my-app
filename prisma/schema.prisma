@@ -153,6 +153,7 @@ model Task {
   oneOffDeliverableId  String?
   recurringMonth       String?
   files                File[]
+  invoices             Invoice[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   shootDetail          ShootDetail?
   user                 User                @relation("AssignedTasks", fields: [assignedTo], references: [id])
@@ -306,6 +307,7 @@ model Client {
   recurringTasks          RecurringTask[]
   socialLogins            SocialLogin[]
   tasks                   Task[]
+  invoices                Invoice[]
   linkedUsers             User[]                   @relation("LinkedClientUsers")
   youtubeChannel          YouTubeChannel?
   youtubeSnapshots        YouTubeSnapshot[]
@@ -1143,6 +1145,7 @@ model PortfolioVideo {
   @@index([isActive])
 }
 
+
 enum Role {
   admin
   manager
@@ -1230,4 +1233,46 @@ enum BidStatus {
   PENDING
   ACCEPTED
   REJECTED
+}
+
+// ─────────────────────────────────────────
+// QuickBooks Integration
+// ─────────────────────────────────────────
+
+model QuickBooksConnection {
+  id           String   @id @default(cuid())
+  realmId      String   @unique
+  accessToken  String
+  refreshToken String
+  tokenExpiry  DateTime
+  companyName  String?
+  isActive     Boolean  @default(true)
+  connectedBy  Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Invoice {
+  id           String    @id @default(cuid())
+  taskId       String
+  clientId     String
+  qbInvoiceId  String?   @unique
+  qbCustomerId String?
+  amount       Decimal   @db.Decimal(12, 2)
+  description  String
+  status       String    @default("DRAFT")
+  dueDate      DateTime?
+  sentAt       DateTime?
+  paidAt       DateTime?
+  qbSyncError  String?
+  createdBy    Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  task   Task   @relation(fields: [taskId], references: [id])
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@index([taskId])
+  @@index([clientId])
+  @@index([status])
 }

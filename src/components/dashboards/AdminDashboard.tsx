@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
+import { Receipt } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Button } from '../ui/button';
 import {
@@ -83,6 +84,7 @@ const JobManagementSection = safeDynamic(() => import('../jobs/JobManagementSect
 const GuidelinesManagementTab = safeDynamic(() => import('../admin/GuidelinesManagementTab').then(mod => ({ default: mod.GuidelinesManagementTab })), "Guidelines Management");
 const SalesManagementTab = safeDynamic(() => import('../admin/SalesManagementTab').then(mod => ({ default: mod.SalesManagementTab })), "Sales Management");
 const VideographerManagementTab = safeDynamic(() => import('../admin/VideographerManagementTab').then(mod => ({ default: mod.VideographerManagementTab })), "Videographer Management");
+const InvoiceListTab = safeDynamic(() => import('../invoices/InvoiceListTab').then(mod => ({ default: mod.InvoiceListTab })), "Invoices");
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
@@ -619,6 +621,14 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         </DropdownMenuItem>
 
         <DropdownMenuItem
+          onClick={() => onPageChange?.('invoices')}
+          className="gap-2 cursor-pointer"
+        >
+          <Receipt className="h-4 w-4 text-emerald-500" />
+          Invoices & Billing
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
           onClick={() => onPageChange?.('analytics')}
           className="gap-2 cursor-pointer"
         >
@@ -851,6 +861,17 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               description="Post jobs for bidding or directly assign videographers to tasks"
             />
             <VideographerManagementTab />
+          </div>
+        );
+
+      case 'invoices':
+        return (
+          <div className="space-y-6">
+            <AdminPageHeader
+              title="Invoices & Billing"
+              description="Create, manage, and send invoices for one-off tasks via QuickBooks"
+            />
+            <InvoiceListTab />
           </div>
         );
 
