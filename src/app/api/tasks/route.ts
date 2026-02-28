@@ -622,8 +622,8 @@ export async function GET(req: any) {
     const { role, id: userId } = user;
 
     const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    // const page = parseInt(searchParams.get("page") || "1");
+    // const limit = parseInt(searchParams.get("limit") || "20");
     const statusFilter = searchParams.get("status") as string | null;
     const clientIdFilter = searchParams.get("clientId") as string | null; // 🔥 NEW: Client filter
 
@@ -687,8 +687,8 @@ export async function GET(req: any) {
       const [taskResults, countResult] = await Promise.all([
         (prisma.task as any).findMany({
           where,
-          take: limit,
-          skip: (page - 1) * limit,
+          // take: limit,
+          // skip: (page - 1) * limit,
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -885,12 +885,12 @@ export async function GET(req: any) {
     // ✅ Return paginated tasks (no signed URLs in list view — they load on demand)
     return NextResponse.json({
       tasks: sanitizeBigInt(sortedTasks),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      // pagination: {
+      //   page,
+      //   limit,
+      //   total,
+      //   totalPages: Math.ceil(total / limit),
+      // },
     }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
