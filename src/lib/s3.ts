@@ -256,42 +256,11 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
 //   return signedUrl;
 // }
 
-// ─────────────────────────────────────────
-// Signed URL Cache (avoids redundant AWS API calls)
-// URLs are valid for 7 days, so caching for 6 hours is very safe
-// ─────────────────────────────────────────
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
-
-const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
-
-// Periodic cleanup every 30 minutes to prevent memory leaks
-if (typeof setInterval !== "undefined") {
-  setInterval(() => {
-    const now = Date.now();
-    let evicted = 0;
-    for (const [key, entry] of signedUrlCache) {
-      if (entry.expiresAt <= now) {
-        signedUrlCache.delete(key);
-        evicted++;
-      }
-    }
-    if (evicted > 0) {
-      console.log(`[S3 Cache] Evicted ${evicted} expired URLs, ${signedUrlCache.size} remaining`);
-    }
-  }, 30 * 60 * 1000);
-}
 
 export async function generateSignedUrl(
   key: string,
   expiresIn: number = 604800 // 7 days (maximum for SigV4 with IAM)
 ): Promise<string> {
-  // Check cache first
-  const cacheKey = `view:${key}`;
-  const cached = signedUrlCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.url;
-  }
-
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -299,7 +268,6 @@ export async function generateSignedUrl(
 
   try {
     const signedUrl = await getSignedUrl(s3, command, { expiresIn });
-    signedUrlCache.set(cacheKey, { url: signedUrl, expiresAt: Date.now() + CACHE_TTL_MS });
     return signedUrl;
   } catch (error) {
     console.error('❌ Failed to generate signed URL:', error);
@@ -312,13 +280,6 @@ export async function generateDownloadUrl(
   filename: string,
   expiresIn: number = 604800
 ): Promise<string> {
-  // Check cache first (keyed by s3Key + filename)
-  const cacheKey = `dl:${key}:${filename}`;
-  const cached = signedUrlCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.url;
-  }
-
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
@@ -326,9 +287,7 @@ export async function generateDownloadUrl(
   });
 
   try {
-    const url = await getSignedUrl(s3, command, { expiresIn });
-    signedUrlCache.set(cacheKey, { url, expiresAt: Date.now() + CACHE_TTL_MS });
-    return url;
+    return await getSignedUrl(s3, command, { expiresIn });
   } catch (error) {
     console.error('❌ Failed to generate download URL:', error);
     throw error;

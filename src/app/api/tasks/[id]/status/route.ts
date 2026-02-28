@@ -6,14 +6,24 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
-import "@/lib/bigint-fix";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { startTitlingJob } from '@/lib/titling-service';
 import { notifyUser } from "@/lib/notify";
 import jwt from "jsonwebtoken";
 
-// BigInt serialization handled by @/lib/bigint-fix (patches BigInt.prototype.toJSON)
-
+function sanitizeBigInt(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "bigint") return Number(obj);
+  if (Array.isArray(obj)) return obj.map(sanitizeBigInt);
+  if (typeof obj === "object") {
+    const newObj: any = {};
+    for (const key in obj) {
+      newObj[key] = sanitizeBigInt(obj[key]);
+    }
+    return newObj;
+  }
+  return obj;
+}
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -277,10 +287,10 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({
+    return NextResponse.json(sanitizeBigInt({
       ...updatedTask,
       titlingTriggered: shouldTriggerTitling,
-    }, { status: 200 });
+    }), { status: 200 });
 
   } catch (err: any) {
     console.error("❌ Task status update error:", err.message);
