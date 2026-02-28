@@ -681,110 +681,119 @@ export async function GET(req: any) {
     }
 
     let tasks: any[];
+    let total = 0;
     try {
-      tasks = await (prisma.task as any).findMany({
-        where,
-        // take: limit,
-        // skip: (page - 1) * limit,
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          taskType: true,
-          status: true,
-          dueDate: true,
-          assignedTo: true,
-          createdBy: true,
-          clientId: true,
-          clientUserId: true,
-          files: {
-            select: {
-              id: true,
-              name: true,
-              url: true,
-              s3Key: true,
-              mimeType: true,
-              size: true,
-              uploadedAt: true,
-              uploadedBy: true,
-              folderType: true,
-              version: true,
-              isActive: true,
-              codec: true,
+      // Run count + data queries in parallel for performance
+      const [taskResults, countResult] = await Promise.all([
+        (prisma.task as any).findMany({
+          where,
+          take: limit,
+          skip: (page - 1) * limit,
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            taskType: true,
+            status: true,
+            dueDate: true,
+            assignedTo: true,
+            createdBy: true,
+            clientId: true,
+            clientUserId: true,
+            // File metadata for list view — includes url/s3Key for dashboards
+            // that show previews, but we skip the expensive signing loop
+            files: {
+              select: {
+                id: true,
+                name: true,
+                url: true,
+                s3Key: true,
+                mimeType: true,
+                size: true,
+                uploadedAt: true,
+                uploadedBy: true,
+                folderType: true,
+                version: true,
+                isActive: true,
+                codec: true,
+              },
             },
-          },
-          driveLinks: true,
+            driveLinks: true,
 
-          createdAt: true,
-          priority: true,
-          taskCategory: true,
-          nextDestination: true,
-          requiresClientReview: true,
-          workflowStep: true,
-          folderType: true,
-          qcNotes: true,
-          feedback: true,
-          shootDetail: true,
-          // files: true,
-          deliverableType: true,
-          monthlyDeliverableId: true,
-          monthlyDeliverable: true,
-          oneOffDeliverableId: true,
-          oneOffDeliverable: true,
-          socialMediaLinks: true,
-          updatedAt: true,
-          client: {
-            select: {
-              name: true,
-              companyName: true,
-            }
-          },
-          user: {
-            select: {
-              name: true,
-              role: true,
+            createdAt: true,
+            priority: true,
+            taskCategory: true,
+            nextDestination: true,
+            requiresClientReview: true,
+            workflowStep: true,
+            folderType: true,
+            qcNotes: true,
+            feedback: true,
+            shootDetail: true,
+            // files: true,
+            deliverableType: true,
+            monthlyDeliverableId: true,
+            monthlyDeliverable: true,
+            oneOffDeliverableId: true,
+            oneOffDeliverable: true,
+            socialMediaLinks: true,
+            updatedAt: true,
+            client: {
+              select: {
+                name: true,
+                companyName: true,
+              }
             },
-          },
-          // 🔥 Include QC reviewer info
-          qcReviewedBy: true,
-          qcReviewedAt: true,
-          qcResult: true,
-          qcReviewer: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          taskFeedback: {
-            select: {
-              id: true,
-              fileId: true,
-              folderType: true,
-              feedback: true,
-              status: true,
-              timestamp: true,
-              category: true,
-              createdAt: true,
-              resolvedAt: true,
-              file: {
-                select: {
-                  version: true,
-                  name: true,
-                },
-              },
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  role: true,
-                },
+            user: {
+              select: {
+                name: true,
+                role: true,
               },
             },
-            orderBy: { createdAt: 'desc' as const },
+            // 🔥 Include QC reviewer info
+            qcReviewedBy: true,
+            qcReviewedAt: true,
+            qcResult: true,
+            qcReviewer: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            taskFeedback: {
+              select: {
+                id: true,
+                fileId: true,
+                folderType: true,
+                feedback: true,
+                status: true,
+                timestamp: true,
+                category: true,
+                createdAt: true,
+                resolvedAt: true,
+                file: {
+                  select: {
+                    version: true,
+                    name: true,
+                  },
+                },
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    role: true,
+                  },
+                },
+              },
+              orderBy: { createdAt: 'desc' as const },
+            },
           },
-        },
-      });
+        }),
+        (prisma.task as any).count({ where }),
+      ]);
+      tasks = taskResults;
+      total = countResult;
     } catch (e: any) {
       if (e.message?.includes("Expected TaskStatus") || e.code === "P2009" || e.message?.includes("validation")) {
         console.warn("⚠️ findMany failed due to enum mismatch. Falling back to queryRaw...");
@@ -873,23 +882,16 @@ export async function GET(req: any) {
       return taskA.number - taskB.number;
     });
 
-    // // ✅ NO COUNT QUERY - just return tasks
-    // 🔥 ADD SIGNED URLs TO ALL TASK FILES
-    const tasksWithSignedUrls = await Promise.all(
-      sortedTasks.map(async (task: any) => {
-        if (task.files && task.files.length > 0) {
-          const filesWithSignedUrls = await addSignedUrlsToFiles(task.files);
-          return {
-            ...task,
-            files: filesWithSignedUrls,
-          };
-        }
-        return task;
-      })
-    );
-
-    // ✅ Return tasks with signed URLs (Sanitized for BigInt)
-    return NextResponse.json({ tasks: sanitizeBigInt(tasksWithSignedUrls) }, { status: 200 });
+    // ✅ Return paginated tasks (no signed URLs in list view — they load on demand)
+    return NextResponse.json({
+      tasks: sanitizeBigInt(sortedTasks),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
     return NextResponse.json(

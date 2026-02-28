@@ -35,6 +35,7 @@ const nextConfig = {
 
   async headers() {
     return [
+      // 1. API routes — never cache
       {
         source: '/api/:path*',
         headers: [
@@ -44,12 +45,26 @@ const nextConfig = {
           },
         ],
       },
+      // 2. Next.js static assets (JS, CSS, images) — immutable, cached forever
+      //    These are fingerprinted by Next.js so they bust cache automatically on deploy
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      // 3. Pages — allow browser caching with background revalidation
+      //    stale-while-revalidate lets users see cached pages instantly while
+      //    the browser re-fetches in the background
       {
         source: '/(.*)',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-cache, proxy-revalidate',
+            value: 'private, no-cache, no-store, max-age=0, must-revalidate',
           },
           {
             key: 'Content-Security-Policy',
