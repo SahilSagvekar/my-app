@@ -161,6 +161,8 @@ export function QCDashboard() {
     loadQCTasks();
   }, []);
 
+
+
   // Global listener for background task updates
   useEffect(() => {
     const handleTaskGlobalUpdate = (e: any) => {
@@ -180,7 +182,6 @@ export function QCDashboard() {
       const res = await fetch("/api/tasks?status=READY_FOR_QC", {
         method: "GET",
         credentials: "include",
-        cache: "no-store",
       });
 
       if (!res.ok) throw new Error("Failed fetching QC tasks");
@@ -582,27 +583,28 @@ export function QCDashboard() {
 
   const handleDownload = async (file: TaskFile) => {
     try {
-      // Priority 1: Use pre-generated downloadUrl (from addSignedUrlsToFiles)
-      if ((file as any).downloadUrl) {
-        window.open((file as any).downloadUrl, '_blank');
-        toast.success('Download started', { id: 'download-file' });
-        return;
-      }
+      toast.loading('Preparing download...', { id: 'download-file' });
 
-      // Priority 2: Use the download API for S3 files
-      const isS3 = file.url?.includes('amazonaws.com') || !!file.s3Key;
-      if (isS3) {
-        window.open(`/api/files/${file.id}/download`, '_blank');
-        toast.success('Download started', { id: 'download-file' });
-        return;
-      }
+      const response = await fetch(file.url);
+      if (!response.ok) throw new Error('Download failed');
 
-      // Priority 3: Fallback — open URL directly
-      window.open(file.url, '_blank');
-      toast.success('Download started', { id: 'download-file' });
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast.success('Download completed', { id: 'download-file' });
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to start download', { id: 'download-file' });
+      toast.error('Failed to download file. Browser restrictions may apply.', { id: 'download-file' });
     }
   };
 
@@ -642,7 +644,7 @@ export function QCDashboard() {
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
-            <div className="flex flex-col">
+            <div className="flex flex-col items-center text-center">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
                 Pending Reviews
               </span>
@@ -658,6 +660,7 @@ export function QCDashboard() {
       </div>
 
       <div className="flex-1">
+        {/* Main QC grid */}
         {/* <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -715,13 +718,6 @@ export function QCDashboard() {
                       <div className="absolute inset-0 bg-black/5" />
                     )}
 
-                    {/* Status Overlay - Top Left */}
-                    {/* <div className="absolute top-3 left-3">
-                      <div className="p-1 rounded bg-zinc-200/50 text-zinc-500">
-                        <Clock className="h-3 w-3" />
-                      </div>
-                    </div> */}
-
                     {/* Share Button - Top Left */}
                     <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
@@ -739,13 +735,6 @@ export function QCDashboard() {
                       <FileText className="h-3 w-3" />
                       {task.files?.length || 0}
                     </div>
-
-                    {/* Bottom Right Clock Icon in Circle */}
-                    {/* <div className="absolute bottom-3 right-3">
-                      <div className="h-7 w-7 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
-                        <Clock className="h-4 w-4 text-blue-500" />
-                      </div>
-                    </div> */}
                   </div>
 
                   {/* Card Body */}

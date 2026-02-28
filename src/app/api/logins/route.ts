@@ -306,6 +306,7 @@ export async function POST(req: NextRequest) {
         backupCodesLocation: backupCodesLocation || null,
         adminOnly: isAdminOnlyLogin,
         updatedById: userId,
+        createdById: userId,
       },
     });
 

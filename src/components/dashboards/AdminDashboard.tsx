@@ -29,6 +29,7 @@ import {
   BarChart3,
   BookOpen,
   TrendingUp as SalesIcon,
+  Camera,
 } from 'lucide-react';
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
@@ -81,6 +82,7 @@ const PermissionsTab = safeDynamic(() => import('../admin/PermissionsTab').then(
 const JobManagementSection = safeDynamic(() => import('../jobs/JobManagementSection').then(mod => ({ default: mod.JobManagementSection })), "Job Management");
 const GuidelinesManagementTab = safeDynamic(() => import('../admin/GuidelinesManagementTab').then(mod => ({ default: mod.GuidelinesManagementTab })), "Guidelines Management");
 const SalesManagementTab = safeDynamic(() => import('../admin/SalesManagementTab').then(mod => ({ default: mod.SalesManagementTab })), "Sales Management");
+const VideographerManagementTab = safeDynamic(() => import('../admin/VideographerManagementTab').then(mod => ({ default: mod.VideographerManagementTab })), "Videographer Management");
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
@@ -595,6 +597,14 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           Sales Management
         </DropdownMenuItem>
 
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('videographer-management')}
+          className="gap-2 cursor-pointer"
+        >
+          <Camera className="h-4 w-4 text-orange-500" />
+          Videographer Management
+        </DropdownMenuItem>
+
         <div className="h-px bg-muted my-1" />
         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Operations & Finance
@@ -830,6 +840,17 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               description="View and monitor all lead activity across the entire sales team"
             />
             <SalesManagementTab />
+          </div>
+        );
+
+      case 'videographer-management':
+        return (
+          <div className="space-y-6">
+            <AdminPageHeader
+              title="Videographer Management"
+              description="Post jobs for bidding or directly assign videographers to tasks"
+            />
+            <VideographerManagementTab />
           </div>
         );
 

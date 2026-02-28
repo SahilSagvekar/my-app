@@ -1,7 +1,8 @@
 import { Navigation } from '@/components/landing/Navigation';
 import { Footer } from '@/components/landing/Footer';
 import ContactForm from '@/components/landing/ContactForm';
-import { Mail, Phone, MapPin } from 'lucide-react';
+import { CalendlyEmbed } from '@/components/landing/CalendlyEmbed';
+import { Mail, Phone, MapPin, Calendar } from 'lucide-react';
 
 export default function ContactPage() {  // ← Changed: Added "default"
   return (

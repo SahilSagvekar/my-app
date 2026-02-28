@@ -132,11 +132,6 @@ const roles = [
     name: "Client",
     color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
   },
-  {
-    id: "sales",
-    name: "Sales",
-    color: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
-  },
 ];
 
 const statusOptions = [
@@ -201,11 +196,12 @@ const formatDate = (d: string | Date | undefined) => {
   if (!d) return "-";
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString("en-IN", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
+
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${month} - ${day} - ${year}`;
 };
 
 const calculateDays = (
@@ -1112,7 +1108,6 @@ export default function LeavesComponent() {
                         <SelectItem value="scheduler">Scheduler</SelectItem>
                         <SelectItem value="qc">QC</SelectItem>
                         <SelectItem value="client">Client</SelectItem>
-                        <SelectItem value="sales">Sales</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -2002,7 +1997,6 @@ export default function LeavesComponent() {
                   <SelectItem value="scheduler">Scheduler</SelectItem>
                   <SelectItem value="qc">QC</SelectItem>
                   <SelectItem value="client">Client</SelectItem>
-                  <SelectItem value="sales">Sales</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -1,610 +1,10 @@
-// import { useState } from 'react';
-// import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-// import { Badge } from '../ui/badge';
-// import { Button } from '../ui/button';
-// import { Progress } from '../ui/progress';
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-// import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-// import { Input } from '../ui/input';
-// import { Textarea } from '../ui/textarea';
-// import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-// import { Calendar } from '../ui/calendar';
-// import { 
-//   Camera, 
-//   Upload, 
-//   Calendar as CalendarIcon, 
-//   MapPin, 
-//   Clock, 
-//   User, 
-//   CheckCircle2, 
-//   Download,
-//   Eye,
-//   Settings,
-//   Briefcase,
-//   MoreHorizontal
-// } from 'lucide-react';
-// import { toast } from 'sonner';
-// import { 
-//   mockShootingTasks, 
-//   mockUploadTasks, 
-//   mockEquipment,
-//   statusColors,
-//   uploadStatusColors,
-//   equipmentStatusColors
-// } from '../data/videographerMockData';
-
-
-
-// export function VideographerDashboard() {
-//   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-//   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-//   const [newUpload, setNewUpload] = useState({
-//     projectId: '',
-//     title: '',
-//     notes: ''
-//   });
-
-//   const handleStartUpload = () => {
-//     if (!newUpload.projectId || !newUpload.title) {
-//       toast('❌ Missing Information', { 
-//         description: 'Please select a project and enter upload title.' 
-//       });
-//       return;
-//     }
-
-//     toast('📁 Upload Started', { 
-//       description: 'Files are being uploaded to Google Drive.' 
-//     });
-//     setIsUploadDialogOpen(false);
-//     setNewUpload({ projectId: '', title: '', notes: '' });
-//   };
-
-//   const handleMarkAsCompleted = (taskId: string) => {
-//     toast('✅ Shoot Completed', { 
-//       description: 'Task marked as completed. Upload footage when ready.' 
-//     });
-//   };
-
-//   const upcomingTasks = mockShootingTasks.filter(task => task.status === 'upcoming');
-//   const inProgressTasks = mockShootingTasks.filter(task => task.status === 'in-progress');
-//   const completedTasks = mockShootingTasks.filter(task => task.status === 'completed');
-
-//   return (
-//     <div className="space-y-6">
-//       {/* Header */}
-//       <div className="flex items-center justify-between">
-//         <div>
-//           <h1>Videographer Portal</h1>
-//           <p className="text-muted-foreground mt-2">
-//             Manage your shooting schedule, upload footage, and track equipment
-//           </p>
-//         </div>
-
-//         {/* <div className="flex items-center gap-3">
-//           <Button
-//             className="w-full"
-//             onClick={() => router.push("/leave-request")}
-//           >
-//             Request Leave
-//           </Button>
-//         </div> */}
-//         {/* <div className="flex items-center justify-between">
-//         <div>
-//           <h1>Videographer Portal</h1>
-//           <p className="text-muted-foreground mt-2">
-//             Manage your shooting schedule, upload footage, and track equipment
-//           </p>
-//         </div>
-
-//       </div> */}
-
-//         <div className="flex items-center gap-3">
-//           <Dialog
-//             open={isUploadDialogOpen}
-//             onOpenChange={setIsUploadDialogOpen}
-//           >
-//             <DialogTrigger asChild>
-//               {/* <Button>
-//                 <Upload className="h-4 w-4 mr-2" />
-//                 Upload Footage
-//               </Button> */}
-//             </DialogTrigger>
-//             <DialogContent>
-//               <DialogHeader>
-//                 <DialogTitle>Upload Footage</DialogTitle>
-//                 <DialogDescription>
-//                   Select the project and upload your recorded footage to Google
-//                   Drive.
-//                 </DialogDescription>
-//               </DialogHeader>
-//               <div className="space-y-4">
-//                 <div>
-//                   <label className="text-sm">Project</label>
-//                   <Select
-//                     value={newUpload.projectId}
-//                     onValueChange={(value) =>
-//                       setNewUpload({ ...newUpload, projectId: value })
-//                     }
-//                   >
-//                     <SelectTrigger>
-//                       <SelectValue placeholder="Select project" />
-//                     </SelectTrigger>
-//                     <SelectContent>
-//                       {mockShootingTasks.map((task) => (
-//                         <SelectItem key={task.id} value={task.id}>
-//                           {task.title} - {task.client}
-//                         </SelectItem>
-//                       ))}
-//                     </SelectContent>
-//                   </Select>
-//                 </div>
-//                 <div>
-//                   <label className="text-sm">Upload Title</label>
-//                   <Input
-//                     value={newUpload.title}
-//                     onChange={(e) =>
-//                       setNewUpload({ ...newUpload, title: e.target.value })
-//                     }
-//                     placeholder="e.g., Raw Footage - Batch 1"
-//                   />
-//                 </div>
-//                 <div>
-//                   <label className="text-sm">Notes (Optional)</label>
-//                   <Textarea
-//                     value={newUpload.notes}
-//                     onChange={(e) =>
-//                       setNewUpload({ ...newUpload, notes: e.target.value })
-//                     }
-//                     placeholder="Any additional notes about the footage..."
-//                     rows={3}
-//                   />
-//                 </div>
-//                 <div className="flex justify-end gap-3">
-//                   <Button
-//                     variant="outline"
-//                     onClick={() => setIsUploadDialogOpen(false)}
-//                   >
-//                     Cancel
-//                   </Button>
-//                   <Button onClick={handleStartUpload}>Start Upload</Button>
-//                 </div>
-//               </div>
-//             </DialogContent>
-//           </Dialog>
-//         </div>
-//       </div>
-
-//       {/* KPI Cards */}
-//       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-//         <Card>
-//           <CardContent className="p-6">
-//             <div className="flex items-center justify-between">
-//               <div>
-//                 <p className="text-sm text-muted-foreground">Today's Shoots</p>
-//                 <h3 className="mt-2">{inProgressTasks.length}</h3>
-//               </div>
-//               <Camera className="h-8 w-8 text-blue-600" />
-//             </div>
-//           </CardContent>
-//         </Card>
-
-//         <Card>
-//           <CardContent className="p-6">
-//             <div className="flex items-center justify-between">
-//               <div>
-//                 <p className="text-sm text-muted-foreground">Upcoming Shoots</p>
-//                 <h3 className="mt-2">{upcomingTasks.length}</h3>
-//               </div>
-//               <CalendarIcon className="h-8 w-8 text-orange-600" />
-//             </div>
-//           </CardContent>
-//         </Card>
-
-//         <Card>
-//           <CardContent className="p-6">
-//             <div className="flex items-center justify-between">
-//               <div>
-//                 <p className="text-sm text-muted-foreground">Pending Uploads</p>
-//                 <h3 className="mt-2">
-//                   {mockUploadTasks.filter((u) => u.status === "pending").length}
-//                 </h3>
-//               </div>
-//               <Upload className="h-8 w-8 text-green-600" />
-//             </div>
-//           </CardContent>
-//         </Card>
-
-//         <Card>
-//           <CardContent className="p-6">
-//             <div className="flex items-center justify-between">
-//               <div>
-//                 <p className="text-sm text-muted-foreground">
-//                   Equipment Available
-//                 </p>
-//                 <h3 className="mt-2">
-//                   {mockEquipment.filter((e) => e.status === "available").length}
-//                 </h3>
-//               </div>
-//               <Settings className="h-8 w-8 text-purple-600" />
-//             </div>
-//           </CardContent>
-//         </Card>
-//       </div>
-
-//       {/* Main Content Tabs */}
-//       <Tabs defaultValue="shoots" className="space-y-6">
-//         <TabsList className="grid w-full grid-cols-4">
-//           <TabsTrigger value="shoots">Shooting Schedule</TabsTrigger>
-//           <TabsTrigger value="uploads">File Uploads</TabsTrigger>
-//           <TabsTrigger value="equipment">Equipment</TabsTrigger>
-//           <TabsTrigger value="calendar">Calendar</TabsTrigger>
-//         </TabsList>
-
-//         {/* Shooting Schedule Tab */}
-//         <TabsContent value="shoots" className="space-y-6">
-//           <div className="grid gap-6">
-//             {/* In Progress Shoots */}
-//             {inProgressTasks.length > 0 && (
-//               <Card>
-//                 <CardHeader>
-//                   <CardTitle className="flex items-center gap-2">
-//                     <Camera className="h-5 w-5" />
-//                     Active Shoots
-//                   </CardTitle>
-//                 </CardHeader>
-//                 <CardContent>
-//                   <div className="space-y-4">
-//                     {inProgressTasks.map((task) => (
-//                       <div key={task.id} className="border rounded-lg p-4">
-//                         <div className="flex items-start justify-between">
-//                           <div className="space-y-2">
-//                             <div className="flex items-center gap-3">
-//                               <h4 className="font-medium">{task.title}</h4>
-//                               <Badge className={statusColors[task.status]}>
-//                                 {task.status.replace("-", " ")}
-//                               </Badge>
-//                               <Badge
-//                                 variant="outline"
-//                                 className={
-//                                   task.priority === "high"
-//                                     ? "border-red-500 text-red-700"
-//                                     : "border-orange-500 text-orange-700"
-//                                 }
-//                               >
-//                                 {task.priority} priority
-//                               </Badge>
-//                             </div>
-//                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-//                               <div className="flex items-center gap-1">
-//                                 <User className="h-4 w-4" />
-//                                 {task.client}
-//                               </div>
-//                               <div className="flex items-center gap-1">
-//                                 <MapPin className="h-4 w-4" />
-//                                 {task.location}
-//                               </div>
-//                               <div className="flex items-center gap-1">
-//                                 <Clock className="h-4 w-4" />
-//                                 {task.duration}
-//                               </div>
-//                             </div>
-//                             <div className="text-sm">
-//                               <strong>Shot List:</strong>{" "}
-//                               {task.shotList.join(", ")}
-//                             </div>
-//                             <div className="text-sm">
-//                               <strong>Equipment:</strong>{" "}
-//                               {task.equipment.join(", ")}
-//                             </div>
-//                             {task.notes && (
-//                               <div className="text-sm text-muted-foreground">
-//                                 <strong>Notes:</strong> {task.notes}
-//                               </div>
-//                             )}
-//                           </div>
-//                           <Button
-//                             onClick={() => handleMarkAsCompleted(task.id)}
-//                           >
-//                             <CheckCircle2 className="h-4 w-4 mr-2" />
-//                             Complete Shoot
-//                           </Button>
-//                         </div>
-//                       </div>
-//                     ))}
-//                   </div>
-//                 </CardContent>
-//               </Card>
-//             )}
-
-//             {/* Upcoming Shoots */}
-//             <Card>
-//               <CardHeader>
-//                 <CardTitle className="flex items-center gap-2">
-//                   <CalendarIcon className="h-5 w-5" />
-//                   Upcoming Shoots
-//                 </CardTitle>
-//               </CardHeader>
-//               <CardContent>
-//                 <div className="space-y-4">
-//                   {upcomingTasks.map((task) => (
-//                     <div key={task.id} className="border rounded-lg p-4">
-//                       <div className="flex items-start justify-between">
-//                         <div className="space-y-2">
-//                           <div className="flex items-center gap-3">
-//                             <h4 className="font-medium">{task.title}</h4>
-//                             <Badge className={statusColors[task.status]}>
-//                               {task.status.replace("-", " ")}
-//                             </Badge>
-//                             <Badge
-//                               variant="outline"
-//                               className={
-//                                 task.priority === "high"
-//                                   ? "border-red-500 text-red-700"
-//                                   : "border-blue-500 text-blue-700"
-//                               }
-//                             >
-//                               {task.priority} priority
-//                             </Badge>
-//                           </div>
-//                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-//                             <div className="flex items-center gap-1">
-//                               <User className="h-4 w-4" />
-//                               {task.client}
-//                             </div>
-//                             <div className="flex items-center gap-1">
-//                               <CalendarIcon className="h-4 w-4" />
-//                               {task.scheduledDate} at {task.scheduledTime}
-//                             </div>
-//                             <div className="flex items-center gap-1">
-//                               <MapPin className="h-4 w-4" />
-//                               {task.location}
-//                             </div>
-//                           </div>
-//                           <div className="text-sm">
-//                             <strong>Shot List:</strong>{" "}
-//                             {task.shotList.join(", ")}
-//                           </div>
-//                           <div className="text-sm">
-//                             <strong>Required Equipment:</strong>{" "}
-//                             {task.equipment.join(", ")}
-//                           </div>
-//                           {task.notes && (
-//                             <div className="text-sm text-muted-foreground">
-//                               <strong>Notes:</strong> {task.notes}
-//                             </div>
-//                           )}
-//                         </div>
-//                         <div className="flex gap-2">
-//                           <Button variant="outline" size="sm">
-//                             <Eye className="h-4 w-4 mr-2" />
-//                             View Details
-//                           </Button>
-//                         </div>
-//                       </div>
-//                     </div>
-//                   ))}
-//                 </div>
-//               </CardContent>
-//             </Card>
-//           </div>
-//         </TabsContent>
-
-//         {/* File Uploads Tab */}
-//         <TabsContent value="uploads" className="space-y-6">
-//           <Card>
-//             <CardHeader>
-//               <CardTitle className="flex items-center gap-2">
-//                 <Upload className="h-5 w-5" />
-//                 File Upload Status
-//               </CardTitle>
-//             </CardHeader>
-//             <CardContent>
-//               <div className="space-y-4">
-//                 {mockUploadTasks.map((upload) => (
-//                   <div key={upload.id} className="border rounded-lg p-4">
-//                     <div className="flex items-start justify-between">
-//                       <div className="space-y-2 flex-1">
-//                         <div className="flex items-center gap-3">
-//                           <h4 className="font-medium">{upload.title}</h4>
-//                           <Badge className={uploadStatusColors[upload.status]}>
-//                             {upload.status}
-//                           </Badge>
-//                         </div>
-//                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-//                           <span>{upload.filesCount} files</span>
-//                           <span>{upload.totalSize}</span>
-//                           {upload.uploadDate && (
-//                             <span>Uploaded: {upload.uploadDate}</span>
-//                           )}
-//                         </div>
-
-//                         {upload.status === "uploading" && upload.progress && (
-//                           <div className="space-y-1">
-//                             <div className="flex justify-between text-sm">
-//                               <span>Uploading...</span>
-//                               <span>{upload.progress}%</span>
-//                             </div>
-//                             <Progress
-//                               value={upload.progress}
-//                               className="w-full"
-//                             />
-//                             <div className="text-xs text-muted-foreground">
-//                               {upload.uploadedSize} of {upload.totalSize}{" "}
-//                               uploaded
-//                             </div>
-//                           </div>
-//                         )}
-
-//                         {upload.status === "completed" && upload.driveLink && (
-//                           <div className="flex items-center gap-2">
-//                             <Button variant="outline" size="sm" asChild>
-//                               <a
-//                                 href={upload.driveLink}
-//                                 target="_blank"
-//                                 rel="noopener noreferrer"
-//                               >
-//                                 <Download className="h-4 w-4 mr-2" />
-//                                 View in Drive
-//                               </a>
-//                             </Button>
-//                           </div>
-//                         )}
-//                       </div>
-
-//                       {upload.status === "pending" && (
-//                         <Button
-//                           size="sm"
-//                           onClick={() => setIsUploadDialogOpen(true)}
-//                         >
-//                           <Upload className="h-4 w-4 mr-2" />
-//                           Start Upload
-//                         </Button>
-//                       )}
-//                     </div>
-//                   </div>
-//                 ))}
-//               </div>
-//             </CardContent>
-//           </Card>
-//         </TabsContent>
-
-//         {/* Equipment Tab */}
-//         <TabsContent value="equipment" className="space-y-6">
-//           <Card>
-//             <CardHeader>
-//               <CardTitle className="flex items-center gap-2">
-//                 <Briefcase className="h-5 w-5" />
-//                 Equipment Management
-//               </CardTitle>
-//             </CardHeader>
-//             <CardContent>
-//               <div className="overflow-x-auto">
-//                 <table className="w-full">
-//                   <thead>
-//                     <tr className="border-b">
-//                       <th className="text-left py-3 px-4">Equipment</th>
-//                       <th className="text-left py-3 px-4">Type</th>
-//                       <th className="text-left py-3 px-4">Status</th>
-//                       <th className="text-left py-3 px-4">Location</th>
-//                       <th className="text-left py-3 px-4">Last Maintenance</th>
-//                       <th className="text-right py-3 px-4">Actions</th>
-//                     </tr>
-//                   </thead>
-//                   <tbody>
-//                     {mockEquipment.map((item) => (
-//                       <tr key={item.id} className="border-b hover:bg-muted/50">
-//                         <td className="py-3 px-4">
-//                           <div className="font-medium">{item.name}</div>
-//                           <div className="text-sm text-muted-foreground">
-//                             {item.id}
-//                           </div>
-//                         </td>
-//                         <td className="py-3 px-4">{item.type}</td>
-//                         <td className="py-3 px-4">
-//                           <Badge className={equipmentStatusColors[item.status]}>
-//                             {item.status.replace("-", " ")}
-//                           </Badge>
-//                         </td>
-//                         <td className="py-3 px-4">
-//                           <div>{item.location}</div>
-//                           {item.assignedTo && (
-//                             <div className="text-sm text-muted-foreground">
-//                               {item.assignedTo}
-//                             </div>
-//                           )}
-//                         </td>
-//                         <td className="py-3 px-4 text-sm">
-//                           {item.lastMaintenance}
-//                         </td>
-//                         <td className="py-3 px-4 text-right">
-//                           <Button variant="ghost" size="sm">
-//                             <MoreHorizontal className="h-4 w-4" />
-//                           </Button>
-//                         </td>
-//                       </tr>
-//                     ))}
-//                   </tbody>
-//                 </table>
-//               </div>
-//             </CardContent>
-//           </Card>
-//         </TabsContent>
-
-//         {/* Calendar Tab */}
-//         <TabsContent value="calendar" className="space-y-6">
-//           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-//             <Card>
-//               <CardHeader>
-//                 <CardTitle>Shooting Calendar</CardTitle>
-//               </CardHeader>
-//               <CardContent>
-//                 <Calendar
-//                   mode="single"
-//                   selected={selectedDate}
-//                   onSelect={setSelectedDate}
-//                   className="rounded-md border"
-//                 />
-//               </CardContent>
-//             </Card>
-
-//             <Card>
-//               <CardHeader>
-//                 <CardTitle>Today's Schedule</CardTitle>
-//               </CardHeader>
-//               <CardContent>
-//                 <div className="space-y-4">
-//                   {mockShootingTasks
-//                     .filter(
-//                       (task) =>
-//                         task.scheduledDate ===
-//                         selectedDate?.toISOString().split("T")[0]
-//                     )
-//                     .map((task) => (
-//                       <div key={task.id} className="border rounded-lg p-3">
-//                         <div className="flex items-center justify-between">
-//                           <div>
-//                             <h4 className="font-medium">{task.title}</h4>
-//                             <div className="text-sm text-muted-foreground">
-//                               {task.scheduledTime} • {task.location}
-//                             </div>
-//                           </div>
-//                           <Badge className={statusColors[task.status]}>
-//                             {task.status.replace("-", " ")}
-//                           </Badge>
-//                         </div>
-//                       </div>
-//                     ))}
-
-//                   {(!selectedDate ||
-//                     mockShootingTasks.filter(
-//                       (task) =>
-//                         task.scheduledDate ===
-//                         selectedDate?.toISOString().split("T")[0]
-//                     ).length === 0) && (
-//                     <div className="text-center text-muted-foreground py-8">
-//                       No shoots scheduled for this date
-//                     </div>
-//                   )}
-//                 </div>
-//               </CardContent>
-//             </Card>
-//           </div>
-//         </TabsContent>
-//       </Tabs>
-//     </div>
-//   );
-// }
-
-
-// components/videographer/VideographerDashboard.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Progress } from '../ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -623,25 +23,20 @@ import {
   Eye,
   Settings,
   Briefcase,
-  MoreHorizontal,
   Loader,
   DollarSign,
   FileText,
-  XCircle,
-  Plus,
-  Link
+  Link,
+  Video,
+  Image as ImageIcon,
+  File as FileIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  mockShootingTasks,
-  mockUploadTasks,
-  mockEquipment,
-  statusColors,
-  uploadStatusColors,
-  equipmentStatusColors
-} from '../data/videographerMockData';
 
-// Types for Remote Data
+// ─────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────
+
 interface Bid {
   id: string;
   amount: number;
@@ -663,23 +58,27 @@ interface Job {
   lighting?: string;
   exclusions?: string;
   referenceLinks?: string[];
-  budget?: number; // Decimal in DB, number in JSON
+  budget?: number;
   status: 'OPEN' | 'ASSIGNED' | 'COMPLETED' | 'CANCELLED';
-  bids?: Bid[]; // Current user's bid (if videographer)
+  bids?: Bid[];
   _count?: { bids: number };
 }
 
-// ============================================
-// LOADING FALLBACK COMPONENT WITH LOGGING
-// ============================================
-function DashboardLoadingFallback({ componentName = "Component" }) {
-  useEffect(() => {
-    console.log(`⏳ [LAZY LOADING] ${componentName} is loading...`);
-    return () => {
-      console.log(`✅ [LAZY LOADING] ${componentName} loaded successfully`);
-    };
-  }, [componentName]);
+interface TaskFile {
+  id: string;
+  name: string;
+  url: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+  folderType?: string;
+}
 
+// ─────────────────────────────────────────
+// Loading Fallback
+// ─────────────────────────────────────────
+
+function DashboardLoadingFallback({ componentName = "Component" }) {
   return (
     <div className="flex items-center justify-center h-64">
       <div className="text-center space-y-4">
@@ -690,18 +89,44 @@ function DashboardLoadingFallback({ componentName = "Component" }) {
   );
 }
 
-export function VideographerDashboard() {
+// ─────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────
+
+function formatFileSize(bytes: number): string {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function getFileIcon(mimeType: string) {
+  if (mimeType?.startsWith('video/')) return <Video className="h-4 w-4 text-blue-500" />;
+  if (mimeType?.startsWith('image/')) return <ImageIcon className="h-4 w-4 text-green-500" />;
+  return <FileIcon className="h-4 w-4 text-gray-500" />;
+}
+
+// ─────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────
+
+interface VideographerDashboardProps {
+  initialTab?: string;
+}
+
+export function VideographerDashboard({ initialTab }: VideographerDashboardProps = {}) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [newUpload, setNewUpload] = useState({
-    projectId: '',
-    title: '',
-    notes: ''
-  });
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(initialTab || 'jobs');
+
+  // Sync activeTab with initialTab prop
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   useEffect(() => {
     fetchTasks();
@@ -723,24 +148,6 @@ export function VideographerDashboard() {
     }
   };
 
-  const handleStartUpload = () => {
-    console.log('📁 [VIDEOGRAPHER] Starting upload:', newUpload);
-    if (!newUpload.projectId || !newUpload.title) {
-      console.warn('⚠️ [VIDEOGRAPHER] Missing upload information');
-      toast('❌ Missing Information', {
-        description: 'Please select a project and enter upload title.'
-      });
-      return;
-    }
-
-    console.log('✅ [VIDEOGRAPHER] Upload validated and started');
-    toast('📁 Upload Started', {
-      description: 'Files are being uploaded to Google Drive.'
-    });
-    setIsUploadDialogOpen(false);
-    setNewUpload({ projectId: '', title: '', notes: '' });
-  };
-
   const handleMarkAsCompleted = async (taskId: string) => {
     try {
       const res = await fetch(`/api/tasks/${taskId}/status`, {
@@ -750,9 +157,7 @@ export function VideographerDashboard() {
       });
 
       if (res.ok) {
-        toast('✅ Shoot Completed', {
-          description: 'Task marked as completed. Upload footage when ready.'
-        });
+        toast.success('Shoot marked as completed');
         fetchTasks();
       }
     } catch (error) {
@@ -781,11 +186,18 @@ export function VideographerDashboard() {
   const inProgressTasks = tasks.filter(task => task.status === 'IN_PROGRESS' || task.status === 'SHOOTING');
   const completedTasks = tasks.filter(task => task.status === 'COMPLETED');
 
-  console.log(`📊 [VIDEOGRAPHER] Dashboard state - Upcoming: ${upcomingTasks.length}, In Progress: ${inProgressTasks.length}, Completed: ${completedTasks.length}`);
+  // Get all files across all tasks
+  const allFiles = tasks.flatMap(task =>
+    (task.files || []).map((f: any) => ({ ...f, taskTitle: task.title, taskId: task.id }))
+  );
+
+  // ─────────────────────────────────────────
+  // Job Board Tab
+  // ─────────────────────────────────────────
 
   const JobBoardTab = () => {
     const [jobs, setJobs] = useState<Job[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [jobsLoading, setJobsLoading] = useState(true);
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [bidAmount, setBidAmount] = useState('');
     const [bidNote, setBidNote] = useState('');
@@ -793,28 +205,23 @@ export function VideographerDashboard() {
 
     useEffect(() => {
       fetchJobs();
-      console.log('💼 [VIDEOGRAPHER] Job Board tab mounted');
-      return () => console.log('💼 [VIDEOGRAPHER] Job Board tab unmounted');
     }, []);
 
     const fetchJobs = async () => {
       try {
-        setLoading(true);
-        // Fetch OPEN jobs. 
+        setJobsLoading(true);
         const res = await fetch('/api/jobs?status=OPEN');
         if (res.ok) {
           const data = await res.json();
           setJobs(data);
         } else {
           const errorData = await res.json().catch(() => ({}));
-          console.error(`Failed to fetch jobs: ${res.status} ${res.statusText}`, errorData);
           toast.error('Could not load jobs', { description: errorData.error || 'Check server logs' });
         }
       } catch (error) {
-        console.error('Error fetching jobs:', error);
         toast.error('Network error', { description: 'Failed to connect to API' });
       } finally {
-        setLoading(false);
+        setJobsLoading(false);
       }
     };
 
@@ -844,28 +251,28 @@ export function VideographerDashboard() {
         });
 
         if (res.ok) {
-          toast('✅ Bid Submitted', {
-            description: `You placed a bid of $${bidAmount} for ${selectedJob.title}`
-          });
+          toast.success(`Bid of $${bidAmount} submitted for ${selectedJob.title}`);
           setIsBidDialogOpen(false);
           fetchJobs();
         } else {
           const err = await res.json();
-          toast('❌ Bid Failed', { description: err.error });
+          toast.error('Bid Failed', { description: err.error });
         }
       } catch (error) {
-        toast('❌ Error', { description: 'Something went wrong.' });
+        toast.error('Something went wrong');
       }
     };
 
-    if (loading) return <DashboardLoadingFallback componentName="Job Board" />;
+    if (jobsLoading) return <DashboardLoadingFallback componentName="Job Board" />;
 
     return (
       <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {jobs.length === 0 ? (
             <div className="col-span-full text-center py-10 text-muted-foreground">
-              <p>No open jobs available at the moment.</p>
+              <Briefcase className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No open jobs available at the moment.</p>
+              <p className="text-sm mt-1">Check back later for new opportunities</p>
             </div>
           ) : (
             jobs.map((job) => {
@@ -946,7 +353,7 @@ export function VideographerDashboard() {
 
             {selectedJob && (
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 my-2 text-sm">
-                <div className="flex items-center gap-2 font-bold text-slate-700 uppercase font-xs tracking-wider">
+                <div className="flex items-center gap-2 font-bold text-slate-700 uppercase text-xs tracking-wider">
                   <Settings className="h-4 w-4" /> Technical Requirements
                 </div>
                 <div className="grid grid-cols-2 gap-y-2">
@@ -965,7 +372,7 @@ export function VideographerDashboard() {
 
                 {selectedJob.exclusions && (
                   <div className="pt-2 border-t border-slate-200">
-                    <p className="text-xs font-bold text-red-600 mb-1">DONT CAPTURE:</p>
+                    <p className="text-xs font-bold text-red-600 mb-1">DON'T CAPTURE:</p>
                     <p className="text-xs text-red-700 italic">{selectedJob.exclusions}</p>
                   </div>
                 )}
@@ -1009,6 +416,10 @@ export function VideographerDashboard() {
       </>
     );
   };
+
+  // ─────────────────────────────────────────
+  // Shooting Schedule Tab
+  // ─────────────────────────────────────────
 
   const ShootingScheduleTab = () => {
     return (
@@ -1114,7 +525,7 @@ export function VideographerDashboard() {
                       <Camera className="h-6 w-6" /> Shoot Briefing
                     </DialogTitle>
                     <DialogDescription className="text-primary-foreground/80 font-medium">
-                      {selectedTask.title || "Untitled Task"} — ID: {selectedTask.id}
+                      {selectedTask.title || "Untitled Task"}
                     </DialogDescription>
                   </DialogHeader>
                 </div>
@@ -1140,83 +551,62 @@ export function VideographerDashboard() {
                     </div>
                   </div>
 
-                  {/* Criteria Grid */}
-                  <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                    <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-200 pb-2">
-                      <Settings className="h-4 w-4" /> Technical Specifications
-                    </h4>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Camera</p>
-                        <p className="font-bold text-slate-900">{selectedTask.shootDetail?.camera || "-"}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Quality</p>
-                        <p className="font-bold text-slate-900">{selectedTask.shootDetail?.quality || "-"}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Frame Rate</p>
-                        <p className="font-bold text-slate-900">{selectedTask.shootDetail?.frameRate || "-"}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">Lighting</p>
-                        <p className="font-bold text-slate-900">{selectedTask.shootDetail?.lighting || "-"}</p>
+                  {/* Technical Specs */}
+                  {selectedTask.shootDetail && (
+                    <div className="space-y-3">
+                      <Label className="uppercase tracking-wider text-xs font-bold text-muted-foreground">Technical Specs</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {selectedTask.shootDetail.camera && (
+                          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-center">
+                            <p className="text-[10px] uppercase tracking-wider text-blue-500 font-bold">Camera</p>
+                            <p className="font-semibold text-sm mt-1">{selectedTask.shootDetail.camera}</p>
+                          </div>
+                        )}
+                        {selectedTask.shootDetail.quality && (
+                          <div className="p-3 bg-purple-50 rounded-xl border border-purple-100 text-center">
+                            <p className="text-[10px] uppercase tracking-wider text-purple-500 font-bold">Quality</p>
+                            <p className="font-semibold text-sm mt-1">{selectedTask.shootDetail.quality}</p>
+                          </div>
+                        )}
+                        {selectedTask.shootDetail.frameRate && (
+                          <div className="p-3 bg-green-50 rounded-xl border border-green-100 text-center">
+                            <p className="text-[10px] uppercase tracking-wider text-green-500 font-bold">Frame Rate</p>
+                            <p className="font-semibold text-sm mt-1">{selectedTask.shootDetail.frameRate}</p>
+                          </div>
+                        )}
+                        {selectedTask.shootDetail.lighting && (
+                          <div className="p-3 bg-orange-50 rounded-xl border border-orange-100 text-center">
+                            <p className="text-[10px] uppercase tracking-wider text-orange-500 font-bold">Lighting</p>
+                            <p className="font-semibold text-sm mt-1">{selectedTask.shootDetail.lighting}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Description */}
+                  {selectedTask.description && (
+                    <div className="space-y-2">
+                      <Label className="uppercase tracking-wider text-xs font-bold text-muted-foreground">Description</Label>
+                      <p className="text-sm text-slate-700 bg-gray-50 p-4 rounded-xl border border-gray-100">{selectedTask.description}</p>
+                    </div>
+                  )}
 
                   {/* Exclusions */}
                   {selectedTask.shootDetail?.exclusions && (
-                    <div className="bg-red-50/50 p-6 rounded-2xl border border-red-100">
-                      <h4 className="font-extrabold text-red-800 mb-2 flex items-center gap-2">
-                        <XCircle className="h-4 w-4" /> EXCLUSIONS (Do NOT Film)
-                      </h4>
-                      <p className="text-sm text-red-900 font-medium leading-relaxed">
-                        {selectedTask.shootDetail.exclusions}
-                      </p>
+                    <div className="space-y-2">
+                      <Label className="uppercase tracking-wider text-xs font-bold text-red-500">DON'T CAPTURE</Label>
+                      <p className="text-sm text-red-700 bg-red-50 p-4 rounded-xl border border-red-100 italic">{selectedTask.shootDetail.exclusions}</p>
                     </div>
                   )}
 
-                  {/* Reference Videos */}
-                  {((selectedTask.shootDetail?.referenceLinks && selectedTask.shootDetail.referenceLinks.length > 0) || (selectedTask.driveLinks && selectedTask.driveLinks.length > 0)) && (
-                    <div className="space-y-4">
-                      <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                        <Eye className="h-4 w-4" /> Examples & References
-                      </h4>
-                      <div className="space-y-2">
-                        {selectedTask.shootDetail?.referenceLinks?.map((link: string, i: number) => (
-                          <a key={i} href={link} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition-colors group">
-                            <Eye className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                            <span className="text-xs font-bold truncate underline decoration-2 underline-offset-4">{link}</span>
-                          </a>
-                        ))}
-                        {selectedTask.driveLinks?.map((link: string, i: number) => (
-                          <a key={i} href={link} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-3 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 transition-colors group">
-                            <Download className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                            <span className="text-xs font-bold truncate underline decoration-2 underline-offset-4">Reference File #{i + 1}</span>
-                          </a>
-                        ))}
-                      </div>
+                  {/* Notes */}
+                  {selectedTask.shootDetail?.videographerNotes && (
+                    <div className="space-y-2">
+                      <Label className="uppercase tracking-wider text-xs font-bold text-muted-foreground">Shoot Notes</Label>
+                      <p className="text-sm text-slate-600 bg-amber-50 p-4 rounded-xl border border-amber-100">{selectedTask.shootDetail.videographerNotes}</p>
                     </div>
                   )}
-
-                  {/* Videographer Post-Shoot Notes */}
-                  <div className="pt-6 border-t border-slate-100">
-                    <Label className="text-sm font-bold text-slate-800 mb-3 block">Post-Shoot Report & Notes</Label>
-                    <Textarea
-                      placeholder="Briefly describe how the shoot went, any issues faced, or specific details for the editor..."
-                      className="bg-gray-50 border-gray-200 focus:bg-white min-h-[120px] rounded-xl font-medium"
-                      defaultValue={selectedTask.shootDetail?.videographerNotes || ""}
-                      onBlur={(e) => handleSaveShootNotes(selectedTask.id, e.target.value)}
-                    />
-                    <p className="text-[10px] text-muted-foreground mt-2 font-medium italic">* Changes are auto-saved when you click away</p>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-slate-50 border-t flex justify-end">
-                  <Button onClick={() => setIsDetailsOpen(false)} className="px-8 rounded-xl font-bold">
-                    Got it, thanks!
-                  </Button>
                 </div>
               </div>
             )}
@@ -1226,170 +616,119 @@ export function VideographerDashboard() {
     );
   };
 
+  // ─────────────────────────────────────────
+  // File Uploads Tab — now uses REAL task files
+  // ─────────────────────────────────────────
+
   const FileUploadsTab = () => {
-    useEffect(() => {
-      console.log('📤 [VIDEOGRAPHER] File Uploads tab mounted');
-      return () => console.log('📤 [VIDEOGRAPHER] File Uploads tab unmounted');
-    }, []);
+    // Group files by task
+    const tasksWithFiles = tasks.filter(t => t.files && t.files.length > 0);
 
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            File Upload Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {mockUploadTasks.map((upload) => (
-              <div key={upload.id} className="border rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-3">
-                      <h4 className="font-medium">{upload.title}</h4>
-                      <Badge className={uploadStatusColors[upload.status]}>
-                        {upload.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>{upload.filesCount} files</span>
-                      <span>{upload.totalSize}</span>
-                      {upload.uploadDate && (
-                        <span>Uploaded: {upload.uploadDate}</span>
-                      )}
-                    </div>
-
-                    {upload.status === "uploading" && upload.progress && (
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span>Uploading...</span>
-                          <span>{upload.progress}%</span>
-                        </div>
-                        <Progress
-                          value={upload.progress}
-                          className="w-full"
-                        />
-                        <div className="text-xs text-muted-foreground">
-                          {upload.uploadedSize} of {upload.totalSize}{" "}
-                          uploaded
-                        </div>
-                      </div>
-                    )}
-
-                    {upload.status === "completed" && upload.driveLink && (
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" asChild>
-                          <a
-                            href={upload.driveLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            View in Drive
-                          </a>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  {upload.status === "pending" && (
-                    <Button
-                      size="sm"
-                      onClick={() => setIsUploadDialogOpen(true)}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Start Upload
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
+      <div className="space-y-6">
+        {tasksWithFiles.length === 0 ? (
+          <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <Upload className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500 font-medium">No files uploaded yet</p>
+            <p className="text-sm text-slate-400 mt-1">Files will appear here once uploaded to your tasks</p>
           </div>
-        </CardContent>
-      </Card>
+        ) : (
+          tasksWithFiles.map((task) => (
+            <Card key={task.id}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">{task.title}</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {task.files.length} file{task.files.length !== 1 ? 's' : ''} •
+                      {task.client?.companyName || task.client?.name || 'Unknown Client'}
+                    </p>
+                  </div>
+                  <Badge className={
+                    task.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                      task.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                  }>
+                    {task.status.replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {task.files.map((file: any) => (
+                    <div key={file.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:bg-slate-100/50 transition-colors">
+                      {getFileIcon(file.mimeType)}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatFileSize(file.size)} • {new Date(file.uploadedAt).toLocaleDateString()}
+                          {file.folderType && ` • ${file.folderType}`}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => window.open(file.url, '_blank')}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
     );
   };
+
+  // ─────────────────────────────────────────
+  // Equipment Tab — placeholder (no DB model yet)
+  // ─────────────────────────────────────────
 
   const EquipmentTab = () => {
-    useEffect(() => {
-      console.log('⚙️ [VIDEOGRAPHER] Equipment tab mounted');
-      return () => console.log('⚙️ [VIDEOGRAPHER] Equipment tab unmounted');
-    }, []);
-
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Briefcase className="h-5 w-5" />
-            Equipment Management
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4">Equipment</th>
-                  <th className="text-left py-3 px-4">Type</th>
-                  <th className="text-left py-3 px-4">Status</th>
-                  <th className="text-left py-3 px-4">Location</th>
-                  <th className="text-left py-3 px-4">Last Maintenance</th>
-                  <th className="text-right py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockEquipment.map((item) => (
-                  <tr key={item.id} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-4">
-                      <div className="font-medium">{item.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {item.id}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">{item.type}</td>
-                    <td className="py-3 px-4">
-                      <Badge className={equipmentStatusColors[item.status]}>
-                        {item.status.replace("-", " ")}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div>{item.location}</div>
-                      {item.assignedTo && (
-                        <div className="text-sm text-muted-foreground">
-                          {item.assignedTo}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-sm">
-                      {item.lastMaintenance}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+        <Settings className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+        <p className="text-slate-500 font-medium">Equipment Management</p>
+        <p className="text-sm text-slate-400 mt-1 max-w-md mx-auto">
+          Equipment tracking is coming soon. This will allow you to check out cameras, lights, and other gear for your shoots.
+        </p>
+      </div>
     );
   };
 
+  // ─────────────────────────────────────────
+  // Calendar Tab — now uses REAL tasks
+  // ─────────────────────────────────────────
+
   const CalendarTab = () => {
-    useEffect(() => {
-      console.log('📅 [VIDEOGRAPHER] Calendar tab mounted');
-      return () => console.log('📅 [VIDEOGRAPHER] Calendar tab unmounted');
+    const selectedDateStr = selectedDate?.toISOString().split("T")[0];
+
+    // Match tasks by dueDate or shootDetail.shootDate
+    const tasksForDate = tasks.filter(task => {
+      const dueDate = task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : null;
+      const shootDate = task.shootDetail?.shootDate ? new Date(task.shootDetail.shootDate).toISOString().split("T")[0] : null;
+      return dueDate === selectedDateStr || shootDate === selectedDateStr;
+    });
+
+    // Highlight dates that have tasks
+    const taskDates = tasks.reduce((acc: Date[], task) => {
+      if (task.dueDate) acc.push(new Date(task.dueDate));
+      if (task.shootDetail?.shootDate) acc.push(new Date(task.shootDetail.shootDate));
+      return acc;
     }, []);
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Shooting Calendar</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Shooting Calendar
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Calendar
@@ -1397,54 +736,73 @@ export function VideographerDashboard() {
               selected={selectedDate}
               onSelect={setSelectedDate}
               className="rounded-md border"
+              modifiers={{
+                hasTask: taskDates,
+              }}
+              modifiersStyles={{
+                hasTask: {
+                  fontWeight: 'bold',
+                  textDecoration: 'underline',
+                  color: 'var(--primary)',
+                },
+              }}
             />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Today's Schedule</CardTitle>
+            <CardTitle>
+              {selectedDate
+                ? selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+                : "Select a date"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockShootingTasks
-                .filter(
-                  (task) =>
-                    task.scheduledDate ===
-                    selectedDate?.toISOString().split("T")[0]
-                )
-                .map((task) => (
-                  <div key={task.id} className="border rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">{task.title}</h4>
-                        <div className="text-sm text-muted-foreground">
-                          {task.scheduledTime} • {task.location}
-                        </div>
+              {tasksForDate.map((task) => (
+                <div key={task.id} className="border rounded-xl p-4 hover:shadow-sm transition-shadow">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-sm">{task.title}</h4>
+                    <Badge className={
+                      task.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                        task.status === 'VIDEOGRAPHER_ASSIGNED' ? 'bg-blue-100 text-blue-800' :
+                          'bg-orange-100 text-orange-800'
+                    }>
+                      {task.status.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    {task.shootDetail?.location && (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {task.shootDetail.location}
                       </div>
-                      <Badge className={statusColors[task.status]}>
-                        {task.status.replace("-", " ")}
-                      </Badge>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {task.client?.companyName || task.client?.name || 'Unknown'}
                     </div>
                   </div>
-                ))}
+                </div>
+              ))}
 
-              {(!selectedDate ||
-                mockShootingTasks.filter(
-                  (task) =>
-                    task.scheduledDate ===
-                    selectedDate?.toISOString().split("T")[0]
-                ).length === 0) && (
-                  <div className="text-center text-muted-foreground py-8">
-                    No shoots scheduled for this date
-                  </div>
-                )}
+              {tasksForDate.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  <CalendarIcon className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No shoots scheduled for this date</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
     );
   };
+
+  // ─────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -1453,94 +811,19 @@ export function VideographerDashboard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Videographer Portal</h1>
           <p className="text-muted-foreground mt-1 text-lg">
-            Manage your shooting schedule, upload footage, and track equipment
+            Manage your shooting schedule, browse jobs, and track your work
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Dialog
-            open={isUploadDialogOpen}
-            onOpenChange={setIsUploadDialogOpen}
-          >
-            <DialogTrigger asChild>
-              <Button>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Footage
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Upload Footage</DialogTitle>
-                <DialogDescription>
-                  Select the project and upload your recorded footage to Google
-                  Drive.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm">Project</label>
-                  <Select
-                    value={newUpload.projectId}
-                    onValueChange={(value) =>
-                      setNewUpload({ ...newUpload, projectId: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mockShootingTasks.map((task) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.title} - {task.client}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm">Upload Title</label>
-                  <Input
-                    value={newUpload.title}
-                    onChange={(e) =>
-                      setNewUpload({ ...newUpload, title: e.target.value })
-                    }
-                    placeholder="e.g., Raw Footage - Batch 1"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm">Notes (Optional)</label>
-                  <Textarea
-                    value={newUpload.notes}
-                    onChange={(e) =>
-                      setNewUpload({ ...newUpload, notes: e.target.value })
-                    }
-                    placeholder="Any additional notes about the footage..."
-                    rows={3}
-                  />
-                </div>
-                <div className="flex justify-end gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsUploadDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleStartUpload}>Start Upload</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — all real data */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-col items-center text-center gap-2">
               <Camera className="h-8 w-8 text-blue-600" />
               <div>
-                <p className="text-sm text-muted-foreground">Today's Shoots</p>
+                <p className="text-sm text-muted-foreground">Active Shoots</p>
                 <h3 className="text-2xl font-bold">{inProgressTasks.length}</h3>
               </div>
             </div>
@@ -1562,12 +845,10 @@ export function VideographerDashboard() {
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-col items-center text-center gap-2">
-              <Upload className="h-8 w-8 text-green-600" />
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
               <div>
-                <p className="text-sm text-muted-foreground">Pending Uploads</p>
-                <h3 className="text-2xl font-bold">
-                  {mockUploadTasks.filter((u) => u.status === "pending").length}
-                </h3>
+                <p className="text-sm text-muted-foreground">Completed</p>
+                <h3 className="text-2xl font-bold">{completedTasks.length}</h3>
               </div>
             </div>
           </CardContent>
@@ -1576,14 +857,10 @@ export function VideographerDashboard() {
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-col items-center text-center gap-2">
-              <Settings className="h-8 w-8 text-purple-600" />
+              <Upload className="h-8 w-8 text-purple-600" />
               <div>
-                <p className="text-sm text-muted-foreground">
-                  Equipment Available
-                </p>
-                <h3 className="text-2xl font-bold">
-                  {mockEquipment.filter((e) => e.status === "available").length}
-                </h3>
+                <p className="text-sm text-muted-foreground">Total Files</p>
+                <h3 className="text-2xl font-bold">{allFiles.length}</h3>
               </div>
             </div>
           </CardContent>
@@ -1591,23 +868,13 @@ export function VideographerDashboard() {
       </div>
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="jobs" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="jobs" onClick={() => console.log('💼 [VIDEOGRAPHER] Switched to Job Board')}>
-            Available Jobs
-          </TabsTrigger>
-          <TabsTrigger value="shoots" onClick={() => console.log('📹 [VIDEOGRAPHER] Switched to Shoots tab')}>
-            Shooting Schedule
-          </TabsTrigger>
-          <TabsTrigger value="uploads" onClick={() => console.log('📤 [VIDEOGRAPHER] Switched to Uploads tab')}>
-            File Uploads
-          </TabsTrigger>
-          <TabsTrigger value="equipment" onClick={() => console.log('⚙️ [VIDEOGRAPHER] Switched to Equipment tab')}>
-            Equipment
-          </TabsTrigger>
-          <TabsTrigger value="calendar" onClick={() => console.log('📅 [VIDEOGRAPHER] Switched to Calendar tab')}>
-            Calendar
-          </TabsTrigger>
+          <TabsTrigger value="jobs">Available Jobs</TabsTrigger>
+          <TabsTrigger value="shoots">Shooting Schedule</TabsTrigger>
+          <TabsTrigger value="uploads">File Uploads</TabsTrigger>
+          <TabsTrigger value="equipment">Equipment</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
         </TabsList>
 
         <TabsContent value="jobs">

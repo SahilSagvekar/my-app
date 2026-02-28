@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 // import "../styles/globals.css";
 import { AuthProvider } from "./../components/auth/AuthContext";
@@ -12,14 +11,9 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
 });
 
 export const metadata: Metadata = {
@@ -34,26 +28,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link
-          href="https://assets.calendly.com/assets/external/widget.css"
-          rel="stylesheet"
-        />
-      </head>
       <body
-        className={`${inter.className} ${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} antialiased`}
       >
-        <AuthProvider>
+         <AuthProvider>
           <NotificationProvider>
-            {children}
+          {children}
           </NotificationProvider>
           <Toaster position="bottom-right" />
         </AuthProvider>
-        {/* Calendly Widget Script */}
-        <Script
-          src="https://assets.calendly.com/assets/external/widget.js"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   );

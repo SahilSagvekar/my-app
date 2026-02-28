@@ -5,6 +5,7 @@ import { QCDashboard } from "../dashboards/QCDashboard";
 import { QCCompletedPage } from "../dashboards/QCCompletedPage";
 import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
 import { QCReportsPage } from "../dashboards/QCReportsPage";
+import { QCRejectionPatternsPage } from "../dashboards/QCRejectionPatternsPage";
 import { QCResourcesPage } from "../dashboards/QCResourcesPage";
 import { TrainingManagementTab } from "../admin/TrainingManagementTab";
 import { TrainingPortalPage } from "../training/TrainingPortalPage";
@@ -115,6 +116,7 @@ export function renderPage(
       case "activity_logs":
       case "guidelines":
       case "sales-management":
+      case "videographer-management":
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
       case "portfolio":
         return <PortfolioManagementTab />;
@@ -204,6 +206,8 @@ export function renderPage(
         return <QCGuidelinesPage />;
       case "reports":
         return <QCReportsPage />;
+      case "rejection-patterns":
+        return <QCRejectionPatternsPage />;
       case "resources":
         return <QCResourcesPage />;
       case "training":
@@ -296,15 +300,15 @@ export function renderPage(
   if (role === "videographer") {
     switch (page) {
       case "dashboard":
-        return <VideographerDashboard />;
+        return <VideographerDashboard initialTab="jobs" />;
       case "shoots":
-        return <VideographerDashboard />; // Shows shoots tab
+        return <VideographerDashboard initialTab="shoots" />;
       case "uploads":
-        return <VideographerDashboard />; // Shows uploads tab
+        return <VideographerDashboard initialTab="uploads" />;
       case "equipment":
-        return <VideographerDashboard />; // Shows equipment tab
+        return <VideographerDashboard initialTab="equipment" />;
       case "calendar":
-        return <VideographerDashboard />; // Shows calendar tab
+        return <VideographerDashboard initialTab="calendar" />;
       case "training":
         return <TrainingPortalPage />;
       case "employment-info":
@@ -312,7 +316,7 @@ export function renderPage(
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:
-        return <VideographerDashboard />;
+        return <VideographerDashboard initialTab="jobs" />;
     }
   }
 

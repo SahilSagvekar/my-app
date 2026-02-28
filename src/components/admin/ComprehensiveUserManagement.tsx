@@ -27,6 +27,18 @@ const statusOptions = [
   { id: 'on-leave', name: 'On Leave', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' }
 ];
 
+const formatDateMDY = (value: string | Date | null | undefined) => {
+  if (!value) return '-';
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return '-';
+
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${month} - ${day} - ${year}`;
+};
+
 const mockUsers = [
   {
     id: 1,
@@ -458,10 +470,10 @@ export function ComprehensiveUserManagement() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-sm">
-                      {new Date(user.joinDate).toLocaleDateString()}
+                       {formatDateMDY(user.joinDate)}{new Date(user.joinDate).toLocaleDateString()}
                     </td>
                     <td className="py-3 px-4 text-sm">
-                      {user.lastActive}
+                      {formatDateMDY(user.lastActive)}
                     </td>
                     <td className="py-3 px-4">
                       <Badge variant="outline">

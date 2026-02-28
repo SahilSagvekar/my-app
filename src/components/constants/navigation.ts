@@ -56,6 +56,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'completed', label: 'Completed', icon: Archive },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    { id: 'rejection-patterns', label: 'Rejection Patterns', icon: TrendingUp },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
