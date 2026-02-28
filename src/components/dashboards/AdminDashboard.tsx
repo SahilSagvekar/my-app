@@ -202,20 +202,16 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
   };
 
   useEffect(() => {
-    console.log(`📄 [ADMIN DASHBOARD] Mounted - Current Page: ${currentPage}`);
-    loadTasks();
+    // Only fetch dashboard data when actually viewing the dashboard
     if (currentPage === 'dashboard') {
+      loadTasks();
       loadDashboardData();
     }
-    return () => {
-      console.log(`📄 [ADMIN DASHBOARD] Unmounted`);
-    };
   }, [currentPage]);
 
   async function loadTasks() {
     try {
-      console.log('🔄 [ADMIN] Fetching tasks...');
-      const res = await fetch("/api/tasks", { cache: "no-store" });
+      const res = await fetch("/api/tasks?limit=10", { cache: "no-store" });
       const data = await res.json();
 
       const sorted = (data.tasks || [])
@@ -223,15 +219,13 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         .slice(0, 10);
 
       setRecentTasks(sorted);
-      console.log(`✅ [ADMIN] Tasks loaded: ${sorted.length} tasks`);
     } catch (err) {
-      console.error("❌ [ADMIN] Failed to fetch tasks:", err);
+      console.error("Failed to fetch tasks:", err);
     }
   }
 
   async function loadDashboardData() {
     try {
-      console.log('🔄 [ADMIN] Fetching dashboard overview...');
       setLoading(true);
       const res = await fetch("/api/admin/dashboard/overview", { cache: "no-store" });
       const data = await res.json();
@@ -242,24 +236,19 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         setProjectHealthData(data.projectHealth);
         setRecentActivity(data.recentActivity);
         setSystemStatus(data.systemStatus);
-        console.log('✅ [ADMIN] Dashboard data loaded successfully');
-      } else {
-        console.error("❌ [ADMIN] Failed to fetch dashboard data:", data.message);
       }
     } catch (err) {
-      console.error("❌ [ADMIN] Failed to fetch dashboard:", err);
+      console.error("Failed to fetch dashboard:", err);
     } finally {
       setLoading(false);
     }
   }
 
   async function handleRefresh() {
-    console.log('🔄 [ADMIN] Refreshing dashboard...');
     setRefreshing(true);
     await loadDashboardData();
     await loadTasks();
     setRefreshing(false);
-    console.log('✅ [ADMIN] Dashboard refreshed');
   }
 
   // Main dashboard overview content
