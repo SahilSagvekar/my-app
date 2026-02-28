@@ -622,10 +622,8 @@ export async function GET(req: any) {
     const { role, id: userId } = user;
 
     const { searchParams } = new URL(req.url);
-    // const page = parseInt(searchParams.get("page") || "1");
-    // const limit = parseInt(searchParams.get("limit") || "20");
     const statusFilter = searchParams.get("status") as string | null;
-    const clientIdFilter = searchParams.get("clientId") as string | null; // 🔥 NEW: Client filter
+    const clientIdFilter = searchParams.get("clientId") as string | null;
 
     // Build role-based where query
     let where: any = await buildRoleWhereQuery(role, Number(userId));
@@ -649,7 +647,6 @@ export async function GET(req: any) {
     if (statusFilter) {
       const statuses = statusFilter.split(",").map((s) => s.trim().toUpperCase());
 
-      // Validate that all requested statuses are in allowed list
       const invalidStatuses = statuses.filter((s) => !ALLOWED_STATUSES.includes(s));
       if (invalidStatuses.length > 0) {
         return NextResponse.json(
@@ -659,14 +656,12 @@ export async function GET(req: any) {
       }
 
       if (where.AND) {
-        // If AND already exists, add status filter to it
         where.AND.push({
           status: {
             in: statuses,
           },
         });
       } else {
-        // Create AND with status filter
         where = {
           AND: [
             where,
@@ -681,124 +676,109 @@ export async function GET(req: any) {
     }
 
     let tasks: any[];
-    let total = 0;
     try {
-      // Run count + data queries in parallel for performance
-      const [taskResults, countResult] = await Promise.all([
-        (prisma.task as any).findMany({
-          where,
-          // take: limit,
-          // skip: (page - 1) * limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            taskType: true,
-            status: true,
-            dueDate: true,
-            assignedTo: true,
-            createdBy: true,
-            clientId: true,
-            clientUserId: true,
-            // File metadata for list view — includes url/s3Key for dashboards
-            // that show previews, but we skip the expensive signing loop
-            files: {
-              select: {
-                id: true,
-                name: true,
-                url: true,
-                s3Key: true,
-                mimeType: true,
-                size: true,
-                uploadedAt: true,
-                uploadedBy: true,
-                folderType: true,
-                version: true,
-                isActive: true,
-                codec: true,
-              },
-            },
-            driveLinks: true,
-
-            createdAt: true,
-            priority: true,
-            taskCategory: true,
-            nextDestination: true,
-            requiresClientReview: true,
-            workflowStep: true,
-            folderType: true,
-            qcNotes: true,
-            feedback: true,
-            shootDetail: true,
-            // files: true,
-            deliverableType: true,
-            monthlyDeliverableId: true,
-            monthlyDeliverable: true,
-            oneOffDeliverableId: true,
-            oneOffDeliverable: true,
-            socialMediaLinks: true,
-            updatedAt: true,
-            client: {
-              select: {
-                name: true,
-                companyName: true,
-              }
-            },
-            user: {
-              select: {
-                name: true,
-                role: true,
-              },
-            },
-            // 🔥 Include QC reviewer info
-            qcReviewedBy: true,
-            qcReviewedAt: true,
-            qcResult: true,
-            qcReviewer: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            taskFeedback: {
-              select: {
-                id: true,
-                fileId: true,
-                folderType: true,
-                feedback: true,
-                status: true,
-                timestamp: true,
-                category: true,
-                createdAt: true,
-                resolvedAt: true,
-                file: {
-                  select: {
-                    version: true,
-                    name: true,
-                  },
-                },
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    role: true,
-                  },
-                },
-              },
-              orderBy: { createdAt: 'desc' as const },
+      // ✅ NO PAGINATION - Fetch all tasks matching the query
+      tasks = await (prisma.task as any).findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          taskType: true,
+          status: true,
+          dueDate: true,
+          assignedTo: true,
+          createdBy: true,
+          clientId: true,
+          clientUserId: true,
+          files: {
+            select: {
+              id: true,
+              name: true,
+              url: true,
+              s3Key: true,
+              mimeType: true,
+              size: true,
+              uploadedAt: true,
+              uploadedBy: true,
+              folderType: true,
+              version: true,
+              isActive: true,
+              codec: true,
             },
           },
-        }),
-        (prisma.task as any).count({ where }),
-      ]);
-      tasks = taskResults;
-      total = countResult;
+          driveLinks: true,
+          createdAt: true,
+          priority: true,
+          taskCategory: true,
+          nextDestination: true,
+          requiresClientReview: true,
+          workflowStep: true,
+          folderType: true,
+          qcNotes: true,
+          feedback: true,
+          shootDetail: true,
+          deliverableType: true,
+          monthlyDeliverableId: true,
+          monthlyDeliverable: true,
+          oneOffDeliverableId: true,
+          oneOffDeliverable: true,
+          socialMediaLinks: true,
+          updatedAt: true,
+          client: {
+            select: {
+              name: true,
+              companyName: true,
+            }
+          },
+          user: {
+            select: {
+              name: true,
+              role: true,
+            },
+          },
+          qcReviewedBy: true,
+          qcReviewedAt: true,
+          qcResult: true,
+          qcReviewer: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          taskFeedback: {
+            select: {
+              id: true,
+              fileId: true,
+              folderType: true,
+              feedback: true,
+              status: true,
+              timestamp: true,
+              category: true,
+              createdAt: true,
+              resolvedAt: true,
+              file: {
+                select: {
+                  version: true,
+                  name: true,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  role: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' as const },
+          },
+        },
+      });
     } catch (e: any) {
       if (e.message?.includes("Expected TaskStatus") || e.code === "P2009" || e.message?.includes("validation")) {
         console.warn("⚠️ findMany failed due to enum mismatch. Falling back to queryRaw...");
-        // This is a simplified fallback that just gets the basic fields needed for the dashboard
-        // A full raw query with all joins would be massive, so we try to provide what's necessary
         tasks = await prisma.$queryRawUnsafe(`
           SELECT t.*, 
                  c.name as "clientName", c."companyName" as "clientCompanyName",
@@ -809,7 +789,6 @@ export async function GET(req: any) {
           ORDER BY t."createdAt" DESC
         `);
 
-        // Fetch files separately for these tasks since complex joins are hard in raw SQL
         const taskIds = (tasks as any[]).map(t => t.id);
         const allFiles: any[] = taskIds.length > 0
           ? await prisma.$queryRawUnsafe(`SELECT * FROM "File" WHERE "taskId" IN (${taskIds.map(id => `'${id}'`).join(',')})`)
@@ -820,35 +799,24 @@ export async function GET(req: any) {
           client: { name: t.clientName, companyName: t.clientCompanyName },
           user: { name: t.userName, role: t.userRole },
           files: allFiles.filter(f => f.taskId === t.id),
-          taskFeedback: [] // Feedback is less critical for fallback
+          taskFeedback: []
         }));
       } else {
         throw e;
       }
     }
 
-    // const sortedTasks = tasks.sort((a, b) => {
-    //   const extractNumber = (title: string | null) => {
-    //     if (!title) return 0;
-    //     const match = title.match(/(\d+)$/); // Get trailing number
-    //     return match ? parseInt(match[1], 10) : 0;
-    //   };
-    //   return extractNumber(a.title) - extractNumber(b.title);
-    // });
-
     const extractSortParts = (title: string | null) => {
       if (!title) return { company: '', date: '', prefix: '', number: 0 };
 
-      // Match: CompanyName_DD-MM-YYYY_TypeNumber
-      // Example: CoinLaundryAssociation_01-12-2026_LF1
       const match = title.match(/^(.+)_(\d{2}-\d{2}-\d{4})_([a-zA-Z]+)(\d+)$/);
 
       if (match) {
         return {
-          company: match[1].toLowerCase(),           // "coinlaundryassociation"
-          date: match[2],                            // "01-12-2026"
-          prefix: match[3].toLowerCase(),            // "lf", "sf", "sqf"
-          number: parseInt(match[4], 10)             // 1, 2, 3...
+          company: match[1].toLowerCase(),
+          date: match[2],
+          prefix: match[3].toLowerCase(),
+          number: parseInt(match[4], 10)
         };
       }
 
@@ -860,37 +828,26 @@ export async function GET(req: any) {
       const taskA = extractSortParts(a.title);
       const taskB = extractSortParts(b.title);
 
-      // 1. Sort by company name
       if (taskA.company !== taskB.company) {
         return taskA.company.localeCompare(taskB.company);
       }
 
-      // 2. Sort by date (DD-MM-YYYY format)
       if (taskA.date !== taskB.date) {
-        // Convert to comparable format YYYYMMDD for proper date sorting
         const dateA = taskA.date.split('-').reverse().join('');
         const dateB = taskB.date.split('-').reverse().join('');
         return dateA.localeCompare(dateB);
       }
 
-      // 3. Sort by type prefix (LF before SF, etc.)
       if (taskA.prefix !== taskB.prefix) {
         return taskA.prefix.localeCompare(taskB.prefix);
       }
 
-      // 4. Sort by number
       return taskA.number - taskB.number;
     });
 
-    // ✅ Return paginated tasks (no signed URLs in list view — they load on demand)
+    // ✅ Return all tasks without pagination
     return NextResponse.json({
       tasks: sanitizeBigInt(sortedTasks),
-      // pagination: {
-      //   page,
-      //   limit,
-      //   total,
-      //   totalPages: Math.ceil(total / limit),
-      // },
     }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
