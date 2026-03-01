@@ -310,13 +310,7 @@ export async function DELETE(
       }
     }
 
-    // Enforce creator-only deletion rule (except for legacy logins)
-    if (existingLogin.createdById && existingLogin.createdById !== userId) {
-      return NextResponse.json(
-        { success: false, message: "You can't delete this password. Only the person who created it can delete it." },
-        { status: 403 }
-      );
-    }
+    // Deletion allowed as everything else passed
 
     // Log before deletion
     await prisma.loginAuditLog.create({
@@ -326,7 +320,7 @@ export async function DELETE(
         userId: userId,
         details: JSON.stringify({
           platform: existingLogin.platform,
-          clientName: existingLogin.client.companyName,
+          clientName: existingLogin.client?.companyName || "N/A (Admin)",
           username: existingLogin.username,
         }),
       },

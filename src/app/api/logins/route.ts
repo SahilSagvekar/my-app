@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
       // Only include client info if NOT adminOnly
       ...(login.adminOnly ? {} : {
         clientId: login.clientId,
-        clientName: login.client.companyName,
+        clientName: login.client?.companyName || "Unknown Client",
       }),
       platform: login.platform,
       username: login.username,
@@ -306,7 +306,6 @@ export async function POST(req: NextRequest) {
         backupCodesLocation: backupCodesLocation || null,
         adminOnly: isAdminOnlyLogin,
         updatedById: userId,
-        createdById: userId,
       },
     });
 

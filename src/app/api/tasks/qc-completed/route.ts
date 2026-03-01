@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { addSignedUrlsToFiles } from '@/lib/s3';
 
 export async function GET(request: NextRequest) {
     try {
@@ -18,9 +19,20 @@ export async function GET(request: NextRequest) {
             take: 100, // Limit to last 100 completed tasks
         });
 
+        // ✅ Add signed URLs to files
+        const tasksWithSignedUrls = await Promise.all(
+            completedTasks.map(async (task) => {
+                const files = await prisma.file.findMany({
+                    where: { taskId: task.id, isActive: true },
+                });
+                const signedFiles = await addSignedUrlsToFiles(files);
+                return { ...task, files: signedFiles };
+            })
+        );
+
         return NextResponse.json({
             success: true,
-            tasks: completedTasks,
+            tasks: tasksWithSignedUrls,
         });
     } catch (error) {
         console.error('[QC COMPLETED] Error:', error);

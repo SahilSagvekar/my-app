@@ -11,6 +11,7 @@ function getTokenFromCookies(req: Request) {
 }
 
 import { getCurrentUser2 } from "@/lib/auth";
+import { addSignedUrlsToFiles } from "@/lib/s3";
 
 export async function GET(req: any) {
   try {
@@ -82,7 +83,22 @@ export async function GET(req: any) {
         );
     }
 
-    return NextResponse.json(tasks, { status: 200 });
+    // ✅ Add signed URLs to files
+    const tasksWithSignedUrls = tasks ? await Promise.all(
+      tasks.map(async (task) => {
+        const files = await prisma.file.findMany({
+          where: { taskId: task.id, isActive: true },
+        });
+
+        if (files && files.length > 0) {
+          const signedFiles = await addSignedUrlsToFiles(files);
+          return { ...task, files: signedFiles };
+        }
+        return { ...task, files: [] };
+      })
+    ) : [];
+
+    return NextResponse.json(tasksWithSignedUrls, { status: 200 });
   } catch (err: any) {
     console.error("❌ Fetch assigned tasks error:", err.message);
     return NextResponse.json({ message: "Server error" }, { status: 500 });

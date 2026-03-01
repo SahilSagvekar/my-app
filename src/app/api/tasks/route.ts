@@ -845,9 +845,20 @@ export async function GET(req: any) {
       return taskA.number - taskB.number;
     });
 
+    // ✅ Add signed URLs to files
+    const tasksWithSignedUrls = await Promise.all(
+      sortedTasks.map(async (task) => {
+        if (task.files && task.files.length > 0) {
+          const signedFiles = await addSignedUrlsToFiles(task.files);
+          return { ...task, files: signedFiles };
+        }
+        return task;
+      })
+    );
+
     // ✅ Return all tasks without pagination
     return NextResponse.json({
-      tasks: sanitizeBigInt(sortedTasks),
+      tasks: sanitizeBigInt(tasksWithSignedUrls),
     }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
