@@ -1310,3 +1310,195 @@ export async function sendClientReviewReminderEmail(data: {
 
   return { sent, total: allRecipients.length };
 }
+
+// ============================================================================
+// CONTRACT SIGNING EMAILS
+// ============================================================================
+
+export async function sendContractSigningInvite(data: {
+  signerName: string;
+  signerEmail: string;
+  contractTitle: string;
+  senderName: string;
+  signingUrl: string;
+  message?: string;
+}) {
+  const mailOptions = {
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: data.signerEmail,
+    subject: `✍️ Signature Requested: ${data.contractTitle}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 30px 20px;">
+            <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 35px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px;">✍️ Signature Requested</h1>
+              <p style="margin: 0; opacity: 0.85; font-size: 15px;">${data.senderName} has requested your signature</p>
+            </div>
+            <div style="background: #ffffff; padding: 32px 30px; border-radius: 0 0 16px 16px;">
+              <p>Hi ${data.signerName},</p>
+              <p><strong>${data.senderName}</strong> has sent you a document to review and sign:</p>
+              <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                <h3 style="margin: 0 0 4px 0; color: #1e293b;">${data.contractTitle}</h3>
+              </div>
+              ${data.message ? `
+                <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 14px 18px; border-radius: 8px; margin: 16px 0;">
+                  <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>Message from sender:</strong></p>
+                  <p style="margin: 8px 0 0; font-size: 14px; color: #78350f;">${data.message}</p>
+                </div>
+              ` : ''}
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${data.signingUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">Review & Sign Document</a>
+              </div>
+              <p style="font-size: 13px; color: #94a3b8; text-align: center;">Or copy this link: <a href="${data.signingUrl}" style="color: #2563eb; word-break: break-all;">${data.signingUrl}</a></p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+              <p style="font-size: 12px; color: #94a3b8; text-align: center;">This signing link is unique to you. Do not share it with others.<br/>© ${new Date().getFullYear()} E8 Productions</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Contract signing invite sent to ${data.signerEmail}`);
+  } catch (error) {
+    console.error(`❌ Failed to send signing invite to ${data.signerEmail}:`, error);
+    throw error;
+  }
+}
+
+export async function sendContractSignedNotification(data: {
+  recipientEmail: string;
+  recipientName: string;
+  signerName: string;
+  contractTitle: string;
+}) {
+  const mailOptions = {
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: data.recipientEmail,
+    subject: `✅ ${data.signerName} signed "${data.contractTitle}"`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 30px 20px;">
+            <div style="background: linear-gradient(135deg, #065f46 0%, #059669 100%); color: white; padding: 30px; border-radius: 16px 16px 0 0; text-align: center;">
+              <h1 style="margin: 0; font-size: 22px;">✅ Signature Received</h1>
+            </div>
+            <div style="background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px;">
+              <p>Hi ${data.recipientName},</p>
+              <p><strong>${data.signerName}</strong> has successfully signed the document <strong>"${data.contractTitle}"</strong>.</p>
+              <p>Log in to your dashboard to view the contract status and track remaining signatures.</p>
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/dashboard" style="display: inline-block; padding: 12px 28px; background: #059669; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">View Contract</a>
+              </div>
+              <p style="font-size: 12px; color: #94a3b8; text-align: center;">© ${new Date().getFullYear()} E8 Productions</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Contract signed notification sent to ${data.recipientEmail}`);
+  } catch (error) {
+    console.error(`❌ Failed to send signed notification:`, error);
+  }
+}
+
+export async function sendContractCompletedEmail(data: {
+  recipientEmail: string;
+  recipientName: string;
+  contractTitle: string;
+  downloadUrl: string;
+}) {
+  const mailOptions = {
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: data.recipientEmail,
+    subject: `🎉 Contract Completed: ${data.contractTitle}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 30px 20px;">
+            <div style="background: linear-gradient(135deg, #1e3a5f 0%, #7c3aed 100%); color: white; padding: 35px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px;">🎉 Contract Completed!</h1>
+              <p style="margin: 0; opacity: 0.85;">All parties have signed</p>
+            </div>
+            <div style="background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px;">
+              <p>Hi ${data.recipientName},</p>
+              <p>Great news! All signers have completed signing <strong>"${data.contractTitle}"</strong>.</p>
+              <p>The fully signed document is now available for download in your dashboard.</p>
+              <div style="text-align: center; margin: 28px 0;">
+                <a href="${data.downloadUrl}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);">📥 Download Signed Contract</a>
+              </div>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+              <p style="font-size: 12px; color: #94a3b8; text-align: center;">A copy of this signed document has been stored securely.<br/>© ${new Date().getFullYear()} E8 Productions</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Contract completed email sent to ${data.recipientEmail}`);
+  } catch (error) {
+    console.error(`❌ Failed to send completed email:`, error);
+  }
+}
+
+export async function sendContractReminderEmail(data: {
+  signerName: string;
+  signerEmail: string;
+  contractTitle: string;
+  senderName: string;
+  signingUrl: string;
+}) {
+  const mailOptions = {
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: data.signerEmail,
+    subject: `⏰ Reminder: Please sign "${data.contractTitle}"`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 30px 20px;">
+            <div style="background: linear-gradient(135deg, #92400e 0%, #f59e0b 100%); color: white; padding: 30px; border-radius: 16px 16px 0 0; text-align: center;">
+              <h1 style="margin: 0; font-size: 22px;">⏰ Signature Reminder</h1>
+            </div>
+            <div style="background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px;">
+              <p>Hi ${data.signerName},</p>
+              <p>This is a friendly reminder from <strong>${data.senderName}</strong> that the following document is still awaiting your signature:</p>
+              <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                <h3 style="margin: 0; color: #92400e;">${data.contractTitle}</h3>
+              </div>
+              <div style="text-align: center; margin: 28px 0;">
+                <a href="${data.signingUrl}" style="display: inline-block; padding: 14px 36px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px;">Review & Sign Now</a>
+              </div>
+              <p style="font-size: 12px; color: #94a3b8; text-align: center;">© ${new Date().getFullYear()} E8 Productions</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Contract reminder sent to ${data.signerEmail}`);
+  } catch (error) {
+    console.error(`❌ Failed to send contract reminder:`, error);
+    throw error;
+  }
+}

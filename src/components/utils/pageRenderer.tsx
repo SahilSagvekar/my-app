@@ -37,6 +37,8 @@ import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
+import { ContractsDashboard } from "../contracts/ContractsDashboard";
+import { ClientContractsPage } from "../contracts/ClientContractsPage";
 import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
@@ -120,6 +122,8 @@ export function renderPage(
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
       case "portfolio":
         return <PortfolioManagementTab />;
+      case "contracts":
+        return <ContractsDashboard />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "training":
@@ -268,6 +272,8 @@ export function renderPage(
         return <EmploymentInfo currentRole={role} />;
       case "portfolio":
         return <PortfolioManagementTab />;
+      case "contracts":
+        return <ContractsDashboard />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:
@@ -292,6 +298,8 @@ export function renderPage(
         return <TrainingPortalPage />;
       case "archive":
         return <ComingSoonPage title="Archive" />;
+      case "contracts":
+        return <ClientContractsPage />;
       default:
         return <ClientMonthlyOverview />;
     }

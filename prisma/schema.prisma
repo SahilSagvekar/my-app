@@ -61,6 +61,7 @@ model User {
   linkedClient            Client?                  @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin             UserSecurityPin?
   twoFactorAuth           UserTwoFactorAuth?
+  createdContracts        Contract[]               @relation("ContractCreator")
 
   @@index([email])
   @@index([role])
@@ -1230,4 +1231,112 @@ enum BidStatus {
   PENDING
   ACCEPTED
   REJECTED
+}
+
+enum ContractStatus {
+  DRAFT
+  SENT
+  PARTIALLY_SIGNED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum SignerStatus {
+  PENDING
+  VIEWED
+  SIGNED
+  DECLINED
+}
+
+model Contract {
+  id              String             @id @default(cuid())
+  title           String
+  description     String?
+  status          ContractStatus     @default(DRAFT)
+  s3Key           String
+  signedS3Key     String?
+  fileName        String
+  fileSize        BigInt
+  createdById     Int
+  clientId        String?
+  templateId      String?
+  expiresAt       DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  message         String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  createdBy       User               @relation("ContractCreator", fields: [createdById], references: [id])
+  signers         ContractSigner[]
+  auditLogs       ContractAuditLog[]
+  template        ContractTemplate?  @relation(fields: [templateId], references: [id])
+
+  @@index([status])
+  @@index([createdById])
+  @@index([clientId])
+  @@index([createdAt])
+}
+
+model ContractTemplate {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  s3Key       String
+  fileName    String
+  fileSize    BigInt
+  createdById Int
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  contracts   Contract[]
+
+  @@index([isActive])
+  @@index([createdById])
+}
+
+model ContractSigner {
+  id              String       @id @default(cuid())
+  contractId      String
+  name            String
+  email           String
+  role            String       @default("signer")
+  status          SignerStatus @default(PENDING)
+  signToken       String       @unique
+  signedAt        DateTime?
+  viewedAt        DateTime?
+  declinedAt      DateTime?
+  declineReason   String?
+  signatureS3Key  String?
+  signatureType   String?
+  order           Int          @default(0)
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  contract        Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([signToken])
+  @@index([email])
+  @@index([status])
+}
+
+model ContractAuditLog {
+  id          String   @id @default(cuid())
+  contractId  String
+  action      String
+  performedBy String?
+  ipAddress   String?
+  userAgent   String?
+  details     String?
+  createdAt   DateTime @default(now())
+
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([action])
+  @@index([createdAt])
 }

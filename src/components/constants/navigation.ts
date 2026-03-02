@@ -23,7 +23,8 @@ import {
   Briefcase,
   LogIn,
   Instagram,
-  Film
+  Film,
+  PenLine
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -39,6 +40,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'portfolio', label: 'Portfolio', icon: Film },
+    { id: 'contracts', label: 'Contracts', icon: PenLine },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   editor: [
@@ -84,6 +86,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'leaves', label: 'Employee Management', icon: Users },
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'portfolio', label: 'Portfolio', icon: Film },
+    { id: 'contracts', label: 'Contracts', icon: PenLine },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
@@ -91,14 +94,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
-    // { id: 'monthly-overview', label: 'Monthly Overview', icon: LayoutDashboard },
-    // { id: 'youtube-analytics', label: 'YouTube Analytics', icon: TrendingUp },
-    // { id: 'instagram-analytics', label: 'Instagram Analytics', icon: Instagram },
-    // { id: 'projects', label: 'My Projects', icon: FolderOpen },
-    // { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    // { id: 'training', label: 'Training', icon: Layout },
-    // { id: 'invoices', label: 'Invoices & Billing', icon: Layout },
-    // { id: 'archive', label: 'Archive', icon: Archive },
+    { id: 'contracts', label: 'Contracts', icon: PenLine },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
 
   ],
