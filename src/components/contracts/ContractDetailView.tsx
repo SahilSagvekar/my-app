@@ -17,9 +17,12 @@ import {
     Copy,
     ExternalLink,
     User,
+    PenLine,
 } from "lucide-react";
 import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
 import { ContractEditor } from "./ContractEditor";
+import { SignatureCapture } from "./SignatureCapture";
+import { useAuth } from "@/components/auth/AuthContext";
 
 interface ContractDetailViewProps {
     contractId: string;
@@ -27,10 +30,13 @@ interface ContractDetailViewProps {
 }
 
 export function ContractDetailView({ contractId, onBack }: ContractDetailViewProps) {
+    const { user } = useAuth();
     const [contract, setContract] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState("");
     const [showEditor, setShowEditor] = useState(false);
+    const [showSignPanel, setShowSignPanel] = useState(false);
+    const [signing, setSigning] = useState(false);
 
     const fetchContract = async () => {
         try {
@@ -168,6 +174,45 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
             <Loader2 className="h-4 w-4 animate-spin" />
         ) : null;
 
+    // Find if the current user is a signer on this contract
+    const mySigner = contract?.signers?.find(
+        (s: any) => s.email.toLowerCase() === (user?.email || "").toLowerCase()
+    );
+    const canSignNow = mySigner && mySigner.status !== "SIGNED" && mySigner.status !== "DECLINED"
+        && contract.status !== "CANCELLED" && contract.status !== "EXPIRED" && contract.status !== "DRAFT";
+
+    const handleSignNow = async (signatureDataUrl: string, signatureType: "draw" | "type") => {
+        if (!mySigner) return;
+        setSigning(true);
+        try {
+            const res = await fetch(`/api/contracts/sign/${mySigner.signToken}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    signatureData: signatureDataUrl,
+                    signatureType,
+                }),
+            });
+            if (res.ok) {
+                const result = await res.json();
+                setShowSignPanel(false);
+                await fetchContract();
+                if (result.completed) {
+                    alert("🎉 Contract fully signed and completed!");
+                } else {
+                    alert("✅ Your signature has been recorded!");
+                }
+            } else {
+                const data = await res.json();
+                alert(data.error || "Signing failed");
+            }
+        } catch (err) {
+            alert("Network error");
+        } finally {
+            setSigning(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -252,7 +297,52 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                         Cancel
                     </button>
                 )}
+
+                {canSignNow && (
+                    <button
+                        onClick={() => setShowSignPanel(!showSignPanel)}
+                        className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg text-sm font-bold hover:from-green-700 hover:to-emerald-700 transition-all shadow-md shadow-green-200"
+                    >
+                        <PenLine className="h-4 w-4" />
+                        {showSignPanel ? "Hide Signing" : "✍️ Sign Now"}
+                    </button>
+                )}
+
+                {mySigner?.status === "SIGNED" && (
+                    <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-semibold border border-green-200">
+                        <CheckCircle2 className="h-4 w-4" />
+                        You've Signed
+                    </span>
+                )}
             </div>
+
+            {/* Inline Sign Panel */}
+            {showSignPanel && canSignNow && (
+                <div className="bg-gradient-to-b from-blue-50 to-white rounded-xl border-2 border-blue-200 p-6 shadow-sm">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                            <PenLine className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">Sign This Contract</h3>
+                            <p className="text-sm text-gray-500">Draw or type your signature below</p>
+                        </div>
+                    </div>
+                    {signing ? (
+                        <div className="flex items-center justify-center py-10">
+                            <div className="text-center">
+                                <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
+                                <p className="text-gray-500 text-sm">Submitting your signature...</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <SignatureCapture
+                            onCapture={handleSignNow}
+                            signerName={mySigner.name}
+                        />
+                    )}
+                </div>
+            )}
 
             {/* Info Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -304,10 +394,10 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                                 <div className="flex items-center gap-3">
                                     <div
                                         className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ${signer.status === "SIGNED"
-                                                ? "bg-green-100 text-green-700"
-                                                : signer.status === "VIEWED"
-                                                    ? "bg-blue-100 text-blue-700"
-                                                    : "bg-gray-200 text-gray-600"
+                                            ? "bg-green-100 text-green-700"
+                                            : signer.status === "VIEWED"
+                                                ? "bg-blue-100 text-blue-700"
+                                                : "bg-gray-200 text-gray-600"
                                             }`}
                                     >
                                         {signer.name
@@ -369,14 +459,14 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                             <div key={log.id} className="flex items-start gap-4 relative">
                                 <div
                                     className={`w-8 h-8 rounded-full flex items-center justify-center z-10 border-2 border-white shadow-sm ${log.action === "completed"
-                                            ? "bg-green-100"
-                                            : log.action === "signed"
-                                                ? "bg-blue-100"
-                                                : log.action === "cancelled"
-                                                    ? "bg-red-100"
-                                                    : log.action === "sent"
-                                                        ? "bg-purple-100"
-                                                        : "bg-gray-100"
+                                        ? "bg-green-100"
+                                        : log.action === "signed"
+                                            ? "bg-blue-100"
+                                            : log.action === "cancelled"
+                                                ? "bg-red-100"
+                                                : log.action === "sent"
+                                                    ? "bg-purple-100"
+                                                    : "bg-gray-100"
                                         }`}
                                 >
                                     {log.action === "completed" && (

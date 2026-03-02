@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Upload, Plus, Trash2, Loader2, FileText } from "lucide-react";
+import { X, Upload, Plus, Trash2, Loader2, FileText, UserPlus } from "lucide-react";
+import { useAuth } from "@/components/auth/AuthContext";
 
 interface Signer {
     name: string;
@@ -15,6 +16,7 @@ interface CreateContractDialogProps {
 }
 
 export function CreateContractDialog({ onClose, onCreated }: CreateContractDialogProps) {
+    const { user } = useAuth();
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [message, setMessage] = useState("");
@@ -24,6 +26,23 @@ export function CreateContractDialog({ onClose, onCreated }: CreateContractDialo
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [dragOver, setDragOver] = useState(false);
+
+    const isAlreadyAdded = signers.some(
+        (s) => s.email.toLowerCase() === (user?.email || "").toLowerCase()
+    );
+
+    const addMeAsSigner = () => {
+        if (!user || isAlreadyAdded) return;
+        // Replace first empty signer row or add a new one
+        const emptyIndex = signers.findIndex((s) => !s.name.trim() && !s.email.trim());
+        if (emptyIndex >= 0) {
+            const updated = [...signers];
+            updated[emptyIndex] = { name: user.name || "", email: user.email, role: "signer" };
+            setSigners(updated);
+        } else {
+            setSigners([...signers, { name: user.name || "", email: user.email, role: "signer" }]);
+        }
+    };
 
     const addSigner = () => {
         setSigners([...signers, { name: "", email: "", role: "signer" }]);
@@ -176,10 +195,10 @@ export function CreateContractDialog({ onClose, onCreated }: CreateContractDialo
                         </label>
                         <div
                             className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragOver
-                                    ? "border-blue-400 bg-blue-50"
-                                    : file
-                                        ? "border-green-300 bg-green-50"
-                                        : "border-gray-200 hover:border-gray-300"
+                                ? "border-blue-400 bg-blue-50"
+                                : file
+                                    ? "border-green-300 bg-green-50"
+                                    : "border-gray-200 hover:border-gray-300"
                                 }`}
                             onDragOver={(e) => {
                                 e.preventDefault();
@@ -229,13 +248,27 @@ export function CreateContractDialog({ onClose, onCreated }: CreateContractDialo
                     <div>
                         <div className="flex items-center justify-between mb-2">
                             <label className="text-sm font-semibold text-gray-700">Signers</label>
-                            <button
-                                onClick={addSigner}
-                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                            >
-                                <Plus className="h-3.5 w-3.5" />
-                                Add Signer
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={addMeAsSigner}
+                                    disabled={isAlreadyAdded}
+                                    className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${isAlreadyAdded
+                                            ? "bg-green-50 text-green-600 cursor-default"
+                                            : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
+                                        }`}
+                                    title={isAlreadyAdded ? "You're already added as a signer" : "Add yourself as a signer"}
+                                >
+                                    <UserPlus className="h-3.5 w-3.5" />
+                                    {isAlreadyAdded ? "Me ✓" : "Add Me"}
+                                </button>
+                                <button
+                                    onClick={addSigner}
+                                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add Signer
+                                </button>
+                            </div>
                         </div>
                         <div className="space-y-3">
                             {signers.map((signer, index) => (
