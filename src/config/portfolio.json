@@ -6,15 +6,15 @@
         "isActive": true,
         "subcategories": [
             {
-                "key": "short_form",
-                "label": "Short Form Videos",
-                "icon": "Clapperboard",
-                "isActive": true
-            },
-            {
                 "key": "long_form",
                 "label": "Long Form Videos",
                 "icon": "Video",
+                "isActive": true
+            },
+            {
+                "key": "short_form",
+                "label": "Short Form Videos",
+                "icon": "Clapperboard",
                 "isActive": true
             },
             {
@@ -44,12 +44,6 @@
         "isActive": true,
         "subcategories": [
             {
-                "key": "drone_work",
-                "label": "Drone Work",
-                "icon": "Camera",
-                "isActive": true
-            },
-            {
                 "key": "b_roll",
                 "label": "Cinematic B-Roll",
                 "icon": "Film",
@@ -59,6 +53,12 @@
                 "key": "interview_style",
                 "label": "Interview Style",
                 "icon": "Mic",
+                "isActive": true
+            },
+            {
+                "key": "drone_work",
+                "label": "Drone Work",
+                "icon": "Camera",
                 "isActive": true
             },
             {
