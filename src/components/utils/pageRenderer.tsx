@@ -37,8 +37,17 @@ import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
-import { ContractsDashboard } from "../contracts/ContractsDashboard";
-import { ClientContractsPage } from "../contracts/ClientContractsPage";
+import dynamic from "next/dynamic";
+
+const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Contracts...</div>
+});
+
+const ClientContractsPage = dynamic(() => import("../contracts/ClientContractsPage").then(mod => mod.ClientContractsPage), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Contracts...</div>
+});
 import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (

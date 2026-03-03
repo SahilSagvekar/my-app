@@ -169,20 +169,25 @@ export async function PUT(
 
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
+        const annotationsStr = formData.get('annotations') as string | null;
 
-        if (!file) {
-            return NextResponse.json({ error: 'File is required' }, { status: 400 });
+        let result;
+        const updateData: any = {};
+
+        if (file) {
+            const buffer = Buffer.from(await file.arrayBuffer());
+            result = await uploadContractToS3(buffer, contract.fileName);
+            updateData.s3Key = result.s3Key;
+            updateData.fileSize = BigInt(result.fileSize);
         }
 
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const result = await uploadContractToS3(buffer, contract.fileName);
+        if (annotationsStr) {
+            updateData.annotations = JSON.parse(annotationsStr);
+        }
 
         const updated = await prisma.contract.update({
             where: { id },
-            data: {
-                s3Key: result.s3Key,
-                fileSize: BigInt(result.fileSize),
-            },
+            data: updateData,
         });
 
         await prisma.contractAuditLog.create({
@@ -190,7 +195,11 @@ export async function PUT(
                 contractId: id,
                 action: 'edited',
                 performedBy: user.name || user.email,
-                details: JSON.stringify({ message: 'Contract PDF was edited and re-uploaded' }),
+                details: JSON.stringify({
+                    message: file ? 'Contract PDF and annotations were updated' : 'Contract annotations were updated',
+                    hasFile: !!file,
+                    hasAnnotations: !!annotationsStr
+                }),
             },
         });
 

@@ -17,9 +17,21 @@ import {
     Filter,
     Loader2,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
 import { CreateContractDialog } from "./CreateContractDialog";
-import { ContractDetailView } from "./ContractDetailView";
+
+const ContractDetailView = dynamic(() => import("./ContractDetailView").then(mod => mod.ContractDetailView), {
+    ssr: false,
+    loading: () => (
+        <div className="flex items-center justify-center p-20">
+            <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
+                <p className="text-sm font-bold text-gray-400">Loading Document Details...</p>
+            </div>
+        </div>
+    )
+});
 
 interface Signer {
     id: string;
@@ -140,8 +152,8 @@ export function ContractsDashboard() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab.id
-                                    ? "bg-white text-gray-900 shadow-sm"
-                                    : "text-gray-500 hover:text-gray-700"
+                                ? "bg-white text-gray-900 shadow-sm"
+                                : "text-gray-500 hover:text-gray-700"
                                 }`}
                         >
                             <Icon className="h-3.5 w-3.5" />
@@ -149,8 +161,8 @@ export function ContractsDashboard() {
                             {count > 0 && (
                                 <span
                                     className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${activeTab === tab.id
-                                            ? "bg-blue-100 text-blue-700"
-                                            : "bg-gray-200 text-gray-600"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-gray-200 text-gray-600"
                                         }`}
                                 >
                                     {count}
@@ -249,10 +261,10 @@ export function ContractsDashboard() {
                                                     <div
                                                         key={signer.id}
                                                         className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold ${signer.status === "SIGNED"
-                                                                ? "bg-green-100 text-green-700"
-                                                                : signer.status === "VIEWED"
-                                                                    ? "bg-blue-100 text-blue-700"
-                                                                    : "bg-gray-100 text-gray-600"
+                                                            ? "bg-green-100 text-green-700"
+                                                            : signer.status === "VIEWED"
+                                                                ? "bg-blue-100 text-blue-700"
+                                                                : "bg-gray-100 text-gray-600"
                                                             }`}
                                                         title={`${signer.name} (${signer.status})`}
                                                     >

@@ -27,6 +27,8 @@ export async function GET(
                         fileName: true,
                         message: true,
                         expiresAt: true,
+                        annotations: true,
+                        createdAt: true,
                         createdBy: {
                             select: { name: true, email: true },
                         },
@@ -83,6 +85,8 @@ export async function GET(
                 message: contract.message,
                 fileName: contract.fileName,
                 pdfUrl,
+                annotations: contract.annotations,
+                createdAt: contract.createdAt,
                 senderName: contract.createdBy.name || contract.createdBy.email,
             },
         });
@@ -149,6 +153,32 @@ export async function POST(
         const signatureS3Key = await uploadSignatureToS3(signatureData, signer.id);
         const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
         const userAgent = req.headers.get('user-agent') || 'unknown';
+
+        // Update annotations with filled values
+        const fieldValues = body.fieldValues || {};
+        let currentAnnotations = contract.annotations || [];
+        if (typeof currentAnnotations === 'string') {
+            try { currentAnnotations = JSON.parse(currentAnnotations); } catch { currentAnnotations = []; }
+        }
+
+        if (Array.isArray(currentAnnotations)) {
+            const updatedAnnotations = currentAnnotations.map((ann: any) => {
+                const filledValue = fieldValues[ann.id];
+                if (filledValue !== undefined) {
+                    // If it's a signature field, we might want to store the key or the fact it's signed
+                    if (ann.type === 'signature' || ann.type === 'initials') {
+                        return { ...ann, value: 'SIGNED', signatureS3Key };
+                    }
+                    return { ...ann, value: filledValue };
+                }
+                return ann;
+            });
+
+            await prisma.contract.update({
+                where: { id: contract.id },
+                data: { annotations: JSON.stringify(updatedAnnotations) }
+            });
+        }
 
         await prisma.contractSigner.update({
             where: { id: signer.id },

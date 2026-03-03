@@ -20,7 +20,19 @@ import {
     PenLine,
 } from "lucide-react";
 import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
-import { ContractEditor } from "./ContractEditor";
+import dynamic from "next/dynamic";
+
+const ContractEditor = dynamic(() => import("./ContractEditor").then(mod => mod.ContractEditor), {
+    ssr: false,
+    loading: () => (
+        <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
+                <p className="text-sm font-bold text-gray-400 font-sans">Initializing Editor...</p>
+            </div>
+        </div>
+    )
+});
 import { SignatureCapture } from "./SignatureCapture";
 import { useAuth } from "@/components/auth/AuthContext";
 
@@ -159,8 +171,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
     if (showEditor && contract.status === "DRAFT") {
         return (
             <ContractEditor
-                contractId={contractId}
-                pdfUrl={contract.pdfUrl}
+                contract={contract}
                 onBack={() => {
                     setShowEditor(false);
                     fetchContract();

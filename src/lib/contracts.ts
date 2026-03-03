@@ -186,10 +186,8 @@ export async function applySignaturesToPdf(
     }>,
     annotationsJson?: any
 ): Promise<string> {
-    // Download the original PDF
     const pdfBuffer = await downloadPdfFromS3(originalS3Key);
     const pdfDoc = await PDFDocument.load(pdfBuffer);
-
     const pages = pdfDoc.getPages();
 
     let annotations: any[] = [];
@@ -197,53 +195,59 @@ export async function applySignaturesToPdf(
         annotations = typeof annotationsJson === 'string' ? JSON.parse(annotationsJson) : annotationsJson;
     }
 
-    const signatureFields = annotations.filter(a => a.type === 'signature-field');
+    if (!Array.isArray(annotations)) annotations = [];
 
-    // Place each signature on the document
-    for (let i = 0; i < signatures.length; i++) {
-        const sig = signatures[i];
-        try {
-            const sigBuffer = await downloadSignatureFromS3(sig.signatureS3Key);
-            const sigImage = await pdfDoc.embedPng(sigBuffer).catch(async () => {
-                // Try JPEG if PNG fails
-                return pdfDoc.embedJpg(sigBuffer);
-            });
+    // Process all annotations
+    for (const ann of annotations) {
+        const pageIndex = ann.page || 0;
+        if (pageIndex >= pages.length) continue;
 
-            const field = signatureFields[i];
-            let targetPage, x, y, width, height;
+        const page = pages[pageIndex];
+        const { width: pWidth, height: pHeight } = page.getSize();
 
-            if (field) {
-                targetPage = pages[field.page || 0];
-                const { width: pWidth, height: pHeight } = targetPage.getSize();
-                x = (field.x / 100) * pWidth;
-                width = (field.width / 100) * pWidth;
-                height = (field.height / 100) * pHeight;
-                y = ((100 - field.y - field.height) / 100) * pHeight;
-            } else {
-                // Fallback: bottom of last page
-                targetPage = pages[pages.length - 1];
-                const { width: pWidth } = targetPage.getSize();
-                width = 150;
-                height = 60;
-                x = pWidth - width - 50;
-                y = 80 + (i * 90);
+        // PDF coordinates start from bottom-left (percentages)
+        const x = (ann.x / 100) * pWidth;
+        const width = (ann.width / 100) * pWidth;
+        const height = (ann.height / 100) * pHeight;
+        const y = ((100 - ann.y - ann.height) / 100) * pHeight;
+
+        // Draw signatures/initials
+        if ((ann.type === 'signature' || ann.type === 'initials') && ann.signatureS3Key) {
+            try {
+                const sigBuffer = await downloadSignatureFromS3(ann.signatureS3Key);
+                const sigImage = await pdfDoc.embedPng(sigBuffer).catch(async () => {
+                    return pdfDoc.embedJpg(sigBuffer);
+                });
+
+                page.drawImage(sigImage, { x, y, width, height });
+
+                // Signer name metadata
+                page.drawText(`Signed by ${ann.assignedTo}`, {
+                    x, y: y - 8, size: 6, opacity: 0.5
+                });
+            } catch (err) {
+                console.error('Failed to apply signature annotation:', err);
             }
+        }
 
-            targetPage.drawImage(sigImage, {
-                x,
-                y,
-                width,
-                height,
+        // Draw text fields
+        else if (ann.value && ann.type !== 'checkbox') {
+            page.drawText(String(ann.value), {
+                x: x + 2,
+                y: y + (height / 2) - 3,
+                size: 10,
+                color: rgb(0.1, 0.1, 0.1),
             });
+        }
 
-            // Add signer name text below the signature
-            targetPage.drawText(sig.signerName, {
-                x,
-                y: y - 15,
-                size: 9,
+        // Draw checkboxes
+        else if (ann.type === 'checkbox' && (ann.value === true || ann.value === 'true')) {
+            page.drawText('X', {
+                x: x + (width / 2) - 4,
+                y: y + (height / 2) - 4,
+                size: 11,
+                color: rgb(0, 0, 0),
             });
-        } catch (err) {
-            console.error(`Failed to apply signature for ${sig.signerName}:`, err);
         }
     }
 
