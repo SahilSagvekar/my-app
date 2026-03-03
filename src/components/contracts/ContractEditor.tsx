@@ -94,11 +94,11 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
     const [zoom, setZoom] = useState(100);
     const [pdfLoading, setPdfLoading] = useState(true);
 
-    // Drag & Resize State
-    const [isDragging, setIsDragging] = useState(false);
-    const [isResizing, setIsResizing] = useState(false);
-    const [dragStart, setDragStart] = useState({ x: 0, y: 0, annX: 0, annY: 0 });
-    const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+    // Drag & Resize State — using REFS to avoid stale closures in mousemove handlers
+    const [interactionMode, setInteractionMode] = useState<'idle' | 'dragging' | 'resizing'>('idle');
+    const dragRef = useRef({ startX: 0, startY: 0, annX: 0, annY: 0, annW: 0, annH: 0, annId: '' });
+    const annotationsRef = useRef(annotations);
+    annotationsRef.current = annotations; // Keep ref in sync
 
     const pdfRef = useRef<HTMLDivElement>(null);
 
@@ -136,72 +136,74 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
 
     const deleteSelected = useCallback(() => {
         if (selectedAnnotationId) {
-            setAnnotations(annotations.filter((a) => a.id !== selectedAnnotationId));
+            setAnnotations(prev => prev.filter((a) => a.id !== selectedAnnotationId));
             setSelectedAnnotationId(null);
         }
-    }, [selectedAnnotationId, annotations]);
+    }, [selectedAnnotationId]);
 
-    const updateAnnotationProperty = (id: string, updates: Partial<Annotation>) => {
+    const updateAnnotationProperty = useCallback((id: string, updates: Partial<Annotation>) => {
         setAnnotations(prev =>
             prev.map((a) => (a.id === id ? { ...a, ...updates } : a))
         );
-    };
+    }, []);
 
     const handleMouseDown = (e: React.MouseEvent, ann: Annotation, mode: 'drag' | 'resize') => {
         e.stopPropagation();
+        e.preventDefault();
         setSelectedAnnotationId(ann.id);
 
-        if (mode === 'drag') {
-            setIsDragging(true);
-            setDragStart({ x: e.clientX, y: e.clientY, annX: ann.x, annY: ann.y });
-        } else {
-            setIsResizing(true);
-            setResizeStart({ x: e.clientX, y: e.clientY, width: ann.width, height: ann.height });
-        }
+        // Store everything in a ref so the mousemove handler always has fresh values
+        dragRef.current = {
+            startX: e.clientX,
+            startY: e.clientY,
+            annX: ann.x,
+            annY: ann.y,
+            annW: ann.width,
+            annH: ann.height,
+            annId: ann.id,
+        };
+
+        setInteractionMode(mode === 'drag' ? 'dragging' : 'resizing');
     };
 
-    const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
-        if (!selectedAnnotationId) return;
-
-        if (isDragging) {
-            const deltaX = ((e.clientX - dragStart.x) / (pdfRef.current?.getBoundingClientRect().width || 1)) * 100;
-            const deltaY = ((e.clientY - dragStart.y) / (pdfRef.current?.getBoundingClientRect().height || 1)) * 100;
-
-            updateAnnotationProperty(selectedAnnotationId, {
-                x: Math.min(Math.max(dragStart.annX + deltaX, 0), 100),
-                y: Math.min(Math.max(dragStart.annY + deltaY, 0), 100),
-            });
-        }
-
-        if (isResizing) {
-            const deltaX = ((e.clientX - resizeStart.x) / (pdfRef.current?.getBoundingClientRect().width || 1)) * 100;
-            const deltaY = ((e.clientY - resizeStart.y) / (pdfRef.current?.getBoundingClientRect().height || 1)) * 100;
-
-            updateAnnotationProperty(selectedAnnotationId, {
-                width: Math.max(resizeStart.width + deltaX, 2),
-                height: Math.max(resizeStart.height + deltaY, 0.5),
-            });
-        }
-    }, [isDragging, isResizing, selectedAnnotationId, dragStart, resizeStart]);
-
-    const handleGlobalMouseUp = useCallback(() => {
-        setIsDragging(false);
-        setIsResizing(false);
-    }, []);
-
+    // Global mousemove – reads from refs, never stale
     useEffect(() => {
-        if (isDragging || isResizing) {
-            window.addEventListener('mousemove', handleGlobalMouseMove);
-            window.addEventListener('mouseup', handleGlobalMouseUp);
-        } else {
-            window.removeEventListener('mousemove', handleGlobalMouseMove);
-            window.removeEventListener('mouseup', handleGlobalMouseUp);
-        }
-        return () => {
-            window.removeEventListener('mousemove', handleGlobalMouseMove);
-            window.removeEventListener('mouseup', handleGlobalMouseUp);
+        if (interactionMode === 'idle') return;
+
+        const onMouseMove = (e: MouseEvent) => {
+            e.preventDefault();
+            const pdfEl = pdfRef.current;
+            if (!pdfEl) return;
+
+            const rect = pdfEl.getBoundingClientRect();
+            const d = dragRef.current;
+            const deltaX = ((e.clientX - d.startX) / rect.width) * 100;
+            const deltaY = ((e.clientY - d.startY) / rect.height) * 100;
+
+            if (interactionMode === 'dragging') {
+                const newX = Math.min(Math.max(d.annX + deltaX, 0), 100 - d.annW);
+                const newY = Math.min(Math.max(d.annY + deltaY, 0), 100 - d.annH);
+                updateAnnotationProperty(d.annId, { x: newX, y: newY });
+            } else if (interactionMode === 'resizing') {
+                const newW = Math.max(d.annW + deltaX, 3);
+                const newH = Math.max(d.annH + deltaY, 1.5);
+                updateAnnotationProperty(d.annId, { width: newW, height: newH });
+            }
         };
-    }, [isDragging, isResizing, handleGlobalMouseMove, handleGlobalMouseUp]);
+
+        const onMouseUp = () => {
+            setInteractionMode('idle');
+        };
+
+        // Capture phase ensures we get events even when over iframe
+        window.addEventListener('mousemove', onMouseMove, { capture: true });
+        window.addEventListener('mouseup', onMouseUp, { capture: true });
+
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove, { capture: true });
+            window.removeEventListener('mouseup', onMouseUp, { capture: true });
+        };
+    }, [interactionMode, updateAnnotationProperty]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -337,7 +339,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
                 <div className="flex-1 overflow-auto bg-[#eef0f3] p-10 flex flex-col items-center custom-scrollbar">
                     <div
                         ref={pdfRef}
-                        className="relative bg-white shadow-xl transition-all duration-200"
+                        className="relative bg-white shadow-xl"
                         style={{
                             width: `${(documentWidth * zoom) / 100}px`,
                             minHeight: '1100px'
@@ -351,7 +353,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
                             </div>
                         )}
 
-                        {/* PDF via iframe - NO react-pdf needed */}
+                        {/* PDF via iframe */}
                         <iframe
                             src={`/api/contracts/${contract.id}/preview`}
                             className="w-full border-0"
@@ -360,39 +362,50 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
                                 transform: `scale(${zoom / 100})`,
                                 transformOrigin: 'top left',
                                 width: `${100 * (100 / zoom)}%`,
+                                pointerEvents: interactionMode !== 'idle' ? 'none' : 'auto',
                             }}
                             onLoad={() => setPdfLoading(false)}
                             title="Contract PDF"
                         />
 
-                        {/* Click-to-add layer (Only active when a tool is selected) */}
-                        <div
-                            className={`absolute inset-0 z-10 ${activeFieldType ? 'cursor-crosshair bg-blue-500/5' : 'pointer-events-none'}`}
-                            onClick={activeFieldType ? addAnnotation : undefined}
-                        />
+                        {/* Transparent overlay to capture mouse during drag/resize (prevents iframe from stealing events) */}
+                        {interactionMode !== 'idle' && (
+                            <div className="absolute inset-0 z-50" style={{ cursor: interactionMode === 'dragging' ? 'grabbing' : 'nwse-resize' }} />
+                        )}
+
+                        {/* Click-to-add layer (Only active when a tool is selected AND not dragging) */}
+                        {activeFieldType && interactionMode === 'idle' && (
+                            <div
+                                className="absolute inset-0 z-10 cursor-crosshair bg-blue-500/5"
+                                onClick={addAnnotation}
+                            />
+                        )}
 
                         {/* Annotations Layer */}
                         <div className="absolute inset-0 z-20 pointer-events-none">
                             {annotations.map((ann) => {
                                 const color = getFieldColor(ann.assignedTo);
                                 const isSelected = selectedAnnotationId === ann.id;
+                                const isBeingDragged = interactionMode !== 'idle' && dragRef.current.annId === ann.id;
 
                                 return (
                                     <div
                                         key={ann.id}
-                                        className={`absolute pointer-events-auto transition-all ${isSelected ? "z-30 ring-2 ring-white ring-offset-2 ring-offset-blue-500 shadow-lg" : "hover:shadow-md"
-                                            }`}
+                                        className={`absolute pointer-events-auto select-none ${isSelected ? "z-30 ring-2 ring-white ring-offset-2 ring-offset-blue-500 shadow-lg" : "hover:shadow-md"}`}
                                         style={{
                                             left: `${ann.x}%`,
                                             top: `${ann.y}%`,
                                             width: `${ann.width}%`,
                                             height: `${ann.height}%`,
-                                            cursor: isDragging ? 'grabbing' : 'grab',
+                                            cursor: isBeingDragged ? 'grabbing' : 'grab',
+                                            /* NO transition during drag — instant position updates */
+                                            transition: isBeingDragged ? 'none' : 'box-shadow 0.15s ease',
+                                            willChange: isBeingDragged ? 'left, top, width, height' : 'auto',
                                         }}
                                         onMouseDown={(e) => handleMouseDown(e, ann, 'drag')}
                                     >
                                         <div
-                                            className="w-full h-full flex flex-col items-center justify-center p-1 rounded border-2 relative overflow-hidden transition-colors"
+                                            className="w-full h-full flex flex-col items-center justify-center p-1 rounded border-2 relative overflow-hidden"
                                             style={{
                                                 backgroundColor: isSelected ? `${color}20` : `${color}10`,
                                                 borderColor: color,
@@ -423,15 +436,15 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
                                                 <>
                                                     {/* Resize Handle */}
                                                     <div
-                                                        className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize flex items-center justify-center bg-white rounded-tl border-l border-t"
+                                                        className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize flex items-center justify-center bg-white rounded-tl border-l border-t"
                                                         style={{ borderColor: color }}
                                                         onMouseDown={(e) => handleMouseDown(e, ann, 'resize')}
                                                     >
-                                                        <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
+                                                        <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
                                                     </div>
 
                                                     {/* Delete Button */}
-                                                    <div className="absolute -top-8 right-0 flex items-center gap-1 pointer-events-auto">
+                                                    <div className="absolute -top-9 right-0 flex items-center gap-1 pointer-events-auto">
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); deleteSelected(); }}
                                                             className="p-1.5 bg-white text-red-600 rounded-lg shadow-md border border-red-100 hover:bg-red-50 transition-colors"

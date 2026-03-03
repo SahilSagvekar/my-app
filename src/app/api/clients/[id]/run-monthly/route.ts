@@ -207,15 +207,46 @@ export async function POST(
       if (!deliverable) continue;
 
       // Duplicate prevention using recurringMonth to identify cycle
+      // + fallback check for legacy tasks without recurringMonth
       const recurringMonthLabel = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
 
-      const existingTasks = await prisma.task.count({
+      // Primary: count tasks tagged with this recurringMonth
+      const taggedTasks = await prisma.task.count({
         where: {
           clientId,
           monthlyDeliverableId: deliverable.id,
           recurringMonth: recurringMonthLabel,
         },
       });
+
+      // Fallback: count tasks with dueDate in this month but WITHOUT recurringMonth
+      const monthStart = new Date(targetYear, targetMonth, 1);
+      const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+
+      const untaggedTasks = await prisma.task.count({
+        where: {
+          clientId,
+          monthlyDeliverableId: deliverable.id,
+          recurringMonth: null,
+          dueDate: { gte: monthStart, lte: monthEnd },
+        },
+      });
+
+      const existingTasks = taggedTasks + untaggedTasks;
+
+      // Backfill recurringMonth on untagged tasks
+      if (untaggedTasks > 0) {
+        console.log(`🏷️ Backfilling recurringMonth="${recurringMonthLabel}" on ${untaggedTasks} untagged tasks for ${client.name}`);
+        await prisma.task.updateMany({
+          where: {
+            clientId,
+            monthlyDeliverableId: deliverable.id,
+            recurringMonth: null,
+            dueDate: { gte: monthStart, lte: monthEnd },
+          },
+          data: { recurringMonth: recurringMonthLabel },
+        });
+      }
 
       if (existingTasks >= deliverable.quantity) continue;
 
@@ -235,7 +266,9 @@ export async function POST(
       const companyName = client.companyName || client.name;
       const clientSlug = client.name.replace(/\s+/g, "");
       const deliverableSlug = getDeliverableShortCode(deliverable.type);
-      const createdDateStr = formatDateMMDDYYYY(now);
+      // Use 1st of target month so titles are consistent regardless of when the API runs
+      const monthFirstDay = new Date(targetYear, targetMonth, 1);
+      const createdDateStr = formatDateMMDDYYYY(monthFirstDay);
       const startIndex = existingTasks + 1;
 
       // Monthly folder for task grouping

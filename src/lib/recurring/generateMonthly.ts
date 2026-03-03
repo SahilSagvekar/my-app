@@ -484,11 +484,15 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   const monthFolder = getMonthFolderFromDate(firstDate);
   const taskFolderPath1 = await createTaskFolderStructure(companyName, title1, monthFolder);
 
+  // 🔥 FIX: Tag the template task with recurringMonth so duplicate prevention works
+  const recurringMonthLabel = `${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, "0")}`;
+
   await prisma.task.update({
     where: { id: taskId },
     data: {
       title: title1,
       outputFolderId: taskFolderPath1,
+      recurringMonth: recurringMonthLabel,
     },
   });
 
@@ -565,6 +569,8 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
             videographer: templateTask.videographer,
             qc_specialist: templateTask.qc_specialist,
             monthlyDeliverableId: templateTask.monthlyDeliverableId,
+            // 🔥 FIX: Tag with recurringMonth so duplicate prevention works
+            recurringMonth: recurringMonthLabel,
           },
         })
       );

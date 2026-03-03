@@ -214,10 +214,15 @@ export async function POST(req: Request) {
     const targetYear = typeof year === "number" ? year : now.getFullYear();
     const targetMonth = typeof month === "number" ? month : now.getMonth();
 
+    console.log(`🚀 Starting recurring task generation for ${targetYear}-${targetMonth + 1}${dryRun ? " (DRY RUN)" : ""}`);
+
     // 📁 NEW: Ensure Month Folders for all active clients
     // This runs every time the recurring cron runs (typically daily)
     const monthLabel = new Date(targetYear, targetMonth).toLocaleDateString("en-US", { month: "long" });
     const monthYearFolder = `${monthLabel}-${targetYear}`;
+
+
+    console.log(`📂month folders: ${monthLabel}  ${monthYearFolder} `);
 
     const activeClients = await prisma.client.findMany({
       where: { status: "active" },
@@ -231,6 +236,8 @@ export async function POST(req: Request) {
       const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
       const base = rawFootageBase.endsWith("/") ? rawFootageBase : `${rawFootageBase}/`;
       const folderKey = `${base}${monthYearFolder}/`;
+
+      console.log(` ${companyName} at ${folderKey}`);
 
       try {
         await s3Client.send(
@@ -251,6 +258,8 @@ export async function POST(req: Request) {
     const where: any = { active: true };
     if (clientId) where.clientId = clientId;
     if (deliverableId) where.deliverableId = deliverableId;
+
+    console.log(`🔍 clientId, deliverableId:`, clientId, deliverableId);
 
     const recurringTasks = await prisma.recurringTask.findMany({
       where,
@@ -292,25 +301,53 @@ export async function POST(req: Request) {
         // ─────────────────────────────────────────
         // DUPLICATE PREVENTION: Check if tasks already exist for this month
         //
-        // We use the `recurringMonth` field (e.g., "2026-02") to identify
-        // which generation cycle a task belongs to. This avoids false
-        // positives from a prior cycle creating tasks whose due dates
-        // spill into the target month.
-        //
-        // Example: January's cycle creates tasks on Jan 14 with Feb 1-4
-        // due dates and recurringMonth="2026-01". When the cron runs for
-        // February, it looks for recurringMonth="2026-02" and correctly
-        // finds 0 tasks — so it generates the full February batch.
+        // Primary check: Match by recurringMonth label (e.g., "2026-03")
+        // Fallback check: If recurringMonth is not set on existing tasks 
+        // (legacy/initial batch), also check by dueDate range within the
+        // target month. This prevents re-creating tasks that were created
+        // by generateMonthlyTasksFromTemplate (which historically didn't  
+        // set recurringMonth).
         // ─────────────────────────────────────────
         const recurringMonthLabel = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
 
-        const existingTasksForMonth = await prisma.task.count({
+        // Primary: count tasks tagged with this recurringMonth
+        const taggedTasks = await prisma.task.count({
           where: {
             clientId: rt.clientId,
             monthlyDeliverableId: deliverable.id,
             recurringMonth: recurringMonthLabel,
           },
         });
+
+        // Fallback: count tasks with dueDate in this month but WITHOUT recurringMonth
+        // (catches legacy tasks created before the recurringMonth fix)
+        const monthStart = new Date(targetYear, targetMonth, 1);
+        const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+
+        const untaggedTasks = await prisma.task.count({
+          where: {
+            clientId: rt.clientId,
+            monthlyDeliverableId: deliverable.id,
+            recurringMonth: null,
+            dueDate: { gte: monthStart, lte: monthEnd },
+          },
+        });
+
+        const existingTasksForMonth = taggedTasks + untaggedTasks;
+
+        // 🔥 FIX: Also backfill recurringMonth on untagged tasks so future runs are clean
+        if (untaggedTasks > 0) {
+          console.log(`🏷️ Backfilling recurringMonth="${recurringMonthLabel}" on ${untaggedTasks} untagged tasks for ${client.name}`);
+          await prisma.task.updateMany({
+            where: {
+              clientId: rt.clientId,
+              monthlyDeliverableId: deliverable.id,
+              recurringMonth: null,
+              dueDate: { gte: monthStart, lte: monthEnd },
+            },
+            data: { recurringMonth: recurringMonthLabel },
+          });
+        }
 
         if (existingTasksForMonth >= deliverable.quantity) {
           skipped.push({
@@ -365,13 +402,15 @@ export async function POST(req: Request) {
         const companyName = client.companyName || client.name;
         const clientSlug = companyName.replace(/\s+/g, "");  // Use companyName for task title
         const deliverableSlug = getDeliverableShortCode(deliverable.type);
-        const createdDateStr = formatDateMMDDYYYY(now);
+        // Use 1st of target month so titles are consistent regardless of when the API runs
+        const monthFirstDay = new Date(targetYear, targetMonth, 1);
+        const createdDateStr = formatDateMMDDYYYY(monthFirstDay);
 
         for (let i = 0; i < dueDates.length; i++) {
           const dueDate = dueDates[i];
           const taskNumber = startIndex + i;
 
-          // Build title with creation date and incrementing number
+          // Build title with month-start date and incrementing number
           const title = `${clientSlug}_${createdDateStr}_${deliverableSlug}${taskNumber}`;
 
           if (dryRun) {

@@ -16,10 +16,12 @@ import {
     MoreHorizontal,
     Filter,
     Loader2,
+    Upload,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
 import { CreateContractDialog } from "./CreateContractDialog";
+import { UploadCompletedContractDialog } from "./UploadCompletedContractDialog";
 
 const ContractDetailView = dynamic(() => import("./ContractDetailView").then(mod => mod.ContractDetailView), {
     ssr: false,
@@ -74,6 +76,7 @@ export function ContractsDashboard() {
     const [activeTab, setActiveTab] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [showUploadCompleted, setShowUploadCompleted] = useState(false);
     const [selectedContract, setSelectedContract] = useState<string | null>(null);
 
     const fetchContracts = useCallback(async () => {
@@ -130,13 +133,22 @@ export function ContractsDashboard() {
                         Create, send, and track signed contracts
                     </p>
                 </div>
-                <button
-                    onClick={() => setShowCreateDialog(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
-                >
-                    <Plus className="h-4 w-4" />
-                    New Contract
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowUploadCompleted(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 text-green-700 rounded-lg font-semibold hover:bg-green-100 transition-colors border border-green-200"
+                    >
+                        <Upload className="h-4 w-4" />
+                        Upload Signed
+                    </button>
+                    <button
+                        onClick={() => setShowCreateDialog(true)}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                    >
+                        <Plus className="h-4 w-4" />
+                        New Contract
+                    </button>
+                </div>
             </div>
 
             {/* Status Tabs */}
@@ -326,6 +338,17 @@ export function ContractsDashboard() {
                     onClose={() => setShowCreateDialog(false)}
                     onCreated={() => {
                         setShowCreateDialog(false);
+                        fetchContracts();
+                    }}
+                />
+            )}
+
+            {/* Upload Completed Dialog */}
+            {showUploadCompleted && (
+                <UploadCompletedContractDialog
+                    onClose={() => setShowUploadCompleted(false)}
+                    onCreated={() => {
+                        setShowUploadCompleted(false);
                         fetchContracts();
                     }}
                 />

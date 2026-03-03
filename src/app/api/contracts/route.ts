@@ -31,9 +31,29 @@ export async function GET(req: NextRequest) {
                 whereClause.status = status;
             }
         } else if (user.role === 'client') {
-            whereClause.signers = {
-                some: { email: user.email },
-            };
+            // Find the Client record linked to this user account
+            // Check both userId AND email to handle cases where userId isn't linked
+            const clientRecord = await prisma.client.findFirst({
+                where: {
+                    OR: [
+                        { userId: user.id },
+                        { email: user.email },
+                    ],
+                },
+                select: { id: true },
+            });
+
+            // Show contracts where:
+            // 1. The user is a signer, OR
+            // 2. The contract is linked to their client record via clientId
+            const accessFilter: any[] = [
+                { signers: { some: { email: user.email } } },
+            ];
+            if (clientRecord) {
+                accessFilter.push({ clientId: clientRecord.id });
+            }
+            whereClause.OR = accessFilter;
+
             if (status && status !== 'all') {
                 whereClause.status = status;
             }
@@ -41,11 +61,24 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        // Search filter — use AND to avoid overwriting role-based OR filters
         if (search) {
-            whereClause.OR = [
+            const searchFilter = [
                 { title: { contains: search, mode: 'insensitive' } },
                 { description: { contains: search, mode: 'insensitive' } },
             ];
+
+            if (whereClause.OR) {
+                // Client role: combine access filter AND search filter
+                whereClause.AND = [
+                    { OR: whereClause.OR },
+                    { OR: searchFilter },
+                ];
+                delete whereClause.OR;
+            } else {
+                // Admin/manager: just add search as OR directly
+                whereClause.OR = searchFilter;
+            }
         }
 
         const contracts = await prisma.contract.findMany({
