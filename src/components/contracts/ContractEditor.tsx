@@ -80,10 +80,8 @@ export function ContractEditor({ contractId, pdfUrl, onBack }: ContractEditorPro
     const handleSave = async () => {
         setSaving(true);
         try {
-            // Download the current PDF, apply annotations using pdf-lib on the server
-            // For now, we upload the annotation data alongside the original PDF
-            // The server will merge them
-            const response = await fetch(pdfUrl);
+            // Download the current PDF via our proxy to avoid CORS issues
+            const response = await fetch(`/api/contracts/${contractId}/preview`);
             const blob = await response.blob();
 
             const formData = new FormData();
@@ -169,8 +167,8 @@ export function ContractEditor({ contractId, pdfUrl, onBack }: ContractEditorPro
                                 key={tool.id}
                                 onClick={() => setActiveTool(tool.id)}
                                 className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTool === tool.id
-                                        ? "bg-blue-100 text-blue-700 shadow-sm"
-                                        : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                                    ? "bg-blue-100 text-blue-700 shadow-sm"
+                                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
                                     }`}
                                 title={tool.label}
                             >
@@ -219,7 +217,7 @@ export function ContractEditor({ contractId, pdfUrl, onBack }: ContractEditorPro
                     onClick={addAnnotation}
                 >
                     <iframe
-                        src={`${pdfUrl}#toolbar=0`}
+                        src={`/api/contracts/${contractId}/preview#toolbar=0`}
                         className="w-full pointer-events-none"
                         style={{ height: "800px" }}
                         title="Contract PDF"
@@ -231,8 +229,8 @@ export function ContractEditor({ contractId, pdfUrl, onBack }: ContractEditorPro
                             <div
                                 key={ann.id}
                                 className={`absolute cursor-pointer transition-all ${selectedAnnotation === ann.id
-                                        ? "ring-2 ring-blue-500 ring-offset-1"
-                                        : ""
+                                    ? "ring-2 ring-blue-500 ring-offset-1"
+                                    : ""
                                     }`}
                                 style={{
                                     left: `${ann.x}%`,

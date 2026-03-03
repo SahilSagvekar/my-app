@@ -75,7 +75,7 @@ const nextConfig = {
               "img-src 'self' data: blob: https://*.s3.amazonaws.com https://*.amazonaws.com https://ui-avatars.com https://res.cloudinary.com",
               "media-src 'self' blob: https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com",
               "connect-src 'self' https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com",
-              "frame-src 'self' https://drive.google.com https://www.youtube.com https://*.s3.amazonaws.com",
+              "frame-src 'self' blob: https://drive.google.com https://www.youtube.com https://*.s3.amazonaws.com",
               "font-src 'self' data:",
               "object-src 'none'",
               "base-uri 'self'",

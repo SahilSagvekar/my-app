@@ -1265,6 +1265,7 @@ model Contract {
   completedAt     DateTime?
   cancelledAt     DateTime?
   message         String?
+  annotations     Json?
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 

@@ -1,8 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Upload, Plus, Trash2, Loader2, FileText, UserPlus } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import {
+    X, Upload, Plus, Trash2, Loader2, FileText, UserPlus,
+    Eye, EyeOff, Type, Square, MousePointer, PenLine
+} from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
+
+interface Annotation {
+    id: string;
+    type: "text" | "rect" | "signature-field";
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    text?: string;
+    page: number;
+}
 
 interface Signer {
     name: string;
@@ -26,6 +40,15 @@ export function CreateContractDialog({ onClose, onCreated }: CreateContractDialo
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [dragOver, setDragOver] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [annotations, setAnnotations] = useState<Annotation[]>([]);
+    const [activeTool, setActiveTool] = useState<"select" | "text" | "rect" | "signature-field">("select");
+    const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
+
+    const pdfPreviewUrl = useMemo(() => {
+        if (file) return URL.createObjectURL(file);
+        return null;
+    }, [file]);
 
     const isAlreadyAdded = signers.some(
         (s) => s.email.toLowerCase() === (user?.email || "").toLowerCase()
@@ -109,6 +132,9 @@ export function CreateContractDialog({ onClose, onCreated }: CreateContractDialo
             if (message.trim()) formData.append("message", message.trim());
             if (expiresAt) formData.append("expiresAt", expiresAt);
             formData.append("signers", JSON.stringify(validSigners));
+            if (annotations.length > 0) {
+                formData.append("annotations", JSON.stringify(annotations));
+            }
 
             const res = await fetch("/api/contracts", {
                 method: "POST",
@@ -217,7 +243,12 @@ export function CreateContractDialog({ onClose, onCreated }: CreateContractDialo
                                         </p>
                                     </div>
                                     <button
-                                        onClick={() => setFile(null)}
+                                        onClick={() => {
+                                            setFile(null);
+                                            setAnnotations([]);
+                                            setShowPreview(false);
+                                            setSelectedAnnotation(null);
+                                        }}
                                         className="p-1.5 hover:bg-red-50 rounded-lg"
                                     >
                                         <Trash2 className="h-4 w-4 text-red-400" />
@@ -244,6 +275,147 @@ export function CreateContractDialog({ onClose, onCreated }: CreateContractDialo
                         </div>
                     </div>
 
+                    {/* PDF Preview & Editor */}
+                    {file && (
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-semibold text-gray-700">Document Preview & Edit</label>
+                                <button
+                                    onClick={() => setShowPreview(!showPreview)}
+                                    className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                >
+                                    {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                    {showPreview ? "Hide Preview" : "Show Preview"}
+                                </button>
+                            </div>
+
+                            {showPreview && pdfPreviewUrl && (
+                                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                    {/* Mini Toolbar */}
+                                    <div className="flex items-center gap-1 bg-gray-50 px-3 py-2 border-b border-gray-200">
+                                        {[
+                                            { id: "select" as const, icon: MousePointer, label: "Select" },
+                                            { id: "text" as const, icon: Type, label: "Text" },
+                                            { id: "rect" as const, icon: Square, label: "Highlight" },
+                                            { id: "signature-field" as const, icon: PenLine, label: "Sig Field" },
+                                        ].map((tool) => {
+                                            const Icon = tool.icon;
+                                            return (
+                                                <button
+                                                    key={tool.id}
+                                                    onClick={() => setActiveTool(tool.id)}
+                                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${activeTool === tool.id
+                                                        ? "bg-blue-100 text-blue-700"
+                                                        : "text-gray-500 hover:bg-gray-100"
+                                                        }`}
+                                                    title={tool.label}
+                                                >
+                                                    <Icon className="h-3.5 w-3.5" />
+                                                    {tool.label}
+                                                </button>
+                                            );
+                                        })}
+
+                                        {selectedAnnotation && (
+                                            <button
+                                                onClick={() => {
+                                                    setAnnotations(annotations.filter(a => a.id !== selectedAnnotation));
+                                                    setSelectedAnnotation(null);
+                                                }}
+                                                className="inline-flex items-center gap-1 px-2 py-1 text-red-600 hover:bg-red-50 rounded text-xs font-medium ml-1"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                                Delete
+                                            </button>
+                                        )}
+
+                                        {annotations.length > 0 && (
+                                            <span className="text-[10px] text-gray-400 ml-auto">
+                                                {annotations.length} annotation{annotations.length !== 1 ? "s" : ""}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* PDF + Overlay */}
+                                    <div
+                                        className="relative bg-white"
+                                        onClick={(e) => {
+                                            if (activeTool === "select") return;
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const x = ((e.clientX - rect.left) / rect.width) * 100;
+                                            const y = ((e.clientY - rect.top) / rect.height) * 100;
+                                            const newAnn: Annotation = {
+                                                id: `ann-${Date.now()}`,
+                                                type: activeTool,
+                                                x, y,
+                                                width: activeTool === "text" ? 20 : 25,
+                                                height: activeTool === "text" ? 4 : activeTool === "signature-field" ? 8 : 5,
+                                                text: activeTool === "text" ? "Click to edit" : undefined,
+                                                page: 0,
+                                            };
+                                            setAnnotations([...annotations, newAnn]);
+                                            setSelectedAnnotation(newAnn.id);
+                                            setActiveTool("select");
+                                        }}
+                                    >
+                                        <iframe
+                                            src={`${pdfPreviewUrl}#toolbar=0`}
+                                            className="w-full pointer-events-none"
+                                            style={{ height: "500px" }}
+                                            title="PDF Preview"
+                                        />
+                                        {/* Annotation Overlay */}
+                                        <div className="absolute inset-0">
+                                            {annotations.map((ann) => (
+                                                <div
+                                                    key={ann.id}
+                                                    className={`absolute cursor-pointer transition-all ${selectedAnnotation === ann.id ? "ring-2 ring-blue-500 ring-offset-1" : ""
+                                                        }`}
+                                                    style={{
+                                                        left: `${ann.x}%`, top: `${ann.y}%`,
+                                                        width: `${ann.width}%`, height: `${ann.height}%`,
+                                                    }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedAnnotation(ann.id);
+                                                    }}
+                                                >
+                                                    {ann.type === "text" && (
+                                                        <div
+                                                            className="w-full h-full bg-yellow-100/80 border border-yellow-300 rounded p-1 text-xs"
+                                                            suppressContentEditableWarning
+                                                            contentEditable
+                                                            onBlur={(e) => {
+                                                                setAnnotations(annotations.map(a =>
+                                                                    a.id === ann.id ? { ...a, text: e.currentTarget.textContent || "" } : a
+                                                                ));
+                                                            }}
+                                                        >
+                                                            {ann.text}
+                                                        </div>
+                                                    )}
+                                                    {ann.type === "rect" && (
+                                                        <div className="w-full h-full bg-red-200/30 border-2 border-red-400 rounded" />
+                                                    )}
+                                                    {ann.type === "signature-field" && (
+                                                        <div className="w-full h-full border-2 border-dashed border-blue-500 bg-blue-50/40 rounded flex items-center justify-center">
+                                                            <span className="text-[10px] text-blue-600 font-semibold">✍️ Sign Here</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Tip */}
+                                    <div className="px-3 py-2 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-700">
+                                        💡 Select a tool above, then click on the PDF to place annotations. Click items to select, then delete.
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Signers */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
@@ -253,8 +425,8 @@ export function CreateContractDialog({ onClose, onCreated }: CreateContractDialo
                                     onClick={addMeAsSigner}
                                     disabled={isAlreadyAdded}
                                     className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${isAlreadyAdded
-                                            ? "bg-green-50 text-green-600 cursor-default"
-                                            : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
+                                        ? "bg-green-50 text-green-600 cursor-default"
+                                        : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
                                         }`}
                                     title={isAlreadyAdded ? "You're already added as a signer" : "Add yourself as a signer"}
                                 >

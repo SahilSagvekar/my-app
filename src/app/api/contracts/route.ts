@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/auth-helpers';
-import { uploadContractToS3, generateSignToken } from '@/lib/contracts';
+import { uploadContractToS3, generateSignToken, applyAnnotationsToBuffer } from '@/lib/contracts';
 
 // GET /api/contracts - List contracts
 export async function GET(req: NextRequest) {
@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
         const expiresAt = formData.get('expiresAt') as string | null;
         const signersJson = formData.get('signers') as string | null;
         const templateId = formData.get('templateId') as string | null;
+        const annotationsJson = formData.get('annotations') as string | null;
 
         if (!title) {
             return NextResponse.json({ error: 'Title is required' }, { status: 400 });
@@ -117,7 +118,18 @@ export async function POST(req: NextRequest) {
         let fileSize: number;
 
         if (file) {
-            const buffer = Buffer.from(await file.arrayBuffer());
+            let buffer = Buffer.from(await file.arrayBuffer());
+
+            // If there are annotations (text, highlights), apply them to the PDF before upload
+            if (annotationsJson) {
+                try {
+                    buffer = await applyAnnotationsToBuffer(buffer, annotationsJson);
+                } catch (err) {
+                    console.error('Failed to apply create-time annotations:', err);
+                    // Continue with original buffer if decoration fails
+                }
+            }
+
             const result = await uploadContractToS3(buffer, file.name);
             s3Key = result.s3Key;
             fileName = file.name;
@@ -148,6 +160,13 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        let annotations = null;
+        if (annotationsJson) {
+            try {
+                annotations = JSON.parse(annotationsJson);
+            } catch { }
+        }
+
         const contract = await prisma.contract.create({
             data: {
                 title,
@@ -159,6 +178,7 @@ export async function POST(req: NextRequest) {
                 createdById: user.id,
                 clientId,
                 templateId,
+                annotations,
                 expiresAt: expiresAt ? new Date(expiresAt) : null,
                 signers: {
                     create: signers.map((s, index) => ({

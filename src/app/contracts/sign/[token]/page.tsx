@@ -196,7 +196,7 @@ export default function PublicSigningPage({ params }: { params: Promise<{ token:
                         </h3>
                     </div>
                     <iframe
-                        src={contract.pdfUrl}
+                        src={`/api/contracts/sign/${token}/preview`}
                         className="w-full h-[600px]"
                         title="Contract PDF"
                     />

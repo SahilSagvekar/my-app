@@ -2,11 +2,95 @@
 // Shared utilities for the contracts feature
 
 import crypto from 'crypto';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { s3, generateSignedUrl } from './s3';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const BUCKET = process.env.AWS_S3_BUCKET!;
+
+/**
+ * Apply decorations (text, highlights) to a PDF buffer from create-time annotations
+ */
+export async function applyAnnotationsToBuffer(
+    buffer: Buffer,
+    annotationsJson: string | any[]
+): Promise<Buffer> {
+    let annotations: any[] = [];
+    if (typeof annotationsJson === 'string') {
+        try {
+            annotations = JSON.parse(annotationsJson);
+        } catch {
+            return buffer;
+        }
+    } else {
+        annotations = annotationsJson;
+    }
+
+    if (!annotations || !Array.isArray(annotations) || annotations.length === 0) {
+        return buffer;
+    }
+
+    const pdfDoc = await PDFDocument.load(buffer);
+    const pages = pdfDoc.getPages();
+
+    for (const ann of annotations) {
+        // We only "bake-in" permanent edits like text and highlights
+        // Signature fields are stored to be used later during the signing flow
+        if (ann.type !== 'text' && ann.type !== 'rect' && ann.type !== 'signature-field') continue;
+
+        const pageIndex = ann.page || 0;
+        if (pageIndex >= pages.length) continue;
+
+        const page = pages[pageIndex];
+        const { width: pWidth, height: pHeight } = page.getSize();
+
+        // PDF coordinates start from bottom-left
+        // UI coordinates start from top-left (percentages)
+        const x = (ann.x / 100) * pWidth;
+        const width = (ann.width / 100) * pWidth;
+        const height = (ann.height / 100) * pHeight;
+        const y = ((100 - ann.y - ann.height) / 100) * pHeight;
+
+        if (ann.type === 'text' && ann.text) {
+            page.drawText(ann.text, {
+                x,
+                y: y + 2, // baseline adjustment
+                size: 10,
+                color: rgb(0.1, 0.1, 0.1),
+            });
+        } else if (ann.type === 'rect') {
+            page.drawRectangle({
+                x,
+                y,
+                width,
+                height,
+                color: rgb(1, 0.95, 0.3), // Highlighter yellow
+                opacity: 0.4,
+            });
+        } else if (ann.type === 'signature-field') {
+            // Draw a light placeholder for the signature field
+            page.drawRectangle({
+                x,
+                y,
+                width,
+                height,
+                borderColor: rgb(0.2, 0.5, 0.9),
+                borderWidth: 1,
+                color: rgb(0.9, 0.95, 1),
+                opacity: 0.2,
+            });
+            page.drawText('Signature Field', {
+                x: x + 5,
+                y: y + (height / 2) - 4,
+                size: 7,
+                color: rgb(0.4, 0.4, 0.4),
+            });
+        }
+    }
+
+    const bytes = await pdfDoc.save();
+    return Buffer.from(bytes);
+}
 
 /**
  * Generate a cryptographically secure token for signing URLs
@@ -99,19 +183,25 @@ export async function applySignaturesToPdf(
     signatures: Array<{
         signatureS3Key: string;
         signerName: string;
-        pageIndex?: number; // default 0 (last page)
-    }>
+    }>,
+    annotationsJson?: any
 ): Promise<string> {
     // Download the original PDF
     const pdfBuffer = await downloadPdfFromS3(originalS3Key);
     const pdfDoc = await PDFDocument.load(pdfBuffer);
 
     const pages = pdfDoc.getPages();
-    const lastPage = pages[pages.length - 1];
+
+    let annotations: any[] = [];
+    if (annotationsJson) {
+        annotations = typeof annotationsJson === 'string' ? JSON.parse(annotationsJson) : annotationsJson;
+    }
+
+    const signatureFields = annotations.filter(a => a.type === 'signature-field');
 
     // Place each signature on the document
-    let yOffset = 80;
-    for (const sig of signatures) {
+    for (let i = 0; i < signatures.length; i++) {
+        const sig = signatures[i];
         try {
             const sigBuffer = await downloadSignatureFromS3(sig.signatureS3Key);
             const sigImage = await pdfDoc.embedPng(sigBuffer).catch(async () => {
@@ -119,29 +209,39 @@ export async function applySignaturesToPdf(
                 return pdfDoc.embedJpg(sigBuffer);
             });
 
-            const targetPage = sig.pageIndex !== undefined ? pages[sig.pageIndex] : lastPage;
-            const { width } = targetPage.getSize();
+            const field = signatureFields[i];
+            let targetPage, x, y, width, height;
 
-            // Place signature: 150x60px, right-aligned with signer name below
-            const sigWidth = 150;
-            const sigHeight = 60;
-            const xPos = width - sigWidth - 50;
+            if (field) {
+                targetPage = pages[field.page || 0];
+                const { width: pWidth, height: pHeight } = targetPage.getSize();
+                x = (field.x / 100) * pWidth;
+                width = (field.width / 100) * pWidth;
+                height = (field.height / 100) * pHeight;
+                y = ((100 - field.y - field.height) / 100) * pHeight;
+            } else {
+                // Fallback: bottom of last page
+                targetPage = pages[pages.length - 1];
+                const { width: pWidth } = targetPage.getSize();
+                width = 150;
+                height = 60;
+                x = pWidth - width - 50;
+                y = 80 + (i * 90);
+            }
 
             targetPage.drawImage(sigImage, {
-                x: xPos,
-                y: yOffset,
-                width: sigWidth,
-                height: sigHeight,
+                x,
+                y,
+                width,
+                height,
             });
 
             // Add signer name text below the signature
             targetPage.drawText(sig.signerName, {
-                x: xPos,
-                y: yOffset - 15,
+                x,
+                y: y - 15,
                 size: 9,
             });
-
-            yOffset += 90;
         } catch (err) {
             console.error(`Failed to apply signature for ${sig.signerName}:`, err);
         }
@@ -204,7 +304,7 @@ export async function checkAndFinalizeContract(
 
         let signedS3Key = null;
         try {
-            signedS3Key = await applySignaturesToPdf(contract.s3Key, signaturesData);
+            signedS3Key = await applySignaturesToPdf(contract.s3Key, signaturesData, contract.annotations);
         } catch (err) {
             console.error('Failed to generate signed PDF:', err);
         }

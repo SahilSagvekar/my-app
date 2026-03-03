@@ -440,7 +440,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                         </button>
                     </div>
                     <iframe
-                        src={contract.pdfUrl}
+                        src={`/api/contracts/${contractId}/preview`}
                         className="w-full h-[600px]"
                         title="Contract PDF Preview"
                     />
