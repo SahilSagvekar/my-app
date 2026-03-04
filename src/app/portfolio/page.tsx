@@ -910,7 +910,7 @@ function PortfolioContent() {
             <div className="pt-14 sm:pt-16">
                 {/* Hero */}
                 <section className="pt-10 sm:pt-14 pb-6 sm:pb-8 px-4 sm:px-6 lg:px-8 bg-white">
-                    <div className="max-w-7xl mx-auto text-center">
+                    {/* <div className="max-w-7xl mx-auto text-center">
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black/5 rounded-full text-sm text-black/70 font-medium mb-4">
                             <Check className="w-4 h-4 text-green-600" />
                             Portfolio Unlocked
@@ -921,7 +921,7 @@ function PortfolioContent() {
                         <p className="text-sm sm:text-base text-black/60 max-w-2xl mx-auto">
                             Browse our collection of professional video content, videography, and photography across different styles and formats.
                         </p>
-                    </div>
+                    </div> */}
                 </section>
 
                 {/* Mobile subcategory pills */}

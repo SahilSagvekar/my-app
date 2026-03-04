@@ -2,15 +2,16 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-// 🔥 ONLY admin can switch to view QC dashboard
-// (QC cannot switch to admin because APIs would reject the requests)
-const SWITCHABLE_EMAILS = [
-    "eric@e8productions.com", // Admin can switch to QC
-];
-
-// Map email to their "other" roles
+// 🔥 Define which roles/emails have the ability to switch views
+// This allows developers or admins to preview the portal as other roles
 const ROLE_SWITCH_MAP: Record<string, string[]> = {
-    "eric@e8productions.com": ["qc", "sales"],      // Admin can switch to QC or Sales
+    // Specific Users
+    "eric@e8productions.com": ["qc", "sales"],
+    
+    // Role-based defaults
+    "admin": ["qc", "sales"],
+    "qc": ["admin", "sales"],
+    "sales": ["qc", "admin"],
 };
 
 interface ViewAsRoleContextType {
@@ -34,8 +35,18 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
     const [viewingAsRole, setViewingAsRole] = useState<string | null>(userRole);
     const [isViewingAsOther, setIsViewingAsOther] = useState(false);
 
-    // Check if this user can switch roles
-    const switchableRoles = userEmail ? ROLE_SWITCH_MAP[userEmail.toLowerCase()] || [] : [];
+    // Check if this user can switch roles (check email first, then role)
+    const switchableRoles = React.useMemo(() => {
+        const emailKey = userEmail?.toLowerCase() || "";
+        const roleKey = userRole?.toLowerCase() || "";
+        
+        const emailRoles = ROLE_SWITCH_MAP[emailKey] || [];
+        const roleRoles = ROLE_SWITCH_MAP[roleKey] || [];
+        
+        // Merge and unique
+        return Array.from(new Set([...emailRoles, ...roleRoles]));
+    }, [userEmail, userRole]);
+
     const canSwitchRole = switchableRoles.length > 0;
 
     // Reset viewing role when actual user role changes

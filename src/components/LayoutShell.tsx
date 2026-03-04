@@ -189,48 +189,60 @@ export function LayoutShell({
             {/* Notifications */}
             <Notifications currentRole={currentRole} />
 
-            {/* 🔥 Role Switch Button - Only for authorized users */}
+            {/* 🔥 Role Switch Button - Always show dropdown if permitted */}
             {canSwitchRole && (
               <div className="flex items-center gap-2">
-                {isViewingAsOther ? (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={resetToOriginal}
-                    className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
-                  >
-                    <ArrowLeftRight className="h-4 w-4" />
-                    <span className="hidden sm:inline">
-                      Back to {authUser?.role === 'admin' ? 'Admin' : 'QC'}
-                    </span>
-                  </Button>
-                ) : (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-2 border-gray-300 hover:bg-gray-100"
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={isViewingAsOther ? "default" : "outline"}
+                      size="sm"
+                      className={`flex items-center gap-2 transition-all ${isViewingAsOther
+                          ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm border-none'
+                          : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                        }`}
+                    >
+                      <ArrowLeftRight className="h-4 w-4" />
+                      <span className="hidden sm:inline">
+                        {isViewingAsOther ? `Viewing: ${roleDisplay}` : 'Switch Role'}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 p-1">
+                    <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      View Portal As
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+
+                    {/* Default/Original Role Option (only shown if viewing as other) */}
+                    {isViewingAsOther && (
+                      <DropdownMenuItem
+                        onClick={resetToOriginal}
+                        className="flex items-center justify-between px-3 py-2 cursor-pointer rounded-sm text-gray-600 hover:text-gray-900 border-b border-gray-100"
                       >
-                        <ArrowLeftRight className="h-4 w-4" />
-                        <span className="hidden sm:inline">Switch Role</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuLabel>View Portal As</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {switchableRoles.map((role) => (
+                        <div className="flex items-center gap-2">
+                          <ArrowLeftRight className="h-3 w-3 text-gray-400" />
+                          <span>Reset to {authUser?.role === 'admin' ? 'Admin' : 'Original'}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    )}
+
+                    {switchableRoles.map((role) => {
+                      const isCurrent = currentRole?.toLowerCase() === role.toLowerCase();
+                      return (
                         <DropdownMenuItem
                           key={role}
                           onClick={() => switchToRole(role)}
-                          className="flex items-center justify-between"
+                          className={`flex items-center justify-between px-3 py-2 cursor-pointer rounded-sm ${isCurrent ? 'bg-amber-50 text-amber-900 font-semibold' : 'text-gray-600 hover:text-gray-900'
+                            }`}
                         >
-                          {role.toLowerCase() === 'qc' ? 'QC specialist' : role.charAt(0).toUpperCase() + role.slice(1)}
+                          <span>{role.toLowerCase() === 'qc' ? 'QC Specialist' : role.charAt(0).toUpperCase() + role.slice(1)}</span>
+                          {isCurrent && <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
                         </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
 
