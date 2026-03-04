@@ -9,7 +9,7 @@ import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 const BUCKET = process.env.AWS_S3_BUCKET!;
 
 /**
- * Apply decorations (text, highlights) to a PDF buffer from create-time annotations
+ * Apply decorations (text, highlights, field placeholders) to a PDF buffer from editor annotations
  */
 export async function applyAnnotationsToBuffer(
     buffer: Buffer,
@@ -34,10 +34,6 @@ export async function applyAnnotationsToBuffer(
     const pages = pdfDoc.getPages();
 
     for (const ann of annotations) {
-        // We only "bake-in" permanent edits like text and highlights
-        // Signature fields are stored to be used later during the signing flow
-        if (ann.type !== 'text' && ann.type !== 'rect' && ann.type !== 'signature-field') continue;
-
         const pageIndex = ann.page || 0;
         if (pageIndex >= pages.length) continue;
 
@@ -51,41 +47,69 @@ export async function applyAnnotationsToBuffer(
         const height = (ann.height / 100) * pHeight;
         const y = ((100 - ann.y - ann.height) / 100) * pHeight;
 
+        // Legacy: bake text with actual content
         if (ann.type === 'text' && ann.text) {
             page.drawText(ann.text, {
                 x,
-                y: y + 2, // baseline adjustment
+                y: y + 2,
                 size: 10,
                 color: rgb(0.1, 0.1, 0.1),
             });
-        } else if (ann.type === 'rect') {
+            continue;
+        }
+
+        // Legacy: highlight rectangles
+        if (ann.type === 'rect') {
             page.drawRectangle({
-                x,
-                y,
-                width,
-                height,
-                color: rgb(1, 0.95, 0.3), // Highlighter yellow
+                x, y, width, height,
+                color: rgb(1, 0.95, 0.3),
                 opacity: 0.4,
             });
-        } else if (ann.type === 'signature-field') {
-            // Draw a light placeholder for the signature field
-            page.drawRectangle({
-                x,
-                y,
-                width,
-                height,
-                borderColor: rgb(0.2, 0.5, 0.9),
-                borderWidth: 1,
-                color: rgb(0.9, 0.95, 1),
-                opacity: 0.2,
-            });
-            page.drawText('Signature Field', {
-                x: x + 5,
-                y: y + (height / 2) - 4,
-                size: 7,
-                color: rgb(0.4, 0.4, 0.4),
-            });
+            continue;
         }
+
+        // --- Editor field types: draw styled placeholder boxes ---
+        // Determine colors and label based on field type
+        let borderR = 0.2, borderG = 0.5, borderB = 0.9; // blue default
+        let bgR = 0.93, bgG = 0.96, bgB = 1.0;
+        let label = ann.placeholder || ann.fieldName || ann.type || 'Field';
+
+        if (ann.type === 'signature' || ann.type === 'initials') {
+            label = ann.type === 'signature' ? 'Signature' : 'Initials';
+            borderR = 0.2; borderG = 0.5; borderB = 0.9;
+        } else if (ann.type === 'date_signed') {
+            label = 'Date Signed';
+        } else if (ann.type === 'full_name') {
+            label = 'Full Name';
+        } else if (ann.type === 'email_address') {
+            label = 'Email';
+        } else if (ann.type === 'company') {
+            label = 'Company';
+        } else if (ann.type === 'title') {
+            label = 'Title';
+        } else if (ann.type === 'checkbox') {
+            label = '☐';
+        } else if (ann.type === 'dropdown') {
+            label = 'Select...';
+        }
+
+        // Draw the placeholder box
+        page.drawRectangle({
+            x, y, width, height,
+            borderColor: rgb(borderR, borderG, borderB),
+            borderWidth: 1,
+            color: rgb(bgR, bgG, bgB),
+            opacity: 0.3,
+        });
+
+        // Draw the label text inside the box
+        const fontSize = ann.type === 'checkbox' ? 10 : Math.min(8, height * 0.6);
+        page.drawText(label, {
+            x: x + 3,
+            y: y + (height / 2) - (fontSize / 2),
+            size: fontSize,
+            color: rgb(0.3, 0.3, 0.5),
+        });
     }
 
     const bytes = await pdfDoc.save();

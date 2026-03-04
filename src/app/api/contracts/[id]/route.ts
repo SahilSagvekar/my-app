@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/auth-helpers';
-import { uploadContractToS3 } from '@/lib/contracts';
+import { uploadContractToS3, applyAnnotationsToBuffer, downloadPdfFromS3 } from '@/lib/contracts';
 import { generateSignedUrl } from '@/lib/s3';
 
 // GET /api/contracts/[id] - Get contract details
@@ -182,7 +182,21 @@ export async function PUT(
         }
 
         if (annotationsStr) {
-            updateData.annotations = JSON.parse(annotationsStr);
+            const parsedAnnotations = JSON.parse(annotationsStr);
+            updateData.annotations = parsedAnnotations;
+
+            // Bake text annotations into the actual PDF
+            try {
+                const s3Key = updateData.s3Key || contract.s3Key;
+                let pdfBuffer = await downloadPdfFromS3(s3Key);
+                pdfBuffer = await applyAnnotationsToBuffer(pdfBuffer, parsedAnnotations);
+                const uploadResult = await uploadContractToS3(pdfBuffer, contract.fileName);
+                updateData.s3Key = uploadResult.s3Key;
+                updateData.fileSize = BigInt(uploadResult.fileSize);
+            } catch (applyErr) {
+                console.error('Failed to apply annotations to PDF:', applyErr);
+                // Still save the annotations metadata even if PDF baking fails
+            }
         }
 
         const updated = await prisma.contract.update({

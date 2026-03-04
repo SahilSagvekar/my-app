@@ -20,7 +20,6 @@ import {
   LogOut,
   User,
   Search,
-  Menu,
   X,
   Settings as SettingsIcon,
   ArrowLeftRight,
@@ -38,6 +37,36 @@ import Image from 'next/image';
 import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
 import { useAuth } from './auth/AuthContext';
 import { useViewAsRole } from './auth/ViewAsRoleContext';
+
+function MenuToggleIcon({ isCollapsed, className }: { isCollapsed?: boolean; className?: string }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3 6h18" />
+      <path d="M3 18h18" />
+      {isCollapsed ? (
+        <>
+          <path d="M3 12h14" />
+          <path d="m13 8 4 4-4 4" />
+        </>
+      ) : (
+        <>
+          <path d="M21 12H7" />
+          <path d="m11 8-4 4 4 4" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 interface LayoutShellProps {
   currentRole: string | null;  // UPDATED: Allow null
@@ -147,7 +176,7 @@ export function LayoutShell({
               className="lg:hidden"
               onClick={toggleSidebar}
             >
-              <Menu className="h-5 w-5" />
+              {isSidebarOpen ? <X className="h-5 w-5" /> : <MenuToggleIcon className="h-5 w-5" />}
             </Button>
 
             {/* Logo */}
@@ -158,7 +187,7 @@ export function LayoutShell({
                 className="hidden lg:flex"
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               >
-                <Menu className="h-5 w-5" />
+                <MenuToggleIcon className="h-5 w-5" isCollapsed={isSidebarCollapsed} />
               </Button>
               <Image
                 src={logo}
@@ -198,8 +227,8 @@ export function LayoutShell({
                       variant={isViewingAsOther ? "default" : "outline"}
                       size="sm"
                       className={`flex items-center gap-2 transition-all ${isViewingAsOther
-                          ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm border-none'
-                          : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                        ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm border-none'
+                        : 'border-gray-200 hover:bg-gray-50 text-gray-700'
                         }`}
                     >
                       <ArrowLeftRight className="h-4 w-4" />
