@@ -66,6 +66,31 @@ export async function POST(
         const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
         const userAgent = req.headers.get('user-agent') || 'unknown';
 
+        // Update annotations with filled field values (same logic as public sign route)
+        const fieldValues = body.fieldValues || {};
+        let currentAnnotations = contract.annotations || [];
+        if (typeof currentAnnotations === 'string') {
+            try { currentAnnotations = JSON.parse(currentAnnotations); } catch { currentAnnotations = []; }
+        }
+
+        if (Array.isArray(currentAnnotations) && Object.keys(fieldValues).length > 0) {
+            const updatedAnnotations = currentAnnotations.map((ann: any) => {
+                const filledValue = fieldValues[ann.id];
+                if (filledValue !== undefined) {
+                    if (ann.type === 'signature' || ann.type === 'initials') {
+                        return { ...ann, value: 'SIGNED', signatureS3Key };
+                    }
+                    return { ...ann, value: filledValue };
+                }
+                return ann;
+            });
+
+            await prisma.contract.update({
+                where: { id: contract.id },
+                data: { annotations: JSON.stringify(updatedAnnotations) },
+            });
+        }
+
         await prisma.contractSigner.update({
             where: { id: signer.id },
             data: {

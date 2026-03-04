@@ -70,13 +70,12 @@ export async function applyAnnotationsToBuffer(
 
         // --- Editor field types: draw styled placeholder boxes ---
         // Determine colors and label based on field type
-        let borderR = 0.2, borderG = 0.5, borderB = 0.9; // blue default
-        let bgR = 0.93, bgG = 0.96, bgB = 1.0;
+        let borderR = 0.31, borderG = 0.27, borderB = 0.9; // Indigo (#4f46e5)
+        let bgR = 0.95, bgG = 0.96, bgB = 1.0;
         let label = ann.placeholder || ann.fieldName || ann.type || 'Field';
 
         if (ann.type === 'signature' || ann.type === 'initials') {
             label = ann.type === 'signature' ? 'Signature' : 'Initials';
-            borderR = 0.2; borderG = 0.5; borderB = 0.9;
         } else if (ann.type === 'date_signed') {
             label = 'Date Signed';
         } else if (ann.type === 'full_name') {
@@ -108,7 +107,7 @@ export async function applyAnnotationsToBuffer(
             x: x + 3,
             y: y + (height / 2) - (fontSize / 2),
             size: fontSize,
-            color: rgb(0.3, 0.3, 0.5),
+            color: rgb(0.2, 0.2, 0.4),
         });
     }
 

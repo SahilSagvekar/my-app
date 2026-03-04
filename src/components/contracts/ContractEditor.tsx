@@ -19,6 +19,7 @@ import {
     ChevronDown,
     Settings,
     LayoutGrid,
+    FileText,
 } from "lucide-react";
 
 // 🔥 NO react-pdf imports - using iframe instead
@@ -86,10 +87,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
     });
 
     const [activeFieldType, setActiveFieldType] = useState<string | null>(null);
-    const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
-    const [activeSignerEmail, setActiveSignerEmail] = useState<string>(
-        contract.signers?.[0]?.email || contract.createdBy?.email || "owner"
-    );
+    const [selectedId, setSelectedId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [zoom, setZoom] = useState(100);
     const [pdfLoading, setPdfLoading] = useState(true);
@@ -102,7 +100,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
 
     const pdfRef = useRef<HTMLDivElement>(null);
 
-    const selectedAnnotation = annotations.find(a => a.id === selectedAnnotationId);
+    const selectedAnnotation = annotations.find(a => a.id === selectedId);
 
     const documentWidth = 800;
 
@@ -125,23 +123,23 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
             width: activeFieldType === "signature" ? 20 : 12,
             height: activeFieldType === "signature" ? 4 : 2.5,
             fieldName: `${fieldTypeInfo?.label || "Field"} ${annotations.length + 1}`,
-            assignedTo: activeSignerEmail,
+            assignedTo: "signer", // Default to 'signer'
             required: true,
             placeholder: fieldTypeInfo?.label || "",
             page: 0,
         };
 
         setAnnotations([...annotations, newAnnotation]);
-        setSelectedAnnotationId(newAnnotation.id);
+        setSelectedId(newAnnotation.id);
         setActiveFieldType(null);
     };
 
     const deleteSelected = useCallback(() => {
-        if (selectedAnnotationId) {
-            setAnnotations(prev => prev.filter((a) => a.id !== selectedAnnotationId));
-            setSelectedAnnotationId(null);
+        if (selectedId) {
+            setAnnotations(prev => prev.filter((a) => a.id !== selectedId));
+            setSelectedId(null);
         }
-    }, [selectedAnnotationId]);
+    }, [selectedId]);
 
     const updateAnnotationProperty = useCallback((id: string, updates: Partial<Annotation>) => {
         setAnnotations(prev =>
@@ -152,7 +150,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
     const handleMouseDown = (e: React.MouseEvent, ann: Annotation, mode: 'drag' | 'resize') => {
         e.stopPropagation();
         e.preventDefault();
-        setSelectedAnnotationId(ann.id);
+        setSelectedId(ann.id);
 
         // Store everything in a ref so the mousemove handler always has fresh values
         dragRef.current = {
@@ -244,8 +242,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
     };
 
     const getFieldColor = (assignedTo: string) => {
-        const isOwner = assignedTo === contract.createdBy?.email || assignedTo === "owner";
-        return isOwner ? "#3b82f6" : "#f97316";
+        return "#4f46e5"; // Indigo 600 for all fields
     };
 
     return (
@@ -292,28 +289,12 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
                 {/* Left Sidebar */}
                 <div className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
                     <div className="p-4 space-y-6 overflow-y-auto custom-scrollbar">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                                <User className="h-3 w-3" />
-                                Active Recipient
-                            </label>
-                            <div className="relative">
-                                <select
-                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-xs font-semibold appearance-none cursor-pointer focus:ring-2 focus:ring-blue-100 outline-none"
-                                    value={activeSignerEmail}
-                                    onChange={(e) => setActiveSignerEmail(e.target.value)}
-                                >
-                                    <optgroup label="You">
-                                        <option value={contract.createdBy?.email || "owner"}>{contract.createdBy?.name || "Me"}</option>
-                                    </optgroup>
-                                    <optgroup label="Others">
-                                        {contract.signers?.map((s: any) => (
-                                            <option key={s.id} value={s.email}>{s.name} ({s.email})</option>
-                                        ))}
-                                    </optgroup>
-                                </select>
-                                <ChevronDown className="absolute right-2.5 top-3 h-3 w-3 text-gray-400 pointer-events-none" />
-                            </div>
+                        <div className="p-4 border-b border-gray-100">
+                            <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-blue-500" />
+                                Contract Fields
+                            </h2>
+                            <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-wider">Drag fields onto the document</p>
                         </div>
 
                         {FIELD_CATEGORIES.map((category) => (
@@ -402,7 +383,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
                             <div className="absolute inset-0 z-20 pointer-events-none">
                                 {annotations.map((ann) => {
                                     const color = getFieldColor(ann.assignedTo);
-                                    const isSelected = selectedAnnotationId === ann.id;
+                                    const isSelected = selectedId === ann.id;
                                     const isBeingDragged = interactionMode !== 'idle' && dragRef.current.annId === ann.id;
 
                                     return (
@@ -489,7 +470,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
                                     <Settings className="h-4 w-4 text-gray-400" />
                                     Field Settings
                                 </h3>
-                                <button onClick={() => setSelectedAnnotationId(null)} className="p-1 hover:bg-gray-100 rounded">
+                                <button onClick={() => setSelectedId(null)} className="p-1 hover:bg-gray-100 rounded">
                                     <ArrowLeft className="h-4 w-4 text-gray-400 rotate-180" />
                                 </button>
                             </div>
@@ -519,22 +500,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
                                     />
                                 </div>
 
-                                {/* Recipient */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Assigned To</label>
-                                    <select
-                                        className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-xs font-semibold appearance-none cursor-pointer focus:ring-2 focus:ring-blue-100 outline-none"
-                                        value={selectedAnnotation.assignedTo}
-                                        onChange={(e) => updateAnnotationProperty(selectedAnnotation.id, { assignedTo: e.target.value })}
-                                    >
-                                        <option value={contract.createdBy?.email || "owner"}>Me (Blue)</option>
-                                        {contract.signers?.map((s: any) => (
-                                            <option key={s.id} value={s.email}>{s.name} (Orange)</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Required field switch */}
+                                {/* Simplified properties - assignedTo removed as it's default 'signer' */}
                                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                                     <span className="text-xs font-bold text-gray-700">Required Field</span>
                                     <button

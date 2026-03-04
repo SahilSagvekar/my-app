@@ -24,14 +24,22 @@ import {
     ZoomOut,
 } from "lucide-react";
 import { SignatureCapture } from "@/components/contracts/SignatureCapture";
-import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
+import dynamic from "next/dynamic";
 
-// Stable 3.11.x worker initialization – eliminates Next.js evaluation crashes
-if (typeof window !== "undefined") {
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
-}
+// Dynamically import the entire PDF viewer component to avoid pdfjs-dist SSR/webpack crash
+// (Object.defineProperty called on non-object during module init in Next.js 15)
+const SigningPDFViewer = dynamic(
+    () => import("@/components/contracts/SigningPDFViewer"),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="p-40 text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
+                <p className="text-gray-400 font-bold">Loading document viewer...</p>
+            </div>
+        ),
+    }
+);
 
 export default function PublicSigningPage({ params }: { params: Promise<{ token: string }> }) {
     const [token, setToken] = useState<string>("");
@@ -41,7 +49,6 @@ export default function PublicSigningPage({ params }: { params: Promise<{ token:
     const [signing, setSigning] = useState(false);
     const [signed, setSigned] = useState(false);
     const [showSignature, setShowSignature] = useState(false);
-    const [numPages, setNumPages] = useState<number>(0);
     const [zoom, setZoom] = useState(100);
     const [filledValues, setFilledValues] = useState<Record<string, any>>({});
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
@@ -75,10 +82,6 @@ export default function PublicSigningPage({ params }: { params: Promise<{ token:
         } finally {
             setLoading(false);
         }
-    };
-
-    const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-        setNumPages(numPages);
     };
 
     const handleFieldFill = (id: string, value: any) => {
@@ -160,9 +163,10 @@ export default function PublicSigningPage({ params }: { params: Promise<{ token:
     const signer = data?.signer;
     const annotations: any[] = contract.annotations ? (typeof contract.annotations === 'string' ? JSON.parse(contract.annotations) : contract.annotations) : [];
 
-    // Check if current signer has pending required fields
-    const signerFields = annotations.filter(a => a.assignedTo === signer.email);
-    const requiredPendingCount = signerFields.filter(f => f.required && !filledValues[f.id]).length;
+    // All fields are for the signer to fill — no owner/signer distinction
+    const requiredFields = annotations.filter((f: any) => f.required);
+    const unfilledRequired = requiredFields.filter((f: any) => !filledValues[f.id]);
+    const requiredPendingCount = unfilledRequired.length;
 
     return (
         <div className="min-h-screen bg-[#f1f3f6] flex flex-col font-sans">
@@ -190,17 +194,25 @@ export default function PublicSigningPage({ params }: { params: Promise<{ token:
                             </button>
                         </div>
 
-                        <button
-                            onClick={() => setShowSignature(true)}
-                            disabled={requiredPendingCount > 0}
-                            className={`flex items-center gap-2 px-8 py-2.5 rounded-xl font-black text-xs transition-all shadow-xl tracking-tight ${requiredPendingCount === 0
-                                ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200 transform hover:-translate-y-0.5"
-                                : "bg-gray-100 text-gray-400 cursor-not-allowed grayscale"
-                                }`}
-                        >
-                            <PenLine className="h-4 w-4" />
-                            {requiredPendingCount > 0 ? `Fill ${requiredPendingCount} more to sign` : "Adopt and Sign"}
-                        </button>
+                        <div className="flex items-center gap-3">
+                            {requiredPendingCount > 0 && (
+                                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    {requiredPendingCount} required {requiredPendingCount === 1 ? 'field' : 'fields'} remaining
+                                </div>
+                            )}
+                            <button
+                                onClick={() => setShowSignature(true)}
+                                disabled={requiredPendingCount > 0}
+                                className={`flex items-center gap-2 px-8 py-2.5 rounded-xl font-black text-xs transition-all shadow-xl tracking-tight ${requiredPendingCount === 0
+                                    ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200 transform hover:-translate-y-0.5"
+                                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                    }`}
+                            >
+                                <PenLine className="h-4 w-4" />
+                                {requiredPendingCount > 0 ? `Fill ${requiredPendingCount} field${requiredPendingCount === 1 ? '' : 's'} to sign` : "Adopt and Sign"}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -208,104 +220,20 @@ export default function PublicSigningPage({ params }: { params: Promise<{ token:
             <main className="flex-1 overflow-auto flex py-10 justify-center custom-scrollbar">
                 <div className="relative" style={{ width: `${(800 * zoom) / 100}px` }}>
                     <div className="bg-white shadow-2xl rounded-sm">
-                        <Document
-                            file={`/api/contracts/${contract.id}/preview`}
-                            onLoadSuccess={onDocumentLoadSuccess}
-                            loading={
-                                <div className="p-40 text-center">
-                                    <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
-                                    <p className="text-gray-400 font-bold">Rendering document...</p>
-                                </div>
-                            }
-                        >
-                            {Array.from(new Array(numPages), (el, index) => (
-                                <div key={`page_${index + 1}`} className="mb-4 shadow-sm relative">
-                                    <Page
-                                        pageNumber={index + 1}
-                                        width={(800 * zoom) / 100}
-                                        renderAnnotationLayer={false}
-                                        renderTextLayer={false}
-                                        className="h-auto"
-                                    />
-                                </div>
-                            ))}
-                        </Document>
-
-                        {/* Interactive Fields Overlay */}
-                        <div className="absolute inset-0 z-10 pointer-events-none">
-                            {annotations.map((ann) => {
-                                const isForMe = ann.assignedTo === signer.email;
-                                const isOwner = ann.assignedTo === contract.createdBy?.email || ann.assignedTo === "owner";
-                                const color = isOwner ? "#3b82f6" : "#f97316";
-                                const isFilled = !!filledValues[ann.id];
-
-                                return (
-                                    <div
-                                        key={ann.id}
-                                        className={`absolute transition-all ${isForMe ? "pointer-events-auto cursor-pointer" : ""}`}
-                                        style={{
-                                            left: `${ann.x}%`,
-                                            top: `${ann.y}%`,
-                                            width: `${ann.width}%`,
-                                            height: `${ann.height}%`,
-                                        }}
-                                        onClick={() => {
-                                            if (isForMe) {
-                                                if (ann.type === 'signature' || ann.type === 'initials') {
-                                                    setShowSignature(true);
-                                                    setSelectedFieldId(ann.id);
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        <div
-                                            className={`w-full h-full flex flex-col items-center justify-center p-1 rounded-sm border-2 transition-all ${isForMe ? (isFilled ? "bg-white border-green-500 shadow-sm" : "bg-[#fff7ed] border-orange-400 hover:bg-orange-50 hover:border-orange-500 shadow-md") : "bg-gray-50 border-gray-200 opacity-40 grayscale"
-                                                }`}
-                                        >
-                                            {isForMe && ann.required && !isFilled && (
-                                                <div className="absolute top-0 right-1 text-[8px] font-black text-orange-600 bg-orange-100 px-1.5 rounded-bl">REQUIRED</div>
-                                            )}
-
-                                            <div className="flex items-center gap-1.5 px-2">
-                                                {ann.type === 'signature' || ann.type === 'initials' ? (
-                                                    isFilled ? (
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="text-[14px] font-serif italic text-blue-800 leading-tight">
-                                                                {signer.name}
-                                                            </span>
-                                                            <div className="h-[1px] w-full bg-blue-800 mt-0.5 opacity-30" />
-                                                            <span className="text-[7px] text-gray-400 font-mono mt-0.5">Signed by {signer.name}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <PenLine className="h-4 w-4 text-orange-400" />
-                                                            <span className="text-[11px] font-black text-orange-600 tracking-tight">Click to Sign</span>
-                                                        </div>
-                                                    )
-                                                ) : ann.type === 'checkbox' ? (
-                                                    <input
-                                                        type="checkbox"
-                                                        className="h-4 w-4 text-orange-500 rounded border-gray-300 pointer-events-auto"
-                                                        checked={!!filledValues[ann.id]}
-                                                        onChange={(e) => handleFieldFill(ann.id, e.target.checked)}
-                                                        disabled={!isForMe}
-                                                    />
-                                                ) : (
-                                                    <input
-                                                        type="text"
-                                                        placeholder={ann.placeholder || ann.type}
-                                                        className={`w-full bg-transparent border-none text-[12px] font-bold outline-none text-center placeholder:text-gray-300 pointer-events-auto ${isForMe ? 'text-gray-800' : 'text-gray-400'}`}
-                                                        value={filledValues[ann.id] || ""}
-                                                        onChange={(e) => handleFieldFill(ann.id, e.target.value)}
-                                                        disabled={!isForMe}
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <SigningPDFViewer
+                            pdfUrl={`/api/contracts/sign/${token}/preview`}
+                            annotations={annotations}
+                            filledValues={filledValues}
+                            onFieldFill={handleFieldFill}
+                            onSignatureClick={(fieldId) => {
+                                if (fieldId) {
+                                    setSelectedFieldId(fieldId);
+                                }
+                                setShowSignature(true);
+                            }}
+                            signerName={signer.name}
+                            zoom={zoom}
+                        />
                     </div>
                 </div>
             </main>

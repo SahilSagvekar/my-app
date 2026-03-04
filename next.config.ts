@@ -77,6 +77,7 @@ const nextConfig = {
               "connect-src 'self' https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://unpkg.com",
               "frame-src 'self' blob: https://drive.google.com https://www.youtube.com https://*.s3.amazonaws.com",
               "font-src 'self' data:",
+              "worker-src 'self' blob: https://unpkg.com",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
@@ -87,7 +88,12 @@ const nextConfig = {
       },
     ];
   },
-  transpilePackages: ['react-pdf', 'pdfjs-dist'],
+  transpilePackages: ['react-pdf'],
+  webpack: (config: any) => {
+    // pdfjs-dist uses canvas for node.js — alias to false for browser builds
+    config.resolve.alias.canvas = false;
+    return config;
+  },
 };
 
 module.exports = nextConfig;

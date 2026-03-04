@@ -49,6 +49,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
     const [showEditor, setShowEditor] = useState(false);
     const [showSignPanel, setShowSignPanel] = useState(false);
     const [signing, setSigning] = useState(false);
+    const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
 
     const fetchContract = async () => {
         try {
@@ -192,6 +193,21 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
     const canSignNow = mySigner && mySigner.status !== "SIGNED" && mySigner.status !== "DECLINED"
         && contract.status !== "CANCELLED" && contract.status !== "EXPIRED" && contract.status !== "DRAFT";
 
+    // Parse annotations for field-filling
+    const annotations: any[] = contract?.annotations
+        ? (typeof contract.annotations === 'string'
+            ? (() => { try { return JSON.parse(contract.annotations); } catch { return []; } })()
+            : Array.isArray(contract.annotations) ? contract.annotations : [])
+        : [];
+    const fillableFields = annotations.filter(a => a.type !== 'signature' && a.type !== 'initials');
+    const requiredFields = annotations.filter(a => a.required);
+    const unfilledRequired = requiredFields.filter(a => !fieldValues[a.id]);
+    const allRequiredFilled = unfilledRequired.length === 0;
+
+    const handleFieldFill = (id: string, value: any) => {
+        setFieldValues(prev => ({ ...prev, [id]: value }));
+    };
+
     const handleSignNow = async (signatureDataUrl: string, signatureType: "draw" | "type") => {
         if (!mySigner) return;
         setSigning(true);
@@ -202,6 +218,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                 body: JSON.stringify({
                     signatureData: signatureDataUrl,
                     signatureType,
+                    fieldValues,
                 }),
             });
             if (res.ok) {
@@ -327,31 +344,98 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                 )}
             </div>
 
-            {/* Inline Sign Panel */}
+            {/* Inline Sign Panel — with field-filling before signature */}
             {showSignPanel && canSignNow && (
-                <div className="bg-gradient-to-b from-blue-50 to-white rounded-xl border-2 border-blue-200 p-6 shadow-sm">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                            <PenLine className="h-5 w-5 text-blue-600" />
-                        </div>
+                <div className="bg-gradient-to-b from-indigo-50 to-white rounded-xl border-2 border-indigo-200 p-6 shadow-sm space-y-6">
+                    {/* Step 1: Fill in required fields */}
+                    {fillableFields.length > 0 && (
                         <div>
-                            <h3 className="text-lg font-bold text-gray-900">Sign This Contract</h3>
-                            <p className="text-sm text-gray-500">Draw or type your signature below</p>
-                        </div>
-                    </div>
-                    {signing ? (
-                        <div className="flex items-center justify-center py-10">
-                            <div className="text-center">
-                                <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
-                                <p className="text-gray-500 text-sm">Submitting your signature...</p>
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="p-2 bg-indigo-100 rounded-lg">
+                                    <Edit3 className="h-5 w-5 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900">Fill in Your Details</h3>
+                                    <p className="text-sm text-gray-500">
+                                        {unfilledRequired.length > 0
+                                            ? `Please complete ${unfilledRequired.length} required field${unfilledRequired.length === 1 ? '' : 's'} before signing`
+                                            : 'All fields filled — you can now sign below'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {fillableFields.map((field: any) => {
+                                    const isFilled = !!fieldValues[field.id];
+                                    return (
+                                        <div key={field.id} className="space-y-1">
+                                            <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5">
+                                                {field.fieldName || field.placeholder || field.type}
+                                                {field.required && !isFilled && (
+                                                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded">REQUIRED</span>
+                                                )}
+                                                {isFilled && <CheckCircle2 className="h-3 w-3 text-green-500" />}
+                                            </label>
+                                            {field.type === 'checkbox' ? (
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="h-4 w-4 accent-indigo-500 rounded"
+                                                        checked={!!fieldValues[field.id]}
+                                                        onChange={(e) => handleFieldFill(field.id, e.target.checked)}
+                                                    />
+                                                    <span className="text-sm text-gray-700">{field.placeholder || 'Check to agree'}</span>
+                                                </label>
+                                            ) : (
+                                                <input
+                                                    type="text"
+                                                    placeholder={field.placeholder || field.type}
+                                                    className={`w-full px-3 py-2 text-sm border rounded-lg outline-none transition-all ${
+                                                        isFilled
+                                                            ? 'border-green-300 bg-green-50 focus:ring-2 focus:ring-green-100'
+                                                            : field.required
+                                                                ? 'border-indigo-300 bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400'
+                                                                : 'border-gray-200 bg-white focus:ring-2 focus:ring-gray-100'
+                                                    }`}
+                                                    value={fieldValues[field.id] || ''}
+                                                    onChange={(e) => handleFieldFill(field.id, e.target.value)}
+                                                />
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
-                    ) : (
-                        <SignatureCapture
-                            onCapture={handleSignNow}
-                            signerName={mySigner.name}
-                        />
                     )}
+
+                    {/* Step 2: Signature — only enabled when all required fields are filled */}
+                    <div className={!allRequiredFilled ? 'opacity-50 pointer-events-none' : ''}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-indigo-100 rounded-lg">
+                                <PenLine className="h-5 w-5 text-indigo-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Sign This Contract</h3>
+                                <p className="text-sm text-gray-500">
+                                    {allRequiredFilled
+                                        ? 'Draw or type your signature below'
+                                        : 'Complete all required fields above first'}
+                                </p>
+                            </div>
+                        </div>
+                        {signing ? (
+                            <div className="flex items-center justify-center py-10">
+                                <div className="text-center">
+                                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500 mx-auto mb-3" />
+                                    <p className="text-gray-500 text-sm">Submitting your signature...</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <SignatureCapture
+                                onCapture={handleSignNow}
+                                signerName={mySigner.name}
+                            />
+                        )}
+                    </div>
                 </div>
             )}
 
