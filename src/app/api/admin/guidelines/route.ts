@@ -8,7 +8,7 @@ import { createAuditLog, AuditAction, getRequestMetadata } from "@/lib/audit-log
 export async function POST(req: NextRequest) {
     try {
         const user = await getCurrentUser2(req);
-        if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        if (!user || (user.role !== 'admin' && user.role !== 'manager' && user.role !== 'qc')) {
             return NextResponse.json({ message: "Forbidden" }, { status: 403 });
         }
 

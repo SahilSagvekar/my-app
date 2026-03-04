@@ -564,9 +564,9 @@ export default function LeavesComponent() {
                     : "active",
             joinDate: u.joinedAt || u.createdAt,
             lastActive: u.auditLogs?.[0]?.timestamp
-              ? new Date(u.auditLogs[0].timestamp).toLocaleString('en-IN', {
-                day: '2-digit',
+              ? new Date(u.auditLogs[0].timestamp).toLocaleString('en-US', {
                 month: 'short',
+                day: '2-digit',
                 hour: '2-digit',
                 minute: '2-digit'
               })

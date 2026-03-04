@@ -1554,8 +1554,17 @@ export function ClientManagement() {
                   <div className="space-y-1">
                     <Label className="text-gray-500">Status</Label>
                     <div>
-                      <Badge variant={getStatusVariant(selectedClient.status)}>
-                        {selectedClient.status}
+                      <Badge
+                        variant="outline"
+                        className={
+                          selectedClient.status === 'active'
+                            ? 'bg-green-500 text-white border-green-600 hover:bg-green-600'
+                            : selectedClient.status === 'pending'
+                              ? 'bg-yellow-500 text-white border-yellow-600 hover:bg-yellow-600'
+                              : 'bg-red-500 text-white border-red-600 hover:bg-red-600'
+                        }
+                      >
+                        {selectedClient.status.charAt(0).toUpperCase() + selectedClient.status.slice(1)}
                       </Badge>
                     </div>
                   </div>

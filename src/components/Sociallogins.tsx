@@ -50,6 +50,7 @@ import {
   Clock,
   User,
   AlertTriangle,
+  AlertCircle,
   RefreshCw,
   Smartphone,
   ExternalLink,
@@ -980,6 +981,11 @@ export function SocialLogins() {
   const [editingLogin, setEditingLogin] = useState<SocialLogin | null>(null);
   const [deleteConfirmLogin, setDeleteConfirmLogin] = useState<SocialLogin | null>(null);
 
+  // Delete password verification state
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletePasswordError, setDeletePasswordError] = useState("");
+  const [isDeletingLogin, setIsDeletingLogin] = useState(false);
+
   // Loading state
   const [loading, setLoading] = useState(true);
 
@@ -1206,7 +1212,31 @@ export function SocialLogins() {
   const handleDeleteLogin = async () => {
     if (!deleteConfirmLogin) return;
 
+    if (!deletePassword.trim()) {
+      setDeletePasswordError("Please enter your password to confirm deletion.");
+      return;
+    }
+
+    setIsDeletingLogin(true);
+    setDeletePasswordError("");
+
     try {
+      // Step 1: Verify the user's password first
+      const verifyRes = await fetch("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: deletePassword }),
+      });
+
+      const verifyData = await verifyRes.json();
+
+      if (!verifyRes.ok || !verifyData.verified) {
+        setDeletePasswordError(verifyData.message || "Incorrect password. Please try again.");
+        setIsDeletingLogin(false);
+        return;
+      }
+
+      // Step 2: Password verified — proceed with deletion
       const res = await fetch(`/api/logins/${deleteConfirmLogin.id}`, {
         method: "DELETE",
       });
@@ -1224,9 +1254,13 @@ export function SocialLogins() {
       }
 
       setDeleteConfirmLogin(null);
+      setDeletePassword("");
+      setDeletePasswordError("");
       resetActivity();
     } catch (err) {
       toast.error("Server error");
+    } finally {
+      setIsDeletingLogin(false);
     }
   };
 
@@ -1671,7 +1705,13 @@ export function SocialLogins() {
 
       <AlertDialog
         open={!!deleteConfirmLogin}
-        onOpenChange={(open) => !open && setDeleteConfirmLogin(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteConfirmLogin(null);
+            setDeletePassword("");
+            setDeletePasswordError("");
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1681,14 +1721,40 @@ export function SocialLogins() {
               {deleteConfirmLogin?.clientName}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label className="text-sm font-medium">Enter your password to confirm</Label>
+            <Input
+              type="password"
+              placeholder="Your account password"
+              value={deletePassword}
+              onChange={(e) => {
+                setDeletePassword(e.target.value);
+                setDeletePasswordError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleDeleteLogin();
+              }}
+            />
+            {deletePasswordError && (
+              <p className="text-sm text-red-600 flex items-center gap-1">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {deletePasswordError}
+              </p>
+            )}
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel disabled={isDeletingLogin}>Cancel</AlertDialogCancel>
+            <Button
               onClick={handleDeleteLogin}
-              className="bg-red-600 hover:bg-red-700"
+              disabled={isDeletingLogin || !deletePassword.trim()}
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Delete
-            </AlertDialogAction>
+              {isDeletingLogin ? (
+                <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />Verifying...</>
+              ) : (
+                "Delete"
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
