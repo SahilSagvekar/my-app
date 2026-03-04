@@ -110,8 +110,10 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
         if (!activeFieldType) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = ((e.clientX - rect.left) / rect.width) * 100;
-        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        const scale = zoom / 100;
+        // Convert screen coords to unscaled PDF percentage coords
+        const x = ((e.clientX - rect.left) / scale / e.currentTarget.offsetWidth) * 100;
+        const y = ((e.clientY - rect.top) / scale / e.currentTarget.offsetHeight) * 100;
 
         const fieldTypeInfo = FIELD_CATEGORIES.flatMap(c => c.fields).find(f => f.type === activeFieldType);
 
@@ -175,10 +177,19 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
             const pdfEl = pdfRef.current;
             if (!pdfEl) return;
 
-            const rect = pdfEl.getBoundingClientRect();
+            // pdfRef dimensions are the UNSCALED PDF page size (800 x 1100)
+            // but getBoundingClientRect returns SCALED dimensions due to parent transform
+            // We need to work in unscaled coordinates, so we divide pixel deltas by zoom
+            const scale = zoom / 100;
             const d = dragRef.current;
-            const deltaX = ((e.clientX - d.startX) / rect.width) * 100;
-            const deltaY = ((e.clientY - d.startY) / rect.height) * 100;
+
+            // Convert pixel delta to percentage of UNSCALED PDF dimensions
+            const deltaXPx = (e.clientX - d.startX) / scale;
+            const deltaYPx = (e.clientY - d.startY) / scale;
+            const pdfWidth = pdfEl.offsetWidth;   // unscaled width (800)
+            const pdfHeight = pdfEl.offsetHeight;  // unscaled height (1100)
+            const deltaX = (deltaXPx / pdfWidth) * 100;
+            const deltaY = (deltaYPx / pdfHeight) * 100;
 
             if (interactionMode === 'dragging') {
                 const newX = Math.min(Math.max(d.annX + deltaX, 0), 100 - d.annW);
@@ -203,7 +214,7 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
             window.removeEventListener('mousemove', onMouseMove, { capture: true });
             window.removeEventListener('mouseup', onMouseUp, { capture: true });
         };
-    }, [interactionMode, updateAnnotationProperty]);
+    }, [interactionMode, updateAnnotationProperty, zoom]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -337,127 +348,134 @@ export function ContractEditor({ contract, onBack }: ContractEditorProps) {
 
                 {/* Main PDF Workspace */}
                 <div className="flex-1 overflow-auto bg-[#eef0f3] p-10 flex flex-col items-center custom-scrollbar">
+                    {/* Scaled wrapper — transform is applied here so both the iframe AND annotations scale together */}
                     <div
-                        ref={pdfRef}
-                        className="relative bg-white shadow-xl"
                         style={{
-                            width: `${(documentWidth * zoom) / 100}px`,
-                            minHeight: '1100px'
+                            transform: `scale(${zoom / 100})`,
+                            transformOrigin: 'top center',
+                            /* Reserve the scaled height so the scroll container knows how tall the content is */
+                            width: `${documentWidth}px`,
                         }}
                     >
-                        {/* Loading indicator */}
-                        {pdfLoading && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-5">
-                                <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
-                                <p className="text-sm font-bold text-gray-500 mt-4">Loading document...</p>
-                            </div>
-                        )}
-
-                        {/* PDF via iframe */}
-                        <iframe
-                            src={`/api/contracts/${contract.id}/preview`}
-                            className="w-full border-0"
+                        {/* This is the "PDF page" — annotations are positioned relative to this element */}
+                        <div
+                            ref={pdfRef}
+                            className="relative bg-white shadow-xl"
                             style={{
+                                width: `${documentWidth}px`,
                                 height: '1100px',
-                                transform: `scale(${zoom / 100})`,
-                                transformOrigin: 'top left',
-                                width: `${100 * (100 / zoom)}%`,
-                                pointerEvents: interactionMode !== 'idle' ? 'none' : 'auto',
                             }}
-                            onLoad={() => setPdfLoading(false)}
-                            title="Contract PDF"
-                        />
+                        >
+                            {/* Loading indicator */}
+                            {pdfLoading && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-5">
+                                    <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+                                    <p className="text-sm font-bold text-gray-500 mt-4">Loading document...</p>
+                                </div>
+                            )}
 
-                        {/* Transparent overlay to capture mouse during drag/resize (prevents iframe from stealing events) */}
-                        {interactionMode !== 'idle' && (
-                            <div className="absolute inset-0 z-50" style={{ cursor: interactionMode === 'dragging' ? 'grabbing' : 'nwse-resize' }} />
-                        )}
-
-                        {/* Click-to-add layer (Only active when a tool is selected AND not dragging) */}
-                        {activeFieldType && interactionMode === 'idle' && (
-                            <div
-                                className="absolute inset-0 z-10 cursor-crosshair bg-blue-500/5"
-                                onClick={addAnnotation}
+                            {/* PDF via iframe — fills the container exactly, no separate scaling */}
+                            <iframe
+                                src={`/api/contracts/${contract.id}/preview`}
+                                className="w-full h-full border-0"
+                                style={{
+                                    pointerEvents: interactionMode !== 'idle' ? 'none' : 'auto',
+                                }}
+                                onLoad={() => setPdfLoading(false)}
+                                title="Contract PDF"
                             />
-                        )}
 
-                        {/* Annotations Layer */}
-                        <div className="absolute inset-0 z-20 pointer-events-none">
-                            {annotations.map((ann) => {
-                                const color = getFieldColor(ann.assignedTo);
-                                const isSelected = selectedAnnotationId === ann.id;
-                                const isBeingDragged = interactionMode !== 'idle' && dragRef.current.annId === ann.id;
+                            {/* Transparent overlay to capture mouse during drag/resize (prevents iframe from stealing events) */}
+                            {interactionMode !== 'idle' && (
+                                <div className="absolute inset-0 z-50" style={{ cursor: interactionMode === 'dragging' ? 'grabbing' : 'nwse-resize' }} />
+                            )}
 
-                                return (
-                                    <div
-                                        key={ann.id}
-                                        className={`absolute pointer-events-auto select-none ${isSelected ? "z-30 ring-2 ring-white ring-offset-2 ring-offset-blue-500 shadow-lg" : "hover:shadow-md"}`}
-                                        style={{
-                                            left: `${ann.x}%`,
-                                            top: `${ann.y}%`,
-                                            width: `${ann.width}%`,
-                                            height: `${ann.height}%`,
-                                            cursor: isBeingDragged ? 'grabbing' : 'grab',
-                                            /* NO transition during drag — instant position updates */
-                                            transition: isBeingDragged ? 'none' : 'box-shadow 0.15s ease',
-                                            willChange: isBeingDragged ? 'left, top, width, height' : 'auto',
-                                        }}
-                                        onMouseDown={(e) => handleMouseDown(e, ann, 'drag')}
-                                    >
+                            {/* Click-to-add layer (Only active when a tool is selected AND not dragging) */}
+                            {activeFieldType && interactionMode === 'idle' && (
+                                <div
+                                    className="absolute inset-0 z-10 cursor-crosshair bg-blue-500/5"
+                                    onClick={addAnnotation}
+                                />
+                            )}
+
+                            {/* Annotations Layer — same coordinate system as the iframe since both are inside pdfRef */}
+                            <div className="absolute inset-0 z-20 pointer-events-none">
+                                {annotations.map((ann) => {
+                                    const color = getFieldColor(ann.assignedTo);
+                                    const isSelected = selectedAnnotationId === ann.id;
+                                    const isBeingDragged = interactionMode !== 'idle' && dragRef.current.annId === ann.id;
+
+                                    return (
                                         <div
-                                            className="w-full h-full flex flex-col items-center justify-center p-1 rounded border-2 relative overflow-hidden"
+                                            key={ann.id}
+                                            className={`absolute pointer-events-auto select-none ${isSelected ? "z-30 ring-2 ring-white ring-offset-2 ring-offset-blue-500 shadow-lg" : "hover:shadow-md"}`}
                                             style={{
-                                                backgroundColor: isSelected ? `${color}20` : `${color}10`,
-                                                borderColor: color,
-                                                borderStyle: 'dashed',
+                                                left: `${ann.x}%`,
+                                                top: `${ann.y}%`,
+                                                width: `${ann.width}%`,
+                                                height: `${ann.height}%`,
+                                                cursor: isBeingDragged ? 'grabbing' : 'grab',
+                                                /* NO transition during drag — instant position updates */
+                                                transition: isBeingDragged ? 'none' : 'box-shadow 0.15s ease',
+                                                willChange: isBeingDragged ? 'left, top, width, height' : 'auto',
                                             }}
+                                            onMouseDown={(e) => handleMouseDown(e, ann, 'drag')}
                                         >
-                                            {/* Field Header / Label */}
-                                            <div className="absolute top-0.5 left-1 flex items-center gap-1 opacity-80">
-                                                {(() => {
-                                                    const fieldInfo = FIELD_CATEGORIES.flatMap(c => c.fields).find(f => f.type === ann.type);
-                                                    const IconComponent = fieldInfo?.icon;
-                                                    return IconComponent ? <IconComponent className="h-2.5 w-2.5" style={{ color }} /> : null;
-                                                })()}
-                                                <span className="text-[9px] font-bold uppercase tracking-tight truncate" style={{ color }}>
-                                                    {ann.fieldName || ann.type}
-                                                </span>
-                                            </div>
+                                            <div
+                                                className="w-full h-full flex flex-col items-center justify-center p-1 rounded border-2 relative overflow-hidden"
+                                                style={{
+                                                    backgroundColor: isSelected ? `${color}20` : `${color}10`,
+                                                    borderColor: color,
+                                                    borderStyle: 'dashed',
+                                                }}
+                                            >
+                                                {/* Field Header / Label */}
+                                                <div className="absolute top-0.5 left-1 flex items-center gap-1 opacity-80">
+                                                    {(() => {
+                                                        const fieldInfo = FIELD_CATEGORIES.flatMap(c => c.fields).find(f => f.type === ann.type);
+                                                        const IconComponent = fieldInfo?.icon;
+                                                        return IconComponent ? <IconComponent className="h-2.5 w-2.5" style={{ color }} /> : null;
+                                                    })()}
+                                                    <span className="text-[9px] font-bold uppercase tracking-tight truncate" style={{ color }}>
+                                                        {ann.fieldName || ann.type}
+                                                    </span>
+                                                </div>
 
-                                            {/* Placeholder Text */}
-                                            <div className="mt-1 text-center">
-                                                <span className="text-[11px] font-semibold truncate block px-1" style={{ color }}>
-                                                    {ann.placeholder || "Click to sign"}
-                                                </span>
-                                            </div>
+                                                {/* Placeholder Text */}
+                                                <div className="mt-1 text-center">
+                                                    <span className="text-[11px] font-semibold truncate block px-1" style={{ color }}>
+                                                        {ann.placeholder || "Click to sign"}
+                                                    </span>
+                                                </div>
 
-                                            {/* Selection UI */}
-                                            {isSelected && (
-                                                <>
-                                                    {/* Resize Handle */}
-                                                    <div
-                                                        className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize flex items-center justify-center bg-white rounded-tl border-l border-t"
-                                                        style={{ borderColor: color }}
-                                                        onMouseDown={(e) => handleMouseDown(e, ann, 'resize')}
-                                                    >
-                                                        <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
-                                                    </div>
-
-                                                    {/* Delete Button */}
-                                                    <div className="absolute -top-9 right-0 flex items-center gap-1 pointer-events-auto">
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); deleteSelected(); }}
-                                                            className="p-1.5 bg-white text-red-600 rounded-lg shadow-md border border-red-100 hover:bg-red-50 transition-colors"
+                                                {/* Selection UI */}
+                                                {isSelected && (
+                                                    <>
+                                                        {/* Resize Handle */}
+                                                        <div
+                                                            className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize flex items-center justify-center bg-white rounded-tl border-l border-t"
+                                                            style={{ borderColor: color }}
+                                                            onMouseDown={(e) => handleMouseDown(e, ann, 'resize')}
                                                         >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </button>
-                                                    </div>
-                                                </>
-                                            )}
+                                                            <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                                                        </div>
+
+                                                        {/* Delete Button */}
+                                                        <div className="absolute -top-9 right-0 flex items-center gap-1 pointer-events-auto">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); deleteSelected(); }}
+                                                                className="p-1.5 bg-white text-red-600 rounded-lg shadow-md border border-red-100 hover:bg-red-50 transition-colors"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>
