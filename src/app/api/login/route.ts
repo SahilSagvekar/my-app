@@ -77,22 +77,26 @@ export async function POST(req: NextRequest) {
       path: "/",
     });
 
-    // Add audit log for login
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'USER_LOGIN',
-        entity: 'User',
-        entityId: String(user.id),
-        details: `User logged in from ${locationString}`,
-        ipAddress: ip,
-        userAgent: userAgent,
-        metadata: {
-          location: locationData,
-          sessionType: 'standard'
-        } as any
-      }
-    });
+    // Add audit log for login (skip if from India)
+    if (locationData?.countryCode !== 'IN') {
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'USER_LOGIN',
+          entity: 'User',
+          entityId: String(user.id),
+          details: `User logged in from ${locationString}`,
+          ipAddress: ip,
+          userAgent: userAgent,
+          metadata: {
+            location: locationData,
+            sessionType: 'standard'
+          } as any
+        }
+      });
+    } else {
+      console.log(`[LOGIN] Skipping audit log for user ${user.email} — login from India`);
+    }
 
     console.log("[LOGIN] 9. Done");
     return response;

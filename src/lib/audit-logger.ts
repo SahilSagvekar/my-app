@@ -1,6 +1,7 @@
 // lib/audit-logger.ts
 import { prisma } from './prisma';
 import type { NextRequest } from 'next/server';
+import { getGeoLocation } from './geo';
 
 export interface AuditLogData {
   userId?: number;
@@ -17,6 +18,23 @@ export interface AuditLogData {
  * Create an audit log entry
  */
 export async function createAuditLog(data: AuditLogData) {
+  // Skip login/logout logs originating from India
+  if (
+    (data.action === AuditAction.USER_LOGIN || data.action === AuditAction.USER_LOGOUT) &&
+    data.ipAddress
+  ) {
+    try {
+      const geo = await getGeoLocation(data.ipAddress);
+      if (geo?.countryCode === 'IN') {
+        console.log(`[AuditLog] Skipping ${data.action} log from India (IP: ${data.ipAddress})`);
+        return null;
+      }
+    } catch (geoErr) {
+      // If geo lookup fails, proceed with logging (fail-open)
+      console.warn('[AuditLog] Geo lookup failed, proceeding with log:', geoErr);
+    }
+  }
+
   const payload = {
     action: data.action,
     entity: data.entity,

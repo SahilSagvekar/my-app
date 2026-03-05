@@ -147,10 +147,14 @@ export const authOptions: NextAuthConfig = {
             console.log("DEBUG [SIGNIN EVENT] user:", user?.email);
             try {
                 const { createAuditLog, AuditAction } = await import('./audit-logger');
+                // Note: NextAuth events don't provide request/IP context.
+                // The centralized createAuditLog will skip India-based logins
+                // only when ipAddress is provided. OAuth logins without IP
+                // context will still be logged (fail-open).
                 await createAuditLog({
                     userId: parseInt(user.id),
                     action: AuditAction.USER_LOGIN,
-                    details: `User logged in: ${user.email}`,
+                    details: `User logged in via OAuth: ${user.email}`,
                     metadata: { email: user.email, role: user.role }
                 });
             } catch (err) {

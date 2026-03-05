@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { prisma } from '@/lib/prisma';
+import { getGeoLocation } from '@/lib/geo';
 
 export async function POST(req: Request) {
   try {
@@ -30,18 +31,26 @@ export async function POST(req: Request) {
       path: "/",
     });
 
-    // 🔥 Audit logout
+    // 🔥 Audit logout (skip if from India)
     if (userId) {
-      await prisma.auditLog.create({
-        data: {
-          userId,
-          action: 'USER_LOGOUT',
-          entity: 'User',
-          entityId: String(userId),
-          details: 'User logged out',
-          metadata: { sessionEnded: new Date().toISOString() } as any
-        }
-      });
+      const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        req.headers.get('x-real-ip') || 'unknown';
+      const geo = await getGeoLocation(ip);
+
+      if (geo?.countryCode !== 'IN') {
+        await prisma.auditLog.create({
+          data: {
+            userId,
+            action: 'USER_LOGOUT',
+            entity: 'User',
+            entityId: String(userId),
+            details: 'User logged out',
+            metadata: { sessionEnded: new Date().toISOString() } as any
+          }
+        });
+      } else {
+        console.log(`[LOGOUT] Skipping audit log for user ${userId} — logout from India`);
+      }
     }
 
     return response;
