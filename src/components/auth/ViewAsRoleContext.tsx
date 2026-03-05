@@ -5,13 +5,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 // 🔥 Define which roles/emails have the ability to switch views
 // This allows developers or admins to preview the portal as other roles
 const ROLE_SWITCH_MAP: Record<string, string[]> = {
-    // Specific Users
+    // Specific Users - ONLY Eric can switch roles now
     "eric@e8productions.com": ["qc", "sales"],
-    
-    // Role-based defaults
-    "admin": ["qc", "sales"],
-    "qc": ["admin", "sales"],
-    "sales": ["qc", "admin"],
 };
 
 interface ViewAsRoleContextType {
@@ -35,16 +30,15 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
     const [viewingAsRole, setViewingAsRole] = useState<string | null>(userRole);
     const [isViewingAsOther, setIsViewingAsOther] = useState(false);
 
-    // Check if this user can switch roles (check email first, then role)
+    // Check if this user can switch roles (strictly check email only)
     const switchableRoles = React.useMemo(() => {
         const emailKey = userEmail?.toLowerCase() || "";
-        const roleKey = userRole?.toLowerCase() || "";
-        
-        const emailRoles = ROLE_SWITCH_MAP[emailKey] || [];
-        const roleRoles = ROLE_SWITCH_MAP[roleKey] || [];
-        
-        // Merge and unique
-        return Array.from(new Set([...emailRoles, ...roleRoles]));
+
+        // Only allow switching if the email is in our map
+        const permittedRoles = ROLE_SWITCH_MAP[emailKey] || [];
+
+        // Remove the user's current original role from the list if present
+        return permittedRoles.filter(role => role !== userRole?.toLowerCase());
     }, [userEmail, userRole]);
 
     const canSwitchRole = switchableRoles.length > 0;
