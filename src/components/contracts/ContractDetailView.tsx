@@ -264,7 +264,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-2">
-                {contract.status === "DRAFT" && (
+                {contract.status === "DRAFT" && user?.role !== "client" && (
                     <>
                         <button
                             onClick={handleSend}
@@ -284,7 +284,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                     </>
                 )}
 
-                {(contract.status === "SENT" || contract.status === "PARTIALLY_SIGNED") && (
+                {(contract.status === "SENT" || contract.status === "PARTIALLY_SIGNED") && user?.role !== "client" && (
                     <button
                         onClick={handleRemind}
                         disabled={!!actionLoading}
@@ -315,7 +315,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                     </button>
                 )}
 
-                {contract.status !== "COMPLETED" && contract.status !== "CANCELLED" && (
+                {contract.status !== "COMPLETED" && contract.status !== "CANCELLED" && user?.role !== "client" && (
                     <button
                         onClick={handleCancel}
                         disabled={!!actionLoading}
@@ -389,13 +389,12 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                                                 <input
                                                     type="text"
                                                     placeholder={field.placeholder || field.type}
-                                                    className={`w-full px-3 py-2 text-sm border rounded-lg outline-none transition-all ${
-                                                        isFilled
+                                                    className={`w-full px-3 py-2 text-sm border rounded-lg outline-none transition-all ${isFilled
                                                             ? 'border-green-300 bg-green-50 focus:ring-2 focus:ring-green-100'
                                                             : field.required
                                                                 ? 'border-indigo-300 bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400'
                                                                 : 'border-gray-200 bg-white focus:ring-2 focus:ring-gray-100'
-                                                    }`}
+                                                        }`}
                                                     value={fieldValues[field.id] || ''}
                                                     onChange={(e) => handleFieldFill(field.id, e.target.value)}
                                                 />

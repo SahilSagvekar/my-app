@@ -10,17 +10,27 @@ import {
     Loader2,
     ExternalLink,
     AlertCircle,
+    Search,
 } from "lucide-react";
+
 import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
+import { ContractDetailView } from "./ContractDetailView";
 
 export function ClientContractsPage() {
     const [contracts, setContracts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const fetchContracts = useCallback(async () => {
         try {
             setLoading(true);
-            const res = await fetch("/api/contracts", { credentials: "include" });
+            const params = new URLSearchParams();
+            if (searchQuery) params.set("search", searchQuery);
+
+            const res = await fetch(`/api/contracts?${params.toString()}`, {
+                credentials: "include"
+            });
             if (res.ok) {
                 const data = await res.json();
                 setContracts(data);
@@ -30,11 +40,12 @@ export function ClientContractsPage() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [searchQuery]);
 
     useEffect(() => {
         fetchContracts();
-    }, [fetchContracts]);
+    }, [fetchContracts, searchQuery]);
+
 
     const handleDownload = async (contractId: string, type: "original" | "signed") => {
         try {
@@ -50,6 +61,20 @@ export function ClientContractsPage() {
             console.error("Download failed:", err);
         }
     };
+
+    if (selectedContractId) {
+        return (
+            <div className="space-y-6">
+                <ContractDetailView
+                    contractId={selectedContractId}
+                    onBack={() => {
+                        setSelectedContractId(null);
+                        fetchContracts();
+                    }}
+                />
+            </div>
+        );
+    }
 
     if (loading) {
         return (
@@ -72,13 +97,26 @@ export function ClientContractsPage() {
 
     return (
         <div className="space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-                    My Contracts
-                </h1>
-                <p className="text-muted-foreground mt-1 text-lg">
-                    Review and sign your contracts
-                </p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                        My Contracts
+                    </h1>
+                    <p className="text-muted-foreground mt-1 text-lg">
+                        Review and sign your legal documents safely
+                    </p>
+                </div>
+
+                <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search documents..."
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+                    />
+                </div>
             </div>
 
             {contracts.length === 0 ? (
@@ -96,16 +134,19 @@ export function ClientContractsPage() {
                     {/* Needs Action */}
                     {needsAction.length > 0 && (
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-                                <AlertCircle className="h-5 w-5 text-amber-500" />
+                            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <div className="p-1.5 bg-amber-100 rounded-md">
+                                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                                </div>
                                 Needs Your Signature ({needsAction.length})
                             </h2>
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {needsAction.map((contract) => (
                                     <ContractCard
                                         key={contract.id}
                                         contract={contract}
                                         onDownload={handleDownload}
+                                        onSelect={(id) => setSelectedContractId(id)}
                                         showSignButton
                                     />
                                 ))}
@@ -116,16 +157,19 @@ export function ClientContractsPage() {
                     {/* Completed */}
                     {completed.length > 0 && (
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-                                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <div className="p-1.5 bg-green-100 rounded-md">
+                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                </div>
                                 Completed ({completed.length})
                             </h2>
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {completed.map((contract) => (
                                     <ContractCard
                                         key={contract.id}
                                         contract={contract}
                                         onDownload={handleDownload}
+                                        onSelect={(id) => setSelectedContractId(id)}
                                     />
                                 ))}
                             </div>
@@ -135,15 +179,16 @@ export function ClientContractsPage() {
                     {/* Other */}
                     {other.length > 0 && (
                         <div>
-                            <h2 className="text-lg font-bold text-gray-900 mb-3">
+                            <h2 className="text-lg font-bold text-gray-900 mb-4">
                                 Other ({other.length})
                             </h2>
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {other.map((contract) => (
                                     <ContractCard
                                         key={contract.id}
                                         contract={contract}
                                         onDownload={handleDownload}
+                                        onSelect={(id) => setSelectedContractId(id)}
                                     />
                                 ))}
                             </div>
@@ -158,26 +203,26 @@ export function ClientContractsPage() {
 function ContractCard({
     contract,
     onDownload,
+    onSelect,
     showSignButton,
 }: {
     contract: any;
     onDownload: (id: string, type: "original" | "signed") => void;
+    onSelect: (id: string) => void;
     showSignButton?: boolean;
 }) {
-    // Find the signer entry for the current user (we don't have user email here,
-    // but the backend already filtered). We show the first "non-signed" signer's
-    // link or just the first signer's link.
-    const mySigner = contract.signers?.[0]; // backend filters to only show relevant contracts
-
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
+        <div
+            className="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
+            onClick={() => onSelect(contract.id)}
+        >
             <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-50 rounded-lg">
+                    <div className="p-2.5 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
                         <FileText className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                        <h3 className="font-semibold text-gray-900">{contract.title}</h3>
+                        <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{contract.title}</h3>
                         <p className="text-xs text-gray-500 mt-0.5">
                             From {contract.createdBy?.name || contract.createdBy?.email} •{" "}
                             {new Date(contract.createdAt).toLocaleDateString("en-US", {
@@ -198,12 +243,12 @@ function ContractCard({
                 {contract.signers?.map((signer: any) => (
                     <div
                         key={signer.id}
-                        className="inline-flex items-center gap-1.5 bg-gray-50 rounded-full px-2.5 py-1"
+                        className="inline-flex items-center gap-1.5 bg-gray-50 rounded-full px-2.5 py-1 border border-gray-100"
                     >
                         <div
                             className={`w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center ${signer.status === "SIGNED"
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-gray-200 text-gray-600"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-200 text-gray-600"
                                 }`}
                         >
                             {signer.name?.[0]?.toUpperCase()}
@@ -215,23 +260,40 @@ function ContractCard({
             </div>
 
             {/* Actions */}
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-5 flex items-center gap-2 pt-4 border-t border-gray-50">
+                {showSignButton ? (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(contract.id);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                    >
+                        ✍️ Review & Sign
+                    </button>
+                ) : (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(contract.id);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+                    >
+                        <Eye className="h-3.5 w-3.5" />
+                        View Details
+                    </button>
+                )}
+
                 <button
-                    onClick={() => onDownload(contract.id, "original")}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDownload(contract.id, "original");
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 rounded-lg transition-colors ml-auto"
                 >
                     <Download className="h-3.5 w-3.5" />
-                    Download
+                    PDF
                 </button>
-                {/* {contract.status === "COMPLETED" && (
-                    <button
-                        onClick={() => onDownload(contract.id, "signed")}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 rounded-lg border border-green-200 transition-colors"
-                    >
-                        <Download className="h-3.5 w-3.5" />
-                        Signed Copy
-                    </button>
-                )} */}
             </div>
         </div>
     );

@@ -199,6 +199,158 @@ async function downloadSignatureFromS3(s3Key: string): Promise<Buffer> {
 }
 
 /**
+ * Appends a professional audit trail page to the end of a PDF document
+ */
+export async function appendAuditTrailPage(
+    pdfDoc: PDFDocument,
+    auditLogs: any[],
+    contractTitle: string,
+    contract?: any
+) {
+    let page = pdfDoc.addPage();
+    const { width, height } = page.getSize();
+    const font = await pdfDoc.embedFont('Helvetica');
+    const boldFont = await pdfDoc.embedFont('Helvetica-Bold');
+
+    const drawHeader = (p: any) => {
+        // Logo and "Audit trail"
+        p.drawText('E8 Productions', {
+            x: 50,
+            y: height - 50,
+            size: 16,
+            font: boldFont,
+            color: rgb(0.1, 0.4, 0.8),
+        });
+        p.drawText('Sign', {
+            x: 170,
+            y: height - 50,
+            size: 16,
+            font: font,
+            color: rgb(0.2, 0.2, 0.2),
+        });
+
+        p.drawText('Audit trail', {
+            x: width - 120,
+            y: height - 50,
+            size: 14,
+            font: font,
+            color: rgb(0.4, 0.4, 0.4),
+        });
+
+        // Top separator
+        p.drawLine({
+            start: { x: 50, y: height - 70 },
+            end: { x: width - 50, y: height - 70 },
+            thickness: 0.5,
+            color: rgb(0.8, 0.8, 0.8),
+        });
+    };
+
+    drawHeader(page);
+
+
+    // Document Metadata Section
+    let yPos = height - 100;
+    const labelX = 50;
+    const valueX = 250;
+    const rowHeight = 20;
+
+    const metadataTable = [
+        { label: 'Title', value: contractTitle },
+        { label: 'File name', value: contract?.fileName || 'document.pdf' },
+        { label: 'Document ID', value: contract?.id || 'N/A' },
+        { label: 'Audit trail date format', value: 'MM / DD / YYYY' },
+        { label: 'Status', value: String(contract?.status || 'Active').toLowerCase() },
+    ];
+
+    for (const item of metadataTable) {
+        page.drawText(item.label, { x: labelX, y: yPos, size: 10, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
+
+        if (item.label === 'Status') {
+            // green dot for status
+            page.drawCircle({ x: valueX, y: yPos + 3, size: 3, color: rgb(0.4, 0.7, 0) });
+            page.drawText(item.value.charAt(0).toUpperCase() + item.value.slice(1), {
+                x: valueX + 10, y: yPos, size: 10, font: font, color: rgb(0.2, 0.2, 0.2)
+            });
+        } else {
+            page.drawText(item.value, {
+                x: valueX, y: yPos, size: 10, font: font, color: rgb(0.2, 0.2, 0.2)
+            });
+        }
+        yPos -= rowHeight;
+    }
+
+    // Mid separator
+    yPos -= 10;
+    page.drawLine({
+        start: { x: 50, y: yPos },
+        end: { x: width - 50, y: yPos },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8),
+    });
+
+
+    yPos -= 35;
+    page.drawText('Document History', { x: 50, y: yPos, size: 16, font: font, color: rgb(0.3, 0.3, 0.3) });
+
+    yPos -= 40;
+
+    // History Timeline
+    const iconX = 80;
+    const timeX = 140;
+    const descX = 250;
+
+    for (const log of auditLogs) {
+        if (yPos < 120) {
+            page = pdfDoc.addPage();
+            drawHeader(page);
+            yPos = height - 150;
+        }
+
+        // Action icon placeholder
+        let actionLabel = (log.action || 'ACTION').toUpperCase();
+        page.drawCircle({ x: iconX, y: yPos + 10, size: 12, borderColor: rgb(0.7, 0.7, 0.7), borderWidth: 1 });
+        page.drawText(actionLabel.substring(0, 1), { x: iconX - 3, y: yPos + 7, size: 8, font: boldFont, color: rgb(0.5, 0.5, 0.5) });
+        page.drawText(actionLabel, { x: iconX - 15, y: yPos - 5, size: 6, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
+
+        // Date & Time
+        const date = new Date(log.createdAt);
+        const dateStr = `${(date.getMonth() + 1).toString().padStart(2, '0')} / ${date.getDate().toString().padStart(2, '0')} / ${date.getFullYear()}`;
+        const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')} UTC`;
+
+        page.drawText(dateStr, { x: timeX, y: yPos + 15, size: 10, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
+        page.drawText(timeStr, { x: timeX, y: yPos + 2, size: 9, font: font, color: rgb(0.3, 0.3, 0.3) });
+
+        // Description
+        let description = '';
+        if (log.action === 'sent') {
+            description = `Sent for signature to ${log.performedBy || 'Signers'}`;
+        } else if (log.action === 'viewed') {
+            description = `Viewed by ${log.performedBy}`;
+        } else if (log.action === 'signed') {
+            description = `Signed by ${log.performedBy}`;
+        } else if (log.action === 'completed') {
+            description = `The document has been completed.`;
+        } else {
+            description = `${log.action} by ${log.performedBy || 'System'}`;
+        }
+
+        page.drawText(description, { x: descX, y: yPos + 15, size: 10, font: font, color: rgb(0.1, 0.1, 0.1), maxWidth: width - descX - 50 });
+
+        if (log.ipAddress) {
+            page.drawText(`IP: ${log.ipAddress}`, { x: descX, y: yPos + 2, size: 9, font: font, color: rgb(0.4, 0.4, 0.4) });
+        }
+
+        yPos -= 60;
+    }
+
+    // Footer
+    page.drawLine({ start: { x: 50, y: 50 }, end: { x: width - 50, y: 50 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+    page.drawText('Powered by E8 Productions Sign', { x: 50, y: 35, size: 8, font: font, color: rgb(0.5, 0.5, 0.5) });
+}
+
+
+/**
  * Apply signatures to a PDF and upload the signed version
  */
 export async function applySignaturesToPdf(
@@ -207,7 +359,10 @@ export async function applySignaturesToPdf(
         signatureS3Key: string;
         signerName: string;
     }>,
-    annotationsJson?: any
+    annotationsJson?: any,
+    auditLogs?: any[],
+    contractTitle?: string,
+    contract?: any
 ): Promise<string> {
     const pdfBuffer = await downloadPdfFromS3(originalS3Key);
     const pdfDoc = await PDFDocument.load(pdfBuffer);
@@ -274,6 +429,11 @@ export async function applySignaturesToPdf(
         }
     }
 
+    // Append Audit Trail Page if logs are provided
+    if (auditLogs && auditLogs.length > 0) {
+        await appendAuditTrailPage(pdfDoc, auditLogs, contractTitle || 'Contract', contract);
+    }
+
     // Save and upload the signed PDF
     const signedPdfBytes = await pdfDoc.save();
     const signedBuffer = Buffer.from(signedPdfBytes);
@@ -294,6 +454,7 @@ export async function applySignaturesToPdf(
     return signedKey;
 }
 
+
 /**
  * Generate a public signing URL
  */
@@ -311,7 +472,10 @@ export async function checkAndFinalizeContract(
 ): Promise<boolean> {
     const contract = await prisma.contract.findUnique({
         where: { id: contractId },
-        include: { signers: true },
+        include: {
+            signers: true,
+            auditLogs: { orderBy: { createdAt: 'asc' } }
+        },
     });
 
     if (!contract) return false;
@@ -331,7 +495,15 @@ export async function checkAndFinalizeContract(
 
         let signedS3Key = null;
         try {
-            signedS3Key = await applySignaturesToPdf(contract.s3Key, signaturesData, contract.annotations);
+            signedS3Key = await applySignaturesToPdf(
+                contract.s3Key,
+                signaturesData,
+                contract.annotations,
+                contract.auditLogs,
+                contract.title,
+                contract
+            );
+
         } catch (err) {
             console.error('Failed to generate signed PDF:', err);
         }
@@ -344,6 +516,7 @@ export async function checkAndFinalizeContract(
                 signedS3Key,
             },
         });
+
 
         // Audit log
         await prisma.contractAuditLog.create({

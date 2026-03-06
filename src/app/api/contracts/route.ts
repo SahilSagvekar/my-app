@@ -26,40 +26,14 @@ export async function GET(req: NextRequest) {
         let whereClause: any = {};
 
         // Role-based filtering
-        if (user.role === 'admin' || user.role === 'manager') {
-            if (status && status !== 'all') {
-                whereClause.status = status;
-            }
-        } else if (user.role === 'client') {
-            // Find the Client record linked to this user account
-            // Check both userId AND email to handle cases where userId isn't linked
-            const clientRecord = await prisma.client.findFirst({
-                where: {
-                    OR: [
-                        { userId: user.id },
-                        { email: user.email },
-                    ],
-                },
-                select: { id: true },
-            });
-
-            // Show contracts where:
-            // 1. The user is a signer, OR
-            // 2. The contract is linked to their client record via clientId
-            const accessFilter: any[] = [
-                { signers: { some: { email: user.email } } },
-            ];
-            if (clientRecord) {
-                accessFilter.push({ clientId: clientRecord.id });
-            }
-            whereClause.OR = accessFilter;
-
+        if (user.role === 'admin' || user.role === 'manager' || user.role === 'client') {
             if (status && status !== 'all') {
                 whereClause.status = status;
             }
         } else {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
+
 
         // Search filter — use AND to avoid overwriting role-based OR filters
         if (search) {

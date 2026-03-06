@@ -1,8 +1,8 @@
-// src/app/api/contracts/[id]/download/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/auth-helpers';
-import { generateSignedUrl } from '@/lib/s3';
+import { downloadPdfFromS3, appendAuditTrailPage } from '@/lib/contracts';
+import { PDFDocument } from 'pdf-lib';
 
 // GET /api/contracts/[id]/download - Download contract PDF
 export async function GET(
@@ -21,6 +21,7 @@ export async function GET(
             where: { id },
             include: {
                 signers: { select: { email: true } },
+                auditLogs: { orderBy: { createdAt: 'asc' } },
             },
         });
 
@@ -35,13 +36,6 @@ export async function GET(
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
-        const isSigner = contract.signers.some((s: { email: string }) => s.email === user.email);
-
-        // if (!isAdminOrManager && !isSigner) {
-        //     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        // }
-
         const { searchParams } = new URL(req.url);
         const type = searchParams.get('type');
 
@@ -49,9 +43,35 @@ export async function GET(
             ? contract.signedS3Key
             : contract.s3Key;
 
-        const downloadUrl = await generateSignedUrl(s3Key);
+        // Fetch the buffer from S3
+        let pdfBuffer = await downloadPdfFromS3(s3Key);
 
-        return NextResponse.json({ downloadUrl, fileName: contract.fileName });
+        // Append audit trail if the document is not the final signed version 
+        // (The final signed version already contains the audit trail from applySignaturesToPdf)
+        const isAlreadyFinalized = type === 'signed' && contract.signedS3Key;
+
+        if (!isAlreadyFinalized && contract.auditLogs.length > 0) {
+            try {
+                const pdfDoc = await PDFDocument.load(pdfBuffer);
+                await appendAuditTrailPage(pdfDoc, contract.auditLogs, contract.title, contract);
+                const bytes = await pdfDoc.save();
+                pdfBuffer = Buffer.from(bytes);
+            } catch (appendErr) {
+                console.error('Failed to append audit trail to download:', appendErr);
+            }
+        }
+
+        // Return the bytes directly with correct headers for download
+        return new NextResponse(new Uint8Array(pdfBuffer), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `attachment; filename="${contract.fileName || 'contract.pdf'}"`,
+                'Content-Length': pdfBuffer.length.toString(),
+                'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+            },
+        });
+
     } catch (error: any) {
         console.error('GET /api/contracts/[id]/download error:', error);
         return NextResponse.json(

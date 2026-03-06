@@ -2,7 +2,8 @@
 // Public PDF preview proxy for the signing page (no auth required, token-based)
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { downloadPdfFromS3 } from '@/lib/contracts';
+import { downloadPdfFromS3, appendAuditTrailPage } from '@/lib/contracts';
+import { PDFDocument } from 'pdf-lib';
 
 export async function GET(
     req: NextRequest,
@@ -18,7 +19,9 @@ export async function GET(
                     some: { signToken: token },
                 },
             },
-            select: { s3Key: true, fileName: true, status: true },
+            include: {
+                auditLogs: { orderBy: { createdAt: 'asc' } }
+            }
         });
 
         if (!contract) {
@@ -29,7 +32,19 @@ export async function GET(
             return NextResponse.json({ error: 'Contract is no longer active' }, { status: 400 });
         }
 
-        const pdfBuffer = await downloadPdfFromS3(contract.s3Key);
+        let pdfBuffer: Buffer = await downloadPdfFromS3(contract.s3Key);
+
+        // Dynamically append audit trail for the signer to see current history
+        if (contract.auditLogs.length > 0) {
+            try {
+                const pdfDoc = await PDFDocument.load(pdfBuffer);
+                await appendAuditTrailPage(pdfDoc, contract.auditLogs, contract.title, contract);
+                const bytes = await pdfDoc.save();
+                pdfBuffer = Buffer.from(bytes);
+            } catch (appendErr) {
+                console.error('Failed to append audit trail to signer preview:', appendErr);
+            }
+        }
 
         return new NextResponse(new Uint8Array(pdfBuffer), {
             status: 200,
@@ -37,9 +52,10 @@ export async function GET(
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `inline; filename="${contract.fileName || 'contract.pdf'}"`,
                 'Content-Length': pdfBuffer.length.toString(),
-                'Cache-Control': 'private, max-age=300',
+                'Cache-Control': 'private, no-cache, no-store, must-revalidate',
             },
         });
+
     } catch (error: any) {
         console.error('GET /api/contracts/sign/[token]/preview error:', error);
         return NextResponse.json(

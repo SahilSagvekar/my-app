@@ -3,7 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/auth-helpers';
-import { downloadPdfFromS3 } from '@/lib/contracts';
+import { downloadPdfFromS3, appendAuditTrailPage } from '@/lib/contracts';
+import { PDFDocument } from 'pdf-lib';
 
 export async function GET(
     req: NextRequest,
@@ -20,7 +21,9 @@ export async function GET(
 
         const contract = await prisma.contract.findUnique({
             where: { id },
-            select: { s3Key: true, signedS3Key: true, fileName: true },
+            include: {
+                auditLogs: { orderBy: { createdAt: 'asc' } }
+            }
         });
 
         if (!contract) {
@@ -31,7 +34,21 @@ export async function GET(
             ? contract.signedS3Key
             : contract.s3Key;
 
-        const pdfBuffer = await downloadPdfFromS3(s3Key);
+        let pdfBuffer: Buffer = await downloadPdfFromS3(s3Key);
+
+        // Dynamically append audit trail for preview if it's not already the finalized signed version
+        // (The signed version already has it appended during finalization)
+        if (type !== 'signed' && contract.auditLogs.length > 0) {
+            try {
+                const pdfDoc = await PDFDocument.load(pdfBuffer);
+                await appendAuditTrailPage(pdfDoc, contract.auditLogs, contract.title, contract);
+                const bytes = await pdfDoc.save();
+                pdfBuffer = Buffer.from(bytes);
+            } catch (appendErr) {
+                console.error('Failed to append audit trail to preview:', appendErr);
+                // Continue with original buffer if appending fails
+            }
+        }
 
         return new NextResponse(new Uint8Array(pdfBuffer), {
             status: 200,
@@ -39,9 +56,10 @@ export async function GET(
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `inline; filename="${contract.fileName || 'contract.pdf'}"`,
                 'Content-Length': pdfBuffer.length.toString(),
-                'Cache-Control': 'private, max-age=300', // Cache for 5 min
+                'Cache-Control': 'private, no-cache, no-store, must-revalidate',
             },
         });
+
     } catch (error: any) {
         console.error('GET /api/contracts/[id]/preview error:', error);
         return NextResponse.json(
