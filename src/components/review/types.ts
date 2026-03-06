@@ -10,8 +10,11 @@ export interface ReviewComment {
     timestamp: string; // Video timestamp formatted "1:23"
     timestampSeconds: number; // Video timestamp in seconds
     content: string;
-    category: 'design' | 'content' | 'timing' | 'technical' | 'other';
+    category: 'design' | 'content' | 'timing' | 'technical' | 'other' | 'subtitles';
+
+    screenshotUrl?: string; // Base64 or URL of captured video frame
     annotations?: Annotation[];
+
     replies?: ReviewComment[];
     resolved: boolean;
     version?: number; // Version number of the file when comment was made

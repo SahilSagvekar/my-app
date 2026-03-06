@@ -535,7 +535,9 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                 currentTimestamp={p.formatTime(p.currentTime)}
                                 authorId="current-user"
                                 authorName={p.userName}
+                                videoRef={p.videoRef}
                                 onSubmit={p.handleCommentSubmit}
+
                                 onCancel={() => p.setShowCommentInput(false)}
                                 isExpanded={p.showCommentInput}
                                 onToggleExpand={() => p.setShowCommentInput(true)}

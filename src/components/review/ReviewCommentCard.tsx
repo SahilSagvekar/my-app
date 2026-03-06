@@ -133,6 +133,19 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                 {comment.content}
             </p>
 
+            {/* Captured Screenshot */}
+            {comment.screenshotUrl && (
+                <div className="mb-4 rounded-lg overflow-hidden border border-white/5 bg-black/20 group cursor-zoom-in">
+                    <img
+                        src={comment.screenshotUrl}
+                        alt="Captured video frame"
+                        className="w-full h-auto object-cover max-h-[200px] transition-transform duration-500 group-hover:scale-105"
+                        onClick={() => window.open(comment.screenshotUrl, '_blank')}
+                    />
+                </div>
+            )}
+
+
             {/* Footer */}
             <div className="flex items-center justify-between">
                 {/* Resolve Checkbox */}
