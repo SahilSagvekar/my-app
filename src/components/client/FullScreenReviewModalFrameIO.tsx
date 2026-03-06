@@ -231,10 +231,18 @@ export function FullScreenReviewModalFrameIO({
 
     /* ── Video controls ── */
     const togglePlay = useCallback(() => {
-        if (!videoRef.current) return;
-        isPlaying ? videoRef.current.pause() : videoRef.current.play();
-        setIsPlaying(!isPlaying);
-    }, [isPlaying]);
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (video.paused) {
+            video.play().catch(err => {
+                if (err.name !== 'AbortError') console.error('Video play failed:', err);
+            });
+        } else {
+            video.pause();
+        }
+    }, []);
+
 
     const toggleMute = useCallback(() => {
         if (!videoRef.current) return;

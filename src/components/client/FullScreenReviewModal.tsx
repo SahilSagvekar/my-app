@@ -277,15 +277,18 @@ export function FullScreenReviewModal({
   };
 
   const togglePlay = useCallback(() => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      video.play().catch(err => {
+        if (err.name !== 'AbortError') console.error('Video play failed:', err);
+      });
+    } else {
+      video.pause();
     }
-  }, [isPlaying]);
+  }, []);
+
 
   const toggleMute = useCallback(() => {
     if (videoRef.current) {
