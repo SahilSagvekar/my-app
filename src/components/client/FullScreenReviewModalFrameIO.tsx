@@ -25,6 +25,8 @@ interface ReviewAsset {
     title: string;
     subtitle?: string;
     videoUrl: string;
+    // Optional lighter-weight encode specifically for review playback (e.g. 1080p/720p)
+    reviewVideoUrl?: string;
     thumbnail: string;
     runtime: string;
     status: 'draft' | 'in_qc' | 'client_review' | 'approved';
@@ -146,16 +148,27 @@ export function FullScreenReviewModalFrameIO({
     /* ── Video source ── */
     const videoSource = useMemo(() => {
         const fileId = currentVersion || asset?.currentVersion;
-        if (currentVideoUrl) return getVideoSource(currentVideoUrl, fileId);
-        if (asset) return getVideoSource(asset.videoUrl, fileId);
-        return { type: 'video' as const, src: '' };
+
+        // Prefer an explicit lightweight review URL when provided
+        const baseUrl =
+            currentVideoUrl ||
+            asset?.reviewVideoUrl ||
+            asset?.videoUrl ||
+            '';
+
+        if (!baseUrl) {
+            return { type: 'video' as const, src: '' };
+        }
+
+        return getVideoSource(baseUrl, fileId);
     }, [currentVideoUrl, asset, currentVersion]);
 
     /* ── Initialise on asset change ── */
     useEffect(() => {
         if (!asset) return;
         setCurrentVersion(asset.currentVersion);
-        setCurrentVideoUrl(asset.videoUrl);
+        // If a lighter review encode exists, prefer it as the starting source
+        setCurrentVideoUrl(asset.reviewVideoUrl || asset.videoUrl);
         setIsPlaying(false);
         setCurrentTime(0);
         setDuration(0);

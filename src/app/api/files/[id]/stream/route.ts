@@ -96,8 +96,8 @@ export async function GET(
             }
 
             const start = parseInt(rangeMatch[1], 10);
-            // Default chunk size: 2MB for good streaming performance
-            const DEFAULT_CHUNK_SIZE = 2 * 1024 * 1024;
+            // Default chunk size: 1MB to reduce latency on high-latency connections
+            const DEFAULT_CHUNK_SIZE = 1 * 1024 * 1024;
             const requestedEnd = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined;
             const end = requestedEnd !== undefined
                 ? Math.min(requestedEnd, fileSize - 1)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -37,6 +37,21 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
     const [videoAspect, setVideoAspect] = useState<'portrait' | 'landscape' | 'unknown'>('unknown');
 
     const unresolvedCount = p.comments.filter(c => !c.resolved).length;
+
+    const MAX_RENDERED_COMMENTS = 200;
+    const [showAllComments, setShowAllComments] = useState(false);
+
+    const { visibleComments, hasMoreComments } = useMemo(() => {
+        if (p.sortedComments.length <= MAX_RENDERED_COMMENTS) {
+            return { visibleComments: p.sortedComments, hasMoreComments: false };
+        }
+        return {
+            visibleComments: showAllComments
+                ? p.sortedComments
+                : p.sortedComments.slice(-MAX_RENDERED_COMMENTS),
+            hasMoreComments: !showAllComments,
+        };
+    }, [p.sortedComments, showAllComments]);
 
     /* Detect aspect ratio when video metadata loads */
     const handleVideoMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -552,17 +567,32 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                     <p className="text-sm">No comments yet</p>
                                     <p className="text-xs mt-1 opacity-60">Tap the button above to add one</p>
                                 </div>
-                            ) : p.sortedComments.map(comment => (
-                                <div key={comment.id} id={`comment-m-${comment.id}`}>
-                                    <ReviewCommentCard
-                                        comment={comment}
-                                        isActive={p.activeCommentId === comment.id}
-                                        onTimestampClick={p.handleTimestampClick}
-                                        onResolve={p.handleCommentResolve}
-                                        onDelete={p.handleCommentDelete}
-                                    />
-                                </div>
-                            ))}
+                            ) : (
+                                <>
+                                    {hasMoreComments && (
+                                        <div className="mb-2 text-[10px] text-[var(--review-text-muted)] text-center">
+                                            Showing last {MAX_RENDERED_COMMENTS} of {p.sortedComments.length} comments.&nbsp;
+                                            <button
+                                                className="underline hover:text-[var(--review-text-secondary)]"
+                                                onClick={() => setShowAllComments(true)}
+                                            >
+                                                Show all
+                                            </button>
+                                        </div>
+                                    )}
+                                    {visibleComments.map(comment => (
+                                        <div key={comment.id} id={`comment-m-${comment.id}`}>
+                                            <ReviewCommentCard
+                                                comment={comment}
+                                                isActive={p.activeCommentId === comment.id}
+                                                onTimestampClick={p.handleTimestampClick}
+                                                onResolve={p.handleCommentResolve}
+                                                onDelete={p.handleCommentDelete}
+                                            />
+                                        </div>
+                                    ))}
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
