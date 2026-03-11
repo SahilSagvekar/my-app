@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc --noEmit --pretty)",
-      "Bash(npx next build --no-lint)"
+      "Bash(npx next build --no-lint)",
+      "Bash(wc -l \"D:/E8 Productions/my-app/src/app\"/api/**/route.ts)"
     ]
   }
 }

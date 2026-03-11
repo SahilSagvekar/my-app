@@ -73,8 +73,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const originalFetch = window.fetch;
 
     const wrappedFetch = async (...args: any[]) => {
-      // Execute the actual fetch using apply to handle arguments correctly
-      const response = await (originalFetch as any).apply(window, args);
+      let response: Response;
+
+      try {
+        // Execute the actual fetch using apply to handle arguments correctly
+        response = await (originalFetch as any).apply(window, args);
+      } catch (error) {
+        // Normalize low-level network errors (TypeError: Failed to fetch, CORS, offline, etc.)
+        console.error('Global fetch error:', error);
+        return new Response(
+          JSON.stringify({
+            error: 'network_error',
+            message: error instanceof Error ? error.message : 'Failed to fetch',
+          }),
+          {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
 
       // 🔥 Skip S3/AWS URLs - don't intercept file uploads or guest/public APIs
       const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request)?.url || '';

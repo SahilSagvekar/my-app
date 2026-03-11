@@ -8,6 +8,9 @@ import { Plus, Send, X, AtSign, Camera, Crop } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 
+const MAX_SCREENSHOT_WIDTH = 1280;
+const MAX_SCREENSHOT_HEIGHT = 720;
+
 interface CommentInputProps {
     taskId: string;
     currentTime: number;
@@ -53,51 +56,74 @@ export function CommentInput({
         }
     }, [isExpanded]);
 
-    const handleCapture = () => {
-        const video = videoRef?.current;
-        if (!video) return;
-
-        captureArea(video);
-    };
-
     const captureArea = (video: HTMLVideoElement, area?: { x: number, y: number, w: number, h: number }) => {
         const canvas = document.createElement('canvas');
 
         // Use intrinsic video dimensions
-        const sourceW = video.videoWidth;
-        const sourceH = video.videoHeight;
+        const sourceW = video.videoWidth || video.clientWidth;
+        const sourceH = video.videoHeight || video.clientHeight;
         const displayW = video.clientWidth;
         const displayH = video.clientHeight;
 
-        if (area && area.w > 5 && area.h > 5) {
-            // Convert display coordinates to source coordinates
-            const scaleX = sourceW / displayW;
-            const scaleY = sourceH / displayH;
-
-            canvas.width = area.w * scaleX;
-            canvas.height = area.h * scaleY;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return;
-
-            ctx.drawImage(
-                video,
-                area.x * scaleX, area.y * scaleY, area.w * scaleX, area.h * scaleY,
-                0, 0, canvas.width, canvas.height
-            );
-        } else {
-            canvas.width = sourceW;
-            canvas.height = sourceH;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Fallback if we can't determine sizes
+        if (!sourceW || !sourceH || !displayW || !displayH) {
+            return;
         }
 
+        // Map selection (if any) from display space to source space
+        const scaleX = sourceW / displayW;
+        const scaleY = sourceH / displayH;
+
+        const hasArea = area && area.w > 5 && area.h > 5;
+        const cropX = hasArea ? area!.x * scaleX : 0;
+        const cropY = hasArea ? area!.y * scaleY : 0;
+        const cropW = hasArea ? area!.w * scaleX : sourceW;
+        const cropH = hasArea ? area!.h * scaleY : sourceH;
+
+        // Downscale to keep thumbnails light (CPU + memory)
+        const scale = Math.min(
+            MAX_SCREENSHOT_WIDTH / cropW,
+            MAX_SCREENSHOT_HEIGHT / cropH,
+            1
+        );
+
+        const targetW = Math.max(1, Math.round(cropW * scale));
+        const targetH = Math.max(1, Math.round(cropH * scale));
+
+        canvas.width = targetW;
+        canvas.height = targetH;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.drawImage(
+            video,
+            cropX,
+            cropY,
+            cropW,
+            cropH,
+            0,
+            0,
+            targetW,
+            targetH
+        );
+
         try {
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
             setScreenshotUrl(dataUrl);
         } catch (err) {
             console.error('Failed to capture screenshot:', err);
         }
+    };
+
+    const handleCapture = () => {
+        const video = videoRef?.current;
+        if (!video) return;
+
+        // Defer heavy canvas work off the exact playback tick
+        window.requestAnimationFrame(() => {
+            captureArea(video);
+        });
     };
 
     const handleStartSnip = () => {
@@ -141,7 +167,11 @@ export function CommentInput({
             return;
         }
 
-        captureArea(videoRef.current, selectionRect);
+        const video = videoRef.current;
+        // Defer heavy canvas work off the exact playback tick
+        window.requestAnimationFrame(() => {
+            captureArea(video, selectionRect);
+        });
         setIsSelectingArea(false);
         setSelectionStart(null);
     };
