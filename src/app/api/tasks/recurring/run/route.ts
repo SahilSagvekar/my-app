@@ -452,6 +452,7 @@ export async function POST(req: Request) {
               clientUserId: client.userId,
               monthlyDeliverableId: deliverable.id,
               outputFolderId,
+              monthFolder: monthYearFolder,
               // Tag which monthly cycle this task belongs to
               recurringMonth: recurringMonthLabel,
               // Copy all role assignments from master template

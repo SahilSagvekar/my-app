@@ -277,6 +277,7 @@ export async function GET(req: Request) {
         const dueDateTo = searchParams.get("dueDateTo");
         const createdFrom = searchParams.get("createdFrom");
         const createdTo = searchParams.get("createdTo");
+        const month = searchParams.get("month");
 
         // Build where clause with AND logic
         const where: any = {};
@@ -294,6 +295,11 @@ export async function GET(req: Request) {
             where.monthlyDeliverable = {
                 type: deliverableType
             };
+        }
+
+        // Month filter
+        if (month && month !== 'all') {
+            where.monthFolder = month;
         }
 
         // Text search on title and description
@@ -384,8 +390,8 @@ export async function GET(req: Request) {
         // For smart sort, we need to fetch ALL matching tasks first, then sort & paginate
         const fetchAll = useSmartTitleSort;
 
-        // Fetch tasks with related data + unique deliverable types
-        const [tasks, total, deliverableTypes] = await Promise.all([
+        // Fetch tasks with related data + unique deliverable types + available months
+        const [tasks, total, deliverableTypes, distinctMonths] = await Promise.all([
             prisma.task.findMany({
                 where,
                 ...(fetchAll ? {} : { take: limit, skip: (page - 1) * limit }),
@@ -436,6 +442,7 @@ export async function GET(req: Request) {
                         },
                     },
                     deliverableType: true,
+                    monthFolder: true,
                 },
             }),
             prisma.task.count({ where }),
@@ -443,6 +450,13 @@ export async function GET(req: Request) {
                 select: { type: true },
                 distinct: ['type'],
                 orderBy: { type: 'asc' },
+            }),
+            // Fetch distinct monthFolder values for filter dropdown
+            prisma.task.findMany({
+                where: { monthFolder: { not: null } },
+                select: { monthFolder: true },
+                distinct: ['monthFolder'],
+                orderBy: { monthFolder: 'desc' },
             }),
         ]);
 
@@ -502,6 +516,7 @@ export async function GET(req: Request) {
                 totalPages: Math.ceil(total / limit),
             },
             deliverableTypes: deliverableTypes.map(d => d.type),
+            availableMonths: distinctMonths.map(d => d.monthFolder).filter(Boolean) as string[],
             stats: {
                 total,
                 byStatus: statusCounts.reduce((acc, item) => {

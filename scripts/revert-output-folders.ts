@@ -1,15 +1,27 @@
 /**
- * REVERT: Move task output folders BACK from monthly subfolders to flat structure.
+ * 🔄 REVERT: Undo migrate-output-folders.ts and/or backfill-month-folder.ts
  *
- * This reverses the migration:
- *   FROM: CompanyName/outputs/February-2026/TaskTitle/
- *   TO:   CompanyName/outputs/TaskTitle/
+ * --revert-migrate  (default)
+ *     Moves S3 files BACK from monthly → flat paths.
+ *     Reverts Task.outputFolderId, Task.driveLinks, File.s3Key, File.url.
+ *     Also clears Task.monthFolder.
+ *     Undoes: migrate-output-folders.ts --execute
  *
- * Usage:
- *     npx tsx scripts/revert-output-folders.ts                              (dry run, all clients)
- *     npx tsx scripts/revert-output-folders.ts --client "CompanyName"       (dry run, one client)
- *     npx tsx scripts/revert-output-folders.ts --execute                    (real, all clients)
- *     npx tsx scripts/revert-output-folders.ts --execute --client "Name"    (real, one client)
+ * --revert-backfill
+ *     Sets Task.monthFolder = NULL for all matching tasks. DB only, no S3.
+ *     Undoes: backfill-month-folder.ts --execute
+ *             AND the monthFolder backfill inside migrate-output-folders.ts
+ *
+ * --both
+ *     Runs --revert-migrate first, then --revert-backfill for any remaining.
+ *
+ * Usage (always dry-run first!):
+ *     npx tsx scripts/revert-output-folders.ts --revert-migrate --client "Name"
+ *     npx tsx scripts/revert-output-folders.ts --revert-backfill --client "Name"
+ *     npx tsx scripts/revert-output-folders.ts --both --client "Name"
+ *
+ *     Add --execute to actually make changes:
+ *     npx tsx scripts/revert-output-folders.ts --both --execute --client "The Dating Blind Show"
  */
 
 import dotenv from "dotenv";
@@ -41,8 +53,11 @@ const s3Client = new S3Client({
 });
 
 const BUCKET = process.env.AWS_S3_BUCKET || "e8-app-s3-prod";
-const EXECUTE = process.argv.includes("--execute");
-const CLIENT_FILTER = process.argv.find((a) => a === "--client")
+const EXECUTE         = process.argv.includes("--execute");
+const VERBOSE         = process.argv.includes("--verbose");
+const REVERT_MIGRATE  = process.argv.includes("--revert-migrate") || process.argv.includes("--both") || (!process.argv.includes("--revert-backfill"));
+const REVERT_BACKFILL = process.argv.includes("--revert-backfill") || process.argv.includes("--both");
+const CLIENT_FILTER   = process.argv.includes("--client")
     ? process.argv[process.argv.indexOf("--client") + 1]
     : null;
 
@@ -183,11 +198,13 @@ async function deleteS3Object(key: string): Promise<void> {
 
 async function main() {
     console.log("═══════════════════════════════════════════════════════");
-    console.log("  REVERT: Remove Monthly Subfolders → Flat Structure");
+    console.log("  REVERT: Output Folder Migration");
     console.log("═══════════════════════════════════════════════════════");
-    console.log(`  Mode:   ${EXECUTE ? "🔴 EXECUTE (real changes)" : "🟢 DRY RUN (no changes)"}`);
-    console.log(`  Client: ${CLIENT_FILTER || "ALL"}`);
-    console.log(`  Bucket: ${BUCKET}`);
+    console.log(`  Mode:              ${EXECUTE ? "🔴 EXECUTE (real changes)" : "🟢 DRY RUN (no changes)"}`);
+    console.log(`  Revert S3/migrate: ${REVERT_MIGRATE  ? "✅ YES" : "⬛ NO"}`);
+    console.log(`  Revert backfill:   ${REVERT_BACKFILL ? "✅ YES" : "⬛ NO"}`);
+    console.log(`  Client:            ${CLIENT_FILTER || "ALL"}`);
+    console.log(`  Bucket:            ${BUCKET}`);
     console.log("═══════════════════════════════════════════════════════\n");
 
     const whereClause: any = {
@@ -235,14 +252,19 @@ async function main() {
 
     console.log(`📋 Found ${tasks.length} tasks total\n`);
 
-    let alreadyFlat = 0;
-    let toRevert = 0;
-    let reverted = 0;
-    let s3ObjectsMoved = 0;
-    let dbRecordsUpdated = 0;
-    let errors = 0;
+    let alreadyFlat       = 0;
+    let toRevert          = 0;
+    let reverted          = 0;
+    let s3ObjectsMoved    = 0;
+    let dbRecordsUpdated  = 0;
+    let backfillReverted  = 0;
+    let errors            = 0;
 
-    for (const task of tasks) {
+    if (!REVERT_MIGRATE) {
+        console.log("⬛ Skipping S3/migrate revert (--revert-migrate not set)\n");
+    }
+
+    if (REVERT_MIGRATE) for (const task of tasks) {
         const currentPath = task.outputFolderId!;
 
         // Skip if NOT in monthly folder format (already flat)
@@ -268,6 +290,10 @@ async function main() {
             try {
                 const s3Objects = await listAllObjects(currentPath);
                 console.log(`  S3 objects: ${s3Objects.length}`);
+                if (VERBOSE) {
+                    for (const key of s3Objects.slice(0, 5)) console.log(`    → ${key}`);
+                    if (s3Objects.length > 5) console.log(`    ... and ${s3Objects.length - 5} more`);
+                }
             } catch {
                 console.log(`  S3 objects: (could not list)`);
             }
@@ -307,11 +333,12 @@ async function main() {
                 where: { id: task.id },
                 data: {
                     outputFolderId: originalPath,
+                    monthFolder: null,          // also clear monthFolder while we're here
                     driveLinks: updatedDriveLinks,
                 },
             });
             dbRecordsUpdated++;
-            console.log(`  ✅ Task.outputFolderId + driveLinks reverted`);
+            console.log(`  ✅ Task.outputFolderId + monthFolder + driveLinks reverted`);
 
             // 4. Update File records (s3Key and url)
             for (const file of task.files) {
@@ -351,19 +378,81 @@ async function main() {
         }
     }
 
-    // Summary
+    // ══════════════════════════════════════
+    // PART 2: Revert backfill-month-folder
+    // ══════════════════════════════════════
+    if (REVERT_BACKFILL) {
+        console.log("\n─────────────────────────────────────────────────────");
+        console.log("  PART 2: Revert Backfill (monthFolder → NULL)");
+        console.log("─────────────────────────────────────────────────────\n");
+
+        const tasksWithMonth = await prisma.task.findMany({
+            where: {
+                ...(CLIENT_FILTER ? { clientId: tasks[0]?.files ? undefined : undefined } : {}),
+                ...whereClause,
+                monthFolder: { not: null },
+            },
+            select: { id: true, title: true, monthFolder: true },
+        });
+
+        console.log(`📋 Found ${tasksWithMonth.length} tasks with monthFolder set\n`);
+
+        if (tasksWithMonth.length > 0) {
+            // Show distribution
+            const dist: Record<string, number> = {};
+            for (const t of tasksWithMonth) {
+                const m = t.monthFolder!;
+                dist[m] = (dist[m] || 0) + 1;
+            }
+            for (const [month, count] of Object.entries(dist).sort()) {
+                console.log(`  ${month.padEnd(22)}: ${count} tasks`);
+            }
+            console.log();
+
+            if (!EXECUTE) {
+                console.log(`  Would set monthFolder = NULL on ${tasksWithMonth.length} tasks`);
+            } else {
+                const BATCH = 500;
+                for (let i = 0; i < tasksWithMonth.length; i += BATCH) {
+                    const batch = tasksWithMonth.slice(i, i + BATCH);
+                    const updates = batch.map((t) =>
+                        prisma.task.update({
+                            where: { id: t.id },
+                            data: { monthFolder: null },
+                        })
+                    );
+                    try {
+                        await prisma.$transaction(updates);
+                        backfillReverted += batch.length;
+                        console.log(`  ✅ Batch ${Math.floor(i / BATCH) + 1}: cleared monthFolder on ${batch.length} tasks`);
+                    } catch (err: any) {
+                        console.error(`  ❌ Batch failed: ${err.message}`);
+                        errors++;
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Summary ──
     console.log("\n═══════════════════════════════════════════════════════");
     console.log("  REVERT SUMMARY");
     console.log("═══════════════════════════════════════════════════════");
-    console.log(`  Already flat:     ${alreadyFlat}`);
-    console.log(`  ${EXECUTE ? "Reverted" : "To revert"}:       ${EXECUTE ? reverted : toRevert}`);
-    console.log(`  S3 objects moved:  ${s3ObjectsMoved}`);
-    console.log(`  DB records updated:${dbRecordsUpdated}`);
-    console.log(`  Errors:            ${errors}`);
+    if (REVERT_MIGRATE) {
+        console.log(`  Already flat (skipped):   ${alreadyFlat}`);
+        console.log(`  Tasks ${EXECUTE ? "reverted" : "to revert"}:        ${EXECUTE ? reverted : toRevert}`);
+        console.log(`  S3 objects moved back:    ${s3ObjectsMoved}`);
+        console.log(`  DB records updated:       ${dbRecordsUpdated}`);
+    }
+    if (REVERT_BACKFILL) {
+        console.log(`  monthFolder cleared:      ${EXECUTE ? backfillReverted : "(dry run)"}`);
+    }
+    console.log(`  Errors:                   ${errors}`);
     console.log("═══════════════════════════════════════════════════════\n");
 
-    if (!EXECUTE && toRevert > 0) {
-        console.log("👆 This was a DRY RUN. To apply changes, add --execute\n");
+    if (!EXECUTE) {
+        console.log("👆 This was a DRY RUN. No changes were made.");
+        console.log("   Add --execute to apply changes.\n");
     }
 
     await prisma.$disconnect();

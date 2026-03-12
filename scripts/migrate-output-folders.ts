@@ -55,6 +55,7 @@ const BUCKET = process.env.AWS_S3_BUCKET!;
 // ─────────────────────────────────────────
 const args = process.argv.slice(2);
 const EXECUTE = args.includes("--execute");
+const VERBOSE = args.includes("--verbose");
 const CLIENT_FILTER = args.includes("--client")
     ? args[args.indexOf("--client") + 1]
     : null;
@@ -67,6 +68,19 @@ function getMonthFolderFromDate(date: Date): string {
     const month = date.toLocaleDateString("en-US", { month: "long" });
     const year = date.getFullYear();
     return `${month}-${year}`; // "February-2026"
+}
+
+function getMonthFolderFromTask(task: {
+    recurringMonth: string | null;
+    dueDate: Date | null;
+    createdAt: Date;
+    monthFolder?: string | null;
+}): string {
+    // If monthFolder is already set, use it
+    if (task.monthFolder) return task.monthFolder;
+
+    // Always use createdAt to determine the month folder
+    return getMonthFolderFromDate(new Date(task.createdAt));
 }
 
 function isAlreadyMigrated(outputFolderId: string): boolean {
@@ -82,13 +96,29 @@ function extractPartsFromPath(outputFolderId: string): {
     companyName: string;
     taskFolder: string;
 } | null {
-    // Expected format: CompanyName/outputs/TaskTitle/
-    const match = outputFolderId.match(/^(.+?)\/outputs\/(.+?)\/$/);
-    if (!match) return null;
-    return {
-        companyName: match[1],
-        taskFolder: match[2],
-    };
+    const normalized = outputFolderId.endsWith("/")
+        ? outputFolderId
+        : outputFolderId + "/";
+
+    const MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December";
+
+    // Try monthly path: CompanyName/outputs/MonthName-YYYY/TaskFolder/
+    const monthlyMatch = normalized.match(
+        new RegExp(`^(.+?)\/outputs\/(${MONTHS})-\\d{4}\/(.+?)\/`)
+    );
+    if (monthlyMatch) {
+        let companyName: string;
+        try { companyName = decodeURIComponent(monthlyMatch[1]); } catch { companyName = monthlyMatch[1]; }
+        return { companyName, taskFolder: monthlyMatch[3] };
+    }
+
+    // Try flat path: CompanyName/outputs/TaskFolder/
+    const flatMatch = normalized.match(/^(.+?)\/outputs\/(.+?)\//);
+    if (!flatMatch) return null;
+
+    let companyName: string;
+    try { companyName = decodeURIComponent(flatMatch[1]); } catch { companyName = flatMatch[1]; }
+    return { companyName, taskFolder: flatMatch[2] };
 }
 
 // ─────────────────────────────────────────
@@ -239,10 +269,9 @@ async function main() {
     console.log(`  Bucket: ${BUCKET}`);
     console.log("═══════════════════════════════════════════════════════\n");
 
-    // Step 1: Find all tasks with outputFolderId
-    const whereClause: any = {
-        outputFolderId: { not: null },
-    };
+    // Step 1: Find all tasks (both with and without outputFolderId)
+    // We also handle tasks with null outputFolderId that have files
+    const whereClause: any = {};
 
     if (CLIENT_FILTER) {
         // Find client by company name
@@ -270,6 +299,7 @@ async function main() {
             id: true,
             title: true,
             outputFolderId: true,
+            monthFolder: true,
             recurringMonth: true,
             dueDate: true,
             createdAt: true,
@@ -293,102 +323,123 @@ async function main() {
         orderBy: { createdAt: "asc" },
     });
 
-    console.log(`📋 Found ${tasks.length} tasks with output folders\n`);
+    console.log(`📋 Found ${tasks.length} tasks\n`);
 
     // Stats
-    let alreadyMigrated = 0;
-    let skipped = 0;
-    let toMigrate = 0;
-    let migrated = 0;
-    let s3ObjectsMoved = 0;
+    let alreadyCorrect  = 0;   // already in the right monthly folder
+    let wrongMonth      = 0;   // in a monthly folder but wrong month
+    let fromFlat        = 0;   // was flat, needs migration
+    let nullFolderFixed = 0;   // had no outputFolderId at all
+    let skipped         = 0;   // could not parse
+    let migrated        = 0;
+    let s3ObjectsMoved  = 0;
     let dbRecordsUpdated = 0;
-    let errors = 0;
+    let errors          = 0;
+    const monthDistribution: Record<string, number> = {};
 
     for (const task of tasks) {
-        const oldPath = task.outputFolderId!;
+        const currentPath = task.outputFolderId;
 
-        // Skip if already in monthly folder format
-        if (isAlreadyMigrated(oldPath)) {
-            alreadyMigrated++;
+        // ─── CASE B: No outputFolderId at all ───
+        if (!currentPath) {
+            if (!task.clientId || !task.client) { skipped++; continue; }
+            const companyName = task.client.companyName || task.client.name || null;
+            if (!companyName) { skipped++; continue; }
+
+            const monthFolder = getMonthFolderFromTask(task);
+            const sanitizedTitle = (task.title || task.id).replace(/[^a-zA-Z0-9-]/g, "-").toLowerCase();
+            const newPath = `${companyName}/outputs/${monthFolder}/${task.id}-${sanitizedTitle}/`;
+
+            nullFolderFixed++;
+            monthDistribution[monthFolder] = (monthDistribution[monthFolder] || 0) + 1;
+            console.log(`\n─── Task (no folder) ${nullFolderFixed}: ${task.title || task.id} ───`);
+            console.log(`  Month:      ${monthFolder}`);
+            console.log(`  New path:   ${newPath}`);
+            console.log(`  Files:      ${task.files.length} DB records`);
+
+            if (EXECUTE) {
+                try {
+                    await ensureFolder(`${companyName}/outputs/${monthFolder}/`);
+                    await ensureFolder(newPath);
+                    await prisma.task.update({
+                        where: { id: task.id },
+                        data: { outputFolderId: newPath, monthFolder },
+                    });
+                    dbRecordsUpdated++;
+                    console.log(`  ✅ outputFolderId + monthFolder set`);
+                } catch (err: any) {
+                    console.error(`  ❌ FAILED: ${err.message}`);
+                    errors++;
+                }
+            }
             continue;
         }
 
-        // Parse the old path
-        const parts = extractPartsFromPath(oldPath);
+        // ─── CASE A+C: Has an outputFolderId (flat OR monthly — treat the same) ───
+        const parts = extractPartsFromPath(currentPath);
         if (!parts) {
-            console.warn(`  ⚠️ Could not parse path: ${oldPath} (task: ${task.id})`);
+            console.warn(`  ⚠️ Could not parse path: ${currentPath} (task: ${task.id})`);
             skipped++;
             continue;
         }
 
-        // Determine the month folder from: recurringMonth > dueDate > createdAt
-        let monthFolder: string;
+        const monthFolder = getMonthFolderFromTask(task);
+        const targetPath  = `${parts.companyName}/outputs/${monthFolder}/${parts.taskFolder}/`;
 
-        if (task.recurringMonth) {
-            // recurringMonth format: "2026-02" → parse to get "February-2026"
-            const [year, month] = task.recurringMonth.split("-").map(Number);
-            const date = new Date(year, month - 1, 1);
-            monthFolder = getMonthFolderFromDate(date);
-        } else if (task.dueDate) {
-            monthFolder = getMonthFolderFromDate(new Date(task.dueDate));
-        } else {
-            monthFolder = getMonthFolderFromDate(new Date(task.createdAt));
-        }
+        // Normalize both paths for comparison (ensure trailing slash)
+        const normalizedCurrent = currentPath.endsWith("/") ? currentPath : currentPath + "/";
+        const normalizedTarget  = targetPath.endsWith("/")  ? targetPath  : targetPath  + "/";
 
-        // Build the new path
-        const newPath = `${parts.companyName}/outputs/${monthFolder}/${parts.taskFolder}/`;
+        monthDistribution[monthFolder] = (monthDistribution[monthFolder] || 0) + 1;
 
-        toMigrate++;
-
-        const clientName = task.client?.companyName || task.client?.name || "Unknown";
-        console.log(`\n─── Task ${toMigrate}: ${task.title || task.id} ───`);
-        console.log(`  Client:    ${clientName}`);
-        console.log(`  Month:     ${monthFolder}`);
-        console.log(`  Old path:  ${oldPath}`);
-        console.log(`  New path:  ${newPath}`);
-
-        if (!EXECUTE) {
-            // Dry run: just show what would happen
-            const fileCount = task.files.length;
-            console.log(`  Files:     ${fileCount} DB records`);
-
-            // Check S3 for actual objects
-            try {
-                const s3Objects = await listAllObjects(oldPath);
-                console.log(`  S3 objects: ${s3Objects.length}`);
-                for (const key of s3Objects.slice(0, 5)) {
-                    console.log(`    → ${key}`);
-                }
-                if (s3Objects.length > 5) {
-                    console.log(`    ... and ${s3Objects.length - 5} more`);
-                }
-            } catch (err) {
-                console.log(`  S3 objects: (could not list)`);
+        // ── Already in the correct folder ──
+        if (normalizedCurrent === normalizedTarget) {
+            alreadyCorrect++;
+            // Still update monthFolder DB field if missing
+            if (!task.monthFolder && EXECUTE) {
+                await prisma.task.update({
+                    where: { id: task.id },
+                    data: { monthFolder },
+                });
             }
-
             continue;
         }
 
-        // ─── EXECUTE MODE ───
+        // ── Needs to move (flat→monthly OR wrong-month→right-month) ──
+        const wasMonthly = isAlreadyMigrated(currentPath);
+        if (wasMonthly) wrongMonth++; else fromFlat++;
 
+        const clientName = task.client?.companyName || task.client?.name || "Unknown";
+        const moveNum = wrongMonth + fromFlat;
+        console.log(`\n─── Task ${moveNum}: ${task.title || task.id} ───`);
+        console.log(`  Client:      ${clientName}`);
+        console.log(`  Target month:${monthFolder}`);
+        console.log(`  Current:     ${currentPath}${wasMonthly ? "  ⚠️ WRONG MONTH" : "  (flat)"}`);
+        console.log(`  → Target:    ${targetPath}`);
+
+        if (!EXECUTE) {
+            console.log(`  Files:       ${task.files.length} DB records`);
+            try {
+                const s3Objects = await listAllObjects(currentPath);
+                console.log(`  S3 objects:  ${s3Objects.length}`);
+                for (const key of s3Objects.slice(0, 5)) console.log(`    → ${key}`);
+                if (s3Objects.length > 5) console.log(`    ... and ${s3Objects.length - 5} more`);
+            } catch { console.log(`  S3 objects:  (could not list)`); }
+            continue;
+        }
+
+        // ── EXECUTE ──
         try {
-            // 1. List all S3 objects under the old path
-            const s3Objects = await listAllObjects(oldPath);
+            const s3Objects = await listAllObjects(currentPath);
             console.log(`  S3 objects to move: ${s3Objects.length}`);
 
-            if (s3Objects.length === 0) {
-                console.log(`  ℹ️ No S3 objects found, updating DB only`);
-            }
-
-            // 2. Ensure the monthly folder exists
+            // Ensure the target monthly folder exists
             await ensureFolder(`${parts.companyName}/outputs/${monthFolder}/`);
 
-            // 3. Copy each object to the new path
+            // Copy each object to the target path
             for (const sourceKey of s3Objects) {
-                // Replace the old prefix with the new prefix
-                const relativePath = sourceKey.replace(oldPath, "");
-                const destKey = `${newPath}${relativePath}`;
-
+                const relativePath = sourceKey.replace(normalizedCurrent, "");
+                const destKey = `${targetPath}${relativePath}`;
                 try {
                     await copyS3Object(sourceKey, destKey);
                     s3ObjectsMoved++;
@@ -398,59 +449,39 @@ async function main() {
                 }
             }
 
-            // 4. Update Task.outputFolderId + driveLinks
+            // Update Task record
             const updatedDriveLinks = (task.driveLinks || []).map((link: string) =>
-                link.replace(oldPath, newPath)
+                link.replace(currentPath, targetPath)
             );
             await prisma.task.update({
                 where: { id: task.id },
-                data: {
-                    outputFolderId: newPath,
-                    driveLinks: updatedDriveLinks,
-                },
+                data: { outputFolderId: targetPath, monthFolder, driveLinks: updatedDriveLinks },
             });
             dbRecordsUpdated++;
-            console.log(`  ✅ Task.outputFolderId + driveLinks updated`);
+            console.log(`  ✅ Task DB updated`);
 
-            // 5. Update File records (s3Key and url)
+            // Update File records
             for (const file of task.files) {
-                if (!file.s3Key) continue;
-
-                // Only update if the file's s3Key starts with the old path
-                if (file.s3Key.startsWith(oldPath)) {
-                    const newS3Key = file.s3Key.replace(oldPath, newPath);
-                    const newUrl = file.url.replace(
-                        encodeURIComponent(oldPath).replace(/%2F/g, "/"),
-                        encodeURIComponent(newPath).replace(/%2F/g, "/")
-                    );
-
-                    // Simpler URL replacement - just replace the path segment
-                    const simpleNewUrl = file.url.replace(oldPath, newPath);
-
-                    await prisma.file.update({
-                        where: { id: file.id },
-                        data: {
-                            s3Key: newS3Key,
-                            url: simpleNewUrl,
-                        },
-                    });
-                    dbRecordsUpdated++;
-                    console.log(`  ✅ File updated: ${file.name} (s3Key + url)`);
-                }
+                if (!file.s3Key || !file.s3Key.startsWith(normalizedCurrent)) continue;
+                const newS3Key = file.s3Key.replace(normalizedCurrent, targetPath);
+                const newUrl   = file.url.replace(currentPath, targetPath);
+                await prisma.file.update({
+                    where: { id: file.id },
+                    data: { s3Key: newS3Key, url: newUrl },
+                });
+                dbRecordsUpdated++;
+                if (VERBOSE) console.log(`  ✅ File updated: ${file.name}`);
             }
 
-            // 6. Delete old S3 objects (only after everything succeeded)
+            // Delete old S3 objects
             console.log(`  🗑️ Cleaning up ${s3Objects.length} old objects...`);
             for (const sourceKey of s3Objects) {
-                try {
-                    await deleteS3Object(sourceKey);
-                } catch (err: any) {
-                    console.error(`  ⚠️ Failed to delete old: ${sourceKey}: ${err.message}`);
-                }
+                try { await deleteS3Object(sourceKey); }
+                catch (err: any) { console.error(`  ⚠️ Failed to delete: ${sourceKey}: ${err.message}`); }
             }
 
             migrated++;
-            console.log(`  ✅ Migration complete for this task`);
+            console.log(`  ✅ Complete`);
         } catch (err: any) {
             console.error(`  ❌ FAILED: ${err.message}`);
             errors++;
@@ -458,19 +489,44 @@ async function main() {
     }
 
     // ─── Summary ───
+    const totalToMove = wrongMonth + fromFlat;
     console.log("\n═══════════════════════════════════════════════════════");
     console.log("  Migration Summary");
     console.log("═══════════════════════════════════════════════════════");
-    console.log(`  Total tasks found:       ${tasks.length}`);
-    console.log(`  Already migrated:        ${alreadyMigrated}`);
-    console.log(`  Skipped (parse error):   ${skipped}`);
-    console.log(`  Tasks to migrate:        ${toMigrate}`);
+    console.log(`  Total tasks found:           ${tasks.length}`);
+    console.log(`  ✅ Already in correct folder: ${alreadyCorrect}`);
+    console.log(`  ⚠️  In wrong monthly folder:    ${wrongMonth}`);
+    console.log(`  📂 In flat folder (no month):  ${fromFlat}`);
+    console.log(`  ❔ No outputFolderId at all:  ${nullFolderFixed}`);
+    console.log(`  ⏩ Skipped (parse error):     ${skipped}`);
+    console.log(`  🚚 Total tasks to move:        ${totalToMove}`);
+
+    // ─── Month distribution (all tasks) ───
+    if (Object.keys(monthDistribution).length > 0) {
+        console.log(`\n  All tasks by destination month:`);
+        const monthOrder = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December",
+        ];
+        const sorted = Object.entries(monthDistribution).sort((a, b) => {
+            const parseMonth = (m: string) => {
+                const [name, year] = m.split("-");
+                return parseInt(year) * 100 + monthOrder.indexOf(name);
+            };
+            return parseMonth(a[0]) - parseMonth(b[0]);
+        });
+        const total = sorted.reduce((sum, [, n]) => sum + n, 0);
+        for (const [month, count] of sorted) {
+            const bar = "█".repeat(Math.round((count / total) * 20));
+            console.log(`    ${month.padEnd(20)}: ${String(count).padStart(4)} tasks  ${bar}`);
+        }
+    }
 
     if (EXECUTE) {
-        console.log(`  ✅ Successfully migrated: ${migrated}`);
-        console.log(`  S3 objects moved:        ${s3ObjectsMoved}`);
-        console.log(`  DB records updated:      ${dbRecordsUpdated}`);
-        console.log(`  ❌ Errors:               ${errors}`);
+        console.log(`\n  ✅ Successfully migrated:   ${migrated}`);
+        console.log(`  S3 objects moved:           ${s3ObjectsMoved}`);
+        console.log(`  DB records updated:         ${dbRecordsUpdated}`);
+        console.log(`  ❌ Errors:                  ${errors}`);
     } else {
         console.log(`\n  ℹ️ This was a DRY RUN. No changes were made.`);
         console.log(`  To execute, run: npx tsx scripts/migrate-output-folders.ts --execute`);

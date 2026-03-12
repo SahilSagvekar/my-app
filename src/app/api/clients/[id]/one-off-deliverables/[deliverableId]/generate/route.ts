@@ -144,8 +144,8 @@ export async function POST(
                 const taskDueDate = parseTimeToDate(currentTaskDate, times[i]);
 
                 let outputFolderId: string | null = null;
+                const monthFolder = getCurrentMonthFolder();
                 try {
-                    const monthFolder = getCurrentMonthFolder();
                     outputFolderId = await createTaskFolderStructure(companyName, title, monthFolder);
                 } catch (error) {
                     console.error(`⚠️ S3 folder creation failed for ${title}`);
@@ -163,6 +163,7 @@ export async function POST(
                         clientUserId: deliverable.client.userId,
                         oneOffDeliverableId: deliverable.id,
                         outputFolderId,
+                        monthFolder,
                     },
                 });
                 createdTasks.push(newTask);

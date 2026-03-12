@@ -624,6 +624,7 @@ export async function GET(req: any) {
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status") as string | null;
     const clientIdFilter = searchParams.get("clientId") as string | null;
+    const monthFilter = searchParams.get("month") as string | null;
 
     // Build role-based where query
     let where: any = await buildRoleWhereQuery(role, Number(userId));
@@ -675,6 +676,19 @@ export async function GET(req: any) {
       }
     }
 
+    // 🔥 ADD MONTH FILTER - Filter by monthFolder (e.g., "March-2026")
+    if (monthFilter && monthFilter !== "all") {
+      if (where.AND) {
+        where.AND.push({ monthFolder: monthFilter });
+      } else if (Object.keys(where).length > 0) {
+        where = {
+          AND: [where, { monthFolder: monthFilter }],
+        };
+      } else {
+        where = { monthFolder: monthFilter };
+      }
+    }
+
     let tasks: any[];
     try {
       // ✅ NO PAGINATION - Fetch all tasks matching the query
@@ -716,6 +730,7 @@ export async function GET(req: any) {
           requiresClientReview: true,
           workflowStep: true,
           folderType: true,
+          monthFolder: true,
           qcNotes: true,
           feedback: true,
           shootDetail: true,
@@ -856,9 +871,21 @@ export async function GET(req: any) {
       })
     );
 
+    // 🔥 Get distinct monthFolder values for the filter dropdown
+    const distinctMonths = await prisma.task.findMany({
+      where: { monthFolder: { not: null } },
+      select: { monthFolder: true },
+      distinct: ['monthFolder'],
+      orderBy: { monthFolder: 'desc' },
+    });
+    const availableMonths = distinctMonths
+      .map((t: any) => t.monthFolder as string)
+      .filter(Boolean);
+
     // ✅ Return all tasks without pagination
     return NextResponse.json({
       tasks: sanitizeBigInt(tasksWithSignedUrls),
+      availableMonths,
     }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
@@ -1011,6 +1038,7 @@ export async function POST(req: any) {
         oneOffDeliverableId: oneOffDeliverableId || null,
         driveLinks: uploadedLinks,
         folderType: effectiveFolderType,
+        monthFolder: getCurrentMonthFolder(),
         requiresClientReview: client.requiresClientReview,
         status: (client.requiresVideographer || shootLocation || shootCamera)
           ? "VIDEOGRAPHER_ASSIGNED"

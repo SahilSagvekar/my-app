@@ -74,6 +74,7 @@ interface Task {
   client: { id: string; name: string; companyName: string | null } | null;
   monthlyDeliverable: { id: string; type: string } | null;
   oneOffDeliverable: { id: string; type: string } | null;
+  monthFolder: string | null;
   shootDetail?: {
     location?: string;
     camera?: string;
@@ -94,6 +95,7 @@ interface FilterState {
   client: string;
   status: string;
   deliverableType: string;
+  month: string;
   search: string;
   dueDateFrom: Date | undefined;
   dueDateTo: Date | undefined;
@@ -172,6 +174,7 @@ export function TaskManagementTab() {
     client: 'all',
     status: 'all',
     deliverableType: 'all',
+    month: 'all',
     search: '',
     dueDateFrom: undefined,
     dueDateTo: undefined,
@@ -238,6 +241,9 @@ export function TaskManagementTab() {
 
   // Dynamic deliverable types from loaded tasks
   const [availableDeliverableTypes, setAvailableDeliverableTypes] = useState<string[]>(defaultDeliverableTypes);
+
+  // Available months for month filter dropdown
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
 
   // ─────────────────────────────────────────
   // Data Loading
@@ -316,6 +322,7 @@ export function TaskManagementTab() {
       if (filters.client !== 'all') params.set('client', filters.client);
       if (filters.status !== 'all') params.set('status', filters.status);
       if (filters.deliverableType !== 'all') params.set('deliverableType', filters.deliverableType);
+      if (filters.month !== 'all') params.set('month', filters.month);
       if (filters.search) params.set('search', filters.search);
       if (filters.dueDateFrom) params.set('dueDateFrom', filters.dueDateFrom.toISOString());
       if (filters.dueDateTo) params.set('dueDateTo', filters.dueDateTo.toISOString());
@@ -332,6 +339,11 @@ export function TaskManagementTab() {
       setTotalPages(data.pagination?.totalPages || 1);
       setTotal(data.pagination?.total || 0);
       setStats(data.stats || null);
+
+      // Set available months for filter dropdown
+      if (data.availableMonths && Array.isArray(data.availableMonths)) {
+        setAvailableMonths(data.availableMonths);
+      }
 
       // Extract unique deliverable types from tasks
       if (data.tasks && data.tasks.length > 0) {
@@ -584,6 +596,7 @@ export function TaskManagementTab() {
       client: 'all',
       status: 'all',
       deliverableType: 'all',
+      month: 'all',
       search: '',
       dueDateFrom: undefined,
       dueDateTo: undefined,
@@ -599,6 +612,7 @@ export function TaskManagementTab() {
     filters.client !== 'all',
     filters.status !== 'all',
     filters.deliverableType !== 'all',
+    filters.month !== 'all',
     !!filters.search,
     !!filters.dueDateFrom || !!filters.dueDateTo,
   ].filter(Boolean).length;
@@ -786,7 +800,7 @@ export function TaskManagementTab() {
             </div>
 
             {/* Filter Dropdowns */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
               {/* Editor Filter */}
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Editor</label>
@@ -933,6 +947,27 @@ export function TaskManagementTab() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Month Filter */}
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Month</label>
+                <Select
+                  value={filters.month}
+                  onValueChange={(v) => { setFilters({ ...filters, month: v }); setPage(1); }}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="All Months" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Months</SelectItem>
+                    {availableMonths.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Date Range Filter */}
@@ -984,6 +1019,7 @@ export function TaskManagementTab() {
                     Scheduler
                   </th>
                   <th className="text-left py-3 px-4 font-medium">Status</th>
+                  <th className="text-left py-3 px-4 font-medium">Month</th>
                   <th className="text-left py-3 px-4 font-medium">
                     Due Date
                   </th>
@@ -994,7 +1030,7 @@ export function TaskManagementTab() {
                 {tasks.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className="text-center py-12 text-muted-foreground"
                     >
                       No tasks found matching your filters
@@ -1071,6 +1107,15 @@ export function TaskManagementTab() {
                         </td>
                         <td className="py-3 px-4">
                           <StatusBadge status={task.status} />
+                        </td>
+                        <td className="py-3 px-4">
+                          {task.monthFolder ? (
+                            <Badge variant="outline" className="text-xs whitespace-nowrap bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
+                              {task.monthFolder}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           {task.dueDate ? (

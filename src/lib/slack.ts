@@ -108,15 +108,25 @@ export async function sendSlackWebhook(
       webhookUrl = config?.webhookUrl || process.env.SLACK_WEBHOOK_URL;
     }
 
-    if (!webhookUrl) return; // Not configured — silently skip
+    if (!webhookUrl) {
+      console.log(`[Slack Webhook] Skipped — no webhook URL configured (override=${!!overrideUrl})`);
+      return;
+    }
 
     const blocks = buildSlackBlocks(notification);
 
-    await fetch(webhookUrl, {
+    const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ blocks }),
     });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'unknown');
+      console.error(`[Slack Webhook] Failed with status ${res.status}: ${errorText} (url=${webhookUrl.substring(0, 60)}...)`);
+    } else {
+      console.log(`[Slack Webhook] ✅ Sent notification: "${notification.title}" (type=${notification.type})`);
+    }
   } catch (err) {
     console.error("[Slack Webhook] Failed:", err);
   }
@@ -135,8 +145,22 @@ async function sendClientSlackWebhook(
       select: { slackWebhookUrl: true, slackEnabled: true, name: true },
     });
 
-    if (!client?.slackWebhookUrl || !client.slackEnabled) return;
+    if (!client) {
+      console.log(`[Slack Client] Client ${clientId} not found in DB`);
+      return;
+    }
 
+    if (!client.slackEnabled) {
+      console.log(`[Slack Client] Slack disabled for client "${client.name}" (slackEnabled=false)`);
+      return;
+    }
+
+    if (!client.slackWebhookUrl) {
+      console.log(`[Slack Client] No webhook URL for client "${client.name}" (slackEnabled=true but no URL)`);
+      return;
+    }
+
+    console.log(`[Slack Client] Sending to client "${client.name}" channel...`);
     await sendSlackWebhook(notification, client.slackWebhookUrl);
   } catch (err) {
     console.error("[Slack Client Webhook] Failed:", err);
@@ -189,24 +213,31 @@ export async function sendSlackDM(
 export async function deliverSlackNotification(
   notification: SlackNotification
 ): Promise<void> {
+  console.log(`[Slack Dispatch] Delivering notification: type=${notification.type}, title="${notification.title}", clientId=${notification.payload?.clientId || 'none'}, userId=${notification.userId || 'none'}`);
+
   // A. Special Routing: Send specific statuses to a dedicated production channel
   // Target: Ready for Review, Scheduled, Posted
   const productionChannelUrl = process.env.SLACK_READY_REVIEW_POSTED_WEBHOOK_URL;
   const productionTypes = ["review_queue", "task_scheduled", "task_posted", "content_ready"];
 
   if (productionChannelUrl && productionTypes.includes(notification.type)) {
+    console.log(`[Slack Dispatch] A. Production channel → type=${notification.type}`);
     await sendSlackWebhook(notification, productionChannelUrl);
   }
 
   // B. Always send to global team channel webhook
+  console.log(`[Slack Dispatch] B. Global team channel`);
   await sendSlackWebhook(notification);
 
   // C. Send to client-specific channel (if clientId in payload)
   if (notification.payload?.clientId) {
+    console.log(`[Slack Dispatch] C. Client channel → clientId=${notification.payload.clientId}`);
     await sendClientSlackWebhook(notification.payload.clientId, notification);
+  } else {
+    console.log(`[Slack Dispatch] C. Skipped client channel — no clientId in payload`);
   }
 
-  // C. Send DM to the targeted user (if they have Slack linked + enabled)
+  // D. Send DM to the targeted user (if they have Slack linked + enabled)
   if (notification.userId) {
     const user = await prisma.user.findUnique({
       where: { id: notification.userId },
@@ -214,7 +245,10 @@ export async function deliverSlackNotification(
     });
 
     if (user?.slackUserId && user?.slackNotifications) {
+      console.log(`[Slack Dispatch] D. DM → slackUserId=${user.slackUserId}`);
       await sendSlackDM(user.slackUserId, notification);
+    } else {
+      console.log(`[Slack Dispatch] D. Skipped DM — user has no Slack linked or notifications disabled`);
     }
   }
 }

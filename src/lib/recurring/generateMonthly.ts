@@ -493,6 +493,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
       title: title1,
       outputFolderId: taskFolderPath1,
       recurringMonth: recurringMonthLabel,
+      monthFolder,
     },
   });
 
@@ -571,6 +572,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
             monthlyDeliverableId: templateTask.monthlyDeliverableId,
             // 🔥 FIX: Tag with recurringMonth so duplicate prevention works
             recurringMonth: recurringMonthLabel,
+            monthFolder,
           },
         })
       );

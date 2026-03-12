@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npx tsc --noEmit --pretty)",
       "Bash(npx next build --no-lint)",
-      "Bash(wc -l \"D:/E8 Productions/my-app/src/app\"/api/**/route.ts)"
+      "Bash(wc -l \"D:/E8 Productions/my-app/src/app\"/api/**/route.ts)",
+      "Bash(xargs ls -lh)",
+      "Bash(xargs grep -l \"generateMonthlyTasksFromTemplate\")",
+      "Bash(npx tsc --noEmit --pretty src/app/api/admin/tasks/route.ts src/components/admin/TaskManagementTab.tsx)"
     ]
   }
 }

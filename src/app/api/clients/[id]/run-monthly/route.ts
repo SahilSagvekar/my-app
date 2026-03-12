@@ -299,6 +299,7 @@ export async function POST(
             clientUserId: client.userId,
             monthlyDeliverableId: deliverable.id,
             outputFolderId,
+            monthFolder: monthYearFolder,
             recurringMonth: recurringMonthLabel,
             qc_specialist: templateTask?.qc_specialist,
             scheduler: templateTask?.scheduler,
