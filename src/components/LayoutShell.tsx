@@ -23,8 +23,10 @@ import {
   X,
   Settings as SettingsIcon,
   ArrowLeftRight,
-  FileText
+  FileText,
+  Menu
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
 import {
@@ -37,6 +39,8 @@ import Image from 'next/image';
 import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
 import { useAuth } from './auth/AuthContext';
 import { useViewAsRole } from './auth/ViewAsRoleContext';
+import { VitalsProvider, useVitals } from './admin/VitalsContext';
+import { AdminVitalsWidget } from './admin/AdminVitalsWidget';
 
 function MenuToggleIcon({ isCollapsed, className }: { isCollapsed?: boolean; className?: string }) {
   return (
@@ -69,14 +73,22 @@ function MenuToggleIcon({ isCollapsed, className }: { isCollapsed?: boolean; cla
 }
 
 interface LayoutShellProps {
-  currentRole: string | null;  // UPDATED: Allow null
+  currentRole: string | null;
   currentPage: string;
   onPageChange: (page: string) => void;
   onLogout: () => void;
   children: React.ReactNode;
 }
 
-export function LayoutShell({
+export function LayoutShell(props: LayoutShellProps) {
+  return (
+    <VitalsProvider>
+      <LayoutShellContent {...props} />
+    </VitalsProvider>
+  );
+}
+
+function LayoutShellContent({
   currentRole,
   currentPage,
   onPageChange,
@@ -89,6 +101,7 @@ export function LayoutShell({
   const [permittedItems, setPermittedItems] = useState<any[]>([]);
   const [navLoading, setNavLoading] = useState(true);
   const { user: authUser } = useAuth();
+  const { recordResponse } = useVitals();
 
   // 🔥 Role switching feature
   const { canSwitchRole, isViewingAsOther, switchableRoles, switchToRole, resetToOriginal } = useViewAsRole();
@@ -98,6 +111,8 @@ export function LayoutShell({
       ? 'QC'
       : currentRole.charAt(0).toUpperCase() + currentRole.slice(1).toLowerCase()
     : 'User';
+
+  const isAdmin = currentRole?.toLowerCase() === 'admin';
 
   // UPDATED: Handle null role
   // UPDATED: Fetch permitted navigation items
@@ -163,9 +178,15 @@ export function LayoutShell({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50">
+    <div className="min-h-screen bg-[#f8fafc]">
+      {/* Dynamic Background Accents */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-50/50 blur-[120px]" />
+        <div className="absolute top-[20%] -right-[10%] w-[35%] h-[35%] rounded-full bg-indigo-50/50 blur-[120px]" />
+      </div>
+
       {/* Top Bar */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 fixed top-0 left-0 right-0 z-30">
+      <header className="bg-white/60 backdrop-blur-xl shadow-[0_2px_20px_-5px_rgba(0,0,0,0.05)] border-b border-white/20 fixed top-0 left-0 right-0 z-30">
         <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
           {/* Left Section */}
           <div className="flex items-center gap-4">
@@ -363,7 +384,7 @@ export function LayoutShell({
       {/* Sidebar */}
       <aside
         className={`
-        fixed top-16 left-0 z-20 w-72 h-[calc(100vh-4rem)] bg-white/80 backdrop-blur-md border-r border-gray-200 transform transition-all duration-300 ease-in-out
+        fixed top-16 left-0 z-20 w-72 h-[calc(100vh-4rem)] bg-white/40 backdrop-blur-2xl border-r border-white/20 transform transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         ${isSidebarCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0'}
       `}
@@ -429,8 +450,24 @@ export function LayoutShell({
       )}
 
       {/* Main Content */}
-      <main className={`transition-all duration-300 ease-in-out pt-16 ${isSidebarCollapsed ? 'lg:ml-0' : 'lg:ml-72'}`}>
-        <div className="p-6 sm:p-8">{children}</div>
+      <main className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] pt-16 ${isSidebarCollapsed ? 'lg:ml-0' : 'lg:ml-72'}`}>
+        <div className="p-6 sm:p-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentPage}
+              initial={{ opacity: 0, y: 10, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.99 }}
+              transition={{ 
+                duration: 0.35, 
+                ease: [0.23, 1, 0.32, 1] // Ease Out Quint
+              }}
+              className="will-change-transform"
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </main>
 
       {/* Settings Dialog */}
@@ -445,6 +482,9 @@ export function LayoutShell({
 
       {/* Global Upload Manager */}
       <GlobalUploadManager />
+
+      {/* 🔥 Admin Vitals Widget */}
+      {isAdmin && <AdminVitalsWidget />}
     </div>
   );
 }
