@@ -1,13 +1,14 @@
-import { prisma } from "@/lib/prisma";
+import { prisma as globalPrisma } from "@/lib/prisma";
 
-export async function createRecurringTasksForClient(clientId: string) {
+export async function createRecurringTasksForClient(clientId: string, tx?: any) {
+  const prisma = tx || globalPrisma;
   const deliverables = await prisma.monthlyDeliverable.findMany({
     where: { clientId },
   });
 
   if (!deliverables.length) return [];
 
-  const tasks = deliverables.map((d) => {
+  const tasks = deliverables.map((d: { postingSchedule: string; id: string }) => {
     const nextRun = calculateNextRunDate(d);
 
     return prisma.recurringTask.create({
@@ -30,7 +31,7 @@ export async function createRecurringTasksForClient(clientId: string) {
   return Promise.all(tasks);
 }
 
-function calculateNextRunDate(d: any) {
+function calculateNextRunDate(d: { postingSchedule: string }) {
   const now = new Date();
 
   switch (d.postingSchedule) {

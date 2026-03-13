@@ -127,8 +127,10 @@ export async function withRetry<T>(
     } catch (error: any) {
       if (isConnectionError(error) && attempt < retries) {
         console.log(`[Prisma] Retry ${attempt + 1}/${retries} for ${label}...`);
-        await getPrismaClient().$disconnect().catch(() => {});
-        await new Promise((r) => setTimeout(r, 500 + attempt * 500));
+        // We no longer force $disconnect here because it kills all active connections 
+        // in the pool for other requests. Prisma Client handles its own reconnection 
+        // logic more efficiently. We just wait and retry.
+        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
         continue;
       }
       throw error;

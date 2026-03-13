@@ -10,11 +10,31 @@ import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 const BUCKET = process.env.AWS_S3_BUCKET!;
 
-// Cache content info for 5 minutes to avoid repeated HEAD requests
+// ─── Bounded cache for S3 HEAD results ───
+// Prevents unbounded memory growth that causes daily server crashes.
+const MAX_CACHE_ENTRIES = 200;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const contentInfoCache = new Map<string, { size: number; contentType: string; timestamp: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+
+// Periodic cleanup of expired entries
+let lastCleanup = Date.now();
+const CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+function maintainCache() {
+    const now = Date.now();
+    if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
+    lastCleanup = now;
+
+    for (const [key, entry] of contentInfoCache) {
+        if (now - entry.timestamp > CACHE_TTL_MS) {
+            contentInfoCache.delete(key);
+        }
+    }
+}
 
 async function getContentInfo(s3Key: string): Promise<{ size: number; contentType: string }> {
+    maintainCache();
+
     const cached = contentInfoCache.get(s3Key);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
         return { size: cached.size, contentType: cached.contentType };
@@ -31,6 +51,12 @@ async function getContentInfo(s3Key: string): Promise<{ size: number; contentTyp
         size: headResult.ContentLength || 0,
         contentType: headResult.ContentType || 'video/mp4',
     };
+
+    // Evict oldest entries if cache is full
+    if (contentInfoCache.size >= MAX_CACHE_ENTRIES) {
+        const firstKey = contentInfoCache.keys().next().value;
+        if (firstKey) contentInfoCache.delete(firstKey);
+    }
 
     contentInfoCache.set(s3Key, { ...info, timestamp: Date.now() });
     return info;
@@ -116,8 +142,17 @@ export async function GET(
                 Range: `bytes=${start}-${end}`,
             });
 
-            const s3Response = await s3.send(getCommand);
+            // Use AbortSignal to clean up the S3 stream when the client disconnects
+            // (e.g., user seeks to a new position). Without this, orphaned streams
+            // accumulate and leak memory/connections.
+            const abortController = new AbortController();
+            const s3Response = await s3.send(getCommand, { abortSignal: abortController.signal });
             const bodyStream = s3Response.Body as ReadableStream;
+
+            // If the client disconnects, abort the S3 fetch
+            req.signal?.addEventListener('abort', () => {
+                abortController.abort();
+            });
 
             return new Response(bodyStream as any, {
                 status: 206,
@@ -139,8 +174,13 @@ export async function GET(
                 Key: s3Key,
             });
 
-            const s3Response = await s3.send(getCommand);
+            const abortController = new AbortController();
+            const s3Response = await s3.send(getCommand, { abortSignal: abortController.signal });
             const bodyStream = s3Response.Body as ReadableStream;
+
+            req.signal?.addEventListener('abort', () => {
+                abortController.abort();
+            });
 
             return new Response(bodyStream as any, {
                 status: 200,

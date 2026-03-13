@@ -348,7 +348,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                             onLoadedMetadata={handleVideoMetadata}
                             onPlay={() => p.setIsPlaying(true)}
                             onPause={() => p.setIsPlaying(false)}
-                            onError={() => p.setVideoError(true)}
+                            onError={() => p.handleVideoError()}
                             playsInline
                             preload="metadata"
                         />

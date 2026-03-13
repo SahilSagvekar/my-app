@@ -116,6 +116,9 @@ export function FullScreenReviewModalFrameIO({
     const [videoError, setVideoError] = useState(false);
     const [iframeLoaded, setIframeLoaded] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [retryKey, setRetryKey] = useState(0); // cache-busting key for video retries
+    const videoRetryCountRef = useRef(0);
+    const MAX_VIDEO_RETRIES = 3;
 
     /* ── Review state ── */
     const [comments, setComments] = useState<ReviewComment[]>([]);
@@ -160,8 +163,27 @@ export function FullScreenReviewModalFrameIO({
             return { type: 'video' as const, src: '' };
         }
 
-        return getVideoSource(baseUrl, fileId);
-    }, [currentVideoUrl, asset, currentVersion]);
+        const source = getVideoSource(baseUrl, fileId);
+        // Append cache-busting param on retries to avoid stale/failed responses
+        if (retryKey > 0 && source.type === 'video') {
+            const separator = source.src.includes('?') ? '&' : '?';
+            return { ...source, src: `${source.src}${separator}_r=${retryKey}` };
+        }
+        return source;
+    }, [currentVideoUrl, asset, currentVersion, retryKey]);
+
+    /* ── Auto-retry on video error ── */
+    const handleVideoError = useCallback(() => {
+        if (videoRetryCountRef.current < MAX_VIDEO_RETRIES) {
+            videoRetryCountRef.current++;
+            console.log(`[Video] Retry ${videoRetryCountRef.current}/${MAX_VIDEO_RETRIES}...`);
+            setTimeout(() => {
+                setRetryKey(Date.now());
+            }, 1500);
+        } else {
+            setVideoError(true);
+        }
+    }, []);
 
     /* ── Initialise on asset change ── */
     useEffect(() => {
@@ -177,6 +199,8 @@ export function FullScreenReviewModalFrameIO({
         setShowApprovalSuccess(false);
         setShowRevisionSuccess(false);
         setVideoError(false);
+        setRetryKey(0);
+        videoRetryCountRef.current = 0;
         setIframeLoaded(false);
         setActiveCommentId(undefined);
         setShowCommentInput(false);
@@ -592,6 +616,7 @@ export function FullScreenReviewModalFrameIO({
         setShowInfoPanel,
         setShowShareDialog,
         setVideoError,
+        handleVideoError,
         setIframeLoaded,
         setIsDragging,
         setIsPlaying,

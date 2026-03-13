@@ -92,6 +92,7 @@ export interface ReviewScreenProps {
     setShowInfoPanel: (v: boolean) => void;
     setShowShareDialog: (v: boolean) => void;
     setVideoError: (v: boolean) => void;
+    handleVideoError: () => void;
     setIframeLoaded: (v: boolean) => void;
     setIsDragging: (v: boolean) => void;
     setIsPlaying: (v: boolean) => void;
@@ -337,7 +338,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             }}
                                             onPlay={() => p.setIsPlaying(true)}
                                             onPause={() => p.setIsPlaying(false)}
-                                            onError={() => p.setVideoError(true)}
+                                            onError={() => p.handleVideoError()}
                                             playsInline
                                             preload="metadata"
                                         />

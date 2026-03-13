@@ -11,6 +11,19 @@ const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const RATE_LIMIT_MAX = 6; // max submissions per window
 const ipSubmissions = new Map<string, number[]>();
 
+// Periodic cleanup to prevent unbounded memory growth
+let lastIpCleanup = Date.now();
+function cleanupIpSubmissions() {
+    const now = Date.now();
+    if (now - lastIpCleanup < 30 * 60 * 1000) return; // every 30 min
+    lastIpCleanup = now;
+    for (const [ip, timestamps] of ipSubmissions) {
+        const valid = timestamps.filter(ts => ts > now - RATE_LIMIT_WINDOW_MS);
+        if (valid.length === 0) ipSubmissions.delete(ip);
+        else ipSubmissions.set(ip, valid);
+    }
+}
+
 // Helper function to add global BCC to mail options
 const addGlobalBcc = (mailOptions: any) => {
   if (mailOptions.bcc) {
@@ -48,6 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Rate-limiting per IP
+    cleanupIpSubmissions();
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown';
 
     // Fetch location data

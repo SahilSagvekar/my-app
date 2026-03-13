@@ -394,7 +394,8 @@ export async function GET(req: Request) {
         const [tasks, total, deliverableTypes, distinctMonths] = await Promise.all([
             prisma.task.findMany({
                 where,
-                ...(fetchAll ? {} : { take: limit, skip: (page - 1) * limit }),
+                take: fetchAll ? 1000 : limit,
+                skip: fetchAll ? 0 : (page - 1) * limit,
                 orderBy,
                 select: {
                     id: true,

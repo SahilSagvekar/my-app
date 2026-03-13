@@ -258,39 +258,50 @@ export async function GET() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const clients = await prisma.client.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        monthlyDeliverables: true,
-        oneOffDeliverables: true,
-        brandAssets: true,
-        recurringTasks: true,
-        tasks: {
-          where: {
-            createdAt: {
-              gte: startOfMonth,
-              lte: endOfMonth,
-            },
-          },
-          select: {
-            id: true,
-            status: true,
+    // Optimized: Fetch clients and task counts separately but concurrently
+    const [clients, taskCounts] = await Promise.all([
+      prisma.client.findMany({
+        orderBy: { name: "asc" },
+        include: {
+          monthlyDeliverables: true,
+          oneOffDeliverables: true,
+          brandAssets: true,
+          recurringTasks: true,
+        },
+      }),
+      prisma.task.groupBy({
+        by: ['clientId', 'status'],
+        where: {
+          createdAt: {
+            gte: startOfMonth,
+            lte: endOfMonth,
           },
         },
-      },
+        _count: { id: true },
+      })
+    ]);
+
+    // Map task counts for easy lookup
+    const statsMap = new Map<string, { total: number; completed: number }>();
+    taskCounts.forEach((stat) => {
+      const clientId = stat.clientId;
+      if (!clientId) return;
+      
+      const current = statsMap.get(clientId) || { total: 0, completed: 0 };
+      const count = stat._count.id;
+      current.total += count;
+      if (stat.status === "COMPLETED" || stat.status === "SCHEDULED") {
+        current.completed += count;
+      }
+      statsMap.set(clientId, current);
     });
 
     const formattedClients = clients.map((c) => {
-      // Calculate total deliverables for the month
-      const totalDeliverables = (c.monthlyDeliverables ?? []).reduce(
-        (sum, d) => sum + (d.quantity ?? 0),
+      const stats = statsMap.get(c.id) || { total: 0, completed: 0 };
+      const totalMonthlyDeliverables = (c.monthlyDeliverables || []).reduce(
+        (sum: number, d: any) => sum + (d.quantity || 0),
         0
       );
-
-      // Count completed tasks (COMPLETED or SCHEDULED means posted/done)
-      const completedTasks = (c.tasks ?? []).filter(
-        (t) => t.status === "COMPLETED" || t.status === "SCHEDULED"
-      ).length;
 
       return {
         ...c,
@@ -300,7 +311,7 @@ export async function GET() {
         oneOffDeliverables: c.oneOffDeliverables ?? [],
         brandAssets: c.brandAssets ?? [],
         recurringTasks: c.recurringTasks ?? [],
-        brandGuidelines: c.brandGuidelines ?? {
+        brandGuidelines: (c.brandGuidelines as any) ?? {
           primaryColors: [],
           secondaryColors: [],
           fonts: [],
@@ -310,13 +321,13 @@ export async function GET() {
           targetAudience: "",
           contentStyle: "",
         },
-        projectSettings: c.projectSettings ?? {
+        projectSettings: (c.projectSettings as any) ?? {
           defaultVideoLength: "60 seconds",
           preferredPlatforms: [],
           contentApprovalRequired: false,
           quickTurnaroundAvailable: false,
         },
-        billing: c.billing ?? {
+        billing: (c.billing as any) ?? {
           monthlyFee: "",
           billingFrequency: "monthly",
           billingDay: 1,
@@ -324,11 +335,11 @@ export async function GET() {
           nextBillingDate: "",
           notes: "",
         },
-        postingSchedule: c.postingSchedule ?? {},
+        postingSchedule: (c.postingSchedule as any) ?? {},
         // 🔥 Dynamic progress calculation
         currentProgress: {
-          completed: completedTasks,
-          total: totalDeliverables,
+          completed: stats.completed,
+          total: totalMonthlyDeliverables || stats.total,
         },
         // Remove tasks from response to keep it clean
         tasks: undefined,
@@ -402,85 +413,89 @@ export async function POST(req: Request) {
 
     const folders = await createClientFolders(companyName);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: null,
-        role: "client",
-      }
-    });
+    const { user, client, createdDeliverables, createdOneOffs } = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: null,
+          role: "client",
+        }
+      });
 
-    const client = await prisma.client.create({
-      data: {
-        name,
-        email,
-        emails: additionalEmails,
-        companyName: companyName || null,
-        phone,
-        phones: additionalPhones,
-        createdBy: decoded.userId.toString(),
-        user: {
-          connect: { id: user.id },
+      const client = await tx.client.create({
+        data: {
+          name,
+          email,
+          emails: additionalEmails,
+          companyName: companyName || null,
+          phone,
+          phones: additionalPhones,
+          createdBy: decoded.userId.toString(),
+          user: {
+            connect: { id: user.id },
+          },
+          accountManagerId,
+          status: "active",
+          startDate: new Date(),
+          renewalDate: null,
+          lastActivity: new Date(),
+          driveFolderId: folders.mainFolderId,
+          rawFootageFolderId: folders.rawFolderId,
+          essentialsFolderId: folders.elementsFolderId,
+          outputsFolderId: folders.outputsFolderId,
+          brandGuidelines,
+          projectSettings,
+          billing,
+          postingSchedule,
+          requiresClientReview: clientReview,
+          requiresVideographer: videographer,
+          hasPostingServices: hasPostingServices ?? true,
+          currentProgress: { completed: 0, total: 0 },
         },
-        accountManagerId,
-        status: "active",
-        startDate: new Date(),
-        renewalDate: null,
-        lastActivity: new Date(),
-        driveFolderId: folders.mainFolderId,
-        rawFootageFolderId: folders.rawFolderId,
-        essentialsFolderId: folders.elementsFolderId,
-        outputsFolderId: folders.outputsFolderId,
-        brandGuidelines,
-        projectSettings,
-        billing,
-        postingSchedule,
-        requiresClientReview: clientReview,
-        requiresVideographer: videographer,
-        hasPostingServices: hasPostingServices ?? true,
-        currentProgress: { completed: 0, total: 0 },
-      },
+      });
+
+      const createdDeliverables = await Promise.all(
+        (monthlyDeliverables || []).map((d: any) =>
+          tx.monthlyDeliverable.create({
+            data: {
+              clientId: client.id,
+              type: d.type,
+              quantity: d.quantity,
+              videosPerDay: d.videosPerDay,
+              postingSchedule: d.postingSchedule,
+              postingDays: d.postingDays,
+              postingTimes: d.postingTimes,
+              platforms: d.platforms,
+              description: d.description,
+            },
+          })
+        )
+      );
+
+      const createdOneOffs = await Promise.all(
+        (oneOffDeliverables || []).map((d: any) =>
+          tx.oneOffDeliverable.create({
+            data: {
+              clientId: client.id,
+              type: d.type,
+              quantity: d.quantity,
+              videosPerDay: d.videosPerDay,
+              postingSchedule: "one-off",
+              postingDays: d.postingDays,
+              postingTimes: d.postingTimes,
+              platforms: d.platforms,
+              description: d.description,
+              status: "PENDING",
+            },
+          })
+        )
+      );
+
+      await createRecurringTasksForClient(client.id, tx);
+
+      return { user, client, createdDeliverables, createdOneOffs };
     });
-
-    const createdDeliverables = await Promise.all(
-      (monthlyDeliverables || []).map((d: any) =>
-        prisma.monthlyDeliverable.create({
-          data: {
-            clientId: client.id,
-            type: d.type,
-            quantity: d.quantity,
-            videosPerDay: d.videosPerDay,
-            postingSchedule: d.postingSchedule,
-            postingDays: d.postingDays,
-            postingTimes: d.postingTimes,
-            platforms: d.platforms,
-            description: d.description,
-          },
-        })
-      )
-    );
-
-    const createdOneOffs = await Promise.all(
-      (oneOffDeliverables || []).map((d: any) =>
-        prisma.oneOffDeliverable.create({
-          data: {
-            clientId: client.id,
-            type: d.type,
-            quantity: d.quantity,
-            videosPerDay: d.videosPerDay,
-            postingSchedule: "one-off",
-            postingDays: d.postingDays,
-            postingTimes: d.postingTimes,
-            platforms: d.platforms,
-            description: d.description,
-            status: "PENDING",
-          },
-        })
-      )
-    );
-
-    await createRecurringTasksForClient(client.id);
 
     // 🔥 Invalidate clients cache
     await redis.del("clients:all");

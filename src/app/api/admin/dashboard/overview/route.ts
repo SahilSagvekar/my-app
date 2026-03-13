@@ -90,26 +90,11 @@ export async function GET(req: any) {
 
 async function getKPIData() {
   const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const sixtyDaysAgo = new Date(now);
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-  // 1. Team Members (Active staff, not clients)
-  const currentTeamCount = await prisma.user.count({
-    where: {
-      employeeStatus: 'ACTIVE',
-      role: { not: 'client' }
-    }
-  });
-
-  const prevTeamCount = await prisma.user.count({
-    where: {
-      employeeStatus: 'ACTIVE',
-      role: { not: 'client' },
-      createdAt: { lt: thirtyDaysAgo }
-    }
-  });
-
-  // 2. Active Tasks (Pending through Review)
   const activeStatuses: TaskStatus[] = [
     'PENDING',
     'IN_PROGRESS',
@@ -119,31 +104,50 @@ async function getKPIData() {
     'VIDEOGRAPHER_ASSIGNED'
   ];
 
-  const currentActiveTasks = await prisma.task.count({
-    where: { status: { in: activeStatuses } }
-  });
-
-  const prevActiveTasks = await prisma.task.count({
-    where: {
-      status: { in: activeStatuses },
-      createdAt: { lt: thirtyDaysAgo }
-    }
-  });
-
-  // 3. Avg. Completion Time (Last 30 days)
-  const avgResult = await prisma.$queryRaw<Array<{ avg: number | null }>>`
-    SELECT AVG(EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400) as avg
-    FROM "Task" t
-    WHERE t.status = 'COMPLETED'
-    AND t."updatedAt" >= ${thirtyDaysAgo}
-  `;
-
-  const prevAvgResult = await prisma.$queryRaw<Array<{ avg: number | null }>>`
-    SELECT AVG(EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400) as avg
-    FROM "Task" t
-    WHERE t.status = 'COMPLETED'
-    AND t."updatedAt" BETWEEN ${sixtyDaysAgo} AND ${thirtyDaysAgo}
-  `;
+  // Wrap independent queries in Promise.all for speed
+  const [
+    currentTeamCount,
+    prevTeamCount,
+    currentActiveTasks,
+    prevActiveTasks,
+    avgResult,
+    prevAvgResult
+  ] = await Promise.all([
+    prisma.user.count({
+      where: {
+        employeeStatus: 'ACTIVE',
+        role: { not: 'client' }
+      }
+    }),
+    prisma.user.count({
+      where: {
+        employeeStatus: 'ACTIVE',
+        role: { not: 'client' },
+        createdAt: { lt: thirtyDaysAgo }
+      }
+    }),
+    prisma.task.count({
+      where: { status: { in: activeStatuses } }
+    }),
+    prisma.task.count({
+      where: {
+        status: { in: activeStatuses },
+        createdAt: { lt: thirtyDaysAgo }
+      }
+    }),
+    prisma.$queryRaw<Array<{ avg: number | null }>>`
+      SELECT AVG(EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400) as avg
+      FROM "Task" t
+      WHERE t.status = 'COMPLETED'
+      AND t."updatedAt" >= ${thirtyDaysAgo}
+    `,
+    prisma.$queryRaw<Array<{ avg: number | null }>>`
+      SELECT AVG(EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400) as avg
+      FROM "Task" t
+      WHERE t.status = 'COMPLETED'
+      AND t."updatedAt" BETWEEN ${sixtyDaysAgo} AND ${thirtyDaysAgo}
+    `
+  ]);
 
   const currentAvg = Number(avgResult[0]?.avg || 0);
   const prevAvg = Number(prevAvgResult[0]?.avg || 0);
