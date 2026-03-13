@@ -1,54 +1,18 @@
-import React from "react";
-import { AdminDashboard } from "../dashboards/AdminDashboard";
-import { EditorDashboard } from "../dashboards/EditorDashboard";
-import { QCDashboard } from "../dashboards/QCDashboard";
-import { QCCompletedPage } from "../dashboards/QCCompletedPage";
-import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
-import { QCReportsPage } from "../dashboards/QCReportsPage";
-import { QCRejectionPatternsPage } from "../dashboards/QCRejectionPatternsPage";
-import { QCResourcesPage } from "../dashboards/QCResourcesPage";
-import { TrainingManagementTab } from "../admin/TrainingManagementTab";
-import { TrainingPortalPage } from "../training/TrainingPortalPage";
-import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
-import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
-import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
-import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
-import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
-import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
-import { SchedulerReportsPage } from "../dashboards/SchedulerReportsPage";
-import { SchedulerPostedArchivePage } from "../dashboards/SchedulerPostedArchivePage";
-import { ManagerDashboard } from "../dashboards/ManagerDashboard";
-import { ClientDashboard } from "../dashboards/ClientDashboard";
-import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
-import { VideographerDashboard } from "../dashboards/VideographerDashboard";
-import { SalesDashboard } from "../dashboards/SalesDashboard";
-import { AffiliateSection } from "../dashboards/AffiliateSection";
-import { SalesManagementTab } from "../admin/SalesManagementTab";
-import { EditorProjects } from "../EditorProjects";
-import { EditorResources } from "../EditorResources";
-import { FeedbackSystem } from "../FeedbackSystem";
-import LeavesComponent from "../admin/LeavesComponent";
-import { ResetPasswordWithOTP } from "../auth/ResetPasswordWithOTP";
-import { DriveExplorer } from "../drive/DriveExplorer";
-import { EmploymentInfo } from "../EmploymentInfo";
-import { SocialLogins } from "../Sociallogins"
-import { PostedContentSidebar } from "../Postedcontentsidebar"
-import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
-import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
-import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
-import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
+import React, { Suspense } from "react";
 import dynamic from "next/dynamic";
-
-const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
-  ssr: false,
-  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Contracts...</div>
-});
-
-const ClientContractsPage = dynamic(() => import("../contracts/ClientContractsPage").then(mod => mod.ClientContractsPage), {
-  ssr: false,
-  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Contracts...</div>
-});
 import { Loader2 } from "lucide-react";
+
+// ============================================
+// LOADING FALLBACK
+// ============================================
+const GenericLoading = ({ title }: { title?: string }) => (
+  <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 space-y-4">
+    <div className="p-4 bg-muted/50 rounded-full">
+      <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
+    </div>
+    <h1 className="text-xl font-semibold text-gray-900">{title || "Loading..."}</h1>
+  </div>
+);
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 space-y-4">
@@ -61,6 +25,67 @@ const ComingSoonPage = ({ title }: { title: string }) => (
     </p>
   </div>
 );
+
+// ============================================
+// DYNAMIC IMPORTS
+// ============================================
+
+// Admin
+const AdminDashboard = dynamic(() => import("../dashboards/AdminDashboard").then(mod => mod.AdminDashboard), { ssr: false, loading: () => <GenericLoading title="Loading Admin Dashboard..." /> });
+const TrainingManagementTab = dynamic(() => import("../admin/TrainingManagementTab").then(mod => mod.TrainingManagementTab), { ssr: false });
+const ActivityLogReportTab = dynamic(() => import("../admin/ActivityLogReportTab").then(mod => mod.ActivityLogReportTab), { ssr: false });
+const PortfolioManagementTab = dynamic(() => import("../admin/PortfolioManagementTab").then(mod => mod.PortfolioManagementTab), { ssr: false });
+const SalesManagementTab = dynamic(() => import("../admin/SalesManagementTab").then(mod => mod.SalesManagementTab), { ssr: false });
+
+// Editor
+const EditorDashboard = dynamic(() => import("../dashboards/EditorDashboard").then(mod => mod.EditorDashboard), { ssr: false, loading: () => <GenericLoading title="Loading Editor Dashboard..." /> });
+const EditorGuidelinesPage = dynamic(() => import("../dashboards/EditorGuidelinesPage").then(mod => mod.EditorGuidelinesPage), { ssr: false });
+const EditorProjects = dynamic(() => import("../EditorProjects").then(mod => mod.EditorProjects), { ssr: false });
+const EditorResources = dynamic(() => import("../EditorResources").then(mod => mod.EditorResources), { ssr: false });
+
+// QC
+const QCDashboard = dynamic(() => import("../dashboards/QCDashboard").then(mod => mod.QCDashboard), { ssr: false, loading: () => <GenericLoading title="Loading QC Dashboard..." /> });
+const QCCompletedPage = dynamic(() => import("../dashboards/QCCompletedPage").then(mod => mod.QCCompletedPage), { ssr: false });
+const QCGuidelinesPage = dynamic(() => import("../dashboards/QCGuidelinesPage").then(mod => mod.QCGuidelinesPage), { ssr: false });
+const QCReportsPage = dynamic(() => import("../dashboards/QCReportsPage").then(mod => mod.QCReportsPage), { ssr: false });
+const QCRejectionPatternsPage = dynamic(() => import("../dashboards/QCRejectionPatternsPage").then(mod => mod.QCRejectionPatternsPage), { ssr: false });
+const QCResourcesPage = dynamic(() => import("../dashboards/QCResourcesPage").then(mod => mod.QCResourcesPage), { ssr: false });
+
+// Scheduler
+const SchedulerDashboard = dynamic(() => import("../dashboards/SchedulerDashboard").then(mod => mod.SchedulerDashboard), { ssr: false, loading: () => <GenericLoading title="Loading Scheduler..." /> });
+const SchedulerSpreadsheetView = dynamic(() => import("../dashboards/SchedulerSpreadsheetView").then(mod => mod.SchedulerSpreadsheetView), { ssr: false });
+const SchedulerContentTitlingPage = dynamic(() => import("../dashboards/SchedulerContentTitlingPage").then(mod => mod.SchedulerContentTitlingPage), { ssr: false });
+const SchedulerSchedulingPage = dynamic(() => import("../dashboards/SchedulerSchedulingPage").then(mod => mod.SchedulerSchedulingPage), { ssr: false });
+const SchedulerResourcesPage = dynamic(() => import("../dashboards/SchedulerResourcesPage").then(mod => mod.SchedulerResourcesPage), { ssr: false });
+const SchedulerReportsPage = dynamic(() => import("../dashboards/SchedulerReportsPage").then(mod => mod.SchedulerReportsPage), { ssr: false });
+const SchedulerPostedArchivePage = dynamic(() => import("../dashboards/SchedulerPostedArchivePage").then(mod => mod.SchedulerPostedArchivePage), { ssr: false });
+
+// Manager & Sales
+const ManagerDashboard = dynamic(() => import("../dashboards/ManagerDashboard").then(mod => mod.ManagerDashboard), { ssr: false, loading: () => <GenericLoading title="Loading Manager Portal..." /> });
+const SalesDashboard = dynamic(() => import("../dashboards/SalesDashboard").then(mod => mod.SalesDashboard), { ssr: false, loading: () => <GenericLoading title="Loading Sales Dashboard..." /> });
+const AffiliateSection = dynamic(() => import("../dashboards/AffiliateSection").then(mod => mod.AffiliateSection), { ssr: false });
+
+// Client
+const ClientDashboard = dynamic(() => import("../dashboards/ClientDashboard").then(mod => mod.ClientDashboard), { ssr: false, loading: () => <GenericLoading title="Loading approvals..." /> });
+const ClientMonthlyOverview = dynamic(() => import("../dashboards/ClientMonthlyOverview").then(mod => mod.ClientMonthlyOverview), { ssr: false });
+const ClientContractsPage = dynamic(() => import("../contracts/ClientContractsPage").then(mod => mod.ClientContractsPage), { ssr: false });
+
+// Videographer
+const VideographerDashboard = dynamic(() => import("../dashboards/VideographerDashboard").then(mod => mod.VideographerDashboard), { ssr: false, loading: () => <GenericLoading title="Loading Videographer Portal..." /> });
+
+// Shared / Common
+const TrainingPortalPage = dynamic(() => import("../training/TrainingPortalPage").then(mod => mod.TrainingPortalPage), { ssr: false });
+const FeedbackSystem = dynamic(() => import("../FeedbackSystem").then(mod => mod.FeedbackSystem), { ssr: false });
+const LeavesComponent = dynamic(() => import("../admin/LeavesComponent"), { ssr: false });
+const ResetPasswordWithOTP = dynamic(() => import("../auth/ResetPasswordWithOTP").then(mod => mod.ResetPasswordWithOTP), { ssr: false });
+const DriveExplorer = dynamic(() => import("../drive/DriveExplorer").then(mod => mod.DriveExplorer), { ssr: false });
+const EmploymentInfo = dynamic(() => import("../EmploymentInfo").then(mod => mod.EmploymentInfo), { ssr: false });
+const SocialLogins = dynamic(() => import("../Sociallogins").then(mod => mod.SocialLogins), { ssr: false });
+const PostedContentSidebar = dynamic(() => import("../Postedcontentsidebar").then(mod => mod.PostedContentSidebar), { ssr: false });
+const YouTubeAnalyticsWrapper = dynamic(() => import("../youtube/YouTubeAnalyticsWrapper").then(mod => mod.YouTubeAnalyticsWrapper), { ssr: false });
+const MetaAnalyticsWrapper = dynamic(() => import("../meta/MetaAnalyticsWrapper").then(mod => mod.MetaAnalyticsWrapper), { ssr: false });
+const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), { ssr: false });
+
 
 export function renderPage(
   role: string,
@@ -75,8 +100,6 @@ export function renderPage(
     const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
     if (forbiddenIds.includes(page)) {
       console.warn(`Unauthorized access attempt to ${page} for client without posting services. Redirecting to Approvals.`);
-      // If we are in the middle of a render, we can't call onPageChange directly to change state, 
-      // but we can return the default page for this user.
       return <ClientDashboard />;
     }
   }
@@ -205,11 +228,7 @@ export function renderPage(
     }
   }
 
-  console.log(role);
-
   if (role === "qc") {
-    // console.log(role);
-    console.log(page);
     switch (page) {
       case "review-queue":
         return <QCDashboard />;
@@ -266,9 +285,9 @@ export function renderPage(
       case "dashboard":
         return <ManagerDashboard currentPage="team" />;
       case "clients":
-        return <ManagerDashboard currentPage="clients" />; // Shows the client management tab
+        return <ManagerDashboard currentPage="clients" />;
       case "team":
-        return <ManagerDashboard currentPage="team" />; // Shows the team overview tab
+        return <ManagerDashboard currentPage="team" />;
       case "performance":
         return <ComingSoonPage title="Performance" />;
       case "reports":
@@ -292,7 +311,6 @@ export function renderPage(
 
   if (role === "client") {
     switch (page) {
-      // case 'monthly-overview': return <ClientMonthlyOverview />;
       case "monthly-overview":
         return <ComingSoonPage title="Monthly Overview" />;
       case "approvals":
@@ -340,7 +358,7 @@ export function renderPage(
   if (role === "sales") {
     switch (page) {
       case "dashboard":
-      case "sales-management": // Redirect sales reps away from management tab if they click it
+      case "sales-management":
         return <SalesDashboard />;
       case "affiliate":
         return <AffiliateSection />;

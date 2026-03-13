@@ -122,8 +122,9 @@ export async function GET(
             }
 
             const start = parseInt(rangeMatch[1], 10);
-            // Default chunk size: 1MB to reduce latency on high-latency connections
-            const DEFAULT_CHUNK_SIZE = 1 * 1024 * 1024;
+            // Increased chunk size to 10MB to reduce request overhead and improve throughput
+            // This fixes the "laggy" video playback reported by the user.
+            const DEFAULT_CHUNK_SIZE = 10 * 1024 * 1024;
             const requestedEnd = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : undefined;
             const end = requestedEnd !== undefined
                 ? Math.min(requestedEnd, fileSize - 1)
