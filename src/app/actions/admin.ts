@@ -5,7 +5,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { TaskStatus } from '@prisma/client';
 import { createClientFolders } from '@/lib/s3';
 import { createRecurringTasksForClient } from '@/app/api/clients/recurring';
-import { redis } from '@/lib/redis';
+import { redis, cached } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 
@@ -69,21 +69,24 @@ async function validateAdmin() {
 export async function getDashboardOverviewAction() {
   await validateAdmin();
 
-  const [
-    kpi,
-    pipeline,
-    projectHealth,
-    recentActivity,
-    systemStatus
-  ] = await Promise.all([
-    getKPIData(),
-    getPipelineData(),
-    getProjectHealthData(),
-    getRecentActivity(),
-    getSystemStatus()
-  ]);
+  // 🚀 Using Redis to cache the expensive dashboard overview
+  return cached('admin:dashboard:overview', async () => {
+    const [
+      kpi,
+      pipeline,
+      projectHealth,
+      recentActivity,
+      systemStatus
+    ] = await Promise.all([
+      getKPIData(),
+      getPipelineData(),
+      getProjectHealthData(),
+      getRecentActivity(),
+      getSystemStatus()
+    ]);
 
-  return { kpi, pipeline, projectHealth, recentActivity, systemStatus };
+    return { kpi, pipeline, projectHealth, recentActivity, systemStatus };
+  }, 60); // Cache for 1 minute
 }
 
 /**
@@ -210,7 +213,10 @@ export async function createClientAction(body: any) {
   });
 
   // 6. Cache Invalidation
-  await redis.del("clients:all");
+  await Promise.all([
+    redis.del("clients:all"),
+    redis.del("admin:dashboard:overview")
+  ]);
   revalidatePath('/dashboard');
 
   return result;
@@ -644,6 +650,7 @@ export async function updateTaskAction(id: string, updates: any) {
     metadata: { taskId: id, previousStatus: existing.status, newStatus: data.status, changes: Object.keys(data) }
   });
 
+  await redis.del("admin:dashboard:overview");
   revalidatePath('/dashboard');
   return updated;
 }
@@ -678,6 +685,7 @@ export async function bulkUpdateTasksAction(taskIds: string[], updates: any) {
     metadata: { taskIds, updates: filtered }
   });
 
+  await redis.del("admin:dashboard:overview");
   revalidatePath('/dashboard');
   return { updated: result.count };
 }
@@ -701,6 +709,7 @@ export async function deleteTaskAction(id: string) {
     metadata: { taskId: id }
   });
 
+  await redis.del("admin:dashboard:overview");
   revalidatePath('/dashboard');
   return { success: true };
 }
