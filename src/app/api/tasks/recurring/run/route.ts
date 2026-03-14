@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getS3, BUCKET } from "@/lib/s3";
 
 // ─────────────────────────────────────────
 // Types
@@ -13,13 +14,7 @@ type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom";
 // S3 Client
 // ─────────────────────────────────────────
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 // ─────────────────────────────────────────
 // Helper Functions
@@ -95,7 +90,7 @@ async function createTaskFolderStructure(
       folders.map((folder) =>
         s3Client.send(
           new PutObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET!,
+            Bucket: BUCKET,
             Key: folder,
             ContentType: "application/x-directory",
           })
@@ -242,7 +237,7 @@ export async function POST(req: Request) {
       try {
         await s3Client.send(
           new PutObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET!,
+            Bucket: BUCKET,
             Key: folderKey,
             ContentType: "application/x-directory",
           })

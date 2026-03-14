@@ -393,17 +393,13 @@ import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-log
 import { notifyUser } from "@/lib/notify";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
+import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
+
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 function getCurrentMonthFolder(): string {
   const date = new Date();
@@ -445,27 +441,27 @@ async function createTaskFolderStructure(
 
   await Promise.all([
     ...(monthFolder ? [s3Client.send(new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: outputBase,
       ContentType: "application/x-directory",
     }))] : []),
     s3Client.send(new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: taskFolderPath,
       ContentType: "application/x-directory",
     })),
     s3Client.send(new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: `${taskFolderPath}thumbnails/`,
       ContentType: "application/x-directory",
     })),
     s3Client.send(new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: `${taskFolderPath}tiles/`,
       ContentType: "application/x-directory",
     })),
     s3Client.send(new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: `${taskFolderPath}music-license/`,
       ContentType: "application/x-directory",
     }))
@@ -997,7 +993,7 @@ export async function POST(req: any) {
       try {
         await s3Client.send(
           new PutObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET!,
+            Bucket: BUCKET,
             Key: folderPrefix,
             ContentType: "application/x-directory",
           })

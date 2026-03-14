@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getS3, extractS3KeyFromUrl } from '@/lib/s3';
+import { getS3, extractS3KeyFromUrl, BUCKET } from '@/lib/s3';
 import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 const BUCKET = process.env.AWS_S3_BUCKET!;

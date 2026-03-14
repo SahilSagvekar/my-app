@@ -622,7 +622,7 @@ export function ClientDashboard() {
         if (file.downloadUrl) {
           window.open(file.downloadUrl, '_blank');
         } else {
-          const isS3 = file.url?.includes('amazonaws.com') || !!file.s3Key;
+          const isS3 = file.url?.includes('amazonaws.com') || file.url?.includes('r2.cloudflarestorage.com') || file.url?.includes('r2.dev') || !!file.s3Key;
           if (isS3) {
             window.open(`/api/files/${file.id}/download`, '_blank');
           } else {

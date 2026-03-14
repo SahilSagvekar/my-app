@@ -108,9 +108,13 @@ export function getVideoSource(url: string, fileId?: string): { type: 'video' | 
     return { type: 'iframe', src: info.embedUrl };
   }
 
-  // Use streaming proxy for S3-hosted files (supports HTTP Range requests)
-  const isS3 = url && url.includes('amazonaws.com');
-  if (isS3 && fileId) {
+  // Use streaming proxy for S3/R2-hosted files (supports HTTP Range requests)
+  const isObjectStorage = url && (
+    url.includes('amazonaws.com') ||
+    url.includes('r2.cloudflarestorage.com') ||
+    url.includes('r2.dev')
+  );
+  if (isObjectStorage && fileId) {
     return { type: 'video', src: `/api/files/${fileId}/stream` };
   }
 

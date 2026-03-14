@@ -1,16 +1,11 @@
 export const dynamic = 'force-dynamic';
 // app/api/upload/complete/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
+import { CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
+import { getS3, BUCKET, getFileUrl } from '@/lib/s3';
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +40,7 @@ export async function POST(request: NextRequest) {
     try {
       // Complete the multipart upload on S3
       const command = new CompleteMultipartUploadCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: key,
         UploadId: uploadId,
         MultipartUpload: { Parts: parts },
@@ -53,7 +48,7 @@ export async function POST(request: NextRequest) {
 
       const s3Response = await s3Client.send(command);
 
-      const fileUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${key}`;
+      const fileUrl = getFileUrl(key);
 
       console.log("✅ S3 upload completed:", fileUrl);
 

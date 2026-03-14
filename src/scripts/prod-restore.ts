@@ -1,19 +1,12 @@
 import { PrismaClient, TaskStatus } from "@prisma/client";
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import dotenv from "dotenv";
+import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
 
 dotenv.config();
 
 const prisma = new PrismaClient();
-const s3Client = new S3Client({
-    region: process.env.AWS_S3_REGION || "us-east-1",
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-    },
-});
-
-const BUCKET = process.env.AWS_S3_BUCKET || "e8-app-s3-prod";
+const s3Client = getS3();
 
 // --- Helpers for correct file metadata ---
 function getMimeTypeFromName(name: string): string | null {
@@ -137,7 +130,7 @@ async function prodRestore() {
             // Create File records with correct mimeType and folderType
             for (const fileItem of files) {
                 const fileName = fileItem.Key!.split("/").pop() || "unknown";
-                const url = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${fileItem.Key}`;
+                const url = getFileUrl(fileItem.Key!);
                 const mimeType = getMimeTypeFromName(fileName);
                 const folderType = getSmartFolderType(mimeType, fileName);
 

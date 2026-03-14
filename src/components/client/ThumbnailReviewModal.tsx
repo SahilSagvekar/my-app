@@ -207,7 +207,7 @@ export function ThumbnailReviewModal({
     const handleDownload = () => {
         if (!currentFile) return;
         // Use download API for S3 files (presigned URL with Content-Disposition: attachment)
-        const isS3 = currentFile.url?.includes('amazonaws.com');
+        const isS3 = currentFile.url?.includes('amazonaws.com') || currentFile.url?.includes('r2.cloudflarestorage.com') || currentFile.url?.includes('r2.dev');
         if (isS3) {
             window.open(`/api/files/${currentFile.id}/download`, '_blank');
             toast.success('Download started');

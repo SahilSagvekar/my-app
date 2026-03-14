@@ -537,7 +537,7 @@ export function FullScreenReviewModalFrameIO({
             // Use the download API for S3 files — generates a presigned URL
             // and redirects the browser's native download manager (full speed)
             const fileId = currentVersion || asset.currentVersion;
-            const isS3 = asset.videoUrl?.includes('amazonaws.com');
+            const isS3 = asset.videoUrl?.includes('amazonaws.com') || asset.videoUrl?.includes('r2.cloudflarestorage.com') || asset.videoUrl?.includes('r2.dev');
 
             if (isS3 && fileId) {
                 // Open in new tab — browser will redirect to presigned S3 download URL

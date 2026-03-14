@@ -98,6 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isPublicUrl =
         url.includes('s3.amazonaws.com') ||
         url.includes('amazonaws.com') ||
+        url.includes('r2.cloudflarestorage.com') ||
+        url.includes('r2.dev') ||
         url.includes('X-Amz-') ||
         url.includes('.s3.') ||
         url.includes('/api/shared/') ||
