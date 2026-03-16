@@ -2,16 +2,11 @@ export const dynamic = 'force-dynamic';
 // src/app/api/drive/upload/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
+import { getS3, BUCKET, getFileUrl } from '@/lib/s3';
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 // Helper to get current month folder name
 function getCurrentMonthFolder(): string {
@@ -111,7 +106,7 @@ export async function POST(request: NextRequest) {
       try {
         await s3Client.send(
           new PutObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET!,
+            Bucket: BUCKET,
             Key: monthFolderPath,
             ContentType: "application/x-directory",
           })
@@ -138,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     // Upload to S3
     const command = new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: s3Key,
       Body: buffer,
       ContentType: file.type,
@@ -146,7 +141,7 @@ export async function POST(request: NextRequest) {
 
     await s3Client.send(command);
 
-    const fileUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${s3Key}`;
+    const fileUrl = getFileUrl(s3Key);
 
     console.log('✅ Upload successful:', fileUrl);
 

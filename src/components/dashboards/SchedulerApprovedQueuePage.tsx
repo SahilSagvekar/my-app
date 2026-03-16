@@ -90,7 +90,7 @@ export function SchedulerApprovedQueuePage() {
           id: file.id,
           name: file.name,
           url: file.url,
-          key: file.s3Key || file.url?.split('.amazonaws.com/')[1] || '',
+          key: file.s3Key || file.url?.split('.amazonaws.com/')[1] || file.url?.split('r2.cloudflarestorage.com/')[1] || file.url?.split('r2.dev/')[1] || '',
           size: file.size || 0,
           mimeType: file.mimeType || file.contentType || '',
           folderType: file.folderType || 'other',

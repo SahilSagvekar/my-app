@@ -2,17 +2,11 @@ export const dynamic = 'force-dynamic';
 // src/app/api/drive/structure/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
-import { generateSignedUrl } from '@/lib/s3';
+import { generateSignedUrl, getS3, BUCKET } from '@/lib/s3';
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 // export async function GET(request: NextRequest) {
 //   try {
@@ -295,7 +289,7 @@ export async function GET(request: NextRequest) {
 
     do {
       const command = new ListObjectsV2Command({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Prefix: prefix,
         ContinuationToken: continuationToken,
       });

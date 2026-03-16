@@ -2,16 +2,11 @@ export const dynamic = 'force-dynamic';
 // src/app/api/drive/delete/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
+import { getS3, BUCKET } from '@/lib/s3';
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -38,7 +33,7 @@ export async function DELETE(request: NextRequest) {
     if (type === 'file') {
       // Delete single file
       const command = new DeleteObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: s3Key,
       });
 
@@ -73,7 +68,7 @@ async function deleteFolderRecursive(folderKey: string) {
 
   // List all objects in the folder
   const listCommand = new ListObjectsV2Command({
-    Bucket: process.env.AWS_S3_BUCKET!,
+    Bucket: BUCKET,
     Prefix: prefix,
   });
 
@@ -88,7 +83,7 @@ async function deleteFolderRecursive(folderKey: string) {
   const objectsToDelete = listResponse.Contents.map(obj => ({ Key: obj.Key! }));
 
   const deleteCommand = new DeleteObjectsCommand({
-    Bucket: process.env.AWS_S3_BUCKET!,
+    Bucket: BUCKET,
     Delete: {
       Objects: objectsToDelete,
     },

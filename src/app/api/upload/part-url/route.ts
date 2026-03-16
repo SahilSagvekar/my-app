@@ -1,16 +1,11 @@
 export const dynamic = 'force-dynamic';
 // app/api/upload/part-url/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, UploadPartCommand } from '@aws-sdk/client-s3';
+import { UploadPartCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { getS3, BUCKET } from '@/lib/s3';
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 const PRESIGNED_URL_EXPIRY = 86400;
 
@@ -49,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     const command = new UploadPartCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: key,
       UploadId: uploadId,
       PartNumber: partNumber,

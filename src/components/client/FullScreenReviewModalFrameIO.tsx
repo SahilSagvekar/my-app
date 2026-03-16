@@ -18,6 +18,7 @@ interface Version {
     uploadDate: string;
     status: 'draft' | 'in_qc' | 'client_review' | 'approved';
     url?: string;
+    proxyUrl?: string | null;
 }
 
 interface ReviewAsset {
@@ -40,6 +41,7 @@ interface ReviewAsset {
     currentVersion: string;
     downloadEnabled: boolean;
     approvalLocked: boolean;
+    proxyUrl?: string | null;
     taskFeedback?: any[];
 }
 
@@ -125,6 +127,7 @@ export function FullScreenReviewModalFrameIO({
     const [activeCommentId, setActiveCommentId] = useState<string | undefined>();
     const [showCommentInput, setShowCommentInput] = useState(false);
     const [confirmFinal, setConfirmFinal] = useState(false);
+    const [isOptimizing, setIsOptimizing] = useState(false);
     const [savingFeedback, setSavingFeedback] = useState(false);
 
     const sortedComments = useMemo(
@@ -151,19 +154,18 @@ export function FullScreenReviewModalFrameIO({
     /* ── Video source ── */
     const videoSource = useMemo(() => {
         const fileId = currentVersion || asset?.currentVersion;
+        const v = asset?.versions.find(ver => ver.id === fileId);
 
-        // Prefer an explicit lightweight review URL when provided
-        const baseUrl =
-            currentVideoUrl ||
-            asset?.reviewVideoUrl ||
-            asset?.videoUrl ||
-            '';
-
-        if (!baseUrl) {
+        if (!asset) {
             return { type: 'video' as const, src: '' };
         }
 
-        const source = getVideoSource(baseUrl, fileId);
+        const source = getVideoSource({
+            url: currentVideoUrl || asset.videoUrl || '',
+            id: fileId,
+            proxyUrl: v?.proxyUrl || asset.proxyUrl
+        });
+
         // Append cache-busting param on retries to avoid stale/failed responses
         if (retryKey > 0 && source.type === 'video') {
             const separator = source.src.includes('?') ? '&' : '?';
@@ -341,7 +343,6 @@ export function FullScreenReviewModalFrameIO({
         const newComment: ReviewComment = { ...comment, id: Date.now().toString(), createdAt: new Date(), version: currentVersionNumber };
         setComments(prev => [...prev, newComment]);
         setShowCommentInput(false);
-        toast.success('Comment added');
     };
 
     const handleCommentResolve = useCallback((id: string, resolved: boolean) => {
@@ -350,8 +351,31 @@ export function FullScreenReviewModalFrameIO({
 
     const handleCommentDelete = useCallback((id: string) => {
         setComments(prev => prev.filter(c => c.id !== id));
-        toast.success('Comment deleted');
     }, []);
+
+    const handleCommentEdit = useCallback(async (id: string, newContent: string) => {
+        // Update local state immediately
+        setComments(prev => prev.map(c => c.id === id ? { ...c, content: newContent } : c));
+
+        // If it's a real database ID (numerical or UUID, not a Date.now() string), persist it
+        // Note: Our temporary IDs are Date.now().toString(), but database IDs are usually UUIDs
+        // Alternatively, we can just try to update it and ignore if it's not found (unsaved session comments)
+        const isPersisted = id.length > 15; // Simple heuristic for UUID vs Date.now() string
+
+        if (isPersisted) {
+            try {
+                const res = await fetch(`/api/tasks/${taskId || asset?.id}/feedback`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ feedbackId: id, feedback: newContent }),
+                });
+                if (!res.ok) throw new Error('Failed to persist edit');
+            } catch (error) {
+                console.error('Error persisting comment edit:', error);
+                toast.error('Failed to save edit to server');
+            }
+        }
+    }, [taskId, asset?.id]);
 
     const handleTimestampClick = useCallback((ts: number) => {
         handleSeek(ts);
@@ -431,6 +455,41 @@ export function FullScreenReviewModalFrameIO({
             else onRequestRevisions(asset, revisionData);
             setShowRevisionSuccess(true);
             setTimeout(() => { setShowRevisionSuccess(false); onOpenChange(false); }, 2000);
+        }
+    };
+
+    const handleManualOptimize = async () => {
+        if (!asset || isOptimizing) return;
+
+        setIsOptimizing(true);
+        const loadingToast = toast.loading('🚀 Optimizing video for review...');
+
+        try {
+            const fileId = currentVersion || asset.currentVersion;
+            const response = await fetch(`/api/files/${fileId}/optimize`, {
+                method: 'POST',
+            });
+
+            const data = await response.json();
+
+            if (response.status === 202 || data.success) {
+                toast.success('🚀 Optimization Started', {
+                    description: 'The review version is being prepared in the background. This may take a few minutes.',
+                    id: loadingToast
+                });
+            } else {
+                toast.error('❌ Optimization Failed', {
+                    description: data.error || data.details || 'Check server logs for details',
+                    id: loadingToast
+                });
+            }
+        } catch (error) {
+            toast.error('❌ Network Error', {
+                description: 'Failed to connect to optimization service',
+                id: loadingToast
+            });
+        } finally {
+            setIsOptimizing(false);
         }
     };
 
@@ -537,7 +596,7 @@ export function FullScreenReviewModalFrameIO({
             // Use the download API for S3 files — generates a presigned URL
             // and redirects the browser's native download manager (full speed)
             const fileId = currentVersion || asset.currentVersion;
-            const isS3 = asset.videoUrl?.includes('amazonaws.com');
+            const isS3 = asset.videoUrl?.includes('amazonaws.com') || asset.videoUrl?.includes('r2.cloudflarestorage.com') || asset.videoUrl?.includes('r2.dev');
 
             if (isS3 && fileId) {
                 // Open in new tab — browser will redirect to presigned S3 download URL
@@ -587,6 +646,7 @@ export function FullScreenReviewModalFrameIO({
         sortedComments,
         activeCommentId,
         showCommentInput,
+        isOptimizing,
         confirmFinal,
         savingFeedback,
         showApprovalSuccess,
@@ -610,7 +670,9 @@ export function FullScreenReviewModalFrameIO({
         handleCommentSubmit,
         handleCommentResolve,
         handleCommentDelete,
+        handleCommentEdit,
         handleStatusChange,
+        handleManualOptimize,
         setShowCommentInput,
         setConfirmFinal,
         setShowInfoPanel,

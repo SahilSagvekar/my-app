@@ -1,17 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, CreateMultipartUploadCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { CreateMultipartUploadCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import getServerSession from "next-auth";
 // import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getS3, BUCKET } from "@/lib/s3";
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 // 🔥 Helper: Ensure folder exists in S3
 async function ensureS3FolderExists(folderPath: string) {
@@ -19,7 +14,7 @@ async function ensureS3FolderExists(folderPath: string) {
   try {
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: folderPath.endsWith("/") ? folderPath : `${folderPath}/`,
         ContentType: "application/x-directory",
       })
@@ -189,7 +184,7 @@ export async function POST(req: NextRequest) {
 
     // Initiate multipart upload
     const createCommand = new CreateMultipartUploadCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: s3Key,
       ContentType: fileType,
     });

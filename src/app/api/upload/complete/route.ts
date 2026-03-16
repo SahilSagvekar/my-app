@@ -1,16 +1,12 @@
 export const dynamic = 'force-dynamic';
 // app/api/upload/complete/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
+import { CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
+import { getS3, BUCKET, getFileUrl } from '@/lib/s3';
+import { optimizeVideo } from '@/lib/video-optimizer';
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +41,7 @@ export async function POST(request: NextRequest) {
     try {
       // Complete the multipart upload on S3
       const command = new CompleteMultipartUploadCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: key,
         UploadId: uploadId,
         MultipartUpload: { Parts: parts },
@@ -53,7 +49,7 @@ export async function POST(request: NextRequest) {
 
       const s3Response = await s3Client.send(command);
 
-      const fileUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${key}`;
+      const fileUrl = getFileUrl(key);
 
       console.log("✅ S3 upload completed:", fileUrl);
 
@@ -105,8 +101,17 @@ export async function POST(request: NextRequest) {
           version: newVersion,
           isActive: true,
           codec: codec,
+          proxyUrl: fileType.startsWith('video/') ? `/api/files/NEW_ID_PLACEHOLDER/stream` : null,
         },
       });
+
+      // Update the placeholder with the actual ID
+      if (fileRecord.proxyUrl === `/api/files/NEW_ID_PLACEHOLDER/stream`) {
+        await prisma.file.update({
+          where: { id: fileRecord.id },
+          data: { proxyUrl: `/api/files/${fileRecord.id}/stream` }
+        });
+      }
 
       console.log(`💾 File v${newVersion} saved:`, fileRecord.id);
 
@@ -132,6 +137,21 @@ export async function POST(request: NextRequest) {
       });
 
       console.log("🔗 File URL added to task driveLinks");
+
+      // 🔥 TRIGGER BACKGROUND OPTIMIZATION
+      if (fileType.startsWith('video/')) {
+        console.log(`🚀 Triggering background optimization for file: ${fileRecord.id}`);
+        // Set initial status
+        await prisma.file.update({
+          where: { id: fileRecord.id },
+          data: { optimizationStatus: 'PENDING' }
+        });
+        
+        // We don't await this so it doesn't block the response
+        optimizeVideo(fileRecord.id).catch(err => {
+          console.error(`❌ Background optimization failed for ${fileRecord.id}:`, err);
+        });
+      }
 
       // 🔥 LOG ACTIVITY
       const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');

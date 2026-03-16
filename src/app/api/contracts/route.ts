@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
 
         const user = await prisma.user.findFirst({
             where: { id: jwtUser.userId || jwtUser.id },
+            include: { client: true }
         });
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -26,10 +27,23 @@ export async function GET(req: NextRequest) {
         let whereClause: any = {};
 
         // Role-based filtering
-        if (user.role === 'admin' || user.role === 'manager' || user.role === 'client') {
+        if (user.role === 'admin' || user.role === 'manager') {
             if (status && status !== 'all') {
                 whereClause.status = status;
             }
+        } else if (user.role === 'client') {
+            if (status && status !== 'all') {
+                whereClause.status = status;
+            }
+            // Client can only see their own contracts or those where they are a signer
+            const clientIds = [];
+            if (user.linkedClientId) clientIds.push(user.linkedClientId);
+            if (user.client?.id) clientIds.push(user.client.id);
+
+            whereClause.OR = [
+                { clientId: { in: clientIds } },
+                { signers: { some: { email: user.email } } }
+            ];
         } else {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }

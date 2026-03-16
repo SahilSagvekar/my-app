@@ -1,14 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
 
-const s3 = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3 = getS3();
 
 export async function POST(req: Request) {
   try {
@@ -23,21 +18,19 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const bucket = process.env.AWS_S3_BUCKET!;
     const fileName = `${Date.now()}-${file.name}`;
     const key = `${folder ?? "uploads"}/${fileName}`;
 
     await s3.send(
       new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: BUCKET,
         Key: key,
         Body: buffer,
         ContentType: file.type,
-        ACL: "public-read", // make file accessible
       })
     );
 
-    const url = `https://${bucket}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${key}`;
+    const url = getFileUrl(key);
 
     return NextResponse.json({ url, key });
   } catch (err: any) {

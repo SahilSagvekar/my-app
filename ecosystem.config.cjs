@@ -102,5 +102,26 @@ module.exports = {
             out_file: './logs/cron-titling-out.log',
             merge_logs: true,
         },
+        {
+            name: 'cron-optimization',
+            script: 'src/scripts/cron-optimization.ts',
+            interpreter: 'node',
+            node_args: '--import tsx',
+            instances: 1,
+            exec_mode: 'fork',
+
+            max_memory_restart: '256M',
+            restart_delay: 5000,
+
+            env: {
+                NODE_ENV: 'production',
+                BASE_URL: 'http://localhost:3000',
+            },
+
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+            error_file: './logs/cron-optimization-error.log',
+            out_file: './logs/cron-optimization-out.log',
+            merge_logs: true,
+        },
     ],
 };

@@ -1,15 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/upload/abort/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, AbortMultipartUploadCommand } from '@aws-sdk/client-s3';
+import { AbortMultipartUploadCommand } from '@aws-sdk/client-s3';
+import { getS3, BUCKET } from '@/lib/s3';
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     const command = new AbortMultipartUploadCommand({
-      Bucket: process.env.AWS_S3_BUCKET!,
+      Bucket: BUCKET,
       Key: key,
       UploadId: uploadId,
     });

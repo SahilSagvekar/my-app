@@ -1,15 +1,10 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getS3, BUCKET } from "@/lib/s3";
 
-const s3Client = new S3Client({
-    region: process.env.AWS_S3_REGION!,
-    credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-    },
-});
+const s3Client = getS3();
 
 const WEEKDAY_MAP: Record<string, number> = {
     Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
@@ -70,7 +65,7 @@ async function createTaskFolderStructure(
             folders.map((folder) =>
                 s3Client.send(
                     new PutObjectCommand({
-                        Bucket: process.env.AWS_S3_BUCKET!,
+                        Bucket: BUCKET,
                         Key: folder,
                         ContentType: "application/x-directory",
                     })

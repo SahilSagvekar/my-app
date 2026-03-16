@@ -588,6 +588,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                                 onTimestampClick={p.handleTimestampClick}
                                                 onResolve={p.handleCommentResolve}
                                                 onDelete={p.handleCommentDelete}
+                                                onEdit={p.handleCommentEdit}
                                             />
                                         </div>
                                     ))}

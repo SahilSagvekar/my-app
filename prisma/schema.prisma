@@ -379,12 +379,15 @@ model File {
   replacedBy    String?
   revisionNote  String?
   s3Key         String?
+  proxyUrl      String?        // URL to lower-quality compressed version
   version       Int            @default(1)
   codec         String?
   archivedToNas Boolean        @default(false)
   nasArchivedAt DateTime?
-  nasPath       String?
-  task          Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  nasPath           String?
+  optimizationStatus String            @default("NONE") // NONE, PENDING, PROCESSING, COMPLETED, FAILED
+  optimizationError  String?
+  task              Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   feedback      TaskFeedback[]
 
   @@index([taskId, folderType])

@@ -29,6 +29,7 @@ import {
   Copy,
   Check,
   Download,
+  RefreshCw,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
@@ -58,6 +59,8 @@ interface TaskFile {
   revisionNote?: string;
   s3Key?: string;
   downloadUrl?: string;
+  optimizationStatus?: string;
+  optimizationError?: string | null;
 }
 
 interface ClientTask {
@@ -174,24 +177,6 @@ export function ClientDashboard() {
 
   const { user } = useAuth();
 
-  /* ---------------------------- FETCH CLIENT TASKS -------------------------- */
-
-  useEffect(() => {
-    loadClientTasks();
-  }, []);
-
-  // Global listener for background task updates
-  useEffect(() => {
-    const handleTaskGlobalUpdate = (e: any) => {
-      if (e.detail?.taskId) {
-        console.log("🔔 Global update received for task in Client:", e.detail.taskId);
-        loadClientTasks();
-      }
-    };
-    window.addEventListener('task-updated', handleTaskGlobalUpdate);
-    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
-  }, []);
-
   const loadClientTasks = useCallback(async () => {
     try {
       setLoading(true);
@@ -256,6 +241,33 @@ export function ClientDashboard() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadClientTasks();
+
+    // 🔥 Poll for status updates if any task is optimizing
+    const hasActiveJobs = tasks.some(t =>
+      t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
+    );
+
+    if (hasActiveJobs) {
+      console.log("⏱️ Active optimization detected in Client dashboard, starting poll...");
+      const interval = setInterval(loadClientTasks, 15000); // Poll every 15s
+      return () => clearInterval(interval);
+    }
+  }, [loadClientTasks, tasks]);
+
+  // Global listener for background task updates
+  useEffect(() => {
+    const handleTaskGlobalUpdate = (e: any) => {
+      if (e.detail?.taskId) {
+        console.log("🔔 Global update received for task in Client:", e.detail.taskId);
+        loadClientTasks();
+      }
+    };
+    window.addEventListener('task-updated', handleTaskGlobalUpdate);
+    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
+  }, [loadClientTasks]);
 
   const handleMarkAsPosted = async (task?: ClientTask) => {
     const taskToMark = task || selectedTask;
@@ -622,7 +634,7 @@ export function ClientDashboard() {
         if (file.downloadUrl) {
           window.open(file.downloadUrl, '_blank');
         } else {
-          const isS3 = file.url?.includes('amazonaws.com') || !!file.s3Key;
+          const isS3 = file.url?.includes('amazonaws.com') || file.url?.includes('r2.cloudflarestorage.com') || file.url?.includes('r2.dev') || !!file.s3Key;
           if (isS3) {
             window.open(`/api/files/${file.id}/download`, '_blank');
           } else {
@@ -1276,7 +1288,12 @@ export function ClientDashboard() {
 
                                   {/* Action Button */}
                                   <div className="flex items-center gap-2 flex-shrink-0">
-                                    {isReviewable(file) ? (
+                                    {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
+                                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
+                                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                        <span>Optimizing...</span>
+                                      </div>
+                                    ) : isReviewable(file) ? (
                                       <Button size="sm" variant="default">
                                         <Play className="h-4 w-4 mr-2" />
                                         Review

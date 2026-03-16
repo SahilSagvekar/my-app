@@ -41,6 +41,8 @@ interface Version {
   duration: string;
   uploadDate: string;
   status: 'draft' | 'in_qc' | 'client_review' | 'approved';
+  url?: string;
+  proxyUrl?: string | null;
 }
 
 interface ReviewAsset {
@@ -61,6 +63,7 @@ interface ReviewAsset {
   currentVersion: string;
   downloadEnabled: boolean;
   approvalLocked: boolean;
+  proxyUrl?: string | null;
 }
 
 interface FullScreenReviewModalProps {
@@ -138,6 +141,7 @@ export function FullScreenReviewModal({
   const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
   const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
 
   // Revision logging system
@@ -157,7 +161,18 @@ export function FullScreenReviewModal({
   const lastTimeUpdateRef = useRef<number>(0);
 
   // Determine video source type
-  const videoSource = useMemo(() => asset ? getVideoSource(asset.videoUrl, currentVersion || asset.currentVersion) : { type: 'video' as const, src: '' }, [asset, currentVersion]);
+  const videoSource = useMemo(() => {
+    if (!asset) return { type: 'video' as const, src: '' };
+    
+    const v = asset.versions.find(ver => ver.id === currentVersion) || 
+              asset.versions.find(ver => ver.id === asset.currentVersion);
+              
+    return getVideoSource({ 
+      url: v?.url || asset.videoUrl, 
+      id: currentVersion || asset.currentVersion,
+      proxyUrl: v?.proxyUrl || asset.proxyUrl 
+    });
+  }, [asset, currentVersion]);
 
   useEffect(() => {
     if (asset) {
@@ -250,9 +265,6 @@ export function FullScreenReviewModal({
 
   const addRevisionEntry = () => {
     if (!revisionNotes.trim()) {
-      toast('❌ Notes Required', {
-        description: 'Please provide specific notes for this revision entry.'
-      });
       return;
     }
 
@@ -267,9 +279,6 @@ export function FullScreenReviewModal({
 
     setRevisionEntries(prev => [...prev, newEntry]);
     setRevisionNotes('');
-    toast('✅ Revision Entry Added', {
-      description: `Added ${revisionReason} note${currentVideoTime ? ` at ${currentVideoTime}` : ''}`
-    });
   };
 
   const removeRevisionEntry = (entryId: string) => {
@@ -328,16 +337,12 @@ export function FullScreenReviewModal({
   const handleVersionChange = (versionId: string) => {
     setCurrentVersion(versionId);
     // In a real app, this would load the new video source
-    toast('🔄 Loading version...', { description: `Switched to version ${versionId}` });
   };
 
   const handleApprove = () => {
     if (!asset) return;
 
     if (!confirmFinal) {
-      toast('⚠️ Confirmation Required', {
-        description: 'Please confirm this is the final version for publishing.'
-      });
       return;
     }
 
@@ -354,9 +359,6 @@ export function FullScreenReviewModal({
     if (!asset) return;
 
     if (revisionEntries.length === 0) {
-      toast('❌ No Revision Entries', {
-        description: 'Please add at least one revision entry before submitting.'
-      });
       return;
     }
 
@@ -396,6 +398,39 @@ export function FullScreenReviewModal({
       setShowApprovalSuccess(false);
       onOpenChange(false);
     }, 2000);
+  };
+
+  const handleManualOptimize = async () => {
+    if (!asset || isOptimizing) return;
+
+    setIsOptimizing(true);
+    const loadingToast = toast.loading('🚀 Optimizing video for review...');
+
+    try {
+      const response = await fetch(`/api/files/${currentVersion || asset.id}/optimize`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+      if (response.status === 202 || data.success) {
+        toast.success('🚀 Optimization Started', {
+          description: 'The review version is being prepared in the background. This may take a few minutes.',
+          id: loadingToast
+        });
+      } else {
+        toast.error('❌ Optimization Failed', {
+          description: data.error || data.details || 'Check server logs for details',
+          id: loadingToast
+        });
+      }
+    } catch (error) {
+      toast.error('❌ Network Error', {
+        description: 'Failed to connect to optimization service',
+        id: loadingToast
+      });
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -794,6 +829,34 @@ export function FullScreenReviewModal({
                     <div>{asset.uploadDate}</div>
                   </div>
                 </div>
+
+                {/* Optimization Action - Only for Admin/QC/Editor */}
+                {(userRole === 'qc' || userRole as string === 'admin') && (
+                  <div className="pt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300"
+                      onClick={handleManualOptimize}
+                      disabled={isOptimizing}
+                    >
+                      {isOptimizing ? (
+                        <>
+                          <RotateCcw className="h-3 w-3 mr-2 animate-spin" />
+                          Optimizing...
+                        </>
+                      ) : (
+                        <>
+                          <HardDrive className="h-3 w-3 mr-2" />
+                          Compress for Review
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-[10px] text-gray-500 mt-1 italic px-1">
+                      Creates a low-bitrate version for faster loading on this screen.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Version History */}
