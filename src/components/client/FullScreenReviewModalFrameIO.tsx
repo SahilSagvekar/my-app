@@ -343,7 +343,6 @@ export function FullScreenReviewModalFrameIO({
         const newComment: ReviewComment = { ...comment, id: Date.now().toString(), createdAt: new Date(), version: currentVersionNumber };
         setComments(prev => [...prev, newComment]);
         setShowCommentInput(false);
-        toast.success('Comment added');
     };
 
     const handleCommentResolve = useCallback((id: string, resolved: boolean) => {
@@ -352,8 +351,31 @@ export function FullScreenReviewModalFrameIO({
 
     const handleCommentDelete = useCallback((id: string) => {
         setComments(prev => prev.filter(c => c.id !== id));
-        toast.success('Comment deleted');
     }, []);
+
+    const handleCommentEdit = useCallback(async (id: string, newContent: string) => {
+        // Update local state immediately
+        setComments(prev => prev.map(c => c.id === id ? { ...c, content: newContent } : c));
+
+        // If it's a real database ID (numerical or UUID, not a Date.now() string), persist it
+        // Note: Our temporary IDs are Date.now().toString(), but database IDs are usually UUIDs
+        // Alternatively, we can just try to update it and ignore if it's not found (unsaved session comments)
+        const isPersisted = id.length > 15; // Simple heuristic for UUID vs Date.now() string
+
+        if (isPersisted) {
+            try {
+                const res = await fetch(`/api/tasks/${taskId || asset?.id}/feedback`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ feedbackId: id, feedback: newContent }),
+                });
+                if (!res.ok) throw new Error('Failed to persist edit');
+            } catch (error) {
+                console.error('Error persisting comment edit:', error);
+                toast.error('Failed to save edit to server');
+            }
+        }
+    }, [taskId, asset?.id]);
 
     const handleTimestampClick = useCallback((ts: number) => {
         handleSeek(ts);
@@ -649,6 +671,7 @@ export function FullScreenReviewModalFrameIO({
         handleCommentSubmit,
         handleCommentResolve,
         handleCommentDelete,
+        handleCommentEdit,
         handleStatusChange,
         handleManualOptimize,
         setShowCommentInput,

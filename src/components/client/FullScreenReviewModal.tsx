@@ -265,9 +265,6 @@ export function FullScreenReviewModal({
 
   const addRevisionEntry = () => {
     if (!revisionNotes.trim()) {
-      toast('❌ Notes Required', {
-        description: 'Please provide specific notes for this revision entry.'
-      });
       return;
     }
 
@@ -282,9 +279,6 @@ export function FullScreenReviewModal({
 
     setRevisionEntries(prev => [...prev, newEntry]);
     setRevisionNotes('');
-    toast('✅ Revision Entry Added', {
-      description: `Added ${revisionReason} note${currentVideoTime ? ` at ${currentVideoTime}` : ''}`
-    });
   };
 
   const removeRevisionEntry = (entryId: string) => {
@@ -343,16 +337,12 @@ export function FullScreenReviewModal({
   const handleVersionChange = (versionId: string) => {
     setCurrentVersion(versionId);
     // In a real app, this would load the new video source
-    toast('🔄 Loading version...', { description: `Switched to version ${versionId}` });
   };
 
   const handleApprove = () => {
     if (!asset) return;
 
     if (!confirmFinal) {
-      toast('⚠️ Confirmation Required', {
-        description: 'Please confirm this is the final version for publishing.'
-      });
       return;
     }
 
@@ -369,9 +359,6 @@ export function FullScreenReviewModal({
     if (!asset) return;
 
     if (revisionEntries.length === 0) {
-      toast('❌ No Revision Entries', {
-        description: 'Please add at least one revision entry before submitting.'
-      });
       return;
     }
 

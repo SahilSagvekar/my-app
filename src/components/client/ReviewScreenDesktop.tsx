@@ -85,6 +85,7 @@ export interface ReviewScreenProps {
     handleCommentSubmit: (c: Omit<ReviewComment, 'id' | 'createdAt'>) => void;
     handleCommentResolve: (id: string, resolved: boolean) => void;
     handleCommentDelete: (id: string) => void;
+    handleCommentEdit: (id: string, newContent: string) => void;
     handleStatusChange: (s: 'approved' | 'needs_changes') => void;
     handleManualOptimize: () => void;
     handleRejectWithComment?: (comment: string) => Promise<void>;
@@ -509,6 +510,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                     onTimestampClick={p.handleTimestampClick}
                                                     onResolve={p.handleCommentResolve}
                                                     onDelete={p.handleCommentDelete}
+                                                    onEdit={p.handleCommentEdit}
                                                 />
                                             </div>
                                         ))}

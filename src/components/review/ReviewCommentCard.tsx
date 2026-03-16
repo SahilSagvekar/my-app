@@ -19,6 +19,7 @@ interface ReviewCommentProps {
     onResolve: (commentId: string, resolved: boolean) => void;
     onReply?: (commentId: string) => void;
     onDelete?: (commentId: string) => void;
+    onEdit?: (commentId: string, newContent: string) => void;
 }
 
 export const ReviewCommentCard = memo(function ReviewCommentCard({
@@ -28,10 +29,20 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
     onResolve,
     onReply,
     onDelete,
+    onEdit,
 }: ReviewCommentProps) {
     const [showReplies, setShowReplies] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [tempContent, setTempContent] = useState(comment.content);
 
     const category = COMMENT_CATEGORIES.find(c => c.value === comment.category);
+
+    const handleEditSave = () => {
+        if (tempContent.trim() && onEdit) {
+            onEdit(comment.id, tempContent);
+            setIsEditing(false);
+        }
+    };
 
     const formatTimeAgo = (date: Date) => {
         const now = new Date();
@@ -80,13 +91,25 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
-                            {onReply && (
+                            {onReply && !isEditing && (
                                 <DropdownMenuItem
                                     onClick={() => onReply(comment.id)}
                                     className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
                                 >
                                     <Reply className="h-4 w-4 mr-2" />
                                     Reply
+                                </DropdownMenuItem>
+                            )}
+                            {onEdit && !isEditing && (
+                                <DropdownMenuItem
+                                    onClick={() => {
+                                        setTempContent(comment.content);
+                                        setIsEditing(true);
+                                    }}
+                                    className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)]"
+                                >
+                                    <MessageSquare className="h-4 w-4 mr-2" />
+                                    Edit
                                 </DropdownMenuItem>
                             )}
                             {onDelete && (
@@ -129,9 +152,37 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
             </div>
 
             {/* Content */}
-            <p className="text-sm text-[var(--review-text-secondary)] mb-3 leading-relaxed">
-                {comment.content}
-            </p>
+            {isEditing ? (
+                <div className="space-y-2 mb-3">
+                    <textarea
+                        className="w-full bg-[var(--review-bg-tertiary)] border border-[var(--review-border)] rounded p-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 min-h-[80px]"
+                        value={tempContent}
+                        onChange={(e) => setTempContent(e.target.value)}
+                        autoFocus
+                    />
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-xs h-7 text-[var(--review-text-muted)] hover:text-white"
+                            onClick={() => setIsEditing(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            size="sm"
+                            className="text-xs h-7 bg-purple-600 hover:bg-purple-500 text-white"
+                            onClick={handleEditSave}
+                        >
+                            Save
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <p className="text-sm text-[var(--review-text-secondary)] mb-3 leading-relaxed">
+                    {comment.content}
+                </p>
+            )}
 
             {/* Captured Screenshot */}
             {comment.screenshotUrl && (

@@ -27,14 +27,12 @@ import {
   Filter,
   GripVertical,
   Clock,
-  Share2,
   RefreshCw,
   Info,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
 import { FilePreviewModal } from "../FileViewerModal";
-import { ShareDialog } from "../review/ShareDialog";
 import { toast } from "sonner";
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
@@ -434,7 +432,6 @@ function TaskCard({
   onDragStart,
   isDragging,
   onPreview,
-  onShare,
 }: {
   task: WorkflowTask;
   onUploadComplete: (taskId: string, files: any[]) => void;
@@ -442,7 +439,6 @@ function TaskCard({
   onDragStart: (e: DragEvent<HTMLDivElement>, task: WorkflowTask) => void;
   isDragging: boolean;
   onPreview: (file: TaskFile) => void;
-  onShare: (task: WorkflowTask) => void;
 }) {
   const [showFiles, setShowFiles] = useState(false);
   const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
@@ -552,17 +548,6 @@ function TaskCard({
                   </TooltipContent>
                 </Tooltip>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-primary"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onShare(task);
-                }}
-              >
-                <Share2 className="h-3 w-3" />
-              </Button>
               <Badge
                 variant="outline"
                 className={`text-[10px] px-1.5 py-0 h-4 font-medium ${getStatusBadgeStyles(
@@ -574,27 +559,29 @@ function TaskCard({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-1 mb-2">
-            {task.deliverableType && (
-              <Badge
-                variant="outline"
-                className="text-[10px] px-1.5 py-0 h-4"
-              >
-                {task.deliverableType.replace(/_/g, " ")}
-              </Badge>
-            )}
-            {task.id.startsWith("one-off") || (task as any).isOneOff ? (
-              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
-                One-Off
-              </Badge>
-            ) : null}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap gap-1 shrink-0">
+              {task.deliverableType && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  {task.deliverableType.replace(/_/g, " ")}
+                </Badge>
+              )}
+              {task.id.startsWith("one-off") || (task as any).isOneOff ? (
+                <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                  One-Off
+                </Badge>
+              ) : null}
+            </div>
+            <p className="text-[11px] text-muted-foreground line-clamp-1 flex-1">
+              {task.description}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground line-clamp-1">
-            {task.description}
-          </p>
 
           {/* Compact Upload Progress for In Progress Tasks */}
-          {task.status === "in_progress" && uploadValidation && (
+          {/* {task.status === "in_progress" && uploadValidation && (
             <div className="mb-2 p-1.5 bg-muted/50 rounded text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-medium">
@@ -614,7 +601,7 @@ function TaskCard({
                 </span>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* 🔥 VERSION-TAGGED FEEDBACK - New format with version badges */}
           {task.taskFeedback && task.taskFeedback.length > 0 && (
@@ -700,12 +687,12 @@ function TaskCard({
               {isOverdue && " ⚠"}
             </span>
 
-            {(task.files?.length ?? 0) > 0 && (
+            {/* {(task.files?.length ?? 0) > 0 && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
                 <FileText className="h-2.5 w-2.5 mr-0.5" />
                 {task.files?.length}
               </Badge>
-            )}
+            )} */}
           </div>
 
           {/* Compact FILE PREVIEWS - Only show if files exist and not in progress (to avoid duplication) */}
@@ -833,7 +820,6 @@ interface ColumnProps {
   onUploadComplete: (taskId: string, files: any[]) => void;
   onStartTask: (taskId: string) => void;
   onPreview: (file: TaskFile) => void;
-  onShare: (task: WorkflowTask) => void;
 }
 
 function DroppableColumn({
@@ -852,7 +838,6 @@ function DroppableColumn({
   onUploadComplete,
   onStartTask,
   onPreview,
-  onShare,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -875,7 +860,7 @@ function DroppableColumn({
     <div className="space-y-3 sm:space-y-4">
       <div className="flex items-center justify-between pb-2 border-b">
         <h3 className="font-medium text-sm sm:text-base">{title}</h3>
-        <Badge variant="secondary" className="text-xs">
+        <Badge variant="outline" className={`text-xs ${getStatusBadgeStyles(status)}`}>
           {tasks.length}
         </Badge>
       </div>
@@ -895,7 +880,6 @@ function DroppableColumn({
             onDragStart={onDragStart}
             isDragging={draggingTaskId === task.id}
             onPreview={onPreview}
-            onShare={onShare}
           />
         ))}
 
@@ -935,12 +919,6 @@ export function EditorDashboard() {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-
-  // 🔥 Share states
-  const [shareLink, setShareLink] = useState("");
-  const [showShareDialog, setShowShareDialog] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const { user } = useAuth();
 
@@ -1423,38 +1401,6 @@ export function EditorDashboard() {
     setIsPreviewOpen(true);
   }, []);
 
-  const handleShare = useCallback(async (task: WorkflowTask) => {
-    setIsSharing(true);
-    setCopied(false);
-
-    try {
-      const res = await fetch(`/api/tasks/${task.id}/share`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          expiresAt: null, // Never expires by default
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to generate share link");
-
-      const data = await res.json();
-      setShareLink(data.shareUrl);
-      setShowShareDialog(true);
-
-      // Auto-copy
-      await navigator.clipboard.writeText(data.shareUrl);
-      setCopied(true);
-      toast.success("Share link created and copied to clipboard");
-      setTimeout(() => setCopied(false), 3000);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to generate share link");
-    } finally {
-      setIsSharing(false);
-    }
-  }, []);
-
   /* ----------------------------- CLEAR FILTERS ----------------------------- */
 
   function clearAllFilters() {
@@ -1635,7 +1581,6 @@ export function EditorDashboard() {
             onUploadComplete={handleUploadComplete}
             onStartTask={startTask}
             onPreview={handlePreview}
-            onShare={handleShare}
           />
         ))}
       </div>
@@ -1646,19 +1591,6 @@ export function EditorDashboard() {
         onOpenChange={setIsPreviewOpen}
       />
 
-      {/* Share Dialog */}
-      <ShareDialog
-        open={showShareDialog}
-        onOpenChange={setShowShareDialog}
-        shareLink={shareLink}
-        onCopy={() => {
-          navigator.clipboard.writeText(shareLink);
-          setCopied(true);
-          toast.success("Link copied to clipboard");
-          setTimeout(() => setCopied(false), 2000);
-        }}
-        copied={copied}
-      />
     </div>
   );
 }

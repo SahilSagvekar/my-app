@@ -1,9 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter } from 'lucide-react';
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
@@ -134,6 +141,8 @@ export function QCDashboard() {
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
+  const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>("all");
+  const [clientFilter, setClientFilter] = useState<string>("all");
 
   // 🔥 Share states
   const [shareLink, setShareLink] = useState("");
@@ -202,6 +211,8 @@ export function QCDashboard() {
         nextDestination: task.nextDestination || "client",
         requiresClientReview: task.requiresClientReview ?? false,
         files: task.files || [],
+        deliverableType: task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "Other",
+        clientName: task.client?.companyName || task.client?.name || "Unknown Client",
       }));
 
       const sorted = normalized.sort(
@@ -608,7 +619,43 @@ export function QCDashboard() {
     }
   };
 
-  const pendingReviews = qcTasks.length;
+  // 🔥 DERIVED DATA FOR FILTERING
+  const availableDeliverableTypes = useMemo(() => {
+    const types = new Set<string>();
+    qcTasks.forEach((task: any) => {
+      if (task.deliverableType) types.add(task.deliverableType);
+    });
+    return Array.from(types).sort();
+  }, [qcTasks]);
+
+  const availableClients = useMemo(() => {
+    const clients = new Map<string, string>();
+    qcTasks.forEach((task: any) => {
+      if (task.clientId && task.clientName) {
+        clients.set(task.clientId, task.clientName);
+      }
+    });
+    return Array.from(clients.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [qcTasks]);
+
+  const filteredTasks = useMemo(() => {
+    return qcTasks.filter(task => {
+      const matchType = deliverableTypeFilter === "all" || (task as any).deliverableType === deliverableTypeFilter;
+      const matchClient = clientFilter === "all" || task.clientId === clientFilter;
+      return matchType && matchClient;
+    });
+  }, [qcTasks, deliverableTypeFilter, clientFilter]);
+
+  const clearAllFilters = () => {
+    setDeliverableTypeFilter("all");
+    setClientFilter("all");
+  };
+
+  const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all";
+  const pendingReviews = filteredTasks.length;
+  const totalPending = qcTasks.length;
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -635,18 +682,66 @@ export function QCDashboard() {
       </div> */}
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
           <p className="text-muted-foreground mt-1 text-lg">
             Review submitted work and approve or reject with feedback
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          {/* Dashboard Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 mr-1">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Filter:</span>
+            </div>
+
+            <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
+              <SelectTrigger className="h-9 w-[160px] text-xs">
+                <SelectValue placeholder="Deliverable Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Deliverables</SelectItem>
+                {availableDeliverableTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={clientFilter} onValueChange={setClientFilter}>
+              <SelectTrigger className="h-9 w-[160px] text-xs">
+                <SelectValue placeholder="All Clients" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clients</SelectItem>
+                {availableClients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                className="h-9 px-2 text-xs text-muted-foreground hover:text-primary"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Stats Badge */}
           <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
             <div className="flex flex-col items-center text-center">
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
-                Pending Reviews
+                {hasActiveFilters ? 'Filtered' : 'Pending'}
               </span>
               <span className="text-xl font-bold text-zinc-900 leading-none">
                 {pendingReviews}
@@ -680,15 +775,17 @@ export function QCDashboard() {
             <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
             <p className="font-medium">Loading QC tasks...</p>
           </div>
-        ) : qcTasks.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
-            <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
-            <p className="font-medium">No QC tasks available</p>
-            <p className="text-sm mt-1">Check back later for new submissions</p>
+            <Filter className="h-12 w-12 mx-auto mb-4 opacity-40" />
+            <p className="font-medium">No tasks match your filters</p>
+            <Button variant="link" onClick={clearAllFilters} className="mt-2">
+              Clear all filters
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            {qcTasks.map((task, index) => {
+            {filteredTasks.map((task, index) => {
               const thumbnail = getTaskThumbnail(task);
               return (
                 <Card

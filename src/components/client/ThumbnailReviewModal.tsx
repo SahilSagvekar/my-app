@@ -144,7 +144,6 @@ export function ThumbnailReviewModal({
 
         setComments(prev => [newComment, ...prev]);
         setShowCommentInput(false);
-        toast.success('Comment added locally. Submit "Request Revisions" to save.');
     };
 
     const handleApproveClick = async () => {

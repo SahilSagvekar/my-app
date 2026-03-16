@@ -254,3 +254,54 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// PUT - Update feedback content
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const { feedbackId, feedback, category } = body;
+
+    if (!feedbackId || !feedback) {
+      return NextResponse.json(
+        { error: "Missing required fields: feedbackId, feedback" },
+        { status: 400 }
+      );
+    }
+
+    const updated = await prisma.taskFeedback.update({
+      where: { id: feedbackId },
+      data: {
+        feedback,
+        category: category || undefined,
+        updatedAt: new Date(),
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, role: true }
+        },
+        file: {
+          select: { id: true, name: true, version: true }
+        }
+      }
+    });
+
+    const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+    await createAuditLog({
+      userId: updated.createdBy,
+      action: AuditAction.TASK_UPDATED,
+      entity: "TaskFeedback",
+      entityId: feedbackId,
+      details: `Updated feedback on task ${id}`,
+      metadata: { taskId: id, feedbackId }
+    });
+
+    return NextResponse.json({ feedback: updated });
+  } catch (error: any) {
+    console.error("Error updating feedback:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
