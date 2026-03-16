@@ -132,3 +132,42 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
     });
   }
 }
+
+/**
+ * Checks for and restarts stuck optimization jobs (e.g., due to server crash)
+ */
+export async function checkStuckVideoOptimizationJobs(): Promise<number> {
+  console.log('\n🔍 Checking for stuck video optimization jobs...');
+
+  // Find files that have been PROCESSING for more than 1 hour
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+  const stuckFiles = await prisma.file.findMany({
+    where: {
+      optimizationStatus: 'PROCESSING',
+      updatedAt: {
+        lt: oneHourAgo,
+      },
+      mimeType: {
+        startsWith: 'video/',
+      },
+    },
+    take: 5, // Process in small batches
+  });
+
+  if (stuckFiles.length === 0) {
+    console.log('   No stuck jobs found.');
+    return 0;
+  }
+
+  console.log(`   Found ${stuckFiles.length} potentially stuck jobs. Restarting...`);
+
+  for (const file of stuckFiles) {
+    console.log(`   🚀 Restarting optimization for: ${file.name} (${file.id})`);
+    // Reset status to PENDING so it can be picked up or just restart it now
+    // We'll restart it now (background call)
+    optimizeVideo(file.id);
+  }
+
+  return stuckFiles.length;
+}
