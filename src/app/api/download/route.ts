@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { s3 } from "@/lib/s3";
+import { s3, BUCKET } from "@/lib/s3";
 
 export async function POST(req: Request) {
   const { key, filename } = await req.json();
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   }
 
   const command = new GetObjectCommand({
-    Bucket: process.env.AWS_S3_BUCKET!,
+    Bucket: BUCKET,
     Key: key,
     ResponseContentDisposition: `attachment; filename="${filename}"`,
   });

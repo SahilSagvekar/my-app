@@ -252,16 +252,10 @@
 // }
 
 import { prisma } from "@/lib/prisma";
-import { createTaskOutputFolder } from "@/lib/s3";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { createTaskOutputFolder, getS3, BUCKET } from "@/lib/s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 function getDeliverableShortCode(type: string) {
   const normalized = type.toLowerCase().trim();
@@ -316,7 +310,7 @@ async function createTaskFolderStructure(
     // Create month folder
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: monthFolderPath,
         ContentType: "application/x-directory",
       })
@@ -325,7 +319,7 @@ async function createTaskFolderStructure(
     // Create main task folder
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: taskFolderPath,
         ContentType: "application/x-directory",
       })
@@ -334,7 +328,7 @@ async function createTaskFolderStructure(
     // 🔥 Create ONLY special subfolders (NO "task" folder!)
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: `${taskFolderPath}thumbnails/`,
         ContentType: "application/x-directory",
       })
@@ -342,7 +336,7 @@ async function createTaskFolderStructure(
 
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: `${taskFolderPath}tiles/`,
         ContentType: "application/x-directory",
       })
@@ -350,7 +344,7 @@ async function createTaskFolderStructure(
 
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: `${taskFolderPath}music-license/`,
         ContentType: "application/x-directory",
       })

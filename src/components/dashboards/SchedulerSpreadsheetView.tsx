@@ -271,7 +271,7 @@ export function SchedulerSpreadsheetView() {
     // Download file
     async function downloadFile(file: any) {
         try {
-            const isS3 = file.url?.includes('amazonaws.com');
+            const isS3 = file.url?.includes('amazonaws.com') || file.url?.includes('r2.cloudflarestorage.com') || file.url?.includes('r2.dev');
             if (isS3 && file.id) {
                 // Use the download API — generates presigned S3 URL, browser handles at full speed
                 window.open(`/api/files/${file.id}/download`, '_blank');

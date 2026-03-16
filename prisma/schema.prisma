@@ -379,6 +379,7 @@ model File {
   replacedBy    String?
   revisionNote  String?
   s3Key         String?
+  proxyUrl      String?        // URL to lower-quality compressed version
   version       Int            @default(1)
   codec         String?
   archivedToNas Boolean        @default(false)

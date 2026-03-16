@@ -3,10 +3,8 @@
 
 import crypto from 'crypto';
 import { PDFDocument, rgb } from 'pdf-lib';
-import { s3, generateSignedUrl } from './s3';
+import { s3, generateSignedUrl, BUCKET } from './s3';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-
-const BUCKET = process.env.AWS_S3_BUCKET!;
 
 /**
  * Apply decorations (text, highlights, field placeholders) to a PDF buffer from editor annotations

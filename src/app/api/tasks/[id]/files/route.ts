@@ -2,16 +2,11 @@ export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/files/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getS3, BUCKET } from "@/lib/s3";
 
-const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
+const s3Client = getS3();
 
 async function generateSignedUrl(s3Key: string): Promise<string> {
   // 🔥 Decode URL-encoded characters if present
@@ -20,11 +15,11 @@ async function generateSignedUrl(s3Key: string): Promise<string> {
   console.log("🔑 Generating signed URL for:", {
     originalKey: s3Key,
     decodedKey: decodedKey,
-    bucket: process.env.AWS_S3_BUCKET,
+    bucket: BUCKET,
   });
 
   const command = new GetObjectCommand({
-    Bucket: process.env.AWS_S3_BUCKET!,
+    Bucket: BUCKET,
     Key: decodedKey,
   });
   

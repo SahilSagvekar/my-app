@@ -1,33 +1,92 @@
 // src/lib/s3.ts
 
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import type { S3ClientConfig } from "@aws-sdk/client-s3";
 import fs from "fs";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
+// ─────────────────────────────────────────
+// S3/R2 Client Configuration
+// ─────────────────────────────────────────
+// When R2_ENDPOINT is set, the app uses Cloudflare R2.
+// When it's not set, the app falls back to AWS S3.
+// Both use the same @aws-sdk/client-s3 SDK.
+//
+// env vars:
+//   R2_ENDPOINT          = https://<account-id>.r2.cloudflarestorage.com  (R2 mode)
+//   R2_PUBLIC_URL        = https://pub-xxx.r2.dev  or custom domain      (optional, for public URLs)
+//   AWS_ACCESS_KEY_ID    = R2 access key (or AWS access key)
+//   AWS_SECRET_ACCESS_KEY = R2 secret key (or AWS secret key)
+//   AWS_S3_REGION        = auto (for R2) or us-east-1 (for S3)
+//   AWS_S3_BUCKET        = bucket name
+// ─────────────────────────────────────────
+
+function getS3Config(): S3ClientConfig {
+  const IS_R2 = !!process.env.R2_ENDPOINT;
+  return {
+    region: IS_R2 ? "auto" : (process.env.AWS_S3_REGION || "us-east-1"),
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    },
+    ...(IS_R2 && {
+      endpoint: process.env.R2_ENDPOINT!,
+      forcePathStyle: true,
+    }),
+  };
+}
+
 let _s3: S3Client | null = null;
 
-export const s3 = new S3Client({
-  region: process.env.AWS_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
-
-export function getS3() {
+export function getS3(): S3Client {
   if (!_s3) {
-    _s3 = new S3Client({
-      region: process.env.AWS_S3_REGION!,
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-      },
-    });
+    _s3 = new S3Client(getS3Config());
   }
   return _s3;
 }
 
-const BUCKET = process.env.AWS_S3_BUCKET!;
+export const s3 = new Proxy({} as S3Client, {
+  get(_, prop) {
+    const client = getS3();
+    return (client as any)[prop];
+  }
+});
+
+export const BUCKET = process.env.AWS_S3_BUCKET || "e8-app-r2-prod";
+
+/**
+ * Build a direct (unsigned) URL for a stored file.
+ * For R2 with a public URL configured, uses that domain.
+ * For S3, uses the standard amazonaws.com URL.
+ * Note: This URL may not be accessible without signing.
+ */
+export function getFileUrl(key: string): string {
+  const IS_R2 = !!process.env.R2_ENDPOINT;
+  const BUCKET_NAME = process.env.AWS_S3_BUCKET || "e8-app-r2-prod";
+  
+  if (IS_R2 && process.env.R2_PUBLIC_URL) {
+    return `${process.env.R2_PUBLIC_URL}/${key}`;
+  }
+  if (IS_R2) {
+    // No public URL configured — return a placeholder that will be signed
+    return `${process.env.R2_ENDPOINT}/${BUCKET_NAME}/${key}`;
+  }
+  return `https://${BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${key}`;
+}
+
+/**
+ * Check if a URL points to our object storage (S3 or R2).
+ * Used to determine if presigned URL generation is needed.
+ */
+export function isObjectStorageUrl(url: string): boolean {
+  if (!url) return false;
+  return (
+    url.includes("amazonaws.com") ||
+    url.includes("r2.cloudflarestorage.com") ||
+    url.includes("r2.dev") ||
+    (!!process.env.R2_PUBLIC_URL && url.includes(process.env.R2_PUBLIC_URL))
+  );
+}
 
 // Create client folder structure
 export async function createClientFolders(companyName: string) {
@@ -159,7 +218,7 @@ export async function uploadFileToS3(
 
   return {
     key: Key,
-    url: `https://${BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${Key}`,
+    url: getFileUrl(Key),
   };
 }
 
@@ -194,7 +253,7 @@ export async function uploadBufferToS3({
 
   return {
     key: Key,
-    url: `https://${BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${Key}`,
+    url: getFileUrl(Key),
   };
 }
 
@@ -302,8 +361,8 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
     files.map(async (file) => {
       try {
         // Check if it's an S3 URL or has an s3Key
-        const isS3 = file.url?.includes('amazonaws.com') || !!file.s3Key;
-        if (!isS3) return file;
+        const isStorage = isObjectStorageUrl(file.url) || !!file.s3Key;
+        if (!isStorage) return file;
 
         // 🔥 Use s3Key directly if available, otherwise extract from URL
         const s3Key = file.s3Key || extractS3KeyFromUrl(file.url);
@@ -311,8 +370,17 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
 
         // Sign the viewing URL only if it's not already signed
         let signedUrl = file.url;
-        if (!file.url.includes('?X-Amz-Signature=')) {
+        if (isObjectStorageUrl(file.url) && !file.url.includes('?X-Amz-Signature=')) {
           signedUrl = await generateSignedUrl(s3Key);
+        }
+
+        // Sign the proxy URL if it exists
+        let signedProxyUrl = file.proxyUrl;
+        if (file.proxyUrl && isObjectStorageUrl(file.proxyUrl) && !file.proxyUrl.includes('?X-Amz-Signature=')) {
+          const proxyKey = extractS3KeyFromUrl(file.proxyUrl);
+          if (proxyKey) {
+            signedProxyUrl = await generateSignedUrl(proxyKey);
+          }
         }
 
         // ALWAYS generate a fresh download URL with the attachment header
@@ -322,6 +390,7 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
         return {
           ...file,
           url: signedUrl,
+          proxyUrl: signedProxyUrl,
           downloadUrl: downloadUrl,
           originalUrl: file.url,
         };
