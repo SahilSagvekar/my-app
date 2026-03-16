@@ -27,6 +27,15 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
 
     console.log(`🎬 Target file: ${file.name}, Key: ${file.s3Key}`);
 
+    // Set status to PROCESSING
+    await prisma.file.update({
+      where: { id: fileId },
+      data: { 
+        optimizationStatus: 'PROCESSING',
+        optimizationError: null
+      }
+    });
+
     // 2. Download from R2
     console.log('📡 Downloading from R2...');
     const s3 = getS3();
@@ -82,12 +91,12 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
     // 4. Upload optimized version to R2
     console.log('📤 Uploading optimized version to R2...');
     const optimizedKey = file.s3Key.replace(/(\.[^.]+)$/, '_optimized.mp4');
-    const optimizedBuffer = fs.readFileSync(outputPath);
+    const fileStream = fs.createReadStream(outputPath);
 
     await s3.send(new PutObjectCommand({
       Bucket: BUCKET,
       Key: optimizedKey,
-      Body: optimizedBuffer,
+      Body: fileStream,
       ContentType: 'video/mp4',
     }));
 
@@ -98,6 +107,8 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
       where: { id: fileId },
       data: {
         proxyUrl: optimizedUrl, // We can reuse proxyUrl or use a new field
+        optimizationStatus: 'COMPLETED',
+        optimizationError: null,
       },
     });
 
@@ -105,6 +116,14 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
 
   } catch (err: any) {
     console.error('❌ Optimization failed:', err);
+    // Update DB with error status
+    await prisma.file.update({
+      where: { id: fileId },
+      data: {
+        optimizationStatus: 'FAILED',
+        optimizationError: err.message
+      }
+    });
     return { success: false, error: err.message };
   } finally {
     // Cleanup

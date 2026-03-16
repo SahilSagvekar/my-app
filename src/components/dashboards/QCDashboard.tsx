@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter } from 'lucide-react';
+import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw } from 'lucide-react';
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
@@ -37,6 +37,8 @@ interface TaskFile {
   revisionNote?: string;
   s3Key?: string;
   codec?: string;
+  optimizationStatus?: string;
+  optimizationError?: string | null;
 }
 
 interface EnhancedWorkflowTask {
@@ -1064,29 +1066,38 @@ export function QCDashboard() {
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                   {file.mimeType?.startsWith("video/") ? (
                                     <div className="flex items-center gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="default"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleFileSelect(file);
-                                        }}
-                                      >
-                                        <Play className="h-4 w-4 mr-2" />
-                                        Review
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-9 w-9 p-0"
-                                        title="Download Video"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDownload(file);
-                                        }}
-                                      >
-                                        <Download className="h-4 w-4" />
-                                      </Button>
+                                      {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
+                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
+                                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                          <span>Optimizing...</span>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <Button
+                                            size="sm"
+                                            variant="default"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleFileSelect(file);
+                                            }}
+                                          >
+                                            <Play className="h-4 w-4 mr-2" />
+                                            Review
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-9 w-9 p-0"
+                                            title="Download Video"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDownload(file);
+                                            }}
+                                          >
+                                            <Download className="h-4 w-4" />
+                                          </Button>
+                                        </>
+                                      )}
                                     </div>
                                   ) : file.mimeType?.startsWith('image/') ? (
                                     <div className="flex items-center gap-2">

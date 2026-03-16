@@ -141,6 +141,12 @@ export async function POST(request: NextRequest) {
       // 🔥 TRIGGER BACKGROUND OPTIMIZATION
       if (fileType.startsWith('video/')) {
         console.log(`🚀 Triggering background optimization for file: ${fileRecord.id}`);
+        // Set initial status
+        await prisma.file.update({
+          where: { id: fileRecord.id },
+          data: { optimizationStatus: 'PENDING' }
+        });
+        
         // We don't await this so it doesn't block the response
         optimizeVideo(fileRecord.id).catch(err => {
           console.error(`❌ Background optimization failed for ${fileRecord.id}:`, err);

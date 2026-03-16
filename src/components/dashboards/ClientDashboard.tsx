@@ -29,6 +29,7 @@ import {
   Copy,
   Check,
   Download,
+  RefreshCw,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
@@ -58,6 +59,8 @@ interface TaskFile {
   revisionNote?: string;
   s3Key?: string;
   downloadUrl?: string;
+  optimizationStatus?: string;
+  optimizationError?: string | null;
 }
 
 interface ClientTask {
@@ -1276,7 +1279,12 @@ export function ClientDashboard() {
 
                                   {/* Action Button */}
                                   <div className="flex items-center gap-2 flex-shrink-0">
-                                    {isReviewable(file) ? (
+                                    {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
+                                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
+                                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                        <span>Optimizing...</span>
+                                      </div>
+                                    ) : isReviewable(file) ? (
                                       <Button size="sm" variant="default">
                                         <Play className="h-4 w-4 mr-2" />
                                         Review

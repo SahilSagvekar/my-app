@@ -412,16 +412,14 @@ export function FullScreenReviewModal({
       });
 
       const data = await response.json();
-
-      if (data.success) {
-        toast.success('✅ Video Optimized', {
-          description: 'The review version is now ready.',
+      if (response.status === 202 || data.success) {
+        toast.success('🚀 Optimization Started', {
+          description: 'The review version is being prepared in the background. This may take a few minutes.',
           id: loadingToast
         });
-        // In a real app, maybe refresh the asset data here or update currentVersion proxyUrl locally
       } else {
         toast.error('❌ Optimization Failed', {
-          description: data.details || 'Check server logs for details',
+          description: data.error || data.details || 'Check server logs for details',
           id: loadingToast
         });
       }

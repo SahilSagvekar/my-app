@@ -384,8 +384,10 @@ model File {
   codec         String?
   archivedToNas Boolean        @default(false)
   nasArchivedAt DateTime?
-  nasPath       String?
-  task          Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  nasPath           String?
+  optimizationStatus String            @default("NONE") // NONE, PENDING, PROCESSING, COMPLETED, FAILED
+  optimizationError  String?
+  task              Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   feedback      TaskFeedback[]
 
   @@index([taskId, folderType])

@@ -249,6 +249,8 @@ interface TaskFile {
   folderType?: string; // "main", "thumbnails", "music-license", "tiles", "covers"
   version?: number;
   isActive?: boolean;
+  optimizationStatus?: string;
+  optimizationError?: string | null;
 }
 
 // 🔥 Task Feedback interface for version-tracked comments
@@ -323,14 +325,32 @@ function FilePreviewCard({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  const isOptimizing = file.optimizationStatus === 'PENDING' || file.optimizationStatus === 'PROCESSING';
+  const isFailed = file.optimizationStatus === 'FAILED';
+
   return (
     <div
-      className="flex items-center gap-2 p-2 border rounded hover:bg-muted/50 transition-colors cursor-pointer group"
+      className={`flex items-center gap-2 p-2 border rounded transition-colors cursor-pointer group ${isOptimizing ? 'bg-blue-50/50 border-blue-100' : 'hover:bg-muted/50'}`}
       onClick={onView}
     >
-      <div className="p-1.5 bg-muted rounded">{getFileIcon(file.mimeType)}</div>
+      <div className="p-1.5 bg-muted rounded">
+        {isOptimizing ? <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" /> : getFileIcon(file.mimeType)}
+      </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium truncate">{file.name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs font-medium truncate">{file.name}</p>
+          {isOptimizing && (
+            <span className="text-[9px] text-blue-600 font-medium animate-pulse">Optimizing...</span>
+          )}
+          {isFailed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertCircle className="h-3 w-3 text-red-500" />
+              </TooltipTrigger>
+              <TooltipContent>{file.optimizationError || 'Optimization failed'}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground">
           {formatFileSize(file.size)}
         </p>
@@ -556,6 +576,12 @@ function TaskCard({
               >
                 {task.status.replace(/_/g, " ").toUpperCase()}
               </Badge>
+              {task.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING') && (
+                <div className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 animate-pulse">
+                  <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                  <span>Compressing...</span>
+                </div>
+              )}
             </div>
           </div>
 
