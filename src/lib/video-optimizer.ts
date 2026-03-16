@@ -18,8 +18,21 @@ type EncoderInfo = {
 
 let _encoderCache: EncoderInfo | null = null;
 
+// Set to true to skip GPU encoder detection (useful for local development or unreliable GPU)
+const FORCE_CPU_ENCODER = process.env.FORCE_CPU_ENCODER === 'true';
+
 function detectEncoder(): EncoderInfo {
   if (_encoderCache) return _encoderCache;
+
+  // Force CPU encoder if configured
+  if (FORCE_CPU_ENCODER) {
+    console.log('🎞️  FORCE_CPU_ENCODER is set, using libx264');
+    _encoderCache = {
+      codec: 'libx264',
+      flags: ['-vcodec', 'libx264', '-crf', '26', '-preset', 'fast', '-threads', '0'],
+    };
+    return _encoderCache;
+  }
 
   try {
     const out = execSync('ffmpeg -encoders 2>&1', { timeout: 5000 }).toString();
@@ -42,14 +55,14 @@ function detectEncoder(): EncoderInfo {
     } else {
       _encoderCache = {
         codec: 'libx264',
-        flags: ['-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', '-threads', '0'],
+        flags: ['-vcodec', 'libx264', '-crf', '26', '-preset', 'fast', '-threads', '0'],
       };
     }
   } catch {
     // FFmpeg not found or timed out — fall back to libx264
     _encoderCache = {
       codec: 'libx264',
-      flags: ['-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', '-threads', '0'],
+      flags: ['-vcodec', 'libx264', '-crf', '26', '-preset', 'fast', '-threads', '0'],
     };
   }
 
@@ -61,7 +74,7 @@ function detectEncoder(): EncoderInfo {
 function fallbackToLibx264(): EncoderInfo {
   _encoderCache = {
     codec: 'libx264',
-    flags: ['-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', '-threads', '0'],
+    flags: ['-vcodec', 'libx264', '-crf', '26', '-preset', 'fast', '-threads', '0'],
   };
   console.log('⚠️  GPU encoder failed — falling back to libx264');
   return _encoderCache;
@@ -125,19 +138,23 @@ async function runFFmpeg(args: string[]): Promise<{ ok: boolean; stderr: string 
 
 export async function optimizeVideo(fileId: string): Promise<{ success: boolean; url?: string; error?: string }> {
   const tempDir = os.tmpdir();
-  const inputPath = path.join(tempDir, `${fileId}_input`);
+  
+  // Get file info first to determine extension
+  const file = await prisma.file.findUnique({ where: { id: fileId } });
+
+  if (!file || !file.s3Key) {
+    console.log('❌ File not found in DB or missing S3 key');
+    return { success: false, error: 'File not found in database' };
+  }
+
+  // Extract extension from original filename for FFmpeg format detection
+  const originalExt = path.extname(file.name || file.s3Key || '.mp4') || '.mp4';
+  const inputPath = path.join(tempDir, `${fileId}_input${originalExt}`);
   const outputPath = path.join(tempDir, `${fileId}_optimized.mp4`);
 
   try {
-    // 1. Get file metadata from DB
-    const file = await prisma.file.findUnique({ where: { id: fileId } });
-
-    if (!file || !file.s3Key) {
-      console.log('❌ File not found in DB or missing S3 key');
-      throw new Error('File not found in database');
-    }
-
     console.log(`🎬 Target file: ${file.name}, Key: ${file.s3Key}`);
+    console.log(`📁 Temp input: ${inputPath}`);
 
     // Set status to PROCESSING
     await prisma.file.update({
@@ -178,7 +195,7 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
     // ------------------------------------------------------------------
     console.log('⬇️  Downloading from R2...');
     const s3 = getS3();
-    const { Body } = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: file.s3Key }));
+    const { Body, ContentLength } = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: file.s3Key }));
     if (!Body) throw new Error('Failed to download from R2');
 
     await new Promise<void>((resolve, reject) => {
@@ -188,11 +205,27 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
         .on('error', reject);
     });
 
+    // Verify download completed
+    const downloadedSize = fs.statSync(inputPath).size;
+    console.log(`   Downloaded: ${(downloadedSize / 1024 / 1024).toFixed(2)} MB`);
+    
+    if (ContentLength && downloadedSize < ContentLength * 0.99) {
+      throw new Error(`Incomplete download: got ${downloadedSize} bytes, expected ${ContentLength}`);
+    }
+
+    if (downloadedSize < 1000) {
+      throw new Error(`Downloaded file too small (${downloadedSize} bytes) - likely corrupted or empty`);
+    }
+
     console.log('⚡ Starting FFmpeg...');
     const encoder = detectEncoder();
+    
+    // Use simpler scale filter that's more compatible across FFmpeg versions
+    // scale=-2:720 means: auto-calculate width to maintain aspect ratio, height=720
+    // Or limit width to 1280: scale='min(1280,iw)':'-2' 
     const ffmpegArgs = [
       '-i', inputPath,
-      '-vf', "scale='min(1280,iw)':-2",
+      '-vf', 'scale=1280:-2',  // Simplified: scale to 1280px width, auto height
       ...encoder.flags,
       '-acodec', 'aac',
       '-b:a', '128k',
@@ -201,15 +234,38 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
       outputPath,
     ];
 
+    console.log(`   FFmpeg command: ffmpeg ${ffmpegArgs.join(' ')}`);
+
     let { ok: transcodeOk, stderr: lastStderr } = await runFFmpeg(ffmpegArgs);
 
-    // --- GPU false-positive fallback — reuse same temp file, no re-download ---
-    if (!transcodeOk && encoder.codec !== 'libx264' &&
-        (lastStderr.includes('No NVENC capable devices') || lastStderr.includes('Device creation failed'))) {
+    // --- GPU encoder fallback — detect various failure modes ---
+    // Common GPU encoder failures: NVENC not available, driver issues, invalid params
+    const gpuFailurePatterns = [
+      'No NVENC capable devices',
+      'Device creation failed', 
+      'Invalid argument',
+      'Cannot load',
+      'nvenc',
+      'NVENC',
+      'h264_nvenc',
+      'h264_qsv',
+      'videotoolbox',
+      'Nothing was written into output file',
+      'received no packets',
+    ];
+    
+    const isGpuFailure = !transcodeOk && 
+      encoder.codec !== 'libx264' && 
+      gpuFailurePatterns.some(pattern => lastStderr.includes(pattern));
+
+    if (isGpuFailure) {
+      console.log('   ⚠️ GPU encoder failed, falling back to libx264 (CPU)...');
+      console.log(`   Error snippet: ${lastStderr.slice(-200)}`);
+      
       const fallback = fallbackToLibx264();
       const fallbackArgs = [
         '-i', inputPath,
-        '-vf', "scale='min(1280,iw)':-2",
+        '-vf', 'scale=1280:-2',
         ...fallback.flags,
         '-acodec', 'aac',
         '-b:a', '128k',
@@ -217,11 +273,14 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
         '-y',
         outputPath,
       ];
+      
+      console.log(`   Fallback command: ffmpeg ${fallbackArgs.join(' ')}`);
       ({ ok: transcodeOk, stderr: lastStderr } = await runFFmpeg(fallbackArgs));
     }
 
     if (!transcodeOk) {
-      throw new Error(`FFmpeg failed: ${lastStderr.slice(-300)}`);
+      console.error('❌ FFmpeg stderr:', lastStderr);
+      throw new Error(`FFmpeg failed: ${lastStderr.slice(-500)}`);
     }
 
     console.log('✅ Transcoding complete.');

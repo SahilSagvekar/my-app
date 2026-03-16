@@ -242,10 +242,13 @@ export function ClientDashboard() {
     }
   }, []);
 
+  // 🔥 Initial load - run once on mount
   useEffect(() => {
     loadClientTasks();
+  }, []);
 
-    // 🔥 Poll for status updates if any task is optimizing
+  // 🔥 Polling effect - only check for active optimization jobs
+  useEffect(() => {
     const hasActiveJobs = tasks.some(t =>
       t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
     );
@@ -255,7 +258,7 @@ export function ClientDashboard() {
       const interval = setInterval(loadClientTasks, 15000); // Poll every 15s
       return () => clearInterval(interval);
     }
-  }, [loadClientTasks, tasks]);
+  }, [tasks.length]); // Only re-evaluate when task count changes
 
   // Global listener for background task updates
   useEffect(() => {
@@ -267,7 +270,7 @@ export function ClientDashboard() {
     };
     window.addEventListener('task-updated', handleTaskGlobalUpdate);
     return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
-  }, [loadClientTasks]);
+  }, []);
 
   const handleMarkAsPosted = async (task?: ClientTask) => {
     const taskToMark = task || selectedTask;
