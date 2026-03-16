@@ -8,6 +8,8 @@ import { Clock, User, Share2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { ShareDialog } from "../review/ShareDialog";
 import { toast } from "sonner";
+import { useVideoPrefetch } from "@/hooks/useVideoPrefetch";
+import { useVitals } from "../admin/VitalsContext";
 
 interface Task {
   id: string;
@@ -19,6 +21,68 @@ interface Task {
   status: string;
   createdAt: string;
   oneOffDeliverableId?: string | null;
+  files?: any[];
+}
+
+function TaskItem({ task, handleShare, formatDue, formatRelativeTime }: { 
+  task: Task; 
+  handleShare: (id: string) => void;
+  formatDue: (d: string) => string;
+  formatRelativeTime: (d: string) => string;
+}) {
+  const videoFile = task.files?.find((f: any) => f.type?.startsWith('video/') || f.name?.match(/\.(mp4|mov|webm)$/i));
+  const { prefetch } = useVideoPrefetch(videoFile?.url || null);
+
+  return (
+    <div 
+      className="flex items-start gap-3 p-3 rounded-lg border bg-white/50 hover:bg-white/80 transition-all cursor-default group"
+      onMouseEnter={() => prefetch()}
+    >
+      <Avatar className="h-8 w-8 mt-1">
+        <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
+          {task.title?.slice(0, 2).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="flex-1">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-medium group-hover:text-primary transition-colors">{task.title || "Untitled Task"}</h4>
+          <div className="flex items-center gap-2">
+            {task.oneOffDeliverableId && (
+              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                One-Off
+              </Badge>
+            )}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-primary sm:opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => handleShare(task.id)}
+              >
+                <Share2 className="h-3 w-3" />
+              </Button>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 uppercase">
+                {(task.status ?? '').replace(/_/g, " ")}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground italic">
+          {task.taskType}
+        </p>
+
+        <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            Due {formatDue(task.dueDate)}
+          </span>
+          <span>Created {formatRelativeTime(task.createdAt)}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = false }) {
@@ -34,6 +98,8 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
 
   const safeTasks = Array.isArray(tasks) ? tasks : [];
 
+  const { recordResponse } = useVitals();
+
   useEffect(() => {
     loadTasks();
   }, []);
@@ -41,6 +107,7 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
   async function loadTasks() {
     try {
       const res = await fetch("/api/tasks");
+      recordResponse(res);
       const text = await res.text(); // read raw text (debug friendly)
 
       let data: any = {};
@@ -153,52 +220,14 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
             </div>
           ) : (
 
-            (showAll ? safeTasks : safeTasks.slice(0, 5)).map((task) => (
-              <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg border">
-                <Avatar className="h-8 w-8 mt-1">
-                  {/* <AvatarFallback>
-                    {task.assignedTo ? task.assignedTo.toString().slice(0, 2) : "?"}
-                  </AvatarFallback> */}
-                </Avatar>
-
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">{task.title || "Untitled Task"}</h4>
-                    <div className="flex items-center gap-2">
-                      {task.oneOffDeliverableId && (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
-                          One-Off
-                        </Badge>
-                      )}
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-primary"
-                          onClick={() => handleShare(task.id)}
-                        >
-                          <Share2 className="h-3 w-3" />
-                        </Button>
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 uppercase">
-                          {(task.status ?? '').replace(/_/g, " ")}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground">
-                    {task.taskType}
-                  </p>
-
-                  <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Due {formatDue(task.dueDate)}
-                    </span>
-                    <span>Created {formatRelativeTime(task.createdAt)}</span>
-                  </div>
-                </div>
-              </div>
+            (showAll ? safeTasks : safeTasks.slice(0, 5)).map((task: Task) => (
+              <TaskItem 
+                key={task.id} 
+                task={task} 
+                handleShare={handleShare}
+                formatDue={formatDue}
+                formatRelativeTime={formatRelativeTime}
+              />
             ))
           )}
         </div>

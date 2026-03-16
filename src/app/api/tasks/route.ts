@@ -1,381 +1,7 @@
-// export const runtime = "nodejs";
-// export const dynamic = "force-dynamic";
-
-// import { NextResponse } from "next/server";
-// import jwt from "jsonwebtoken";
-// import "@/lib/bigint-fix";
-// import { prisma } from "@/lib/prisma";
-// import { uploadBufferToS3 } from "@/lib/s3";
-// import { TaskStatus } from "@prisma/client";
-// import { ClientRequest } from "http";
-// import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-// import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
-// import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
-
-// // ─────────────────────────────────────────
-// // Helpers
-// // ─────────────────────────────────────────
-
-// const s3Client = new S3Client({
-//   region: process.env.AWS_S3_REGION!,
-//   credentials: {
-//     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-//     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-//   },
-// });
-
-// // Helper to get current month folder name
-// function getCurrentMonthFolder(): string {
-//   const date = new Date();
-//   const month = date.toLocaleDateString('en-US', { month: 'long' });
-//   const year = date.getFullYear();
-//   return `${month}-${year}`; // "December-2024"
-// }
-
-// export const config = {
-//   api: { bodyParser: false },
-// };
-
-// function getTokenFromCookies(req: Request) {
-//   const cookieHeader = req.headers.get("cookie");
-//   if (!cookieHeader) return null;
-//   const match = cookieHeader.match(/authToken=([^;]+)/);
-//   return match ? match[1] : null;
-// }
-
-// const buildRoleWhereQuery = (role: string | null, userId: number): any => {
-//   if (!role) {
-//     return {}; // Return empty query or default behavior
-//   }
-
-//   switch (role.toLowerCase()) {
-//     case "editor":
-//       return {
-//         AND: [
-//           { assignedTo: userId },
-//           {
-//             status: {
-//               in: [
-//                 TaskStatus.PENDING,
-//                 TaskStatus.IN_PROGRESS,
-//                 TaskStatus.READY_FOR_QC,
-//                 TaskStatus.REJECTED,
-//               ],
-//             },
-//           },
-//         ],
-//       };
-
-//     case "qc":
-//       return {
-//         AND: [
-//           { qc_specialist: userId },
-//           {
-//             status: {
-//               in: [TaskStatus.READY_FOR_QC],
-//             },
-//           },
-//         ],
-//       };
-
-//     case "scheduler":
-//       return {
-//         AND: [
-//           { scheduler: userId },
-//           {
-//             status: {
-//               in: [TaskStatus.COMPLETED],
-//             },
-//           },
-//         ],
-//       };
-
-//     case "client":
-//       return {
-//         AND: [
-//           { clientUserId: Number(userId) },
-//           {
-//             status: {
-//               in: [TaskStatus.CLIENT_REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.SCHEDULED],
-//             },
-//           },
-//         ],
-//       };
-
-//     case "videographer":
-//       return {
-//         AND: [
-//           { videographer: userId },
-//           {
-//             status: {
-//               in: [TaskStatus.VIDEOGRAPHER_ASSIGNED],
-//             },
-//           },
-//         ],
-//       };
-
-//     case "manager":
-//     case "admin":
-//       return {};
-
-//     default:
-//       return { assignedTo: userId };
-//   }
-// };
-
-// // Simple weekday map for postingDays like ["Monday", "Wednesday"]
-// const WEEKDAY_MAP: Record<string, number> = {
-//   Sunday: 0,
-//   Monday: 1,
-//   Tuesday: 2,
-//   Wednesday: 3,
-//   Thursday: 4,
-//   Friday: 5,
-//   Saturday: 6,
-// };
-
-// export async function GET(req: Request) {
-//   try {
-//     const token = getTokenFromCookies(req);
-//     if (!token) {
-//       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-//     }
-
-//     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-//     const { role, userId } = decoded;
-
-//     const where = buildRoleWhereQuery(role, Number(userId));
-
-//     // Add pagination parameters
-//     const { searchParams } = new URL(req.url);
-//     const page = parseInt(searchParams.get("page") || "1");
-//     const limit = parseInt(searchParams.get("limit") || "20");
-
-//     const tasks = await prisma.task.findMany({
-//       where,
-//       take: limit,
-//       skip: (page - 1) * limit,
-//       orderBy: { createdAt: "desc" },
-//       select: {
-//         id: true,
-//         title: true,
-//         description: true,
-//         taskType: true,
-//         status: true,
-//         dueDate: true,
-//         assignedTo: true,
-//         createdBy: true,
-//         clientId: true,
-//         clientUserId: true,
-//         driveLinks: true,
-//         createdAt: true,
-//         priority: true,
-//         taskCategory: true,
-//         nextDestination: true,
-//         requiresClientReview: true,
-//         workflowStep: true,
-//         folderType: true,
-//         qcNotes: true,
-//         feedback: true,
-//         files: true,
-//         monthlyDeliverable: true,
-//         socialMediaLinks: true,
-//       },
-//     });
-
-//     // ✅ NO COUNT QUERY - just return tasks
-//     return NextResponse.json({ tasks }, { status: 200 });
-//   } catch (err: any) {
-//     console.error("❌ GET /api/tasks error:", err);
-//     return NextResponse.json(
-//       { message: "Server error", error: err.message },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-// export async function POST(req: Request) {
-//   try {
-//     // 🔒 AUTH
-//     const token = getTokenFromCookies(req);
-//     if (!token)
-//       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-
-//     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-
-//     const { role, userId } = decoded;
-
-//     if (!["admin", "manager"].includes(decoded.role)) {
-//       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-//     }
-
-//     // 📝 Read FormData
-//     const form = await req.formData();
-
-//     const description = form.get("description") as string;
-//     const dueDate = form.get("dueDate") as string;
-//     const assignedTo = Number(form.get("assignedTo"));
-//     const qc_specialist = Number(form.get("qc_specialist"));
-//     const scheduler = Number(form.get("scheduler"));
-//     const videographer = Number(form.get("videographer"));
-//     const clientId = form.get("clientId") as string;
-//     const folderType = form.get("folderType") as string;
-//     const monthlyDeliverableId = form.get("monthlyDeliverableId") as string;
-
-//     if (!assignedTo || !clientId || !folderType) {
-//       return NextResponse.json(
-//         { message: "Missing required fields" },
-//         { status: 400 }
-//       );
-//     }
-
-//     // 📁 GET CLIENT FOLDERS FROM DB
-//     const client = await prisma.client.findUnique({
-//       where: { id: clientId },
-//       select: {
-//         name: true,
-//         companyName: true,
-//         rawFootageFolderId: true,
-//         essentialsFolderId: true,
-//         requiresClientReview: true,
-//         requiresVideographer: true,
-//         userId: true,
-//       },
-//     });
-
-//     if (!client)
-//       return NextResponse.json(
-//         { message: "Client not found" },
-//         { status: 404 }
-//       );
-
-//     // 🔥 Determine folder prefix based on folder type
-//     let folderPrefix = '';
-
-//     if (folderType === "rawFootage") {
-//       // Get company name
-//       const companyName = client.companyName || client.name;
-
-//       // Get current month folder
-//       const currentMonth = getCurrentMonthFolder(); // "December-2024"
-
-//       // Build path with month folder: companyName/raw-footage/December-2024/
-//       const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
-//       folderPrefix = `${rawFootageBase}${currentMonth}/`;
-
-//       // 🔥 Create the month folder (if it doesn't exist)
-//       try {
-//         await s3Client.send(
-//           new PutObjectCommand({
-//             Bucket: process.env.AWS_S3_BUCKET!,
-//             Key: folderPrefix, // This creates the folder
-//             ContentType: "application/x-directory",
-//           })
-//         );
-//         console.log('✅ Month folder ensured:', folderPrefix);
-//       } catch (error) {
-//         console.log('⚠️ Folder might already exist (ok):', error);
-//       }
-
-//     } else {
-//       // Elements folder - use normal path
-//       folderPrefix = client.essentialsFolderId || '';
-//     }
-
-//     if (!folderPrefix) {
-//       return NextResponse.json(
-//         { message: `Missing folder for ${folderType}` },
-//         { status: 400 }
-//       );
-//     }
-
-//     // 🗂️ Collect file URLs
-//     const uploadedLinks: string[] = [];
-//     const files = form.getAll("files") as File[];
-
-//     // 📝 CREATE TASK FIRST (we need task.id)
-//     const task = await prisma.task.create({
-//       data: {
-//         title: "",
-//         description: description || "",
-//         dueDate: new Date(dueDate),
-//         assignedTo,
-//         qc_specialist,
-//         scheduler,
-//         videographer,
-//         createdBy: decoded.userId,
-//         clientId: clientId,
-//         clientUserId: client?.userId,
-//         monthlyDeliverableId: monthlyDeliverableId,
-//         driveLinks: uploadedLinks,
-//         folderType,
-//         requiresClientReview: client.requiresClientReview,
-//         status: client.requiresVideographer
-//           ? "VIDEOGRAPHER_ASSIGNED"
-//           : "PENDING",
-//       },
-//     });
-
-//     await createAuditLog({
-//       userId: userId,
-//       action: AuditAction.TASK_CREATED,
-//       entity: 'Task',
-//       entityId: task.id,
-//       details: `Created task: ${task.title}`,
-//       metadata: {
-//         taskId: task.id,
-//         assignedTo: assignedTo,
-//         status: task.status
-//       },
-//     });
-
-//     // 📤 UPLOAD FILES TO S3 (into the month folder for raw footage)
-//     for (const file of files) {
-//       const buffer = Buffer.from(await file.arrayBuffer());
-
-//       const uploaded = await uploadBufferToS3({
-//         buffer,
-//         folderPrefix, // This already includes the month folder for raw footage
-//         filename: file.name,
-//         mimeType: file.type,
-//       });
-
-//       uploadedLinks.push(uploaded.url);
-
-//       await prisma.file.create({
-//         data: {
-//           taskId: task.id,
-//           name: file.name,
-//           url: uploaded.url,
-//           mimeType: file.type,
-//           size: BigInt(buffer.length),
-//           uploadedBy: decoded.userId,
-//         },
-//       });
-//     }
-
-//     // 🆙 UPDATE TASK WITH FILE LINKS
-//     await prisma.task.update({
-//       where: { id: task.id },
-//       data: { driveLinks: uploadedLinks },
-//     });
-
-//     // 🔁 AUTO GENERATE TASKS
-//     console.log("generateMonthlyTasksFromTemplate");
-//     await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
-
-//     return NextResponse.json(task, { status: 201 });
-//   } catch (err: any) {
-//     console.error("❌ Create task error:", err);
-//     return NextResponse.json(
-//       { message: "Server error", error: err.message },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-
-
+import { NextResponse } from "next/server";
+import { getCurrentUser2 } from "@/lib/auth";
+import { TaskService } from "@/services/taskService";
+import "@/lib/bigint-fix";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -609,6 +235,7 @@ const WEEKDAY_MAP: Record<string, number> = {
 
 
 export async function GET(req: any) {
+  const timing = new ServerTiming();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -616,8 +243,43 @@ export async function GET(req: any) {
     }
 
     const { role, id: userId } = user;
-
     const { searchParams } = new URL(req.url);
+
+    const filters = {
+      status: searchParams.get("status") || undefined,
+      clientId: searchParams.get("clientId") || undefined,
+      month: searchParams.get("month") || undefined,
+    };
+
+    // Pagination
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "25");
+    const isAdmin = role?.toLowerCase() === 'admin';
+    const isPaginationActive = isAdmin && (searchParams.has("page") || searchParams.has("limit"));
+
+    const tasks = await TaskService.getTasks(role, Number(userId), filters, timing);
+    
+    timing.start('meta');
+    const availableMonths = await TaskService.getAvailableMonths();
+    timing.stop('meta');
+
+    let finalTasks = tasks;
+    let paginationMeta = null;
+
+    if (isPaginationActive) {
+      const total = tasks.length;
+      finalTasks = tasks.slice((page - 1) * limit, page * limit);
+      paginationMeta = {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      };
+    }
+
+    // 🔥 OPTIMIZATION: Only sign files for the final results
+    finalTasks = await TaskService.signTaskFiles(finalTasks, timing);
+
     const statusFilter = searchParams.get("status") as string | null;
     const clientIdFilter = searchParams.get("clientId") as string | null;
     const monthFilter = searchParams.get("month") as string | null;
@@ -881,18 +543,20 @@ export async function GET(req: any) {
 
     // ✅ Return all tasks without pagination
     return NextResponse.json({
-      tasks: sanitizeBigInt(tasksWithSignedUrls),
+      tasks: TaskService.sanitizeBigInt(finalTasks),
       availableMonths,
-    }, { status: 200 });
+      ...(paginationMeta && { pagination: paginationMeta })
+    }, { 
+      status: 200,
+      headers: {
+        'Server-Timing': timing.getHeaderValue()
+      }
+    });
+
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
     return NextResponse.json(
-      {
-        message: "Server error",
-        error: err.message,
-        stack: err.stack,
-        details: err.code === 'P2009' ? 'Query validation error' : 'Unknown Prisma error'
-      },
+      { message: "Server error", error: err.message },
       { status: 500 }
     );
   }
@@ -900,45 +564,26 @@ export async function GET(req: any) {
 
 export async function POST(req: any) {
   try {
-    // 🔒 AUTH
     const user = await getCurrentUser2(req);
-    if (!user)
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
     const { role, id: userId } = user;
+    const isEditor = role?.toLowerCase() === 'editor';
 
-    // 🔒 Editors can only create tasks if explicitly permitted for the target client
-    const isEditorCreate = role?.toLowerCase() === 'editor';
-
-    if (!role || (!["admin", "manager"].includes(role.toLowerCase()) && !isEditorCreate)) {
+    if (!role || (!["admin", "manager"].includes(role.toLowerCase()) && !isEditor)) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    // 📝 Read FormData
     const form = await req.formData();
+    const data: any = {};
+    const files: File[] = [];
 
-    const description = form.get("description") as string;
-    const dueDate = form.get("dueDate") as string;
-    // Editors are always assigned to themselves; admins read from form
-    const assignedTo = isEditorCreate ? Number(userId) : Number(form.get("assignedTo"));
-    const qc_specialist = isEditorCreate ? 28 : Number(form.get("qc_specialist"));
-    const scheduler = isEditorCreate ? 23 : Number(form.get("scheduler"));
-    const videographer = isEditorCreate ? 0 : Number(form.get("videographer"));
-    const clientId = form.get("clientId") as string;
-    const folderType = form.get("folderType") as string;
-    const monthlyDeliverableId = isEditorCreate ? '' : (form.get("monthlyDeliverableId") as string);
-    const oneOffDeliverableId = form.get("oneOffDeliverableId") as string;
-
-    // 🔥 EDITOR PERMISSION CHECK
-    if (isEditorCreate) {
-      if (!clientId || !oneOffDeliverableId) {
-        return NextResponse.json({ message: "clientId and oneOffDeliverableId are required" }, { status: 400 });
-      }
-      const perm = await (prisma as any).editorClientPermission.findUnique({
-        where: { editorId_clientId: { editorId: Number(userId), clientId } },
-      });
-      if (!perm) {
-        return NextResponse.json({ message: "You do not have permission to create tasks for this client" }, { status: 403 });
+    // Extract all fields from form
+    for (const [key, value] of form.entries()) {
+      if (value instanceof File) {
+        files.push(value);
+      } else {
+        data[key] = value;
       }
     }
 
@@ -1195,7 +840,7 @@ export async function POST(req: any) {
 
     return NextResponse.json(task, { status: 201 });
   } catch (err: any) {
-    console.error("❌ Create task error:", err);
+    console.error("❌ POST /api/tasks error:", err);
     return NextResponse.json(
       { message: "Server error", error: err.message },
       { status: 500 }

@@ -1,29 +1,27 @@
 export class ServerTiming {
-  private timings: Map<string, { start: number; end?: number; desc?: string }> = new Map();
+  private startTimes: Map<string, number> = new Map();
+  private measurements: { name: string; duration: number; description?: string }[] = [];
 
-  start(name: string, desc?: string) {
-    this.timings.set(name, { start: performance.now(), desc });
+  start(name: string) {
+    this.startTimes.set(name, performance.now());
   }
 
-  stop(name: string) {
-    const timing = this.timings.get(name);
-    if (timing) {
-      timing.end = performance.now();
+  stop(name: string, description?: string) {
+    const start = this.startTimes.get(name);
+    if (start) {
+      const duration = performance.now() - start;
+      this.measurements.push({ name, duration, description });
+      this.startTimes.delete(name);
     }
   }
 
   getHeaderValue(): string {
-    const parts: string[] = [];
-    this.timings.forEach((value, key) => {
-      if (value.end) {
-        const duration = (value.end - value.start).toFixed(2);
-        let part = `${key};dur=${duration}`;
-        if (value.desc) {
-          part += `;desc="${value.desc}"`;
-        }
-        parts.push(part);
-      }
-    });
-    return parts.join(', ');
+    return this.measurements
+      .map(m => {
+        let val = `${m.name};dur=${m.duration.toFixed(2)}`;
+        if (m.description) val += `;desc="${m.description}"`;
+        return val;
+      })
+      .join(', ');
   }
 }
