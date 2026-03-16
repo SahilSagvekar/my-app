@@ -18,6 +18,7 @@ interface Version {
     uploadDate: string;
     status: 'draft' | 'in_qc' | 'client_review' | 'approved';
     url?: string;
+    proxyUrl?: string | null;
 }
 
 interface ReviewAsset {
@@ -40,6 +41,7 @@ interface ReviewAsset {
     currentVersion: string;
     downloadEnabled: boolean;
     approvalLocked: boolean;
+    proxyUrl?: string | null;
     taskFeedback?: any[];
 }
 
@@ -125,6 +127,7 @@ export function FullScreenReviewModalFrameIO({
     const [activeCommentId, setActiveCommentId] = useState<string | undefined>();
     const [showCommentInput, setShowCommentInput] = useState(false);
     const [confirmFinal, setConfirmFinal] = useState(false);
+    const [isOptimizing, setIsOptimizing] = useState(false);
     const [savingFeedback, setSavingFeedback] = useState(false);
 
     const sortedComments = useMemo(
@@ -151,19 +154,18 @@ export function FullScreenReviewModalFrameIO({
     /* ── Video source ── */
     const videoSource = useMemo(() => {
         const fileId = currentVersion || asset?.currentVersion;
+        const v = asset?.versions.find(ver => ver.id === fileId);
 
-        // Prefer an explicit lightweight review URL when provided
-        const baseUrl =
-            currentVideoUrl ||
-            asset?.reviewVideoUrl ||
-            asset?.videoUrl ||
-            '';
-
-        if (!baseUrl) {
+        if (!asset) {
             return { type: 'video' as const, src: '' };
         }
 
-        const source = getVideoSource(baseUrl, fileId);
+        const source = getVideoSource({
+            url: currentVideoUrl || asset.videoUrl || '',
+            id: fileId,
+            proxyUrl: v?.proxyUrl || asset.proxyUrl
+        });
+
         // Append cache-busting param on retries to avoid stale/failed responses
         if (retryKey > 0 && source.type === 'video') {
             const separator = source.src.includes('?') ? '&' : '?';
@@ -434,6 +436,42 @@ export function FullScreenReviewModalFrameIO({
         }
     };
 
+    const handleManualOptimize = async () => {
+        if (!asset || isOptimizing) return;
+
+        setIsOptimizing(true);
+        const loadingToast = toast.loading('🚀 Optimizing video for review...');
+
+        try {
+            const fileId = currentVersion || asset.currentVersion;
+            const response = await fetch(`/api/files/${fileId}/optimize`, {
+                method: 'POST',
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('✅ Video Optimized', {
+                    description: 'The review version is now ready.',
+                    id: loadingToast
+                });
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                toast.error('❌ Optimization Failed', {
+                    description: data.details || 'Check server logs for details',
+                    id: loadingToast
+                });
+            }
+        } catch (error) {
+            toast.error('❌ Network Error', {
+                description: 'Failed to connect to optimization service',
+                id: loadingToast
+            });
+        } finally {
+            setIsOptimizing(false);
+        }
+    };
+
     /* ── Reject with typed comment (mobile reject dialog) ── */
     const handleRejectWithComment = async (commentText: string) => {
         if (!asset) return;
@@ -587,6 +625,7 @@ export function FullScreenReviewModalFrameIO({
         sortedComments,
         activeCommentId,
         showCommentInput,
+        isOptimizing,
         confirmFinal,
         savingFeedback,
         showApprovalSuccess,
@@ -611,6 +650,7 @@ export function FullScreenReviewModalFrameIO({
         handleCommentResolve,
         handleCommentDelete,
         handleStatusChange,
+        handleManualOptimize,
         setShowCommentInput,
         setConfirmFinal,
         setShowInfoPanel,

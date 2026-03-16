@@ -716,6 +716,7 @@ export async function GET(req: any) {
               version: true,
               isActive: true,
               codec: true,
+              proxyUrl: true,
             },
           },
           driveLinks: true,

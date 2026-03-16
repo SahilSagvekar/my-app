@@ -1,6 +1,7 @@
 // src/lib/s3.ts
 
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import type { S3ClientConfig } from "@aws-sdk/client-s3";
 import fs from "fs";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -20,34 +21,38 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 //   AWS_S3_BUCKET        = bucket name
 // ─────────────────────────────────────────
 
-import type { S3ClientConfig } from "@aws-sdk/client-s3";
-
-const IS_R2 = !!process.env.R2_ENDPOINT;
-
-const s3Config: S3ClientConfig = {
-  region: IS_R2 ? "auto" : (process.env.AWS_S3_REGION || "us-east-1"),
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-  ...(IS_R2 && {
-    endpoint: process.env.R2_ENDPOINT!,
-    forcePathStyle: true,
-  }),
-};
+function getS3Config(): S3ClientConfig {
+  const IS_R2 = !!process.env.R2_ENDPOINT;
+  return {
+    region: IS_R2 ? "auto" : (process.env.AWS_S3_REGION || "us-east-1"),
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    },
+    ...(IS_R2 && {
+      endpoint: process.env.R2_ENDPOINT!,
+      forcePathStyle: true,
+    }),
+  };
+}
 
 let _s3: S3Client | null = null;
 
-export const s3 = new S3Client(s3Config);
-
 export function getS3(): S3Client {
   if (!_s3) {
-    _s3 = new S3Client(s3Config);
+    _s3 = new S3Client(getS3Config());
   }
   return _s3;
 }
 
-export const BUCKET = process.env.AWS_S3_BUCKET!;
+export const s3 = new Proxy({} as S3Client, {
+  get(_, prop) {
+    const client = getS3();
+    return (client as any)[prop];
+  }
+});
+
+export const BUCKET = process.env.AWS_S3_BUCKET || "e8-app-r2-prod";
 
 /**
  * Build a direct (unsigned) URL for a stored file.
@@ -56,12 +61,15 @@ export const BUCKET = process.env.AWS_S3_BUCKET!;
  * Note: This URL may not be accessible without signing.
  */
 export function getFileUrl(key: string): string {
+  const IS_R2 = !!process.env.R2_ENDPOINT;
+  const BUCKET_NAME = process.env.AWS_S3_BUCKET || "e8-app-r2-prod";
+  
   if (IS_R2 && process.env.R2_PUBLIC_URL) {
     return `${process.env.R2_PUBLIC_URL}/${key}`;
   }
   if (IS_R2) {
     // No public URL configured — return a placeholder that will be signed
-    return `${process.env.R2_ENDPOINT}/${BUCKET}/${key}`;
+    return `${process.env.R2_ENDPOINT}/${BUCKET_NAME}/${key}`;
   }
   return `https://${BUCKET}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${key}`;
 }
@@ -362,8 +370,17 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
 
         // Sign the viewing URL only if it's not already signed
         let signedUrl = file.url;
-        if (!file.url.includes('?X-Amz-Signature=')) {
+        if (isObjectStorageUrl(file.url) && !file.url.includes('?X-Amz-Signature=')) {
           signedUrl = await generateSignedUrl(s3Key);
+        }
+
+        // Sign the proxy URL if it exists
+        let signedProxyUrl = file.proxyUrl;
+        if (file.proxyUrl && isObjectStorageUrl(file.proxyUrl) && !file.proxyUrl.includes('?X-Amz-Signature=')) {
+          const proxyKey = extractS3KeyFromUrl(file.proxyUrl);
+          if (proxyKey) {
+            signedProxyUrl = await generateSignedUrl(proxyKey);
+          }
         }
 
         // ALWAYS generate a fresh download URL with the attachment header
@@ -373,6 +390,7 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
         return {
           ...file,
           url: signedUrl,
+          proxyUrl: signedProxyUrl,
           downloadUrl: downloadUrl,
           originalUrl: file.url,
         };

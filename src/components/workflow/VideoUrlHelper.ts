@@ -95,28 +95,38 @@ export function convertToGoogleDrivePreview(url: string): string | null {
 
 /**
  * Gets the appropriate video source for a video element or iframe.
- * When a fileId is provided and the URL points to S3, uses the streaming
- * proxy endpoint for efficient byte-range video playback.
+ * Priority:
+ * 1. proxyUrl - If a lower-quality version exists, use it for speed.
+ * 2. streamProxy - If it's an S3/R2 file, use the byte-range streaming proxy.
+ * 3. original - Fallback to the original URL.
  * 
- * @param url - The original video URL
- * @param fileId - Optional TaskFile ID to enable streaming proxy for S3 files
+ * @param file - The file object containing url and optional proxyUrl/id
  */
-export function getVideoSource(url: string, fileId?: string): { type: 'video' | 'iframe', src: string } {
+export function getVideoSource(file: { url: string; id?: string; proxyUrl?: string | null }): { type: 'video' | 'iframe', src: string } {
+  const { url, id, proxyUrl } = file;
+
+  // 1. Use proxyUrl if available (Priority 1)
+  if (proxyUrl) {
+    return { type: 'video', src: proxyUrl };
+  }
+
   const info = analyzeVideoUrl(url);
 
+  // 2. Iframe (YouTube/Drive)
   if (info.requiresIframe && info.embedUrl) {
     return { type: 'iframe', src: info.embedUrl };
   }
 
-  // Use streaming proxy for S3/R2-hosted files (supports HTTP Range requests)
+  // 3. Streaming proxy for S3/R2-hosted files (supports HTTP Range requests)
   const isObjectStorage = url && (
     url.includes('amazonaws.com') ||
     url.includes('r2.cloudflarestorage.com') ||
     url.includes('r2.dev')
   );
-  if (isObjectStorage && fileId) {
-    return { type: 'video', src: `/api/files/${fileId}/stream` };
+  if (isObjectStorage && id) {
+    return { type: 'video', src: `/api/files/${id}/stream` };
   }
 
+  // 4. Fallback to original URL
   return { type: 'video', src: url };
 }

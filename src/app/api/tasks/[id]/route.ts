@@ -33,6 +33,7 @@ export async function GET(
             version: true,
             isActive: true,
             codec: true,
+            proxyUrl: true,
           },
           orderBy: {
             uploadedAt: "desc",
