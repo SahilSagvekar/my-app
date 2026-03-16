@@ -63,7 +63,8 @@ export async function optimizeVideo(fileId: string): Promise<{ success: boolean;
         '-vf', "scale='min(1280,iw)':-2", // Scale to 720p max while maintaining aspect ratio
         '-vcodec', 'libx264',
         '-crf', '28', // Lower quality for review (18-28 is good range)
-        '-preset', 'faster',
+        '-preset', 'ultrafast', // ⚡ ⚡ ⚡ MAXIMUM SPEED boost
+        '-threads', '0',    // 🔥 Use all available CPU cores
         '-acodec', 'aac',
         '-b:a', '128k',
         '-movflags', '+faststart', // Web optimized

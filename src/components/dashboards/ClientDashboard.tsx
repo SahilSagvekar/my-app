@@ -177,24 +177,6 @@ export function ClientDashboard() {
 
   const { user } = useAuth();
 
-  /* ---------------------------- FETCH CLIENT TASKS -------------------------- */
-
-  useEffect(() => {
-    loadClientTasks();
-  }, []);
-
-  // Global listener for background task updates
-  useEffect(() => {
-    const handleTaskGlobalUpdate = (e: any) => {
-      if (e.detail?.taskId) {
-        console.log("🔔 Global update received for task in Client:", e.detail.taskId);
-        loadClientTasks();
-      }
-    };
-    window.addEventListener('task-updated', handleTaskGlobalUpdate);
-    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
-  }, []);
-
   const loadClientTasks = useCallback(async () => {
     try {
       setLoading(true);
@@ -259,6 +241,33 @@ export function ClientDashboard() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadClientTasks();
+
+    // 🔥 Poll for status updates if any task is optimizing
+    const hasActiveJobs = tasks.some(t =>
+      t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
+    );
+
+    if (hasActiveJobs) {
+      console.log("⏱️ Active optimization detected in Client dashboard, starting poll...");
+      const interval = setInterval(loadClientTasks, 15000); // Poll every 15s
+      return () => clearInterval(interval);
+    }
+  }, [loadClientTasks, tasks]);
+
+  // Global listener for background task updates
+  useEffect(() => {
+    const handleTaskGlobalUpdate = (e: any) => {
+      if (e.detail?.taskId) {
+        console.log("🔔 Global update received for task in Client:", e.detail.taskId);
+        loadClientTasks();
+      }
+    };
+    window.addEventListener('task-updated', handleTaskGlobalUpdate);
+    return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
+  }, [loadClientTasks]);
 
   const handleMarkAsPosted = async (task?: ClientTask) => {
     const taskToMark = task || selectedTask;

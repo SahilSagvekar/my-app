@@ -1040,7 +1040,18 @@ export function EditorDashboard() {
 
   useEffect(() => {
     loadTasks();
-  }, [loadTasks]);
+
+    // 🔥 Poll for status updates if any task is optimizing
+    const hasActiveJobs = tasks.some(t => 
+      t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
+    );
+
+    if (hasActiveJobs) {
+      console.log("⏱️ Active optimization detected, starting poll...");
+      const interval = setInterval(loadTasks, 15000); // Poll every 15s
+      return () => clearInterval(interval);
+    }
+  }, [loadTasks, tasks]);
 
   // Global listener for background task updates
   useEffect(() => {
