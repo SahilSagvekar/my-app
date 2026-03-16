@@ -168,20 +168,27 @@ export function QCDashboard() {
     return '';
   };
 
-  useEffect(() => {
-    loadQCTasks();
+  // Initial load - run once on mount
+useEffect(() => {
+  loadQCTasks();
+}, []);
 
-    // 🔥 Poll for status updates if any task is optimizing
-    const hasActiveJobs = qcTasks.some(t => 
-      t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
-    );
+// Polling effect - only runs when optimization status changes
+useEffect(() => {
+  const hasActiveJobs = qcTasks.some((t) =>
+    t.files?.some(
+      (f) =>
+        f.optimizationStatus === "PROCESSING" ||
+        f.optimizationStatus === "PENDING",
+    ),
+  );
 
-    if (hasActiveJobs) {
-      console.log("⏱️ Active optimization detected in QC, starting poll...");
-      const interval = setInterval(loadQCTasks, 15000); // Poll every 15s
-      return () => clearInterval(interval);
-    }
-  }, [qcTasks]);
+  if (hasActiveJobs) {
+    console.log("⏱️ Active optimization detected in QC, starting poll...");
+    const interval = setInterval(loadQCTasks, 15000);
+    return () => clearInterval(interval);
+  }
+}, [qcTasks.length]); // Only re-check when task count changes, not every render
 
 
 
