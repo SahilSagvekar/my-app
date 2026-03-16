@@ -22,12 +22,32 @@ export async function GET(
         const contract = await prisma.contract.findUnique({
             where: { id },
             include: {
-                auditLogs: { orderBy: { createdAt: 'asc' } }
+                auditLogs: { orderBy: { createdAt: 'asc' } },
+                signers: { select: { email: true } },
             }
         });
 
         if (!contract) {
             return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+        }
+
+        // Authorization check
+        const user = await prisma.user.findFirst({
+            where: { id: jwtUser.userId || jwtUser.id },
+            include: { client: true }
+        });
+        if (!user) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+
+        if (user.role === 'client') {
+            const isOwner = contract.clientId === user.linkedClientId || (user.client && contract.clientId === user.client.id);
+            const isSigner = contract.signers.some(s => s.email === user.email);
+            if (!isOwner && !isSigner) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+        } else if (user.role !== 'admin' && user.role !== 'manager') {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const s3Key = type === 'signed' && contract.signedS3Key

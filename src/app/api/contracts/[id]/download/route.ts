@@ -31,9 +31,21 @@ export async function GET(
 
         const user = await prisma.user.findFirst({
             where: { id: jwtUser.userId || jwtUser.id },
+            include: { client: true }
         });
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+
+        // Authorization check
+        if (user.role === 'client') {
+            const isOwner = contract.clientId === user.linkedClientId || (user.client && contract.clientId === user.client.id);
+            const isSigner = contract.signers.some(s => s.email === user.email);
+            if (!isOwner && !isSigner) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+        } else if (user.role !== 'admin' && user.role !== 'manager') {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const { searchParams } = new URL(req.url);
