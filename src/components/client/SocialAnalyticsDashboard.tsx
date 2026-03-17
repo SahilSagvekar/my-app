@@ -13,7 +13,7 @@ import {
 import { 
   Youtube, Instagram, Facebook, Music2, 
   TrendingUp, Users, Eye, Heart, MessageCircle,
-  Plus, RefreshCw, AlertCircle, ExternalLink, Loader2, X, Trash2
+  Plus, RefreshCw, AlertCircle, ExternalLink, Loader2, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,6 +56,7 @@ interface Platform {
   description: string;
 }
 
+// Updated: Instagram removed (deprecated Dec 2024), Facebook includes Instagram Business
 const PLATFORMS: Platform[] = [
   {
     id: 'youtube',
@@ -65,18 +66,11 @@ const PLATFORMS: Platform[] = [
     description: 'Connect your YouTube channel to track video performance',
   },
   {
-    id: 'instagram',
-    name: 'Instagram',
-    icon: Instagram,
-    color: '#E4405F',
-    description: 'Connect your Instagram business account for insights',
-  },
-  {
     id: 'facebook',
-    name: 'Facebook',
+    name: 'Facebook + Instagram',
     icon: Facebook,
     color: '#1877F2',
-    description: 'Connect your Facebook Page to track engagement',
+    description: 'Connect Facebook Page (includes linked Instagram Business)',
   },
   {
     id: 'tiktok',
@@ -106,12 +100,11 @@ export function SocialAnalyticsDashboard({ clientId }: { clientId: string }) {
   // Check for connection success/error in URL params
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const connected = params.get('connected');
-    const errorParam = params.get('error');
+    const connected = params.get('social_connected');
+    const errorParam = params.get('social_error');
 
     if (connected) {
       toast.success(`Successfully connected ${connected}!`);
-      // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
       mutate();
     }
@@ -137,7 +130,6 @@ export function SocialAnalyticsDashboard({ clientId }: { clientId: string }) {
 
   const handleConnect = (platformId: string) => {
     setConnecting(platformId);
-    // Redirect to OAuth flow
     window.location.href = `/api/social/connect/${platformId}?clientId=${clientId}`;
   };
 
@@ -256,6 +248,10 @@ export function SocialAnalyticsDashboard({ clientId }: { clientId: string }) {
               );
             })}
           </div>
+          {/* Note about Instagram */}
+          <p className="text-xs text-muted-foreground mt-4 text-center">
+            💡 Instagram Business accounts are connected via Facebook Page
+          </p>
         </DialogContent>
       </Dialog>
 
@@ -267,9 +263,6 @@ export function SocialAnalyticsDashboard({ clientId }: { clientId: string }) {
               <div className="p-3 rounded-full bg-red-100">
                 <Youtube className="h-8 w-8 text-red-500" />
               </div>
-              <div className="p-3 rounded-full bg-pink-100">
-                <Instagram className="h-8 w-8 text-pink-500" />
-              </div>
               <div className="p-3 rounded-full bg-blue-100">
                 <Facebook className="h-8 w-8 text-blue-500" />
               </div>
@@ -279,7 +272,7 @@ export function SocialAnalyticsDashboard({ clientId }: { clientId: string }) {
             </div>
             <h3 className="text-xl font-semibold mb-2">Connect Your Social Accounts</h3>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Link your YouTube, Instagram, Facebook, or TikTok accounts to track performance and engagement metrics.
+              Link your YouTube, Facebook, or TikTok accounts to track performance and engagement metrics.
             </p>
             <Button size="lg" onClick={() => setShowConnectDialog(true)}>
               <Plus className="h-5 w-5 mr-2" />
