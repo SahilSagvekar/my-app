@@ -30,6 +30,7 @@ import {
   Check,
   Download,
   RefreshCw,
+  BarChart3,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
@@ -42,6 +43,7 @@ import { Checkbox } from '../ui/checkbox';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
+import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
 
 interface TaskFile {
   id: string;
@@ -157,6 +159,7 @@ export function ClientDashboard() {
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<'all' | 'pending' | 'approved' | 'posted'>('pending');
+  const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -938,6 +941,39 @@ export function ClientDashboard() {
   return (
     <TooltipProvider>
       <div className="flex flex-col h-full space-y-6">
+        {/* Page-level Navigation: Content Review vs Analytics */}
+        <div className="flex gap-1 p-1 bg-zinc-100 rounded-lg w-fit">
+          <button
+            onClick={() => setPageView('content')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              pageView === 'content'
+                ? 'bg-white shadow-sm text-gray-900'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Content Review
+          </button>
+          <button
+            onClick={() => setPageView('analytics')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+              pageView === 'analytics'
+                ? 'bg-white shadow-sm text-gray-900'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            Analytics
+          </button>
+        </div>
+
+        {/* Analytics View */}
+        {pageView === 'analytics' && user?.linkedClientId && (
+          <SocialAnalyticsDashboard clientId={user.linkedClientId} />
+        )}
+
+        {/* Content Review View */}
+        {pageView === 'content' && (
+          <>
         {/* Page Header & Filter Row */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-gray-200">
           <div>
@@ -1682,6 +1718,8 @@ export function ClientDashboard() {
             </div>
           </DialogContent>
         </Dialog>
+        </>
+        )}
       </div>
     </TooltipProvider>
   );
