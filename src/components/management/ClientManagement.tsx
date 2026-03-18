@@ -64,6 +64,7 @@ import { VisuallyHidden } from "../ui/visually-hidden";
 import { Checkbox } from "../ui/checkbox";
 import { toast } from "sonner";
 import { globalTaskManager } from "../workflow/GlobalTaskManager";
+import { createClientAction } from "@/app/actions/admin";
 import {
   FaInstagram,
   FaTiktok,
@@ -1203,49 +1204,27 @@ export function ClientManagement() {
     }
 
     try {
-      const url = editingClient
-        ? `/api/clients/${editingClient.id}`
-        : `/api/clients`;
-
-      const method = editingClient ? "PUT" : "POST";
-
-      // 🔥 Make sure monthlyDeliverables is included in the payload
-      const payload = {
-        ...newClient,
-        monthlyDeliverables: newClient.monthlyDeliverables || [],
-        oneOffDeliverables: newClient.oneOffDeliverables || [],
-      };
-
-      console.log("📤 Sending client data:", JSON.stringify(payload, null, 2));
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      console.log("📥 Received response:", JSON.stringify(data, null, 2));
-
-      if (!res.ok) {
-        toast.error(data.message || "Failed to save client");
-        return;
-      }
-
-      toast.success(
-        editingClient
-          ? "Client updated successfully!"
-          : "Client created successfully!"
-      );
-
-      // 🔥 Update UI with the response data (includes proper deliverable IDs from DB)
       if (editingClient) {
+        // 🔥 Keep existing PUT logic for updates (or move to action later)
+        const res = await fetch(`/api/clients/${editingClient.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newClient),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Failed to update client");
+        
         setClients((prev) =>
           prev.map((c) => (c.id === editingClient.id ? data.updated : c))
         );
+        toast.success("Client updated successfully!");
       } else {
-        setClients((prev) => [...prev, data.client]);
+        // 🔥 Use SERVER ACTION for creation
+        toast.loading("Creating client...", { id: "create-client" });
+        const result = await createClientAction(newClient);
+        
+        setClients((prev) => [...prev, result as any]);
+        toast.success("Client created successfully!", { id: "create-client" });
       }
 
       setShowAddDialog(false);

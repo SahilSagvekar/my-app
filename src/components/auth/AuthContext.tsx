@@ -46,6 +46,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check auth status on mount
   useEffect(() => {
     const checkAuth = async () => {
+      // 🚀 Optimization: Quick check for cookie before fetching
+      // If no auth cookie exists, we're definitely not logged in.
+      // This saves a network round-trip for every landing/login page visit.
+      const hasAuthCookie = document.cookie.split(';').some(c => c.trim().startsWith('authToken='));
+      
+      if (!hasAuthCookie) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await fetch("/api/auth/me");
         if (res.ok) {
@@ -55,6 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsAuthenticated(true);
           }
         }
+      } catch (err) {
+        console.error("Auth initialization failed:", err);
       } finally {
         setLoading(false);
       }

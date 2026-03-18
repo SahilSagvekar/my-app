@@ -34,6 +34,8 @@ import {
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { RecentTasksCard } from '../tasks/RecentTasksCard';
+import { getDashboardOverviewAction } from '@/app/actions/admin';
+import type { KPIData, PipelineData, ProjectHealthData, ActivityData, SystemStatusData } from '@/app/actions/admin';
 
 // ============================================
 // ROBUST DYNAMIC IMPORT WRAPPER
@@ -105,77 +107,8 @@ function DashboardLoadingFallback({ componentName = "Dashboard" }) {
   );
 }
 
-interface KPIData {
-  totalRevenue: {
-    value: string;
-    change: string;
-    trend: 'up' | 'down';
-  };
-  activeProjects: {
-    value: string;
-    change: string;
-    trend: 'up' | 'down';
-  };
-  teamMembers: {
-    value: string;
-    change: string;
-    trend: 'up' | 'down';
-  };
-  avgCompletion: {
-    value: string;
-    change: string;
-    trend: 'up' | 'down';
-  };
-}
+import { toast } from 'sonner';
 
-interface PipelineData {
-  name: string;
-  projects: number;
-  revenue: number;
-}
-
-interface ProjectHealthData {
-  name: string;
-  value: number;
-  count: number;
-  color: string;
-}
-
-interface ActivityData {
-  id: number;
-  type: string;
-  message: string;
-  time: string;
-  status: 'success' | 'error' | 'warning' | 'info';
-  user?: string;
-}
-
-interface SystemStatusData {
-  serverStatus: string;
-  databaseStatus: string;
-  databaseResponseTime: string;
-  databaseSize: string;
-  activeUsers: number;
-  activeUserList?: Array<{
-    name: string;
-    role: string;
-    lastActive: Date;
-  }>;
-  apiResponseTime: string;
-  serverUptime: string;
-  memoryUsage: {
-    rss: number;
-    heapTotal: number;
-    heapUsed: number;
-    external: number;
-  };
-  statistics: {
-    totalTasks: number;
-    totalUsers: number;
-    totalClients: number;
-    totalAuditLogs: number;
-  };
-}
 
 interface AdminDashboardProps {
   currentPage?: string;
@@ -231,23 +164,20 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
 
   async function loadDashboardData() {
     try {
-      console.log('🔄 [ADMIN] Fetching dashboard overview...');
+      console.log('🔄 [ADMIN] Fetching dashboard overview via Server Action...');
       setLoading(true);
-      const res = await fetch("/api/admin/dashboard/overview", { cache: "no-store" });
-      const data = await res.json();
+      
+      const data = await getDashboardOverviewAction();
 
-      if (data.ok) {
-        setKpiData(data.kpi);
-        setPipelineData(data.pipeline);
-        setProjectHealthData(data.projectHealth);
-        setRecentActivity(data.recentActivity);
-        setSystemStatus(data.systemStatus);
-        console.log('✅ [ADMIN] Dashboard data loaded successfully');
-      } else {
-        console.error("❌ [ADMIN] Failed to fetch dashboard data:", data.message);
-      }
-    } catch (err) {
+      setKpiData(data.kpi);
+      setPipelineData(data.pipeline);
+      setProjectHealthData(data.projectHealth);
+      setRecentActivity(data.recentActivity);
+      setSystemStatus(data.systemStatus);
+      console.log('✅ [ADMIN] Dashboard data loaded successfully');
+    } catch (err: any) {
       console.error("❌ [ADMIN] Failed to fetch dashboard:", err);
+      toast.error(err.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
@@ -467,11 +397,11 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
                     <span className="text-sm">Active Users</span>
                     <span className="text-sm font-medium">{systemStatus.activeUsers}</span>
 
-                    {systemStatus.activeUserList && systemStatus.activeUserList.length > 0 && (
+                    {systemStatus?.activeUserList && systemStatus.activeUserList.length > 0 && (
                       <div className="absolute hidden group-hover:block right-0 top-full mt-2 w-64 p-3 bg-popover border rounded-lg shadow-lg z-50">
                         <p className="text-xs font-semibold mb-2">Currently Active:</p>
                         <div className="space-y-1 max-h-48 overflow-y-auto">
-                          {systemStatus.activeUserList.map((user: any, idx: number) => (
+                          {systemStatus.activeUserList.map((user: { name: string; role: string }, idx: number) => (
                             <div key={idx} className="text-xs flex items-center justify-between py-1">
                               <span className="truncate">{user.name || 'Unknown'}</span>
                               <Badge variant="outline" className="text-xs ml-2">

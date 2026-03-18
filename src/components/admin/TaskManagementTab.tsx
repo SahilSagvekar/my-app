@@ -32,6 +32,12 @@ import {
   Edit
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { 
+  getAdminTasksAction, 
+  updateTaskAction, 
+  bulkUpdateTasksAction,
+  deleteTaskAction 
+} from '@/app/actions/admin';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -308,67 +314,43 @@ export function TaskManagementTab() {
     try {
       setLoading(true);
 
-      // Build query params
-      const params = new URLSearchParams();
-      params.set('page', page.toString());
-      params.set('limit', limit.toString());
-      params.set('sortBy', 'title');
-      params.set('sortOrder', 'asc');
-
-      if (filters.editor !== 'all') params.set('editor', filters.editor);
-      if (filters.qc !== 'all') params.set('qc', filters.qc);
-      if (filters.scheduler !== 'all') params.set('scheduler', filters.scheduler);
-      if (filters.videographer !== 'all') params.set('videographer', filters.videographer);
-      if (filters.client !== 'all') params.set('client', filters.client);
-      if (filters.status !== 'all') params.set('status', filters.status);
-      if (filters.deliverableType !== 'all') params.set('deliverableType', filters.deliverableType);
-      if (filters.month !== 'all') params.set('month', filters.month);
-      if (filters.search) params.set('search', filters.search);
-      if (filters.dueDateFrom) params.set('dueDateFrom', filters.dueDateFrom.toISOString());
-      if (filters.dueDateTo) params.set('dueDateTo', filters.dueDateTo.toISOString());
-
-      const res = await fetch(`/api/admin/tasks?${params.toString()}`);
-
-      if (!res.ok) {
-        throw new Error('Failed to fetch tasks');
-      }
-
-      const data = await res.json();
+      const data = await getAdminTasksAction({
+        page,
+        limit,
+        sortBy: filters.search ? 'createdAt' : 'title', // Default to title sort unless searching
+        sortOrder: 'asc',
+        editor: filters.editor,
+        qc: filters.qc,
+        scheduler: filters.scheduler,
+        videographer: filters.videographer,
+        client: filters.client,
+        status: filters.status,
+        deliverableType: filters.deliverableType,
+        month: filters.month,
+        search: filters.search,
+        dueDateFrom: filters.dueDateFrom?.toISOString(),
+        dueDateTo: filters.dueDateTo?.toISOString(),
+      });
 
       setTasks(data.tasks || []);
       setTotalPages(data.pagination?.totalPages || 1);
       setTotal(data.pagination?.total || 0);
       setStats(data.stats || null);
 
-      // Set available months for filter dropdown
-      if (data.availableMonths && Array.isArray(data.availableMonths)) {
+      if (data.availableMonths) {
         setAvailableMonths(data.availableMonths);
       }
 
-      // Extract unique deliverable types from tasks
-      if (data.tasks && data.tasks.length > 0) {
-        const types = new Set<string>();
-        data.tasks.forEach((task: Task) => {
-          if (task.monthlyDeliverable?.type) {
-            types.add(task.monthlyDeliverable.type);
-          }
-        });
-        // Also include types from deliverableTypes in stats if available
-        if (data.deliverableTypes && Array.isArray(data.deliverableTypes)) {
-          data.deliverableTypes.forEach((type: string) => types.add(type));
-        }
-        if (types.size > 0) {
-          setAvailableDeliverableTypes(Array.from(types).sort());
-        }
+      if (data.deliverableTypes) {
+        setAvailableDeliverableTypes(data.deliverableTypes);
       }
 
-      // Clear selection when tasks change
       setSelectedTasks(new Set());
     } catch (error: any) {
       console.error('Failed to load tasks:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load tasks',
+        description: error.message || 'Failed to load tasks',
         variant: 'destructive',
       });
     } finally {
@@ -466,16 +448,7 @@ export function TaskManagementTab() {
         return;
       }
 
-      const res = await fetch(`/api/admin/tasks/${editingTask.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Failed to update task');
-      }
+      await updateTaskAction(editingTask.id, updates);
 
       toast({ title: 'Success', description: 'Task updated successfully' });
       setEditingTask(null);
@@ -549,22 +522,8 @@ export function TaskManagementTab() {
         return;
       }
 
-      // Send bulk update request
-      const res = await fetch('/api/admin/tasks/bulk', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          taskIds: Array.from(selectedTasks),
-          updates,
-        }),
-      });
+      const result = await bulkUpdateTasksAction(Array.from(selectedTasks), updates);
 
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Failed to update tasks');
-      }
-
-      const result = await res.json();
       toast({
         title: 'Success',
         description: `Updated ${result.updated || selectedTasks.size} tasks successfully`
