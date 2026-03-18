@@ -967,9 +967,9 @@ export function ClientDashboard() {
         </div>
 
         {/* Analytics View */}
-        {pageView === 'analytics' && user?.linkedClientId && (
+        {/* {pageView === 'analytics' && user?.linkedClientId && (
           <SocialAnalyticsDashboard clientId={user.linkedClientId} />
-        )}
+        )} */}
 
         {/* Content Review View */}
         {pageView === 'content' && (
