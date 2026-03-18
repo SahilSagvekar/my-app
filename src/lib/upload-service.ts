@@ -2,7 +2,7 @@
 import { uploadStateManager, UploadState } from './upload-state-manager';
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
-const PARALLEL_UPLOADS = 6;
+const PARALLEL_UPLOADS = 3; // 🔥 Reduced from 6 to 3 to avoid S3 throttling (503 errors)
 
 type UploadEvent = 'progress' | 'completed' | 'failed' | 'paused' | 'started';
 type UploadListener = (state: UploadState) => void;
@@ -43,44 +43,86 @@ class UploadService {
         partNumber: number,
         key: string,
         uploadId: string,
-        fileType: string
+        fileType: string,
+        maxRetries: number = 5
     ) {
-        // 1. Get Presigned URL
-        const payload = JSON.stringify({ key, uploadId, partNumber });
-        const partUrlResponse = await fetch(`/api/upload/part-url?t=${Date.now()}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: payload,
-        });
+        let lastError: Error | null = null;
 
-        if (!partUrlResponse.ok) {
-            const errorText = await partUrlResponse.text();
-            console.error(`❌ Part URL error (${partUrlResponse.status}):`, errorText);
-            throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                // 1. Get Presigned URL
+                const payload = JSON.stringify({ key, uploadId, partNumber });
+                const partUrlResponse = await fetch(`/api/upload/part-url?t=${Date.now()}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: payload,
+                });
+
+                if (!partUrlResponse.ok) {
+                    const errorText = await partUrlResponse.text();
+                    console.error(`❌ Part URL error (${partUrlResponse.status}):`, errorText);
+                    throw new Error(`Failed to get presigned URL for part ${partNumber}`);
+                }
+                const { presignedUrl } = await partUrlResponse.json();
+
+                // 2. Upload to S3
+                const uploadResponse = await fetch(presignedUrl, {
+                    method: "PUT",
+                    body: chunk,
+                    headers: { "Content-Type": fileType },
+                });
+
+                // 🔥 Handle S3 503 (SlowDown/Service Unavailable) with retry
+                if (uploadResponse.status === 503) {
+                    const retryAfter = parseInt(uploadResponse.headers.get('Retry-After') || '0') || 0;
+                    const backoffMs = Math.max(retryAfter * 1000, Math.pow(2, attempt) * 1000 + Math.random() * 1000);
+                    console.warn(`⚠️ S3 503 on part ${partNumber}, attempt ${attempt + 1}/${maxRetries}. Retrying in ${Math.round(backoffMs)}ms...`);
+                    await this.sleep(backoffMs);
+                    continue;
+                }
+
+                // 🔥 Handle S3 500/502/504 errors with retry
+                if (uploadResponse.status >= 500 && uploadResponse.status <= 599) {
+                    const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                    console.warn(`⚠️ S3 ${uploadResponse.status} on part ${partNumber}, attempt ${attempt + 1}/${maxRetries}. Retrying in ${Math.round(backoffMs)}ms...`);
+                    await this.sleep(backoffMs);
+                    continue;
+                }
+
+                if (!uploadResponse.ok) {
+                    throw new Error(`S3 Error (${uploadResponse.status})`);
+                }
+
+                const etag = uploadResponse.headers.get("ETag");
+                if (!etag) throw new Error("No ETag from S3");
+
+                return {
+                    ETag: etag.replace(/"/g, ""),
+                    PartNumber: partNumber,
+                };
+            } catch (err: any) {
+                lastError = err;
+                
+                // Don't retry on non-retryable errors
+                if (err.message?.includes('Failed to get presigned URL')) {
+                    throw err;
+                }
+
+                // Network errors - retry with backoff
+                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+                console.warn(`⚠️ Upload error on part ${partNumber}, attempt ${attempt + 1}/${maxRetries}: ${err.message}. Retrying in ${Math.round(backoffMs)}ms...`);
+                await this.sleep(backoffMs);
+            }
         }
-        const { presignedUrl } = await partUrlResponse.json();
 
-        // 2. Upload to S3
-        const uploadResponse = await fetch(presignedUrl, {
-            method: "PUT",
-            body: chunk,
-            headers: { "Content-Type": fileType },
-        });
+        throw lastError || new Error(`S3 upload failed after ${maxRetries} attempts for part ${partNumber}`);
+    }
 
-        if (!uploadResponse.ok) {
-            throw new Error(`S3 Error (${uploadResponse.status})`);
-        }
-
-        const etag = uploadResponse.headers.get("ETag");
-        if (!etag) throw new Error("No ETag from S3");
-
-        return {
-            ETag: etag.replace(/"/g, ""),
-            PartNumber: partNumber,
-        };
+    private sleep(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     private async detectCodec(file: File): Promise<string | null> {

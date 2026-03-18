@@ -2053,7 +2053,7 @@ export function ClientManagement() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
+        {/* <div>
           <h2 className="text-gray-900">Client Management</h2>
           <p className="text-sm text-gray-600">
             Manage client accounts and monthly deliverables
@@ -2064,7 +2064,7 @@ export function ClientManagement() {
               {clients.length}
             </span>
           </div>
-        </div>
+        </div> */}
         <Button
           onClick={() => {
             setEditingClient(null);
