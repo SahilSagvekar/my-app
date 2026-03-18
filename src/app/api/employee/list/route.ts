@@ -7,12 +7,31 @@ export async function GET(req: Request) {
   try {
     await requireAdmin(req);
 
+    // Get status filter from query params
+    const url = new URL(req.url);
+    const status = url.searchParams.get('status');
+
+    // 🔥 OPTIMIZED: Only select fields needed for the list view
     const employees = await prisma.user.findMany({
       where: {
         OR: [
-          { role: null }, // Include users with no role
-          { role: { notIn: ["admin", "client"] } } // Include non-admin/client roles
-        ]
+          { role: null },
+          { role: { notIn: ["admin", "client"] } }
+        ],
+        // Filter by status if provided
+        ...(status && { employeeStatus: status as any }),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        phone: true,
+        employeeStatus: true,
+        hourlyRate: true,
+        hoursPerWeek: true,
+        joinedAt: true,
+        createdAt: true,
       },
       orderBy: { createdAt: "desc" }
     });

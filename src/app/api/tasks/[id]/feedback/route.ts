@@ -152,11 +152,68 @@ export async function PATCH(
       );
     }
 
+    // Get existing unresolved feedback to avoid duplicates
+    const existingFeedback = await prisma.taskFeedback.findMany({
+      where: {
+        taskId: id,
+        status: { not: 'resolved' },
+      },
+      select: {
+        feedback: true,
+        timestamp: true,
+        folderType: true,
+        createdBy: true,
+      }
+    });
+
+    // Create a Set of existing feedback signatures for fast lookup
+    // Include createdBy to allow same comment from different users
+    // But also create a content-only signature to prevent exact duplicates
+    const existingSignatures = new Set(
+      existingFeedback.map(fb => 
+        `${fb.folderType || 'main'}:${fb.timestamp || ''}:${fb.feedback}:${fb.createdBy}`
+      )
+    );
+    
+    // Also track content-only signatures to prevent duplicates regardless of user
+    const contentSignatures = new Set(
+      existingFeedback.map(fb => 
+        `${fb.folderType || 'main'}:${fb.timestamp || ''}:${fb.feedback}`
+      )
+    );
+
+    // Filter out items that already exist
+    const newItems = feedbackItems.filter((item: any) => {
+      // Check if exact same feedback (same user, same content) already exists
+      const fullSignature = `${item.folderType || 'main'}:${item.timestamp || ''}:${item.feedback}:${finalCreatedBy}`;
+      if (existingSignatures.has(fullSignature)) {
+        return false;
+      }
+      
+      // Also check if the exact same content exists from ANY user (prevent cross-user duplication)
+      const contentSignature = `${item.folderType || 'main'}:${item.timestamp || ''}:${item.feedback}`;
+      if (contentSignatures.has(contentSignature)) {
+        console.log(`⚠️ Skipping duplicate content: "${item.feedback.slice(0, 50)}..." (already exists from another user)`);
+        return false;
+      }
+      
+      return true;
+    });
+
+    if (newItems.length === 0) {
+      console.log(`⚠️ All ${feedbackItems.length} feedback items already exist for task ${id}, skipping`);
+      return NextResponse.json({
+        success: true,
+        count: 0,
+        message: 'All feedback items already exist'
+      });
+    }
+
     // Start a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create new feedback items
+      // Create new feedback items (only the ones that don't exist)
       const created = await tx.taskFeedback.createMany({
-        data: feedbackItems.map((item: any) => ({
+        data: newItems.map((item: any) => ({
           taskId: id,
           folderType: item.folderType || 'main',
           fileId: item.fileId || null,
@@ -171,7 +228,7 @@ export async function PATCH(
       return created;
     });
 
-    console.log(`✅ Created ${result.count} feedback items for task ${id}`);
+    console.log(`✅ Created ${result.count} feedback items for task ${id} (${feedbackItems.length - newItems.length} duplicates skipped)`);
 
     const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
     await createAuditLog({

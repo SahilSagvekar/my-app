@@ -522,8 +522,8 @@ function TaskCard({
   };
   const isOverdue = new Date(task.dueDate) < new Date();
 
-  // 🔥 Tasks in QC review shouldn't be draggable by editors
-  const isDraggable = task.status !== "ready_for_qc";
+  // 🔥 Tasks in QC review can now be dragged back to in_progress by editors
+  const isDraggable = true;
 
   // 🔥 Get upload validation for in_progress tasks
   const uploadValidation =
@@ -763,6 +763,18 @@ function TaskCard({
               task={task}
               onUploadComplete={(files) => onUploadComplete(task.id, files)}
             />
+          )}
+
+          {/* 🔥 NEW: Allow editor to move task back from QC to In Progress */}
+          {task.status === "ready_for_qc" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+              onClick={() => onStartTask(task.id)}
+            >
+              ↩ Move Back to In Progress
+            </Button>
           )}
         </CardContent>
       </Card>
@@ -1038,10 +1050,13 @@ export function EditorDashboard() {
     }
   }, [currentUser.id]);
 
+  // 🔥 Initial load - run once on mount
   useEffect(() => {
     loadTasks();
+  }, []);
 
-    // 🔥 Poll for status updates if any task is optimizing
+  // 🔥 Polling effect - only check for active optimization jobs
+  useEffect(() => {
     const hasActiveJobs = tasks.some(t => 
       t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
     );
@@ -1051,7 +1066,7 @@ export function EditorDashboard() {
       const interval = setInterval(loadTasks, 15000); // Poll every 15s
       return () => clearInterval(interval);
     }
-  }, [loadTasks, tasks]);
+  }, [tasks.length]); // Only re-evaluate when task count changes
 
   // Global listener for background task updates
   useEffect(() => {

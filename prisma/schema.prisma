@@ -164,6 +164,7 @@ model Task {
   qcReviewer           User?               @relation("QCReviewedTasks", fields: [qcReviewedBy], references: [id])
   taskFeedback         TaskFeedback[]
   titlingJob           TitlingJob?
+  SocialPost           SocialPost[]        
 
   @@index([assignedTo])
   @@index([clientId])
@@ -310,6 +311,7 @@ model Client {
   linkedUsers             User[]                   @relation("LinkedClientUsers")
   youtubeChannel          YouTubeChannel?
   youtubeSnapshots        YouTubeSnapshot[]
+  SocialAccount           SocialAccount[]
 
   @@index([status])
 }
@@ -528,6 +530,100 @@ model FeedbackResponse {
 
   @@index([feedbackId])
   @@index([senderId])
+}
+
+// Add to prisma/schema.prisma
+
+model SocialAccount {
+  id            String   @id @default(cuid())
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id])
+  
+  platform      String   // youtube, instagram, tiktok, facebook, twitter
+  platformId    String   // Channel ID, Page ID, etc.
+  platformName  String   // Channel name, Page name
+  
+  accessToken   String   // Encrypted
+  refreshToken  String?  // Encrypted
+  tokenExpiry   DateTime?
+  
+  profileUrl    String?
+  profileImage  String?
+  followerCount Int      @default(0)
+  
+  isActive      Boolean  @default(true)
+  lastSyncAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  analytics     SocialAnalytics[]
+  posts         SocialPost[]
+  
+  @@unique([clientId, platform, platformId])
+  @@index([clientId])
+  @@index([platform])
+}
+
+model SocialPost {
+  id              String   @id @default(cuid())
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
+  
+  platformPostId  String   // YouTube video ID, Instagram post ID, etc.
+  postType        String   // video, image, reel, story, short
+  title           String?
+  description     String?
+  thumbnailUrl    String?
+  postUrl         String
+  
+  publishedAt     DateTime
+  
+  // Metrics (updated via sync)
+  views           Int      @default(0)
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  shares          Int      @default(0)
+  saves           Int?
+  watchTime       Int?     // minutes
+  engagementRate  Float?
+  
+  // Link to E8 task if posted through system
+  taskId          String?
+  task            Task?    @relation(fields: [taskId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([socialAccountId, platformPostId])
+  @@index([socialAccountId])
+  @@index([publishedAt])
+}
+
+model SocialAnalytics {
+  id              String   @id @default(cuid())
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
+  
+  date            DateTime @db.Date
+  
+  // Daily metrics
+  followers       Int      @default(0)
+  followersGained Int      @default(0)
+  followersLost   Int      @default(0)
+  
+  views           Int      @default(0)
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  shares          Int      @default(0)
+  
+  impressions     Int?
+  reach           Int?
+  engagementRate  Float?
+  
+  createdAt       DateTime @default(now())
+  
+  @@unique([socialAccountId, date])
+  @@index([socialAccountId, date])
 }
 
 model SocialLogin {

@@ -84,6 +84,74 @@ interface EnhancedWorkflowTask {
   };
 }
 
+// 🔥 Color coding for deliverable types
+const getDeliverableTypeColor = (deliverableType: string): { bg: string; border: string; ring: string } => {
+  const type = deliverableType?.toLowerCase() || '';
+  
+  // Short Form Videos (green)
+  if (type.includes('short form') || type === 'sf' || type === 'short_form') {
+    return { 
+      bg: 'bg-emerald-50', 
+      border: 'border-emerald-200', 
+      ring: 'ring-emerald-300' 
+    };
+  }
+  // Beta Short Form (teal)
+  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form') {
+    return { 
+      bg: 'bg-teal-50', 
+      border: 'border-teal-200', 
+      ring: 'ring-teal-300' 
+    };
+  }
+  // SQF - Super Quick Form (cyan)
+  if (type === 'sqf' || type.includes('sqf') || type.includes('super quick')) {
+    return { 
+      bg: 'bg-cyan-50', 
+      border: 'border-cyan-200', 
+      ring: 'ring-cyan-300' 
+    };
+  }
+  // Snapchat Videos (yellow)
+  if (type.includes('snapchat') || type === 'snap') {
+    return { 
+      bg: 'bg-yellow-50', 
+      border: 'border-yellow-200', 
+      ring: 'ring-yellow-300' 
+    };
+  }
+  // Long Form Videos (blue)
+  if (type.includes('long form') || type === 'lf' || type === 'long_form') {
+    return { 
+      bg: 'bg-blue-50', 
+      border: 'border-blue-200', 
+      ring: 'ring-blue-300' 
+    };
+  }
+  // Thumbnails/Images (purple)
+  if (type.includes('thumbnail') || type.includes('image')) {
+    return { 
+      bg: 'bg-purple-50', 
+      border: 'border-purple-200', 
+      ring: 'ring-purple-300' 
+    };
+  }
+  // Podcasts/Audio (orange)
+  if (type.includes('podcast') || type.includes('audio')) {
+    return { 
+      bg: 'bg-orange-50', 
+      border: 'border-orange-200', 
+      ring: 'ring-orange-300' 
+    };
+  }
+  // Default
+  return { 
+    bg: 'bg-white', 
+    border: 'border-zinc-100', 
+    ring: 'ring-zinc-200' 
+  };
+};
+
 const persistQCResult = async ({
   taskId,
   approved,
@@ -168,27 +236,23 @@ export function QCDashboard() {
     return '';
   };
 
-  // Initial load - run once on mount
-useEffect(() => {
-  loadQCTasks();
-}, []);
+  // 🔥 Initial load - run once on mount
+  useEffect(() => {
+    loadQCTasks();
+  }, []);
 
-// Polling effect - only runs when optimization status changes
-useEffect(() => {
-  const hasActiveJobs = qcTasks.some((t) =>
-    t.files?.some(
-      (f) =>
-        f.optimizationStatus === "PROCESSING" ||
-        f.optimizationStatus === "PENDING",
-    ),
-  );
+  // 🔥 Polling effect - only check for active optimization jobs
+  useEffect(() => {
+    const hasActiveJobs = qcTasks.some(t => 
+      t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
+    );
 
-  if (hasActiveJobs) {
-    console.log("⏱️ Active optimization detected in QC, starting poll...");
-    const interval = setInterval(loadQCTasks, 15000);
-    return () => clearInterval(interval);
-  }
-}, [qcTasks.length]); // Only re-check when task count changes, not every render
+    if (hasActiveJobs) {
+      console.log("⏱️ Active optimization detected in QC, starting poll...");
+      const interval = setInterval(loadQCTasks, 15000); // Poll every 15s
+      return () => clearInterval(interval);
+    }
+  }, [qcTasks.length]); // Only re-evaluate when task count changes
 
 
 
@@ -807,10 +871,11 @@ useEffect(() => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
             {filteredTasks.map((task, index) => {
               const thumbnail = getTaskThumbnail(task);
+              const deliverableColors = getDeliverableTypeColor((task as any).deliverableType);
               return (
                 <Card
                   key={task.id}
-                  className={`group cursor-pointer border-none shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full bg-white hover:shadow-md hover:ring-1 hover:ring-zinc-200 ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""}`}
+                  className={`group cursor-pointer shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full hover:shadow-md ${deliverableColors.bg} ${deliverableColors.border} border hover:${deliverableColors.ring} ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""}`}
                   onClick={() => handleTaskClick(task)}
                 >
                   {/* Visual Header / Thumbnail Area */}
@@ -860,11 +925,34 @@ useEffect(() => {
                       {task.title}
                     </h4>
 
-                    {task.oneOffDeliverableId && (
-                      <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
-                        One-Off
-                      </Badge>
-                    )}
+                    {/* Deliverable Type Badge */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {(task as any).deliverableType && (task as any).deliverableType !== "Other" && (
+                        <Badge 
+                          variant="outline" 
+                          className={`w-fit text-[10px] h-5 px-2 font-medium ${
+                            (() => {
+                              const dt = ((task as any).deliverableType || '').toLowerCase();
+                              if (dt.includes('short form') || dt === 'sf') return 'bg-emerald-100 text-emerald-700 border-emerald-300';
+                              if (dt.includes('beta') || dt === 'bsf') return 'bg-teal-100 text-teal-700 border-teal-300';
+                              if (dt === 'sqf' || dt.includes('sqf') || dt.includes('super quick')) return 'bg-cyan-100 text-cyan-700 border-cyan-300';
+                              if (dt.includes('snapchat') || dt === 'snap') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+                              if (dt.includes('long form') || dt === 'lf') return 'bg-blue-100 text-blue-700 border-blue-300';
+                              if (dt.includes('thumbnail') || dt.includes('image')) return 'bg-purple-100 text-purple-700 border-purple-300';
+                              if (dt.includes('podcast') || dt.includes('audio')) return 'bg-orange-100 text-orange-700 border-orange-300';
+                              return 'bg-zinc-100 text-zinc-600 border-zinc-200';
+                            })()
+                          }`}
+                        >
+                          {(task as any).deliverableType}
+                        </Badge>
+                      )}
+                      {task.oneOffDeliverableId && (
+                        <Badge variant="outline" className="w-fit text-[10px] h-5 px-2 bg-yellow-50 text-yellow-700 border-yellow-200">
+                          One-Off
+                        </Badge>
+                      )}
+                    </div>
 
                     {/* Editor & Date Row */}
                     <div className="flex items-center justify-between text-zinc-500 text-[11px]">

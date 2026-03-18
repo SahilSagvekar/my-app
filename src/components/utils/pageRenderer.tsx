@@ -37,6 +37,7 @@ import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
+import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";  
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -303,6 +304,8 @@ export function renderPage(
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
+      case "social":
+        return <SocialAnalyticsDashboard />;
       case "training":
         return <TrainingPortalPage />;
       case "archive":

@@ -399,18 +399,33 @@ export function FullScreenReviewModalFrameIO({
         if (!user?.id && !shareToken) return false;
         try {
             setSavingFeedback(true);
-            const items = feedbackComments
-                .filter(c => !c.resolved)
-                .map(c => {
-                    const ver = asset?.versions.find(v => parseInt(v.number) === (c.version || currentVersionNumber));
-                    return {
-                        folderType: currentFileSection?.folderType || 'main',
-                        fileId: ver?.id || currentFileSection?.fileId || null,
-                        feedback: c.content,
-                        timestamp: c.timestamp,
-                        category: c.category,
-                    };
-                });
+            
+            // Only send comments that haven't been saved yet
+            // DB IDs are CUIDs (start with 'c' and are ~25 chars), local IDs are Date.now() strings (numeric, ~13 chars)
+            const unsavedComments = feedbackComments.filter(c => {
+                // Check if this is a local (unsaved) comment
+                const isLocalId = /^\d+$/.test(c.id) && c.id.length < 20;
+                return isLocalId && !c.resolved;
+            });
+            
+            if (unsavedComments.length === 0) {
+                console.log('✅ No new comments to save');
+                return true;
+            }
+            
+            const items = unsavedComments.map(c => {
+                const ver = asset?.versions.find(v => parseInt(v.number) === (c.version || currentVersionNumber));
+                return {
+                    folderType: currentFileSection?.folderType || 'main',
+                    fileId: ver?.id || currentFileSection?.fileId || null,
+                    feedback: c.content,
+                    timestamp: c.timestamp,
+                    category: c.category,
+                };
+            });
+            
+            console.log(`💾 Saving ${items.length} new comments (${feedbackComments.length - unsavedComments.length} already saved)`);
+            
             const res = await fetch(`/api/tasks/${id}/feedback`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -429,6 +444,9 @@ export function FullScreenReviewModalFrameIO({
     /* ── Status change ── */
     const handleStatusChange = async (status: ReviewStatus['value']) => {
         if (!asset) return;
+        // Prevent double-submit
+        if (savingFeedback) return;
+        
         if (status === 'approved') {
             if (userRole === 'qc' && onSendToClient) onSendToClient(asset);
             else onApprove(asset, true);
