@@ -182,10 +182,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   };
 
   const getCurrentFolderS3Path = (): string => {
-    if (breadcrumb.length <= 1) {
+    if (breadcrumb.length === 0) {
       return "";
     }
-    const pathParts = breadcrumb.slice(1).map((b) => b.name);
+    // Include ALL breadcrumb parts including root (company name)
+    const pathParts = breadcrumb.map((b) => b.name);
     return pathParts.join("/") + "/";
   };
 
@@ -198,8 +199,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       return item.s3Key;
     }
 
-    // Build S3 key from breadcrumb + item name
-    const pathParts = breadcrumb.slice(1).map((b) => b.name);
+    // Build S3 key from breadcrumb + item name (include ALL parts including root)
+    const pathParts = breadcrumb.map((b) => b.name);
     pathParts.push(item.name);
     return pathParts.join("/");
   };
