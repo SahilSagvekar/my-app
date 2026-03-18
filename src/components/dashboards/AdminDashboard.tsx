@@ -34,6 +34,7 @@ import {
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { RecentTasksCard } from '../tasks/RecentTasksCard';
+import { QuickAddClientDialog } from '../client/QuickAddClientDialog';
 
 // ============================================
 // ROBUST DYNAMIC IMPORT WRAPPER
@@ -686,6 +687,18 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
       <div className="flex items-center gap-3">
         {children}
         <ManagementDropdown />
+        <QuickAddClientDialog
+          onClientCreated={() => {
+            // Optionally refresh data or navigate
+            console.log('Client created from admin dashboard');
+          }}
+          trigger={
+            <Button variant="outline" className="shadow-sm">
+              <Users className="h-4 w-4 mr-2" />
+              Add Client
+            </Button>
+          }
+        />
         <CreateTaskDialog
           onTaskCreated={handleTaskCreated}
           trigger={

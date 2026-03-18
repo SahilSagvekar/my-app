@@ -29,17 +29,25 @@ export function JobManagementSection() {
     const [processingBid, setProcessingBid] = useState<string | null>(null);
 
     const fetchJobs = async () => {
-        try {
-            setLoading(true);
-            const res = await fetch('/api/jobs');
-            const data = await res.json();
-            setJobs(data || []);
-        } catch (error) {
-            console.error('Failed to fetch jobs:', error);
-            toast.error('Failed to load jobs');
-        } finally {
-            setLoading(false);
+      try {
+        setLoading(true);
+        const res = await fetch("/api/jobs");
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || "Failed to load jobs");
+          setJobs([]); // ✅ Always an array
+          return;
         }
+
+        // Handle both array and wrapped responses
+        const jobsArray = Array.isArray(data) ? data : data.jobs || [];
+        setJobs(jobsArray); // ✅ Always an array
+      } catch (error) {
+        console.error("Failed to fetch jobs:", error);
+        toast.error("Failed to load jobs");
+      } finally {
+        setLoading(false);
+      }
     };
 
     useEffect(() => {
