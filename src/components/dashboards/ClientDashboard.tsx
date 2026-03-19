@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -44,6 +44,11 @@ import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
 import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
+
+// 🚀 Performance imports
+import { useClientTasks } from '../../lib/hooks/useClientTasks';
+import { ClientTaskCard } from '../client/ClientTaskCard';
+import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
 
 interface TaskFile {
   id: string;
@@ -150,8 +155,26 @@ const persistClientResult = async ({
 /* -------------------------------------------------------------------------- */
 
 export function ClientDashboard() {
-  const [tasks, setTasks] = useState<ClientTask[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 🚀 SWR for cached data fetching
+  const { 
+    tasks, 
+    isLoading: loading, 
+    isValidating, 
+    mutate: refreshTasks, 
+    hasActiveJobs 
+  } = useClientTasks({
+    revalidateOnFocus: true,
+  });
+
+  // 🚀 Auto-refresh when optimization jobs are active
+  useEffect(() => {
+    if (hasActiveJobs) {
+      console.log("⏱️ Active optimization detected, starting poll...");
+      const interval = setInterval(() => refreshTasks(), 15000);
+      return () => clearInterval(interval);
+    }
+  }, [hasActiveJobs, refreshTasks]);
+
   const [selectedTask, setSelectedTask] = useState<ClientTask | null>(null);
   const [selectedFile, setSelectedFile] = useState<TaskFile | null>(null);
   const [showFileSelector, setShowFileSelector] = useState(false);
@@ -180,100 +203,17 @@ export function ClientDashboard() {
 
   const { user } = useAuth();
 
-  const loadClientTasks = useCallback(async () => {
-    try {
-      setLoading(true);
-      // 🔥 Fetch tasks pending client review
-      // These are tasks that QC approved and routed to client
-      const res = await fetch("/api/tasks", {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      });
-
-      if (!res.ok) {
-        let errDetails = "Unknown Error";
-        try {
-          const errData = await res.json();
-          console.error("API Error Response Data:", errData);
-          errDetails = errData.error || errData.message || JSON.stringify(errData);
-        } catch (e) {
-          const text = await res.text().catch(() => "Could not read response body");
-          console.error("API Error Response Text:", text);
-          errDetails = text || res.statusText;
-        }
-        throw new Error(`Failed fetching client tasks [${res.status} ${res.statusText}]: ${errDetails}`);
-      }
-
-      const responseData = await res.json();
-      let data = responseData.tasks || responseData;
-      if (!Array.isArray(data)) {
-        console.error("Client API returned non-array:", data);
-        return;
-      }
-
-      const normalized = data.map((task: any) => ({
-        ...task,
-        status: task.status,
-        priority: task.priority || "medium",
-        taskCategory: task.taskCategory || "design",
-        files: task.files || [],
-      }));
-
-      // Sort: Pending first, then Approved (Completed/Scheduled), then Posted, then by due date
-      const sorted = normalized.sort((a, b) => {
-        const getOrder = (status: string) => {
-          if (status === 'POSTED') return 3;
-          if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
-          return 1; // Pending review etc
-        };
-
-        const orderA = getOrder(a.status);
-        const orderB = getOrder(b.status);
-
-        if (orderA !== orderB) return orderA - orderB;
-
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      });
-
-      setTasks(sorted);
-    } catch (err) {
-      console.error("Client tasks load error:", err);
-      toast.error("Failed to load tasks for review");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // 🔥 Initial load - run once on mount
-  useEffect(() => {
-    loadClientTasks();
-  }, []);
-
-  // 🔥 Polling effect - only check for active optimization jobs
-  useEffect(() => {
-    const hasActiveJobs = tasks.some(t =>
-      t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
-    );
-
-    if (hasActiveJobs) {
-      console.log("⏱️ Active optimization detected in Client dashboard, starting poll...");
-      const interval = setInterval(loadClientTasks, 15000); // Poll every 15s
-      return () => clearInterval(interval);
-    }
-  }, [tasks.length]); // Only re-evaluate when task count changes
-
   // Global listener for background task updates
   useEffect(() => {
     const handleTaskGlobalUpdate = (e: any) => {
       if (e.detail?.taskId) {
         console.log("🔔 Global update received for task in Client:", e.detail.taskId);
-        loadClientTasks();
+        refreshTasks();
       }
     };
     window.addEventListener('task-updated', handleTaskGlobalUpdate);
     return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
-  }, []);
+  }, [refreshTasks]);
 
   const handleMarkAsPosted = async (task?: ClientTask) => {
     const taskToMark = task || selectedTask;
@@ -915,26 +855,30 @@ export function ClientDashboard() {
     setShowFileSelector(true);
   };
 
-  /* ----------------------------- STATS ------------------------------------ */
+  /* ----------------------------- STATS (memoized) -------------------------- */
 
-  const pendingReviews = tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length;
-  const approvedCount = tasks.filter(task => task.status === 'COMPLETED').length;
-  const postedCount = tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length;
-  const overdueReviews = tasks.filter(task => isOverdue(task)).length;
+  const { pendingReviews, approvedCount, postedCount, overdueReviews } = useMemo(() => ({
+    pendingReviews: tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length,
+    approvedCount: tasks.filter(task => task.status === 'COMPLETED').length,
+    postedCount: tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length,
+    overdueReviews: tasks.filter(task => isOverdue(task)).length,
+  }), [tasks]);
 
-  const filteredTasks = tasks.filter(task => {
-    if (currentFilter === 'all') return true;
-    if (currentFilter === 'pending') {
-      return !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED');
-    }
-    if (currentFilter === 'approved') {
-      return task.status === 'COMPLETED';
-    }
-    if (currentFilter === 'posted') {
-      return task.status === 'POSTED' || task.status === 'SCHEDULED';
-    }
-    return true;
-  });
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      if (currentFilter === 'all') return true;
+      if (currentFilter === 'pending') {
+        return !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED');
+      }
+      if (currentFilter === 'approved') {
+        return task.status === 'COMPLETED';
+      }
+      if (currentFilter === 'posted') {
+        return task.status === 'POSTED' || task.status === 'SCHEDULED';
+      }
+      return true;
+    });
+  }, [tasks, currentFilter]);
 
   /* -------------------------------------------------------------------------- */
 
@@ -942,7 +886,7 @@ export function ClientDashboard() {
     <TooltipProvider>
       <div className="flex flex-col h-full space-y-6">
         {/* Page-level Navigation: Content Review vs Analytics */}
-        {/* <div className="flex gap-1 p-1 bg-zinc-100 rounded-lg w-fit">
+        <div className="flex gap-1 p-1 bg-zinc-100 rounded-lg w-fit">
           <button
             onClick={() => setPageView('content')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -964,7 +908,7 @@ export function ClientDashboard() {
             <BarChart3 className="h-4 w-4" />
             Analytics
           </button>
-        </div> */}
+        </div>
 
         {/* Analytics View */}
         {/* {pageView === 'analytics' && user?.linkedClientId && (
@@ -1053,10 +997,8 @@ export function ClientDashboard() {
 
         <div className="flex-1">
           {loading ? (
-            <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
-              <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
-              <p className="font-medium">Loading tasks for review...</p>
-            </div>
+            /* 🚀 Skeleton loading for perceived performance */
+            <TaskGridSkeleton count={8} />
           ) : filteredTasks.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
               <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-40 text-emerald-500" />
@@ -1069,144 +1011,26 @@ export function ClientDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-              {filteredTasks.map((task, index) => {
-                const thumbnail = getTaskThumbnail(task);
-                return (
-                  <Card
-                    key={task.id}
-                    className={`group cursor-pointer border-none shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full bg-white hover:shadow-md hover:ring-1 hover:ring-zinc-200 ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""}`}
-                    onClick={() => handleTaskClick(task)}
-                  >
-                    {/* Visual Header / Thumbnail Area */}
-                    <div
-                      className={`h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold`}
-                    >
-                      {thumbnail ? (
-                        <img
-                          src={thumbnail}
-                          alt={task.title}
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        />
-                      ) : (
-                        /* No thumbnail text fallback */
-                        <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider">
-                          No thumbnail
-                        </div>
-                      )}
-
-                      {/* Darker overlay if thumbnail exists for better icon readability */}
-                      {thumbnail && (
-                        <div className="absolute inset-0 bg-black/5" />
-                      )}
-
-                      {/* Status Overlay - Top Left */}
-                      {/* <div className="absolute top-3 left-3">
-                      <div className="p-1 rounded bg-zinc-200/50 text-zinc-500">
-                        <Clock className="h-3 w-3" />
-                      </div>
-                    </div> */}
-
-                      {/* File Count & Share - Top Right */}
-                      <div className="absolute top-3 right-3 flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm">
-                          <FileText className="h-3 w-3" />
-                          {task.files?.length || 0}
-                        </div>
-                        {/* Download button removed from here as it is now always visible in the card body below */}
-                      </div>
-
-                      {/* Bottom Right Clock Icon in Circle */}
-                      {/* <div className="absolute bottom-3 right-3">
-                      <div className="h-7 w-7 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
-                        <Clock className="h-4 w-4 text-blue-500" />
-                      </div>
-                    </div> */}
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="p-4 flex flex-col gap-3">
-                      {/* Title */}
-                      <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">
-                        {task.title}
-                      </h4>
-
-                      {/* Editor & Date Row */}
-                      <div className="flex items-center justify-between text-zinc-500 text-[11px]">
-                        {/* <div className="flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5" />
-                        <span>Editor: {task.user?.name || 'Assigned Editor'}</span>
-                      </div> */}
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          {task.status === "POSTED" ? (
-                            <Badge className="bg-orange-50 text-orange-600 hover:bg-orange-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
-                              <ExternalLink className="h-2.5 w-2.5" />
-                              Posted
-                            </Badge>
-                          ) : task.status === "SCHEDULED" ? (
-                            <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
-                              <Clock className="h-2.5 w-2.5" />
-                              Scheduled
-                            </Badge>
-                          ) : task.status === "COMPLETED" ? (
-                            <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
-                              <Check className="h-2.5 w-2.5" />
-                              Approved
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-zinc-50 text-zinc-600 hover:bg-zinc-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                              Pending Review
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="secondary"
-                                size="icon"
-                                className="h-7 w-7 rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300"
-                                onClick={(e) => handleShare(e, task)}
-                                disabled={isSharing}
-                              >
-                                <Share className="h-3.5 w-3.5 text-zinc-700" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
-                              <p>Share review screen</p>
-                            </TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="secondary"
-                                size="icon"
-                                className="h-7 w-7 rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadAllFiles(task);
-                                }}
-                              >
-                                <Download className="h-3.5 w-3.5 text-zinc-700" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
-                              <p>Download</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </div>
-
-                      {/* Badges Row */}
-                      {/* <div className="flex flex-wrap gap-2 pt-1">
-                      <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                        Pending
-                      </Badge>
-                    </div> */}
-                    </div>
-                  </Card>
-                );
-              })}
+              {/* 🚀 Show subtle revalidating indicator */}
+              {isValidating && (
+                <div className="col-span-full flex items-center justify-center py-2">
+                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
+                  <span className="text-xs text-muted-foreground">Refreshing...</span>
+                </div>
+              )}
+              {filteredTasks.map((task) => (
+                /* 🚀 Memoized task card component */
+                <ClientTaskCard
+                  key={task.id}
+                  task={task}
+                  isSelected={selectedTask?.id === task.id}
+                  thumbnail={getTaskThumbnail(task)}
+                  onTaskClick={handleTaskClick}
+                  onShare={handleShare}
+                  onDownload={handleDownloadAllFiles}
+                  isSharing={isSharing}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -1571,6 +1395,8 @@ export function ClientDashboard() {
                 fileId: selectedFile.id,
                 version: selectedFile.version || 1,
               }}
+              // 🔥 Pass deliverable type for correct aspect ratio (LF=16:9, SF=9:16, SQF=1:1)
+              deliverableType={selectedTask.monthlyDeliverable?.type}
             />
           )}
         {/* File Preview Modal */}
