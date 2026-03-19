@@ -942,7 +942,7 @@ export function ClientDashboard() {
     <TooltipProvider>
       <div className="flex flex-col h-full space-y-6">
         {/* Page-level Navigation: Content Review vs Analytics */}
-        <div className="flex gap-1 p-1 bg-zinc-100 rounded-lg w-fit">
+        {/* <div className="flex gap-1 p-1 bg-zinc-100 rounded-lg w-fit">
           <button
             onClick={() => setPageView('content')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -964,7 +964,7 @@ export function ClientDashboard() {
             <BarChart3 className="h-4 w-4" />
             Analytics
           </button>
-        </div>
+        </div> */}
 
         {/* Analytics View */}
         {/* {pageView === 'analytics' && user?.linkedClientId && (

@@ -9,6 +9,8 @@ export interface ReviewComment {
     authorAvatar?: string;
     timestamp: string; // Video timestamp formatted "1:23"
     timestampSeconds: number; // Video timestamp in seconds
+    endTimestamp?: string; // Optional end timestamp for ranges "1:28"
+    endTimestampSeconds?: number; // Optional end timestamp in seconds for ranges
     content: string;
     category: 'design' | 'content' | 'timing' | 'technical' | 'other' | 'subtitles';
 
@@ -20,6 +22,49 @@ export interface ReviewComment {
     version?: number; // Version number of the file when comment was made
     createdAt: Date;
     updatedAt?: Date;
+}
+
+// Deliverable type for aspect ratio handling
+export type DeliverableType = 'LF' | 'SF' | 'SQF' | 'Long Form Videos' | 'Short Form Videos' | 'Square Form Videos' | string;
+
+// Helper to get aspect ratio class based on deliverable type
+export function getAspectRatioClass(deliverableType?: DeliverableType): string {
+    if (!deliverableType) return 'aspect-video'; // Default to 16:9
+    
+    const normalized = deliverableType.toLowerCase().replace(/[_\s]/g, '');
+    
+    // Short Form (9:16 vertical)
+    if (normalized === 'sf' || normalized === 'shortformvideos' || normalized === 'shortform') {
+        return 'aspect-[9/16]';
+    }
+    
+    // Square Form (1:1)
+    if (normalized === 'sqf' || normalized === 'squareformvideos' || normalized === 'squareform') {
+        return 'aspect-square';
+    }
+    
+    // Long Form (16:9) - default
+    return 'aspect-video';
+}
+
+// Helper to get container styles based on deliverable type
+export function getVideoContainerStyles(deliverableType?: DeliverableType): { maxWidth: string; aspectClass: string } {
+    if (!deliverableType) return { maxWidth: 'max-w-5xl', aspectClass: 'aspect-video' };
+    
+    const normalized = deliverableType.toLowerCase().replace(/[_\s]/g, '');
+    
+    // Short Form (9:16 vertical) - narrower container
+    if (normalized === 'sf' || normalized === 'shortformvideos' || normalized === 'shortform') {
+        return { maxWidth: 'max-w-sm', aspectClass: 'aspect-[9/16]' };
+    }
+    
+    // Square Form (1:1) - medium container
+    if (normalized === 'sqf' || normalized === 'squareformvideos' || normalized === 'squareform') {
+        return { maxWidth: 'max-w-2xl', aspectClass: 'aspect-square' };
+    }
+    
+    // Long Form (16:9) - wide container
+    return { maxWidth: 'max-w-5xl', aspectClass: 'aspect-video' };
 }
 
 export interface Annotation {
