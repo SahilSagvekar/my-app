@@ -691,75 +691,115 @@ export function TaskManagementTab() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200">
             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <div className="text-sm text-blue-600 dark:text-blue-400">Total Tasks</div>
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.total}</div>
+              <div className="text-sm text-blue-600 dark:text-blue-400">
+                Total Tasks
+              </div>
+              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                {stats.total}
+              </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 border-yellow-200">
             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <div className="text-sm text-yellow-600 dark:text-yellow-400">Pending</div>
-              <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.byStatus?.PENDING || 0}</div>
+              <div className="text-sm text-yellow-600 dark:text-yellow-400">
+                Pending
+              </div>
+              <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
+                {stats.byStatus?.PENDING || 0}
+              </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200">
             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <div className="text-sm text-purple-600 dark:text-purple-400">In Progress</div>
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stats.byStatus?.IN_PROGRESS || 0}</div>
+              <div className="text-sm text-purple-600 dark:text-purple-400">
+                In Progress
+              </div>
+              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                {stats.byStatus?.IN_PROGRESS || 0}
+              </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200">
             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <div className="text-sm text-orange-600 dark:text-orange-400">Ready for QC</div>
-              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{stats.byStatus?.READY_FOR_QC || 0}</div>
+              <div className="text-sm text-orange-600 dark:text-orange-400">
+                Ready for QC
+              </div>
+              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+                {stats.byStatus?.READY_FOR_QC || 0}
+              </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200">
             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <div className="text-sm text-green-600 dark:text-green-400">Completed</div>
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.byStatus?.COMPLETED || 0}</div>
+              <div className="text-sm text-green-600 dark:text-green-400">
+                Completed
+              </div>
+              <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                {stats.byStatus?.COMPLETED || 0}
+              </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200">
             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-              <div className="text-sm text-red-600 dark:text-red-400">Overdue</div>
-              <div className="text-2xl font-bold text-red-700 dark:text-red-300">{stats.overdue}</div>
+              <div className="text-sm text-red-600 dark:text-red-400">
+                Overdue
+              </div>
+              <div className="text-2xl font-bold text-red-700 dark:text-red-300">
+                {stats.overdue}
+              </div>
             </CardContent>
           </Card>
         </div>
       )}
       {/* Filters Card */}
       <Card>
-        <CardHeader className="pb-3">
+        {/* <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <ListTodo className="h-5 w-5" />
               Task Management
               {activeFilterCount > 0 && (
                 <Badge variant="secondary" className="ml-2">
-                  {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active
+                  {activeFilterCount} filter{activeFilterCount > 1 ? "s" : ""}{" "}
+                  active
                 </Badge>
               )}
             </CardTitle>
 
             <div className="flex items-center gap-2">
-              {/* Bulk Edit Button */}
               {selectedTasks.size > 0 && (
-                <Button variant="default" size="sm" onClick={openBulkEditDialog}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={openBulkEditDialog}
+                >
                   <Pencil className="h-4 w-4 mr-2" />
-                  Edit {selectedTasks.size} Task{selectedTasks.size > 1 ? 's' : ''}
+                  Edit {selectedTasks.size} Task
+                  {selectedTasks.size > 1 ? "s" : ""}
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+              >
                 <Filter className="h-4 w-4 mr-2" />
-                {showFilters ? 'Hide Filters' : 'Show Filters'}
+                {showFilters ? "Hide Filters" : "Show Filters"}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={refreshing}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`}
+                />
                 Refresh
               </Button>
 
@@ -774,12 +814,12 @@ export function TaskManagementTab() {
               />
             </div>
           </div>
-        </CardHeader>
+        </CardHeader> */}
 
         {showFilters && (
           <CardContent className="border-t pt-4">
             {/* Search */}
-            <div className="flex items-center gap-4 mb-4">
+            {/* <div className="flex items-center gap-4 mb-4">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -791,13 +831,52 @@ export function TaskManagementTab() {
                   }}
                   className="pl-10"
                 />
+
+                <div>
+                   {selectedTasks.size > 0 && (
+                <Button variant="default" size="sm" onClick={openBulkEditDialog}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit {selectedTasks.size} Task{selectedTasks.size > 1 ? 's' : ''}
+                </Button>
+              )}
+                </div>
+
+               
               </div>
               {activeFilterCount > 0 && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
                   Clear all filters
                 </Button>
               )}
-            </div>
+            </div> */}
+
+            <div className="relative flex-1 max-w-md flex items-center justify-between gap-3">
+  <div className="relative flex-1 max-w-xs">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    <Input
+      placeholder="Search tasks..."
+      value={filters.search}
+      onChange={(e) => {
+        setFilters({ ...filters, search: e.target.value });
+        setPage(1);
+      }}
+      className="pl-10"
+    />
+  </div>
+
+  {selectedTasks.size > 0 && (
+    <Button
+      variant="default"
+      size="sm"
+      onClick={openBulkEditDialog}
+      className="ml-auto"
+    >
+      <Pencil className="h-4 w-4 mr-2" />
+      Edit {selectedTasks.size} Task
+      {selectedTasks.size > 1 ? "s" : ""}
+    </Button>
+  )}
+</div>
 
             {/* Filter Dropdowns */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
@@ -806,7 +885,10 @@ export function TaskManagementTab() {
                 <label className="text-xs text-muted-foreground">Editor</label>
                 <Select
                   value={filters.editor}
-                  onValueChange={(v) => { setFilters({ ...filters, editor: v }); setPage(1); }}
+                  onValueChange={(v) => {
+                    setFilters({ ...filters, editor: v });
+                    setPage(1);
+                  }}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All Editors" />
@@ -824,10 +906,15 @@ export function TaskManagementTab() {
 
               {/* QC Filter */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">QC Specialist</label>
+                <label className="text-xs text-muted-foreground">
+                  QC Specialist
+                </label>
                 <Select
                   value={filters.qc}
-                  onValueChange={(v) => { setFilters({ ...filters, qc: v }); setPage(1); }}
+                  onValueChange={(v) => {
+                    setFilters({ ...filters, qc: v });
+                    setPage(1);
+                  }}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All QC" />
@@ -845,10 +932,15 @@ export function TaskManagementTab() {
 
               {/* Scheduler Filter */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Scheduler</label>
+                <label className="text-xs text-muted-foreground">
+                  Scheduler
+                </label>
                 <Select
                   value={filters.scheduler}
-                  onValueChange={(v) => { setFilters({ ...filters, scheduler: v }); setPage(1); }}
+                  onValueChange={(v) => {
+                    setFilters({ ...filters, scheduler: v });
+                    setPage(1);
+                  }}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All Schedulers" />
@@ -866,10 +958,15 @@ export function TaskManagementTab() {
 
               {/* Videographer Filter */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Videographer</label>
+                <label className="text-xs text-muted-foreground">
+                  Videographer
+                </label>
                 <Select
                   value={filters.videographer}
-                  onValueChange={(v) => { setFilters({ ...filters, videographer: v }); setPage(1); }}
+                  onValueChange={(v) => {
+                    setFilters({ ...filters, videographer: v });
+                    setPage(1);
+                  }}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All Videographers" />
@@ -890,7 +987,10 @@ export function TaskManagementTab() {
                 <label className="text-xs text-muted-foreground">Client</label>
                 <Select
                   value={filters.client}
-                  onValueChange={(v) => { setFilters({ ...filters, client: v }); setPage(1); }}
+                  onValueChange={(v) => {
+                    setFilters({ ...filters, client: v });
+                    setPage(1);
+                  }}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All Clients" />
@@ -911,7 +1011,10 @@ export function TaskManagementTab() {
                 <label className="text-xs text-muted-foreground">Status</label>
                 <Select
                   value={filters.status}
-                  onValueChange={(v) => { setFilters({ ...filters, status: v }); setPage(1); }}
+                  onValueChange={(v) => {
+                    setFilters({ ...filters, status: v });
+                    setPage(1);
+                  }}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All Statuses" />
@@ -929,10 +1032,15 @@ export function TaskManagementTab() {
 
               {/* Deliverable Type Filter */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Deliverable Type</label>
+                <label className="text-xs text-muted-foreground">
+                  Deliverable Type
+                </label>
                 <Select
                   value={filters.deliverableType}
-                  onValueChange={(v) => { setFilters({ ...filters, deliverableType: v }); setPage(1); }}
+                  onValueChange={(v) => {
+                    setFilters({ ...filters, deliverableType: v });
+                    setPage(1);
+                  }}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All Types" />
@@ -941,7 +1049,7 @@ export function TaskManagementTab() {
                     <SelectItem value="all">All Types</SelectItem>
                     {availableDeliverableTypes.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {type.replace(/_/g, ' ')}
+                        {type.replace(/_/g, " ")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -953,7 +1061,10 @@ export function TaskManagementTab() {
                 <label className="text-xs text-muted-foreground">Month</label>
                 <Select
                   value={filters.month}
-                  onValueChange={(v) => { setFilters({ ...filters, month: v }); setPage(1); }}
+                  onValueChange={(v) => {
+                    setFilters({ ...filters, month: v });
+                    setPage(1);
+                  }}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All Months" />
@@ -973,7 +1084,9 @@ export function TaskManagementTab() {
             {/* Date Range Filter */}
             <div className="mt-4 flex items-end gap-4">
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Due Date Range</label>
+                <label className="text-xs text-muted-foreground">
+                  Due Date Range
+                </label>
                 <DateRangePicker
                   date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
                   setDate={(range) => {
@@ -1015,14 +1128,10 @@ export function TaskManagementTab() {
                   <th className="text-left py-3 px-4 font-medium">Client</th>
                   <th className="text-left py-3 px-4 font-medium">Editor</th>
                   <th className="text-left py-3 px-4 font-medium">QC</th>
-                  <th className="text-left py-3 px-4 font-medium">
-                    Scheduler
-                  </th>
+                  <th className="text-left py-3 px-4 font-medium">Scheduler</th>
                   <th className="text-left py-3 px-4 font-medium">Status</th>
                   <th className="text-left py-3 px-4 font-medium">Month</th>
-                  <th className="text-left py-3 px-4 font-medium">
-                    Due Date
-                  </th>
+                  <th className="text-left py-3 px-4 font-medium">Due Date</th>
                   <th className="text-left py-3 px-4 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -1047,8 +1156,9 @@ export function TaskManagementTab() {
                     return (
                       <tr
                         key={task.id}
-                        className={`border-b hover:bg-muted/50 ${isSelected ? "bg-primary/5" : ""
-                          }`}
+                        className={`border-b hover:bg-muted/50 ${
+                          isSelected ? "bg-primary/5" : ""
+                        }`}
                       >
                         <td className="py-3 px-4">
                           <Checkbox
@@ -1056,8 +1166,7 @@ export function TaskManagementTab() {
                             onCheckedChange={(checked) =>
                               handleSelectTask(task.id, !!checked)
                             }
-                            aria-label={`Select task ${task.title || task.id
-                              }`}
+                            aria-label={`Select task ${task.title || task.id}`}
                           />
                         </td>
                         <td className="py-3 px-4">
@@ -1072,12 +1181,21 @@ export function TaskManagementTab() {
                         <td className="py-3 px-4">
                           <div className="text-sm flex flex-col gap-1">
                             <span>
-                              {task.monthlyDeliverable?.type?.replace(/_/g, " ") ||
-                                task.oneOffDeliverable?.type?.replace(/_/g, " ") ||
+                              {task.monthlyDeliverable?.type?.replace(
+                                /_/g,
+                                " ",
+                              ) ||
+                                task.oneOffDeliverable?.type?.replace(
+                                  /_/g,
+                                  " ",
+                                ) ||
                                 "-"}
                             </span>
                             {task.oneOffDeliverable && (
-                              <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                              <Badge
+                                variant="outline"
+                                className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200"
+                              >
                                 One-Off
                               </Badge>
                             )}
@@ -1110,18 +1228,24 @@ export function TaskManagementTab() {
                         </td>
                         <td className="py-3 px-4">
                           {task.monthFolder ? (
-                            <Badge variant="outline" className="text-xs whitespace-nowrap bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
+                            <Badge
+                              variant="outline"
+                              className="text-xs whitespace-nowrap bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800"
+                            >
                               {task.monthFolder}
                             </Badge>
                           ) : (
-                            <span className="text-muted-foreground text-xs">-</span>
+                            <span className="text-muted-foreground text-xs">
+                              -
+                            </span>
                           )}
                         </td>
                         <td className="py-3 px-4">
                           {task.dueDate ? (
                             <div
-                              className={`text-sm ${isOverdue ? "text-red-600 font-medium" : ""
-                                }`}
+                              className={`text-sm ${
+                                isOverdue ? "text-red-600 font-medium" : ""
+                              }`}
                             >
                               {new Date(task.dueDate).toLocaleDateString()}
                               {isOverdue && (
@@ -1334,9 +1458,7 @@ export function TaskManagementTab() {
               <Label>Priority</Label>
               <Select
                 value={editForm.priority}
-                onValueChange={(v) =>
-                  setEditForm({ ...editForm, priority: v })
-                }
+                onValueChange={(v) => setEditForm({ ...editForm, priority: v })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select priority" />
@@ -1356,7 +1478,9 @@ export function TaskManagementTab() {
               <Input
                 type="date"
                 value={editForm.dueDate}
-                onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, dueDate: e.target.value })
+                }
               />
             </div>
           </div>
@@ -1526,21 +1650,30 @@ export function TaskManagementTab() {
               </Select>
             </div>
 
-
-
             <div className="grid gap-2">
               <Label>Due Date</Label>
               <div className="flex gap-2">
                 <Input
                   type="date"
-                  value={bulkEditForm.dueDate === 'no_change' ? '' : bulkEditForm.dueDate}
-                  onChange={(e) => setBulkEditForm({ ...bulkEditForm, dueDate: e.target.value })}
-                  disabled={bulkEditForm.dueDate === 'no_change'}
+                  value={
+                    bulkEditForm.dueDate === "no_change"
+                      ? ""
+                      : bulkEditForm.dueDate
+                  }
+                  onChange={(e) =>
+                    setBulkEditForm({
+                      ...bulkEditForm,
+                      dueDate: e.target.value,
+                    })
+                  }
+                  disabled={bulkEditForm.dueDate === "no_change"}
                 />
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setBulkEditForm({ ...bulkEditForm, dueDate: 'no_change' })}
+                  onClick={() =>
+                    setBulkEditForm({ ...bulkEditForm, dueDate: "no_change" })
+                  }
                 >
                   Reset
                 </Button>
@@ -1558,8 +1691,9 @@ export function TaskManagementTab() {
             <Button onClick={handleBulkEdit} disabled={saving}>
               {saving
                 ? "Updating..."
-                : `Update ${selectedTasks.size} Task${selectedTasks.size > 1 ? "s" : ""
-                }`}
+                : `Update ${selectedTasks.size} Task${
+                    selectedTasks.size > 1 ? "s" : ""
+                  }`}
             </Button>
           </DialogFooter>
         </DialogContent>

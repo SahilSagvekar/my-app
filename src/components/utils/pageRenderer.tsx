@@ -191,8 +191,8 @@ export function renderPage(
         return <EditorDashboard />;
       case "projects":
         return <EditorProjects />;
-      case "resources":
-        return <EditorResources />;
+      // case "resources":
+      //   return <EditorResources />;
       case "training":
         return <TrainingPortalPage />;
       case "guidelines":

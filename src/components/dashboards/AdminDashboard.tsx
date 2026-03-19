@@ -587,7 +587,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           className="gap-2 cursor-pointer"
         >
           <FileText className="h-4 w-4" />
-          Task Management
+          Task Managementh
         </DropdownMenuItem>
 
         <DropdownMenuItem
