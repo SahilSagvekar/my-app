@@ -3,11 +3,14 @@ import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
 import { Scissors, Sparkles, Layers, Zap, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Video Editing | E8 Productions',
-    description: 'Polished, professional editing that transforms raw footage into compelling stories.',
-};
+export const metadata = buildMetadata({
+  title: "Video Editing",
+  description:
+    "Polished, professional editing that transforms raw footage into compelling stories.",
+  pathname: "/services/video-editing",
+});
 
 const features = [
     {

@@ -3,11 +3,14 @@ import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
 import { Lightbulb, Target, TrendingUp, Users, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Content Strategy | E8 Productions',
-    description: 'Smart planning that helps you stand out in your market and connect with your customers.',
-};
+export const metadata = buildMetadata({
+  title: "Content Strategy",
+  description:
+    "Smart planning that helps you stand out in your market and connect with your customers.",
+  pathname: "/services/content-strategy",
+});
 
 const features = [
     {

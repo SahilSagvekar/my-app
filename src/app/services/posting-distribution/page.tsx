@@ -3,11 +3,14 @@ import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
 import { Cpu, Clock, Globe, Calendar, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Posting & Distribution | E8 Productions',
-    description: 'Automated scheduling and distribution to ensure your content reaches the right audience at the right time.',
-};
+export const metadata = buildMetadata({
+  title: "Posting & Distribution",
+  description:
+    "Automated scheduling and distribution to ensure your content reaches the right audience at the right time.",
+  pathname: "/services/posting-distribution",
+});
 
 const features = [
     {

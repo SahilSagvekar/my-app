@@ -4,10 +4,14 @@ import { Footer } from "@/components/landing/Footer";
 import { Video, Camera, Film, Mic, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
-export const metadata = {
-    title: 'Video Production | E8 Productions',
-    description: 'Professional video content that makes your business look bigger than it is. From ads to brand stories.',
-};
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata = buildMetadata({
+  title: "Video Production",
+  description:
+    "Professional video content that makes your business look bigger than it is. From ads to brand stories.",
+  pathname: "/services/video-production",
+});
 
 const features = [
     {

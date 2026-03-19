@@ -3,11 +3,14 @@ import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
 import { DollarSign, TrendingUp, Eye, Target, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Monetized Accounts | E8 Productions',
-    description: 'Build and grow revenue-generating social media accounts that turn views into income.',
-};
+export const metadata = buildMetadata({
+  title: "Monetized Accounts",
+  description:
+    "Build and grow revenue-generating social media accounts that turn views into income.",
+  pathname: "/services/monetized-accounts",
+});
 
 const features = [
     {

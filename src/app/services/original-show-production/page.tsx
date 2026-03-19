@@ -3,11 +3,14 @@ import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
 import { Tv, Film, Users, Star, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Original Show Production | E8 Productions',
-    description: 'Full-scale production of original content series and shows that captivate audiences.',
-};
+export const metadata = buildMetadata({
+  title: "Original Show Production",
+  description:
+    "Full-scale production of original content series and shows that captivate audiences.",
+  pathname: "/services/original-show-production",
+});
 
 const features = [
     { icon: Film, title: 'Concept Development', description: 'From initial idea to fully developed show concepts with compelling narratives.' },

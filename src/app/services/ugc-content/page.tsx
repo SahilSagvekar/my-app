@@ -3,11 +3,14 @@ import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
 import { Camera, Heart, Smartphone, Users, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'UGC Content | E8 Productions',
-    description: 'Authentic user-generated style content that resonates with audiences and drives engagement.',
-};
+export const metadata = buildMetadata({
+  title: "UGC Content",
+  description:
+    "Authentic user-generated style content that resonates with audiences and drives engagement.",
+  pathname: "/services/ugc-content",
+});
 
 const features = [
     { icon: Smartphone, title: 'Authentic Style', description: 'Content that looks and feels organic, just like real user-generated posts.' },

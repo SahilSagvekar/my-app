@@ -3,11 +3,14 @@ import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
 import { Share2, BarChart, MessageCircle, Users, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Social Media Management | E8 Productions',
-    description: 'Strategic management of your social presence across all platforms to maximize engagement.',
-};
+export const metadata = buildMetadata({
+  title: "Social Media Management",
+  description:
+    "Strategic management of your social presence across all platforms to maximize engagement.",
+  pathname: "/services/social-media-management",
+});
 
 const features = [
     {

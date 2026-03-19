@@ -37,42 +37,60 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 
 // Platform colors & icons — using the app's zinc/neutral palette for inactive states
-const PLATFORM_CONFIG: Record<string, { icon: React.ReactNode; color: string; activeBg: string; label: string }> = {
+const PLATFORM_CONFIG: Record<string, { icon: React.ReactNode; color: string; activeBg: string; label: string; hoverClasses: string; checkedClasses: string }> = {
   instagram: {
     icon: <Instagram className="h-4 w-4" />,
     color: "bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600",
     activeBg: "bg-pink-50 text-pink-700 border-pink-200",
     label: "Instagram",
+    hoverClasses: "hover:text-pink-600 hover:ring-2 hover:ring-pink-400/40 hover:shadow-pink-500/30 hover:shadow-lg",
+    checkedClasses:
+      "data-[state=checked]:bg-pink-50 data-[state=checked]:text-pink-700 data-[state=checked]:border-pink-200 data-[state=checked]:hover:bg-pink-50 data-[state=checked]:hover:text-pink-700",
   },
   youtube: {
     icon: <Youtube className="h-4 w-4" />,
     color: "bg-red-600",
     activeBg: "bg-red-50 text-red-700 border-red-200",
     label: "YouTube",
+    hoverClasses: "hover:text-red-600 hover:ring-2 hover:ring-red-400/40 hover:shadow-red-500/30 hover:shadow-lg",
+    checkedClasses:
+      "data-[state=checked]:bg-red-50 data-[state=checked]:text-red-700 data-[state=checked]:border-red-200 data-[state=checked]:hover:bg-red-50 data-[state=checked]:hover:text-red-700",
   },
   twitter: {
     icon: <Twitter className="h-4 w-4" />,
     color: "bg-sky-500",
     activeBg: "bg-sky-50 text-sky-700 border-sky-200",
     label: "Twitter",
+    hoverClasses: "hover:text-sky-600 hover:ring-2 hover:ring-sky-400/40 hover:shadow-sky-500/30 hover:shadow-lg",
+    checkedClasses:
+      "data-[state=checked]:bg-sky-50 data-[state=checked]:text-sky-700 data-[state=checked]:border-sky-200 data-[state=checked]:hover:bg-sky-50 data-[state=checked]:hover:text-sky-700",
   },
   facebook: {
     icon: <Facebook className="h-4 w-4" />,
     color: "bg-blue-700",
     activeBg: "bg-blue-50 text-blue-700 border-blue-200",
     label: "Facebook",
+    hoverClasses: "hover:text-blue-600 hover:ring-2 hover:ring-blue-400/40 hover:shadow-blue-500/30 hover:shadow-lg",
+    checkedClasses:
+      "data-[state=checked]:bg-blue-50 data-[state=checked]:text-blue-700 data-[state=checked]:border-blue-200 data-[state=checked]:hover:bg-blue-50 data-[state=checked]:hover:text-blue-700",
   },
   tiktok: {
     icon: <Video className="h-4 w-4" />,
     color: "bg-zinc-950",
     activeBg: "bg-zinc-100 text-zinc-700 border-zinc-300",
     label: "TikTok",
+    hoverClasses: "hover:text-zinc-700 hover:ring-2 hover:ring-zinc-500/40 hover:shadow-zinc-700/30 hover:shadow-lg",
+    checkedClasses:
+      "data-[state=checked]:bg-zinc-100 data-[state=checked]:text-zinc-700 data-[state=checked]:border-zinc-300 data-[state=checked]:hover:bg-zinc-100 data-[state=checked]:hover:text-zinc-700",
   },
   snapchat: {
     icon: <span className="text-sm">👻</span>,
     color: "bg-yellow-400 text-black",
     activeBg: "bg-yellow-50 text-yellow-700 border-yellow-200",
     label: "Snapchat",
+    hoverClasses: "hover:text-yellow-600 hover:ring-2 hover:ring-yellow-400/40 hover:shadow-yellow-500/30 hover:shadow-lg",
+    checkedClasses:
+      "data-[state=checked]:bg-yellow-50 data-[state=checked]:text-yellow-700 data-[state=checked]:border-yellow-200 data-[state=checked]:hover:bg-yellow-50 data-[state=checked]:hover:text-yellow-700",
   },
 };
 
@@ -324,39 +342,54 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
               />
             </div>
 
-            <div className="flex items-center gap-1.5">
-              {ALL_PLATFORMS.map((p) => {
-                const isActive = selectedPlatforms.includes(p.id);
-                return (
-                  <Tooltip key={p.id}>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => togglePlatform(p.id)}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200",
-                          isActive
-                            ? p.activeBg
-                            : "bg-white text-zinc-500 border-zinc-200 hover:border-zinc-300 hover:text-zinc-700"
-                        )}
-                      >
-                        {p.icon}
-                        <span className="hidden sm:inline">{p.label}</span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
-                      <p>{isActive ? `Remove ${p.label} filter` : `Filter by ${p.label}`}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
-            </div>
           </div>
 
           {/* Right: Content type dropdown + Layout toggle + Refresh */}
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 px-3 rounded-lg border-zinc-200 text-xs font-medium gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-3 rounded-lg border-zinc-200 text-xs font-medium gap-2 hover:bg-zinc-50"
+                >
+                  <Filter className="h-3.5 w-3.5" />
+                  {selectedPlatforms.length === 1
+                    ? ALL_PLATFORMS.find((p) => p.id === selectedPlatforms[0])?.label || "All Social Media"
+                    : "All Social Media"}
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56 rounded-lg shadow-lg border-zinc-200">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-zinc-400">
+                  Platform
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <ScrollArea className="h-56">
+                  {ALL_PLATFORMS.map((p) => (
+                    <DropdownMenuCheckboxItem
+                      key={p.id}
+                      checked={selectedPlatforms.includes(p.id)}
+                      onCheckedChange={() => togglePlatform(p.id)}
+                      className={cn(
+                        "flex items-center gap-2 text-xs font-medium py-2 rounded-md m-1 transition-all",
+                        "hover:bg-zinc-200",
+                        p.hoverClasses,
+                        p.checkedClasses,
+                        "data-[state=checked]:font-semibold"
+                      )}
+                    >
+                      {p.icon}
+                      <span className="flex-1">{p.label}</span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </ScrollArea>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 px-3 rounded-lg border-zinc-200 text-xs font-medium gap-2 hover:bg-zinc-50">
                   <Filter className="h-3.5 w-3.5" />
                   {selectedDeliverable || "All Types"}
                   <ChevronDown className="h-3 w-3 opacity-50" />
