@@ -103,7 +103,7 @@ interface MonthlyDeliverable {
   platforms: SocialPlatform[];
   postingSchedule: PostingSchedule;
   postingDays?: string[]; // e.g., ["Monday", "Wednesday"] or ["1st", "15th"]
-  postingTimes: string[]; // e.g., ["10:00", "11:00", "14:00"] - one for each video per day
+  postingTimes: string[]; // e.g., ["10:00 AM", "11:00 AM", "2:00 PM"] - one for each video per day
   description?: string;
 }
 
@@ -383,7 +383,7 @@ export function ClientManagement() {
     platforms: [],
     postingSchedule: "weekly",
     postingDays: [],
-    postingTimes: ["10:00"],
+    postingTimes: ["10:00 AM"],
     description: "",
   });
 
@@ -597,8 +597,31 @@ export function ClientManagement() {
     }
   };
 
+  // Helper: parse a posting time string like "10:00 AM" into parts
+  const parsePostingTime = (timeStr: string): { hours: string; minutes: string; period: string } => {
+    const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (match) {
+      return { hours: match[1], minutes: match[2], period: match[3].toUpperCase() };
+    }
+    // Fallback: try to parse 24h format for backwards compatibility
+    const match24 = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (match24) {
+      let h = parseInt(match24[1], 10);
+      const period = h >= 12 ? "PM" : "AM";
+      if (h === 0) h = 12;
+      else if (h > 12) h -= 12;
+      return { hours: String(h), minutes: match24[2], period };
+    }
+    return { hours: "10", minutes: "00", period: "AM" };
+  };
+
+  // Helper: build a posting time string from parts
+  const buildPostingTime = (hours: string, minutes: string, period: string): string => {
+    return `${hours}:${minutes} ${period}`;
+  };
+
   const updatePostingTime = (index: number, time: string) => {
-    const currentTimes = newDeliverable.postingTimes || ["10:00"];
+    const currentTimes = newDeliverable.postingTimes || ["10:00 AM"];
     const newTimes = [...currentTimes];
     newTimes[index] = time;
     setNewDeliverable({
@@ -608,21 +631,25 @@ export function ClientManagement() {
   };
 
   const syncPostingTimesWithVideosPerDay = (videosPerDay: number) => {
-    const currentTimes = newDeliverable.postingTimes || ["10:00"];
+    const currentTimes = newDeliverable.postingTimes || ["10:00 AM"];
     const newTimes = [...currentTimes];
 
     // If we need more times, add default ones
     while (newTimes.length < videosPerDay) {
       // Add times spaced 2 hours apart
-      const lastTime = newTimes[newTimes.length - 1];
-      const [hours, minutes] = lastTime.split(":").map(Number);
-      const newHours = (hours + 2) % 24;
-      newTimes.push(
-        `${String(newHours).padStart(2, "0")}:${String(minutes).padStart(
-          2,
-          "0"
-        )}`
-      );
+      const lastTimeStr = newTimes[newTimes.length - 1];
+      const parsed = parsePostingTime(lastTimeStr);
+      let h = parseInt(parsed.hours, 10);
+      let p = parsed.period;
+      // Add 2 hours in 12h format
+      h += 2;
+      if (h > 12) {
+        h -= 12;
+        p = p === "AM" ? "PM" : "AM";
+      } else if (h === 12) {
+        p = p === "AM" ? "PM" : "AM";
+      }
+      newTimes.push(buildPostingTime(String(h), parsed.minutes, p));
     }
 
     // If we have too many times, trim
@@ -747,7 +774,7 @@ export function ClientManagement() {
         platforms: [],
         postingSchedule: "weekly",
         postingDays: [],
-        postingTimes: ["10:00"],
+        postingTimes: ["10:00 AM"],
         description: "",
       });
     }, 100);
@@ -837,7 +864,7 @@ export function ClientManagement() {
       platforms: deliverable.platforms,
       postingSchedule: deliverable.postingSchedule,
       postingDays: deliverable.postingDays || [],
-      postingTimes: deliverable.postingTimes || ["10:00"],
+      postingTimes: deliverable.postingTimes || ["10:00 AM"],
       description: deliverable.description || "",
     });
     setDeliverableDialogKey((prev) => prev + 1);
@@ -1665,7 +1692,7 @@ export function ClientManagement() {
                           {(deliverable.postingTimes?.length || 1) > 1
                             ? "s"
                             : ""}
-                          : {(deliverable.postingTimes || ["10:00"]).join(", ")}
+                          : {(deliverable.postingTimes || ["10:00 AM"]).join(", ")}
                         </div>
                       </div>
                     )
@@ -1709,7 +1736,7 @@ export function ClientManagement() {
                       platforms: [],
                       postingSchedule: 'one-off',
                       postingDays: [],
-                      postingTimes: ["10:00"],
+                      postingTimes: ["10:00 AM"],
                       description: "",
                     });
                     setEditingDeliverableId(null);
@@ -2575,7 +2602,7 @@ export function ClientManagement() {
                       platforms: [],
                       postingSchedule: "one-off",
                       postingDays: [],
-                      postingTimes: ["10:00"],
+                      postingTimes: ["10:00 AM"],
                       description: "",
                     });
                     setEditingDeliverableId(null);
@@ -2679,7 +2706,7 @@ export function ClientManagement() {
                       platforms: [],
                       postingSchedule: "weekly",
                       postingDays: [],
-                      postingTimes: ["10:00"],
+                      postingTimes: ["10:00 AM"],
                       description: "",
                     });
                     setEditingDeliverableId(null); // 🔥 Clear editing state
@@ -2743,7 +2770,7 @@ export function ClientManagement() {
                                     deliverable.postingDays.length > 0
                                     ? deliverable.postingDays.join(", ")
                                     : "Various days"}{" "}
-                                  • {(deliverable.postingTimes || ["10:00"]).join(", ")}
+                                  • {(deliverable.postingTimes || ["10:00 AM"]).join(", ")}
                                 </div>
                                 <div className="flex flex-wrap gap-1 mt-2">
                                   {deliverable.platforms.map((platform) => (
@@ -3136,7 +3163,7 @@ export function ClientManagement() {
               platforms: [],
               postingSchedule: "weekly",
               postingDays: [],
-              postingTimes: ["10:00"],
+              postingTimes: ["10:00 AM"],
               description: "",
             });
           }
@@ -3329,34 +3356,68 @@ export function ClientManagement() {
               </Label>
               <div className="grid grid-cols-2 gap-3">
                 {Array.from({ length: newDeliverable.videosPerDay || 1 }).map(
-                  (_, index) => (
-                    <div key={index} className="space-y-1">
-                      <Label
-                        htmlFor={`postingTime-${index}`}
-                        className="text-xs text-gray-600"
-                      >
-                        Video {index + 1} Time
-                      </Label>
-                      <Input
-                        id={`postingTime-${index}`}
-                        type="time"
-                        value={
-                          (newDeliverable.postingTimes || ["10:00"])[index] ||
-                          "10:00"
-                        }
-                        disabled={newClient.hasPostingServices === false}
-                        onChange={(e) =>
-                          updatePostingTime(index, e.target.value)
-                        }
-                        className="bg-white border-gray-200 text-gray-900"
-                      />
-                    </div>
-                  )
+                  (_, index) => {
+                    const timeStr = (newDeliverable.postingTimes || ["10:00 AM"])[index] || "10:00 AM";
+                    const parsed = parsePostingTime(timeStr);
+                    return (
+                      <div key={index} className="space-y-1">
+                        <Label
+                          htmlFor={`postingTime-${index}`}
+                          className="text-xs text-gray-600"
+                        >
+                          Video {index + 1} Time
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id={`postingTime-${index}`}
+                            type="text"
+                            placeholder="10:00"
+                            value={`${parsed.hours}:${parsed.minutes}`}
+                            disabled={newClient.hasPostingServices === false}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              // Allow typing digits and colon only
+                              if (/^[0-9:]*$/.test(val) && val.length <= 5) {
+                                updatePostingTime(index, buildPostingTime(val.split(':')[0] || parsed.hours, val.split(':')[1] || parsed.minutes, parsed.period));
+                              }
+                            }}
+                            onBlur={(e) => {
+                              // Normalize on blur
+                              const parts = e.target.value.split(':');
+                              let h = parseInt(parts[0], 10) || 10;
+                              let m = parseInt(parts[1], 10) || 0;
+                              if (h < 1) h = 1;
+                              if (h > 12) h = 12;
+                              if (m < 0) m = 0;
+                              if (m > 59) m = 59;
+                              updatePostingTime(index, buildPostingTime(String(h), String(m).padStart(2, '0'), parsed.period));
+                            }}
+                            className="bg-white border-gray-200 text-gray-900 w-[80px]"
+                          />
+                          <Select
+                            value={parsed.period}
+                            disabled={newClient.hasPostingServices === false}
+                            onValueChange={(val: string) => {
+                              updatePostingTime(index, buildPostingTime(parsed.hours, parsed.minutes, val));
+                            }}
+                          >
+                            <SelectTrigger className="w-[80px] bg-white border-gray-200 text-gray-900">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="AM">AM</SelectItem>
+                              <SelectItem value="PM">PM</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    );
+                  }
                 )}
               </div>
               {(newDeliverable.videosPerDay || 1) > 1 && (
                 <p className="text-xs text-gray-500">
-                  Times: {(newDeliverable.postingTimes || ["10:00"]).join(", ")}
+                  Times: {(newDeliverable.postingTimes || ["10:00 AM"]).join(", ")}
                 </p>
               )}
             </div>
