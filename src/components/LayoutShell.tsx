@@ -218,68 +218,76 @@ export function LayoutShell({
             {/* Notifications */}
             <Notifications currentRole={currentRole} />
 
-            {/* 🔥 Role Switch Button - Always show dropdown if permitted */}
+            {/* 🔥 Role Switch Dropdown - Styled to match the User/Profile dropdown */}
             {canSwitchRole && (
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant={isViewingAsOther ? "default" : "outline"}
-                      size="sm"
-                      className={`flex items-center gap-2 transition-all ${isViewingAsOther
-                        ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm border-none'
-                        : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                        }`}
-                    >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-gray-100">
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
                       <ArrowLeftRight className="h-4 w-4" />
-                      <span className="hidden sm:inline">
+                    </div>
+                    <div className="hidden sm:block text-left">
+                      <div className="text-sm font-medium">
                         {isViewingAsOther ? `Viewing: ${roleDisplay}` : 'Switch Role'}
-                      </span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 p-1">
-                    <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      View Portal As
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
+                      </div>
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
 
-                    {/* Default/Original Role Option (only shown if viewing as other) */}
-                    {isViewingAsOther && (
+                <DropdownMenuContent align="end" className="w-56">
+                  {/* User Info Section - matches manage dropdown header */}
+                  <div className="px-2 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <ArrowLeftRight className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">
+                          {authUser?.name || getUserDisplayName(currentRole as UserRole)}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          Current: {roleDisplay}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <DropdownMenuSeparator />
+
+                  {/* Role Items */}
+                  {switchableRoles.map((role) => {
+                    const isCurrent = currentRole?.toLowerCase() === role.toLowerCase();
+                    const roleLabel = role.toLowerCase() === 'qc' ? 'QC Specialist' : role.charAt(0).toUpperCase() + role.slice(1);
+                    return (
+                      <DropdownMenuItem
+                        key={role}
+                        onClick={() => switchToRole(role)}
+                        className={`cursor-pointer ${isCurrent ? 'bg-amber-50 font-semibold' : ''}`}
+                      >
+                        <div className={`mr-2 h-2 w-2 rounded-full ${isCurrent ? 'bg-amber-500' : 'bg-gray-300'}`} />
+                        {roleLabel}
+                        {isCurrent && (
+                          <span className="ml-auto text-xs text-amber-600">Active</span>
+                        )}
+                      </DropdownMenuItem>
+                    );
+                  })}
+
+                  {/* Reset Option - matches Sign Out style */}
+                  {isViewingAsOther && (
+                    <>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={resetToOriginal}
-                        className="flex items-center justify-between px-3 py-2 cursor-pointer rounded-sm text-gray-600 hover:text-gray-900 border-b border-gray-100"
+                        className="text-amber-600 cursor-pointer"
                       >
-                        <div className="flex items-center gap-2">
-                          <ArrowLeftRight className="h-3 w-3 text-gray-400" />
-                          <span>Reset to {authUser?.role === 'admin' ? 'Admin' : 'Original'}</span>
-                        </div>
+                        <ArrowLeftRight className="mr-2 h-4 w-4" />
+                        Reset to {authUser?.role === 'admin' ? 'Admin' : 'Original'}
                       </DropdownMenuItem>
-                    )}
-
-                    {switchableRoles.map((role) => {
-                      const isCurrent = currentRole?.toLowerCase() === role.toLowerCase();
-                      return (
-                        <DropdownMenuItem
-                          key={role}
-                          onClick={() => switchToRole(role)}
-                          className={`flex items-center justify-between px-3 py-2 cursor-pointer rounded-sm ${isCurrent ? 'bg-amber-50 text-amber-900 font-semibold' : 'text-gray-600 hover:text-gray-900'
-                            }`}
-                        >
-                          <span>{role.toLowerCase() === 'qc' ? 'QC Specialist' : role.charAt(0).toUpperCase() + role.slice(1)}</span>
-                          {isCurrent && <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
-
-            {/* Viewing As Indicator */}
-            {isViewingAsOther && (
-              <Badge className="bg-amber-100 text-amber-800 border-amber-300 hidden sm:flex">
-                Viewing as {roleDisplay}
-              </Badge>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
 
             {/* User Menu */}
