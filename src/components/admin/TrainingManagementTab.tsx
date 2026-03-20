@@ -226,7 +226,7 @@ export function TrainingManagementTab() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
               <Video className="h-5 w-5" />
-              Training Videos (Cloudinary)
+              Training Videos
             </CardTitle>
             <div className="flex items-center gap-2">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -316,7 +316,7 @@ export function TrainingManagementTab() {
                     {!editingVideo && (
                       <>
                         <div className="space-y-2">
-                          <Label>Video file (upload to Cloudinary)</Label>
+                          <Label>Video file (upload to Cloudflare R2)</Label>
                           <Input
                             type="file"
                             accept="video/*"
