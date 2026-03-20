@@ -1638,7 +1638,7 @@ export function ClientManagement() {
                     These deliverables automatically generate tasks each month
                   </p>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 max-h-[400px] overflow-y-auto">
                   {/* {selectedClient.monthlyDeliverables.map((deliverable) => ( */}
                   {(selectedClient.monthlyDeliverables ?? []).map(
                     (deliverable) => (
@@ -2078,74 +2078,55 @@ export function ClientManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        {/* <div>
-          <h2 className="text-gray-900">Client Management</h2>
-          <p className="text-sm text-gray-600">
-            Manage client accounts and monthly deliverables
-          </p>
-          <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
-            <span>Clients</span>
-            <span className="font-semibold text-gray-900">
-              {clients.length}
-            </span>
-          </div>
-        </div> */}
+      {/* Filters + Add Client — single row */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search clients..."
+            value={searchTerm ?? ""}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 bg-white border-gray-200 text-gray-900"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[160px] bg-white border-gray-200 text-gray-900">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="expired">Expired</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={managerFilter} onValueChange={setManagerFilter}>
+          <SelectTrigger className="w-[180px] bg-white border-gray-200 text-gray-900">
+            <User className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Filter by manager" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Managers</SelectItem>
+            {mockAccountManagers.map((manager) => (
+              <SelectItem key={manager.id} value={manager.id}>
+                {manager.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex-1" />
         <Button
           onClick={() => {
             setEditingClient(null);
             setShowAddDialog(true);
           }}
-          className="gap-2"
+          className="gap-2 shrink-0"
         >
           <Plus className="h-4 w-4" />
           Add Client
         </Button>
       </div>
-
-      {/* Filters */}
-      <Card className="bg-white border-gray-200">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search clients..."
-                value={searchTerm ?? ""}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-white border-gray-200 text-gray-900"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={managerFilter} onValueChange={setManagerFilter}>
-              <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                <User className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by manager" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Managers</SelectItem>
-                {mockAccountManagers.map((manager) => (
-                  <SelectItem key={manager.id} value={manager.id}>
-                    {manager.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Client List */}
       <div className="grid gap-6">
