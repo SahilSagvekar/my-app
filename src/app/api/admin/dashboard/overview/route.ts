@@ -55,13 +55,15 @@ export async function GET(req: any) {
       pipelineData,
       projectHealthData,
       recentActivity,
-      systemStatus
+      systemStatus,
+      clientDeliverablesProgress
     ] = await Promise.all([
       getKPIData(),
       getPipelineData(),
       getProjectHealthData(),
       getRecentActivity(),
-      getSystemStatus()
+      getSystemStatus(),
+      getClientDeliverablesProgress()
     ]);
 
     const duration = Date.now() - startTime;
@@ -73,6 +75,7 @@ export async function GET(req: any) {
       projectHealth: projectHealthData,
       recentActivity: recentActivity,
       systemStatus: systemStatus,
+      clientDeliverablesProgress,
       _debug: {
         responseTime: duration
       }
@@ -394,4 +397,77 @@ function formatUptime(seconds: number): string {
   if (days > 0) return `${days}d ${hours}h ${minutes}m`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
+}
+
+async function getClientDeliverablesProgress() {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const monthStart = new Date(currentYear, currentMonth, 1);
+  const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+
+  // Get active clients with their monthly deliverables
+  const clients = await prisma.client.findMany({
+    where: { status: 'active' },
+    select: {
+      id: true,
+      companyName: true,
+      monthlyDeliverables: {
+        select: {
+          id: true,
+          type: true,
+          quantity: true,
+          platforms: true,
+        }
+      },
+      tasks: {
+        where: {
+          dueDate: { gte: monthStart, lte: monthEnd },
+        },
+        select: {
+          id: true,
+          status: true,
+          monthlyDeliverableId: true,
+        }
+      }
+    },
+    orderBy: { companyName: 'asc' },
+  });
+
+  return clients
+    .filter(c => c.monthlyDeliverables.length > 0)
+    .map(client => {
+      const deliverables = client.monthlyDeliverables.map(d => {
+        const tasks = client.tasks.filter(t => t.monthlyDeliverableId === d.id);
+        const completedTasks = tasks.filter(t => t.status === 'COMPLETED' || t.status === 'POSTED').length;
+        const totalTasks = tasks.length;
+        const expectedQuantity = d.quantity || 0;
+
+        return {
+          id: d.id,
+          type: d.type,
+          quantity: expectedQuantity,
+          platforms: d.platforms,
+          completedTasks,
+          totalTasks,
+          progress: expectedQuantity > 0
+            ? Math.round((completedTasks / expectedQuantity) * 100)
+            : totalTasks > 0
+              ? Math.round((completedTasks / totalTasks) * 100)
+              : 0,
+        };
+      });
+
+      const totalExpected = deliverables.reduce((sum, d) => sum + (d.quantity || d.totalTasks), 0);
+      const totalCompleted = deliverables.reduce((sum, d) => sum + d.completedTasks, 0);
+
+      return {
+        clientId: client.id,
+        clientName: client.companyName,
+        deliverables,
+        totalExpected,
+        totalCompleted,
+        overallProgress: totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0,
+      };
+    });
 }
