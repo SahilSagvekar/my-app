@@ -508,7 +508,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Plus, Camera, Link } from "lucide-react";
 import { Button } from "../ui/button";
 import {
@@ -580,6 +580,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const isSubmitting = useRef(false); // 🔒 Synchronous guard against double-clicks
   const [clientsLoading, setClientsLoading] = useState(false);
   const { user } = useAuth();
 
@@ -756,7 +757,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting.current) return; // 🔒 Block double-clicks synchronously
     if (!validateForm()) return;
+    isSubmitting.current = true;
     setLoading(true);
 
     if (formData.monthlyDeliverableId === "__no_deliverables__") {
@@ -825,6 +828,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       setErrors((prev) => ({ ...prev, submit: err.message }));
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 
