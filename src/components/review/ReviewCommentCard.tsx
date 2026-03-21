@@ -133,6 +133,9 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                     className="review-comment-timestamp"
                 >
                     @{comment.timestamp}
+                    {comment.endTimestamp && (
+                        <span className="text-[var(--review-text-muted)]"> – {comment.endTimestamp}</span>
+                    )}
                 </button>
 
                 {comment.version && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
@@ -60,6 +60,7 @@ export function EditorCreateTaskDialog({
 }: EditorCreateTaskDialogProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const isSubmitting = useRef(false); // 🔒 Synchronous guard against double-clicks
 
     const [clientId, setClientId] = useState('');
     const [deliverableId, setDeliverableId] = useState('');
@@ -121,8 +122,10 @@ export function EditorCreateTaskDialog({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting.current) return; // 🔒 Block double-clicks synchronously
         if (!validate()) return;
 
+        isSubmitting.current = true;
         setLoading(true);
         try {
             const payload = new FormData();
@@ -149,6 +152,7 @@ export function EditorCreateTaskDialog({
             toast.error(err.message || 'Failed to create task');
         } finally {
             setLoading(false);
+            isSubmitting.current = false;
         }
     };
 

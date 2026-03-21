@@ -32,7 +32,7 @@ export async function POST(
         videosPerDay: data.videosPerDay || 1,
         postingSchedule: data.postingSchedule || "weekly",
         postingDays: data.postingDays || [],
-        postingTimes: data.postingTimes || ["10:00"],
+        postingTimes: data.postingTimes || ["10:00 AM"],
         platforms: data.platforms || [],
         description: data.description || "",
       },

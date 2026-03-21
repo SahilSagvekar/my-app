@@ -7,6 +7,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 const ROLE_SWITCH_MAP: Record<string, string[]> = {
     // Specific Users - ONLY Eric can switch roles now
     "eric@e8productions.com": ["qc", "sales"],
+    "sahilsagvekar230@gmail.com": ["qc", "sales"],
 };
 
 interface ViewAsRoleContextType {

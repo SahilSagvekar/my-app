@@ -30,6 +30,8 @@ import {
   BookOpen,
   TrendingUp as SalesIcon,
   Camera,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
@@ -195,6 +197,8 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
   const [systemStatus, setSystemStatus] = useState<SystemStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [clientProgress, setClientProgress] = useState<any[]>([]);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   const handleTaskCreated = (task: any) => {
     console.log('New task created:', task);
@@ -243,6 +247,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         setProjectHealthData(data.projectHealth);
         setRecentActivity(data.recentActivity);
         setSystemStatus(data.systemStatus);
+        setClientProgress(data.clientDeliverablesProgress || []);
         console.log('✅ [ADMIN] Dashboard data loaded successfully');
       } else {
         console.error("❌ [ADMIN] Failed to fetch dashboard data:", data.message);
@@ -325,34 +330,111 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           })}
         </div>
 
-        {/* Pipeline Chart — full width */}
+        {/* Client Deliverables Progress Carousel — full width */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5" />
-              Workflow Pipeline
+              Monthly Deliverables Progress
             </CardTitle>
+            {clientProgress.length > 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {carouselIndex + 1} / {clientProgress.length}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCarouselIndex((prev) => (prev - 1 + clientProgress.length) % clientProgress.length)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCarouselIndex((prev) => (prev + 1) % clientProgress.length)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
-            {pipelineData && pipelineData.length > 0 ? (
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={pipelineData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar
-                      dataKey="projects"
-                      fill="hsl(var(--primary))"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-80 flex items-center justify-center text-muted-foreground">
-                No pipeline data available
+            {clientProgress.length > 0 ? (() => {
+              const client = clientProgress[carouselIndex];
+              if (!client) return null;
+              return (
+                <div className="space-y-5">
+                  {/* Client Header */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{client.clientName}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {client.totalCompleted} of {client.totalExpected} deliverables completed
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-gray-900">{client.overallProgress}%</div>
+                      <p className="text-xs text-muted-foreground">Overall</p>
+                    </div>
+                  </div>
+
+                  {/* Overall progress bar */}
+                  <Progress value={client.overallProgress} className="h-2" />
+
+                  {/* Individual deliverables */}
+                  <div className="space-y-3">
+                    {client.deliverables.map((d: any) => (
+                      <div key={d.id} className="p-3 rounded-lg border bg-gray-50/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm text-gray-900">{d.type}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({d.completedTasks}/{d.quantity || d.totalTasks})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {(d.platforms || []).slice(0, 3).map((p: string) => (
+                              <Badge key={p} variant="outline" className="text-[10px] h-5 px-1.5">
+                                {p}
+                              </Badge>
+                            ))}
+                            {(d.platforms || []).length > 3 && (
+                              <span className="text-[10px] text-muted-foreground">+{d.platforms.length - 3}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Progress value={Math.min(d.progress, 100)} className="h-1.5 flex-1" />
+                          <span className="text-xs font-medium text-muted-foreground w-10 text-right">
+                            {Math.min(d.progress, 100)}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Dots indicator */}
+                  {clientProgress.length > 1 && (
+                    <div className="flex items-center justify-center gap-1.5 pt-2">
+                      {clientProgress.map((_: any, i: number) => (
+                        <button
+                          key={i}
+                          onClick={() => setCarouselIndex(i)}
+                          className={`h-1.5 rounded-full transition-all ${
+                            i === carouselIndex ? 'w-6 bg-primary' : 'w-1.5 bg-gray-300 hover:bg-gray-400'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })() : (
+              <div className="h-48 flex items-center justify-center text-muted-foreground">
+                No active client deliverables this month
               </div>
             )}
           </CardContent>
@@ -587,7 +669,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           className="gap-2 cursor-pointer"
         >
           <FileText className="h-4 w-4" />
-          Task Management
+          Task Managementh
         </DropdownMenuItem>
 
         <DropdownMenuItem
@@ -687,18 +769,6 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
       <div className="flex items-center gap-3">
         {children}
         <ManagementDropdown />
-        <QuickAddClientDialog
-          onClientCreated={() => {
-            // Optionally refresh data or navigate
-            console.log('Client created from admin dashboard');
-          }}
-          trigger={
-            <Button variant="outline" className="shadow-sm">
-              <Users className="h-4 w-4 mr-2" />
-              Add Client
-            </Button>
-          }
-        />
         <CreateTaskDialog
           onTaskCreated={handleTaskCreated}
           trigger={

@@ -42,8 +42,20 @@ function formatDateMMDDYYYY(date: Date): string {
 }
 
 function parseTimeToDate(base: Date, timeStr: string): Date {
-  const [hh, mm] = timeStr.split(":").map(Number);
   const d = new Date(base);
+  // Try AM/PM format first (e.g., "10:00 AM", "2:30 PM")
+  const ampmMatch = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (ampmMatch) {
+    let hh = parseInt(ampmMatch[1], 10);
+    const mm = parseInt(ampmMatch[2], 10);
+    const period = ampmMatch[3].toUpperCase();
+    if (period === "PM" && hh !== 12) hh += 12;
+    if (period === "AM" && hh === 12) hh = 0;
+    d.setHours(hh, mm, 0, 0);
+    return d;
+  }
+  // Fallback: 24h format (e.g., "10:00", "14:00")
+  const [hh, mm] = timeStr.split(":").map(Number);
   d.setHours(hh, mm ?? 0, 0, 0);
   return d;
 }
@@ -101,7 +113,7 @@ function generatePostingDatesForMonth(opts: {
   const result: Date[] = [];
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const times = [...postingTimes];
-  while (times.length < videosPerDay) times.push(times[times.length - 1] || "10:00");
+  while (times.length < videosPerDay) times.push(times[times.length - 1] || "10:00 AM");
 
   const hasNumericDays = postingDays.some((d) => parseDayOfMonthLabel(d) !== null);
   if (postingSchedule === "monthly" && hasNumericDays) {
@@ -253,7 +265,7 @@ export async function POST(
         videosPerDay: deliverable.videosPerDay || 1,
         postingSchedule: deliverable.postingSchedule as PostingSchedule,
         postingDays: deliverable.postingDays || [],
-        postingTimes: deliverable.postingTimes || ["10:00"],
+        postingTimes: deliverable.postingTimes || ["10:00 AM"],
       });
 
       if (dueDates.length === 0) continue;

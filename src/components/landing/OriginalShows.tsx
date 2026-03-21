@@ -33,9 +33,9 @@ export function OriginalShows() {
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-8 sm:mb-12 lg:mb-16">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4 px-4 sm:px-0">
+           <h2 className="text-3xl sm:text-4xl lg:text-5xl text-black mb-4 sm:mb-5">
             Original Shows
-          </h1>
+          </h2>
           <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
             Premium entertainment produced by E8 Productions. Watch what happens
             when creativity meets innovation.
