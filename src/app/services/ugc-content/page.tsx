@@ -1,6 +1,7 @@
 import { Navigation } from "@/components/landing/Navigation";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
+import { QnA } from "@/components/landing/QnA";
 import { Camera, Heart, Smartphone, Users, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { buildMetadata } from "@/lib/seo";
@@ -20,6 +21,29 @@ const features = [
 ];
 
 const benefits = ['Higher engagement than traditional ads', 'Builds trust and authenticity', 'Cost-effective content production', 'Works across all platforms', 'A/B testing with multiple creators', 'Scalable content strategy'];
+
+const qnaItems = [
+    {
+        question: "What is UGC content?",
+        answer: "UGC (User-Generated Content) is authentic content created by real users, influencers, or customers featuring your product or service. It's more trustworthy than traditional advertising."
+    },
+    {
+        question: "How do you find UGC creators?",
+        answer: "We use a combination of creator databases, social media research, and our network of influencers. We match creators whose audience and style align with your brand."
+    },
+    {
+        question: "What's the typical timeline for UGC campaigns?",
+        answer: "Most UGC campaigns take 2-4 weeks from concept to delivery. This includes creator outreach, content creation, approval, and final delivery."
+    },
+    {
+        question: "Do creators keep the rights to their content?",
+        answer: "No, when working with us, creators grant you full usage rights for commercial purposes across all platforms. We handle all legal agreements and licensing."
+    },
+    {
+        question: "How do you ensure quality control?",
+        answer: "We provide detailed briefs to creators, review all content before approval, and can request revisions. We also offer editing services to polish the final content."
+    }
+];
 
 export default function UGCContentPage() {
     return (
@@ -71,6 +95,7 @@ export default function UGCContentPage() {
                     </div>
                 </section>
                 <CallToAction />
+                <QnA items={qnaItems} />
             </div>
             <Footer />
         </div>

@@ -1,6 +1,7 @@
 import { Navigation } from "@/components/landing/Navigation";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
+import { QnA } from "@/components/landing/QnA";
 import { Tv, Film, Users, Star, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { buildMetadata } from "@/lib/seo";
@@ -20,6 +21,29 @@ const features = [
 ];
 
 const benefits = ['Create unique, branded content series', 'Build audience loyalty through episodic content', 'Professional production quality', 'Multi-platform distribution', 'Full creative control', 'Revenue generation through sponsorships'];
+
+const qnaItems = [
+    {
+        question: "What types of original shows do you produce?",
+        answer: "We produce various formats including web series, branded content series, educational shows, entertainment programs, behind-the-scenes content, and custom formats tailored to your brand and audience."
+    },
+    {
+        question: "What's the production process like?",
+        answer: "1) Concept development and scripting, 2) Pre-production planning, 3) Professional filming with crew, 4) Post-production editing, 5) Sound design and music, 6) Multi-platform distribution and promotion."
+    },
+    {
+        question: "How long does it take to produce a show?",
+        answer: "Production timelines vary by format and complexity. A short web series might take 4-6 weeks, while a longer format could take 8-12 weeks. We provide detailed timelines based on your specific project."
+    },
+    {
+        question: "Do you handle distribution and promotion?",
+        answer: "Yes, we manage distribution across YouTube, social platforms, and streaming services. We also handle promotional campaigns, teaser content, and audience building strategies."
+    },
+    {
+        question: "Can you work with existing IP or create original concepts?",
+        answer: "We do both! We can develop completely original concepts or adapt your existing intellectual property into engaging video series that align with your brand and audience."
+    }
+];
 
 export default function OriginalShowProductionPage() {
     return (
@@ -71,6 +95,7 @@ export default function OriginalShowProductionPage() {
                     </div>
                 </section>
                 <CallToAction />
+                <QnA items={qnaItems} />
             </div>
             <Footer />
         </div>

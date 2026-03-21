@@ -1,6 +1,7 @@
 import { Navigation } from "@/components/landing/Navigation";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
+import { QnA } from "@/components/landing/QnA";
 import { Lightbulb, Target, TrendingUp, Users, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { buildMetadata } from "@/lib/seo";
@@ -42,6 +43,29 @@ const benefits = [
     'Data-driven decisions for better ROI',
     'Clear roadmap for content creation',
     'Aligned content with business goals',
+];
+
+const qnaItems = [
+    {
+        question: "What does content strategy include?",
+        answer: "Content strategy encompasses audience research, brand voice development, content calendar planning, platform selection, performance tracking, and continuous optimization based on data."
+    },
+    {
+        question: "How do you research our audience?",
+        answer: "We analyze your existing customer data, social media insights, competitor analysis, and industry trends to create detailed audience personas and understand their preferences and behaviors."
+    },
+    {
+        question: "What's the timeline for developing a content strategy?",
+        answer: "A comprehensive content strategy typically takes 2-4 weeks to develop, including research, analysis, strategy creation, and implementation planning. This ensures it's thorough and effective."
+    },
+    {
+        question: "How do you measure content strategy success?",
+        answer: "We track engagement rates, reach, conversion rates, brand sentiment, website traffic from content, and ROI. Regular reports show progress toward your strategic goals."
+    },
+    {
+        question: "Can you work with our existing content?",
+        answer: "Absolutely! We audit your current content, identify what's working, and develop strategies to improve or repurpose existing assets while creating new content that aligns with your goals."
+    }
 ];
 
 export default function ContentStrategyPage() {
@@ -165,6 +189,7 @@ export default function ContentStrategyPage() {
                 </section>
 
                 <CallToAction />
+                <QnA items={qnaItems} />
             </div>
             <Footer />
         </div>

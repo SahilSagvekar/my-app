@@ -21,6 +21,7 @@ export const metadata: Metadata = buildMetadata({
   title: "E8 Productions",
   description:
     "Video production, social media content and digital marketing that helps brands grow.",
+  image: "/image.png", // public/image.png
 });
 
 export default function RootLayout({
