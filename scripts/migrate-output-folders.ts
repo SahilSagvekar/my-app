@@ -40,15 +40,24 @@ import {
 
 const prisma = new PrismaClient();
 
+// ─────────────────────────────────────────
+// S3/R2 Client Configuration
+// ─────────────────────────────────────────
+const IS_R2 = !!process.env.R2_ENDPOINT;
+
 const s3Client = new S3Client({
-    region: process.env.AWS_S3_REGION!,
+    region: IS_R2 ? "auto" : (process.env.AWS_S3_REGION || "us-east-1"),
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
     },
+    ...(IS_R2 && {
+        endpoint: process.env.R2_ENDPOINT!,
+        forcePathStyle: true,
+    }),
 });
 
-const BUCKET = process.env.AWS_S3_BUCKET!;
+const BUCKET = process.env.AWS_S3_BUCKET || "e8-app-r2-prod";
 
 // ─────────────────────────────────────────
 // CLI Args
@@ -262,11 +271,12 @@ async function ensureFolder(folderPath: string): Promise<void> {
 
 async function main() {
     console.log("═══════════════════════════════════════════════════════");
-    console.log("  S3 Output Folder Migration → Monthly Subfolders");
+    console.log("  Output Folder Migration → Monthly Subfolders");
     console.log("═══════════════════════════════════════════════════════");
-    console.log(`  Mode:   ${EXECUTE ? "🔴 EXECUTE (real changes)" : "🟢 DRY RUN (no changes)"}`);
-    console.log(`  Client: ${CLIENT_FILTER || "ALL"}`);
-    console.log(`  Bucket: ${BUCKET}`);
+    console.log(`  Mode:    ${EXECUTE ? "🔴 EXECUTE (real changes)" : "🟢 DRY RUN (no changes)"}`);
+    console.log(`  Client:  ${CLIENT_FILTER || "ALL"}`);
+    console.log(`  Bucket:  ${BUCKET}`);
+    console.log(`  Storage: ${IS_R2 ? "☁️ Cloudflare R2" : "🪣 AWS S3"}`);
     console.log("═══════════════════════════════════════════════════════\n");
 
     // Step 1: Find all tasks (both with and without outputFolderId)
