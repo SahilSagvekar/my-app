@@ -234,7 +234,10 @@ export default function LandingPage() {
               href="/contact"
               className="inline-flex items-center gap-2 px-6 py-3.5 sm:py-3 text-sm sm:text-base bg-black text-white rounded-full hover:bg-black/90 active:scale-95 transition-all group w-full sm:w-auto justify-center font-medium shadow-lg shadow-black/10"
             >
+               <h2 className="text-3xl sm:text-4xl lg:text-5xl text-black mb-4 sm:mb-5">
+
               Get in Touch
+               </h2>
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </Link>
           </div>

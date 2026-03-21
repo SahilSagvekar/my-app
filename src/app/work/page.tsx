@@ -313,9 +313,9 @@ export default function WorkPage() {
         {/* Hero Section */}
         <section className="pt-12 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8 bg-white">
           <div className="max-w-7xl mx-auto text-center">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4 px-4 sm:px-0">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl text-black mb-4 sm:mb-5">
               Results That Speak for Themselves
-            </h1>
+            </h2>
             <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
               Real businesses. Real growth. See how our content strategies and
               production services have helped small businesses achieve remarkable

@@ -12,9 +12,9 @@ export default function ContactPage() {  // ← Changed: Added "default"
         <section className="pt-12 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
           <div className="max-w-5xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-3 sm:mb-4">
+             <h2 className="text-3xl sm:text-4xl lg:text-5xl text-black mb-4 sm:mb-5">
               Get in Touch
-            </h1>
+            </h2>
             <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
               Ready to start your project? Have questions about our services? We love to hear from you.
             </p>
