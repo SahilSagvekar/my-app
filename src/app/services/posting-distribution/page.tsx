@@ -1,13 +1,17 @@
 import { Navigation } from "@/components/landing/Navigation";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
+import { QnA } from "@/components/landing/QnA";
 import { Cpu, Clock, Globe, Calendar, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Posting & Distribution | E8 Productions',
-    description: 'Automated scheduling and distribution to ensure your content reaches the right audience at the right time.',
-};
+export const metadata = buildMetadata({
+  title: "Posting & Distribution",
+  description:
+    "Automated scheduling and distribution to ensure your content reaches the right audience at the right time.",
+  pathname: "/services/posting-distribution",
+});
 
 const features = [
     {
@@ -39,6 +43,29 @@ const benefits = [
     'Never miss a posting opportunity',
     'Free up time for content creation',
     'Real-time analytics on post performance',
+];
+
+const qnaItems = [
+    {
+        question: "How does automated posting work?",
+        answer: "We set up scheduling systems that automatically publish your content at optimal times across different platforms. Once configured, posts go live without any manual intervention."
+    },
+    {
+        question: "Which platforms do you support?",
+        answer: "We support all major platforms including Instagram, TikTok, YouTube, LinkedIn, Twitter/X, Facebook, and Pinterest. Each platform gets optimized content and scheduling."
+    },
+    {
+        question: "How do you determine the best posting times?",
+        answer: "We analyze your audience data, platform algorithms, and engagement patterns to identify optimal posting times. This is continuously optimized based on performance data."
+    },
+    {
+        question: "Can I still post manually sometimes?",
+        answer: "Absolutely! Our automated system runs alongside your manual posting. You can override automated posts or add additional content whenever you want."
+    },
+    {
+        question: "What happens if there's an error or platform issue?",
+        answer: "We monitor all posts in real-time and have backup systems in place. If a post fails, we receive immediate notifications and can repost or troubleshoot quickly."
+    }
 ];
 
 export default function PostingDistributionPage() {
@@ -161,6 +188,7 @@ export default function PostingDistributionPage() {
                 </section>
 
                 <CallToAction />
+                <QnA items={qnaItems} />
             </div>
             <Footer />
         </div>

@@ -1,0 +1,295 @@
+
+> my-app@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.9
+   - Environments: .env
+   - Experiments (use with caution):
+     · serverActions
+
+   Creating an optimized production build ...
+ ⚠ Compiled with warnings in 4.2s
+
+./src/app/api/auth/change-password/route.ts
+Attempted import error: 'getServerSession' is not exported from 'next-auth' (imported as 'getServerSession').
+
+Import trace for requested module:
+./src/app/api/auth/change-password/route.ts
+
+./src/app/api/social/sync/route.ts
+Attempted import error: 'syncClientAccounts' is not exported from '@/lib/social/sync' (imported as 'syncClientAccounts').
+
+Import trace for requested module:
+./src/app/api/social/sync/route.ts
+
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+   Generating static pages (0/42) ...
+   Generating static pages (10/42) 
+   Generating static pages (20/42) 
+   Generating static pages (31/42) 
+ ✓ Generating static pages (42/42)
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+   Finalizing page optimization ...
+   Collecting build traces ...
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+[Prisma] SIGINT received, shutting down...
+
+Route (app)                                                             Size  First Load JS
+┌ ○ /                                                                 3.7 kB         119 kB
+├ ○ /_not-found                                                         1 kB         103 kB
+├ ○ /about                                                           1.08 kB         112 kB
+├ ƒ /api/admin/activity-records                                        602 B         103 kB
+├ ƒ /api/admin/audit-logs                                              602 B         103 kB
+├ ƒ /api/admin/audit-logs/export                                       602 B         103 kB
+├ ƒ /api/admin/audit-logs/stats                                        602 B         103 kB
+├ ƒ /api/admin/audit-logs/users                                        602 B         103 kB
+├ ƒ /api/admin/dashboard/overview                                      602 B         103 kB
+├ ƒ /api/admin/editor-client-permissions                               602 B         103 kB
+├ ƒ /api/admin/guidelines                                              602 B         103 kB
+├ ƒ /api/admin/guidelines/[id]                                         602 B         103 kB
+├ ƒ /api/admin/migrate-recurring                                       602 B         103 kB
+├ ƒ /api/admin/permissions                                             602 B         103 kB
+├ ƒ /api/admin/reports/daily                                           602 B         103 kB
+├ ƒ /api/admin/reports/export                                          602 B         103 kB
+├ ƒ /api/admin/reports/performance                                     602 B         103 kB
+├ ƒ /api/admin/reports/summary                                         602 B         103 kB
+├ ƒ /api/admin/reports/weekly-trends                                   602 B         103 kB
+├ ƒ /api/admin/reports/youtube-analytics                               602 B         103 kB
+├ ƒ /api/admin/sales-leads                                             602 B         103 kB
+├ ƒ /api/admin/slack-config                                            602 B         103 kB
+├ ƒ /api/admin/tasks                                                   602 B         103 kB
+├ ƒ /api/admin/tasks/[id]                                              602 B         103 kB
+├ ƒ /api/admin/tasks/bulk                                              602 B         103 kB
+├ ƒ /api/admin/users/[userId]/reset-2fa                                602 B         103 kB
+├ ƒ /api/affiliate/commissions                                         602 B         103 kB
+├ ƒ /api/affiliate/commissions/[id]                                    602 B         103 kB
+├ ƒ /api/ai/suggest-titles                                             602 B         103 kB
+├ ƒ /api/auth/[...nextauth]                                            602 B         103 kB
+├ ƒ /api/auth/change-password                                          602 B         103 kB
+├ ƒ /api/auth/google                                                   602 B         103 kB
+├ ƒ /api/auth/google/callback                                          602 B         103 kB
+├ ƒ /api/auth/me                                                       602 B         103 kB
+├ ƒ /api/auth/reset-password-with-otp                                  602 B         103 kB
+├ ƒ /api/auth/send-otp                                                 602 B         103 kB
+├ ƒ /api/auth/slack                                                    602 B         103 kB
+├ ƒ /api/auth/slack/callback                                           602 B         103 kB
+├ ƒ /api/auth/verify-otp                                               602 B         103 kB
+├ ƒ /api/auth/verify-password                                          602 B         103 kB
+├ ƒ /api/backfill                                                      602 B         103 kB
+├ ƒ /api/clients                                                       602 B         103 kB
+├ ƒ /api/clients/[id]                                                  602 B         103 kB
+├ ƒ /api/clients/[id]/deliverables                                     602 B         103 kB
+├ ƒ /api/clients/[id]/deliverables/[deliverableId]                     602 B         103 kB
+├ ƒ /api/clients/[id]/one-off-deliverables                             602 B         103 kB
+├ ƒ /api/clients/[id]/one-off-deliverables/[deliverableId]             602 B         103 kB
+├ ƒ /api/clients/[id]/one-off-deliverables/[deliverableId]/generate    602 B         103 kB
+├ ƒ /api/clients/[id]/run-monthly                                      602 B         103 kB
+├ ƒ /api/clients/[id]/upload                                           602 B         103 kB
+├ ƒ /api/contact                                                       602 B         103 kB
+├ ƒ /api/contracts                                                     602 B         103 kB
+├ ƒ /api/contracts/[id]                                                602 B         103 kB
+├ ƒ /api/contracts/[id]/download                                       602 B         103 kB
+├ ƒ /api/contracts/[id]/preview                                        602 B         103 kB
+├ ƒ /api/contracts/[id]/remind                                         602 B         103 kB
+├ ƒ /api/contracts/[id]/send                                           602 B         103 kB
+├ ƒ /api/contracts/[id]/sign                                           602 B         103 kB
+├ ƒ /api/contracts/sign/[token]                                        602 B         103 kB
+├ ƒ /api/contracts/sign/[token]/preview                                602 B         103 kB
+├ ƒ /api/contracts/templates                                           602 B         103 kB
+├ ƒ /api/contracts/upload-completed                                    602 B         103 kB
+├ ƒ /api/cron/check-optimization-jobs                                  602 B         103 kB
+├ ƒ /api/cron/check-titling-jobs                                       602 B         103 kB
+├ ƒ /api/cron/client-review-reminder                                   602 B         103 kB
+├ ƒ /api/cron/meta-sync                                                602 B         103 kB
+├ ƒ /api/cron/s3-to-nas                                                602 B         103 kB
+├ ƒ /api/cron/sync-social                                              602 B         103 kB
+├ ƒ /api/cron/youtube-sync                                             602 B         103 kB
+├ ƒ /api/debug/connections                                             602 B         103 kB
+├ ƒ /api/dev/clear-cache                                               602 B         103 kB
+├ ƒ /api/download                                                      602 B         103 kB
+├ ƒ /api/drive/delete                                                  602 B         103 kB
+├ ƒ /api/drive/download                                                602 B         103 kB
+├ ƒ /api/drive/share                                                   602 B         103 kB
+├ ƒ /api/drive/structure                                               602 B         103 kB
+├ ƒ /api/drive/upload                                                  602 B         103 kB
+├ ƒ /api/editor/task-permissions                                       602 B         103 kB
+├ ƒ /api/employee                                                      602 B         103 kB
+├ ƒ /api/employee/[employeeId]                                         602 B         103 kB
+├ ƒ /api/employee/[employeeId]/activate                                602 B         103 kB
+├ ƒ /api/employee/[employeeId]/approve                                 602 B         103 kB
+├ ƒ /api/employee/[employeeId]/bonus                                   602 B         103 kB
+├ ƒ /api/employee/[employeeId]/bonuses                                 602 B         103 kB
+├ ƒ /api/employee/[employeeId]/deactivate                              602 B         103 kB
+├ ƒ /api/employee/[employeeId]/leaves                                  602 B         103 kB
+├ ƒ /api/employee/[employeeId]/profile                                 602 B         103 kB
+├ ƒ /api/employee/[employeeId]/reject                                  602 B         103 kB
+├ ƒ /api/employee/list                                                 602 B         103 kB
+├ ƒ /api/employee/management                                           602 B         103 kB
+├ ƒ /api/feedback                                                      602 B         103 kB
+├ ƒ /api/feedback/[feedbackId]/response                                602 B         103 kB
+├ ƒ /api/feedback/[feedbackId]/status                                  602 B         103 kB
+├ ƒ /api/files/[id]/download                                           602 B         103 kB
+├ ƒ /api/files/[id]/optimize                                           602 B         103 kB
+├ ƒ /api/files/[id]/stream                                             602 B         103 kB
+├ ƒ /api/files/batch-presign                                           602 B         103 kB
+├ ƒ /api/guidelines                                                    602 B         103 kB
+├ ƒ /api/health                                                        602 B         103 kB
+├ ƒ /api/jobs                                                          602 B         103 kB
+├ ƒ /api/jobs/[id]                                                     602 B         103 kB
+├ ƒ /api/jobs/[id]/bids                                                602 B         103 kB
+├ ƒ /api/jobs/[id]/select                                              602 B         103 kB
+├ ƒ /api/leave                                                         602 B         103 kB
+├ ƒ /api/leave/[id]/approve                                            602 B         103 kB
+├ ƒ /api/leave/[id]/reject                                             602 B         103 kB
+├ ƒ /api/leave/list                                                    602 B         103 kB
+├ ƒ /api/login                                                         602 B         103 kB
+├ ƒ /api/logins                                                        602 B         103 kB
+├ ƒ /api/logins/[id]                                                   602 B         103 kB
+├ ƒ /api/logins/2fa/check                                              602 B         103 kB
+├ ƒ /api/logins/2fa/disable                                            602 B         103 kB
+├ ƒ /api/logins/2fa/setup                                              602 B         103 kB
+├ ƒ /api/logins/2fa/verify                                             602 B         103 kB
+├ ƒ /api/logins/audit                                                  602 B         103 kB
+├ ƒ /api/logins/check-pin                                              602 B         103 kB
+├ ƒ /api/logins/set-pin                                                602 B         103 kB
+├ ƒ /api/logins/verify-pin                                             602 B         103 kB
+├ ƒ /api/logout                                                        602 B         103 kB
+├ ƒ /api/meta/admin-analytics                                          602 B         103 kB
+├ ƒ /api/meta/analytics                                                602 B         103 kB
+├ ƒ /api/meta/callback                                                 602 B         103 kB
+├ ƒ /api/meta/connect                                                  602 B         103 kB
+├ ƒ /api/meta/revenue                                                  602 B         103 kB
+├ ƒ /api/meta/sync                                                     602 B         103 kB
+├ ƒ /api/notifications                                                 602 B         103 kB
+├ ƒ /api/notifications/[id]/read                                       602 B         103 kB
+├ ƒ /api/notifications/mark-all-read                                   602 B         103 kB
+├ ƒ /api/notifications/stream                                          602 B         103 kB
+├ ƒ /api/notify/screenshot                                             602 B         103 kB
+├ ƒ /api/payroll/[payrollId]/hide                                      602 B         103 kB
+├ ƒ /api/payroll/[payrollId]/mark-paid                                 602 B         103 kB
+├ ƒ /api/payroll/generate/[year]/[month]                               602 B         103 kB
+├ ƒ /api/payroll/list                                                  602 B         103 kB
+├ ƒ /api/portfolio/leads                                               602 B         103 kB
+├ ƒ /api/portfolio/sections                                            602 B         103 kB
+├ ƒ /api/portfolio/upload                                              602 B         103 kB
+├ ƒ /api/portfolio/videos                                              602 B         103 kB
+├ ƒ /api/portfolio/videos/[id]                                         602 B         103 kB
+├ ƒ /api/profile                                                       602 B         103 kB
+├ ƒ /api/qc-analytics                                                  602 B         103 kB
+├ ƒ /api/qc/rejection-sidebar                                          602 B         103 kB
+├ ƒ /api/register                                                      602 B         103 kB
+├ ƒ /api/reports/activity                                              602 B         103 kB
+├ ƒ /api/reports/activity/download                                     602 B         103 kB
+├ ƒ /api/reports/cron-email                                            602 B         103 kB
+├ ƒ /api/reports/daily-summary                                         602 B         103 kB
+├ ƒ /api/roles                                                         602 B         103 kB
+├ ƒ /api/sales-columns                                                 602 B         103 kB
+├ ƒ /api/sales-columns/[id]                                            602 B         103 kB
+├ ƒ /api/sales-leads                                                   602 B         103 kB
+├ ƒ /api/sales-leads/[id]                                              602 B         103 kB
+├ ƒ /api/sales-leads/bulk-email                                        602 B         103 kB
+├ ƒ /api/schedular/tasks                                               602 B         103 kB
+├ ƒ /api/shared/[shareToken]                                           602 B         103 kB
+├ ƒ /api/shared/file/[shareToken]                                      602 B         103 kB
+├ ƒ /api/slack/link                                                    602 B         103 kB
+├ ƒ /api/slack/toggle                                                  602 B         103 kB
+├ ƒ /api/social/accounts                                               602 B         103 kB
+├ ƒ /api/social/analytics                                              602 B         103 kB
+├ ƒ /api/social/callback/[platform]                                    602 B         103 kB
+├ ƒ /api/social/connect/[platform]                                     602 B         103 kB
+├ ƒ /api/social/posts                                                  602 B         103 kB
+├ ƒ /api/social/refresh                                                602 B         103 kB
+├ ƒ /api/social/sync                                                   602 B         103 kB
+├ ƒ /api/tasks                                                         602 B         103 kB
+├ ƒ /api/tasks/[id]                                                    602 B         103 kB
+├ ƒ /api/tasks/[id]/assign                                             602 B         103 kB
+├ ƒ /api/tasks/[id]/assign-deliverable                                 602 B         103 kB
+├ ƒ /api/tasks/[id]/feedback                                           602 B         103 kB
+├ ƒ /api/tasks/[id]/files                                              602 B         103 kB
+├ ƒ /api/tasks/[id]/generate-titles                                    602 B         103 kB
+├ ƒ /api/tasks/[id]/mark-pending                                       602 B         103 kB
+├ ƒ /api/tasks/[id]/mark-scheduled                                     602 B         103 kB
+├ ƒ /api/tasks/[id]/revert-to-qc                                       602 B         103 kB
+├ ƒ /api/tasks/[id]/share                                              602 B         103 kB
+├ ƒ /api/tasks/[id]/shoot-notes                                        602 B         103 kB
+├ ƒ /api/tasks/[id]/social-media-link                                  602 B         103 kB
+├ ƒ /api/tasks/[id]/status                                             602 B         103 kB
+├ ƒ /api/tasks/assigned                                                602 B         103 kB
+├ ƒ /api/tasks/bulk-revert-to-qc                                       602 B         103 kB
+├ ƒ /api/tasks/monthly                                                 602 B         103 kB
+├ ƒ /api/tasks/qc-completed                                            602 B         103 kB
+├ ƒ /api/tasks/recurring/run                                           602 B         103 kB
+├ ƒ /api/tasks/upload                                                  602 B         103 kB
+├ ƒ /api/tasks/upload/google-drive                                     602 B         103 kB
+├ ƒ /api/test-drive                                                    602 B         103 kB
+├ ƒ /api/test-post                                                     602 B         103 kB
+├ ƒ /api/training/courses/[id]                                         602 B         103 kB
+├ ƒ /api/training/videos                                               602 B         103 kB
+├ ƒ /api/training/videos/[id]                                          602 B         103 kB
+├ ƒ /api/upload                                                        602 B         103 kB
+├ ƒ /api/upload/abort                                                  602 B         103 kB
+├ ƒ /api/upload/brand-asset                                            602 B         103 kB
+├ ƒ /api/upload/complete                                               602 B         103 kB
+├ ƒ /api/upload/initiate                                               602 B         103 kB
+├ ƒ /api/upload/part-url                                               602 B         103 kB
+├ ƒ /api/user/navigation                                               602 B         103 kB
+├ ƒ /api/webhooks/assemblyai                                           602 B         103 kB
+├ ƒ /api/youtube                                                       602 B         103 kB
+├ ƒ /api/youtube/admin-analytics                                       602 B         103 kB
+├ ƒ /api/youtube/admin/clients                                         602 B         103 kB
+├ ƒ /api/youtube/analytics                                             602 B         103 kB
+├ ƒ /api/youtube/callback                                              602 B         103 kB
+├ ƒ /api/youtube/connect                                               602 B         103 kB
+├ ƒ /api/youtube/dashboard-stats                                       602 B         103 kB
+├ ƒ /api/youtube/manual-sync                                           602 B         103 kB
+├ ƒ /api/youtube/performance-chart                                     602 B         103 kB
+├ ƒ /api/youtube/sync                                                  602 B         103 kB
+├ ƒ /client                                                            602 B         103 kB
+├ ○ /contact                                                         3.08 kB         118 kB
+├ ƒ /contracts/sign/[token]                                          9.47 kB         112 kB
+├ ƒ /cron/youtube-sync                                                 602 B         103 kB
+├ ○ /dashboard                                                         178 B         524 kB
+├ ƒ /editor                                                           4.4 kB         185 kB
+├ ○ /icon.svg                                                            0 B            0 B
+├ ○ /leave-request                                                   3.75 kB         230 kB
+├ ○ /leave-requests                                                   4.5 kB         116 kB
+├ ○ /login                                                             178 B         524 kB
+├ ○ /portfolio                                                       12.3 kB         123 kB
+├ ○ /privacy                                                         5.53 kB         111 kB
+├ ○ /register                                                        1.34 kB         104 kB
+├ ○ /services                                                        2.08 kB         117 kB
+├ ○ /services/content-strategy                                       1.24 kB         134 kB
+├ ○ /services/monetized-accounts                                     1.24 kB         134 kB
+├ ○ /services/original-show-production                               1.24 kB         134 kB
+├ ○ /services/posting-distribution                                   1.24 kB         134 kB
+├ ○ /services/social-media-management                                1.24 kB         134 kB
+├ ○ /services/ugc-content                                            1.24 kB         134 kB
+├ ○ /services/video-editing                                          1.24 kB         134 kB
+├ ○ /services/video-production                                       1.24 kB         134 kB
+├ ƒ /shared/file/[shareToken]                                        4.46 kB         116 kB
+├ ƒ /shared/review/[shareToken]                                      3.12 kB         196 kB
+├ ○ /shows                                                           4.14 kB         119 kB
+├ ƒ /signup                                                            602 B         103 kB
+├ ○ /terms                                                           5.36 kB         111 kB
+├ ○ /test-video                                                        728 B         103 kB
+├ ○ /test-youtube                                                    4.34 kB         115 kB
+└ ○ /work                                                             9.3 kB         124 kB
++ First Load JS shared by all                                         102 kB
+  ├ chunks/1255-8befde0980f5cba9.js                                  45.6 kB
+  ├ chunks/4bd1b696-100b9d70ed4e49c1.js                              54.2 kB
+  └ other shared chunks (total)                                      2.44 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -32,11 +32,17 @@ function AuthenticatedAppInner() {
   }, [viewingAsRole]);
 
   useEffect(() => {
-    const savedPage = localStorage.getItem("returnToPage");
-    if (savedPage) {
-      console.log("Restoring page:", savedPage);
-      localStorage.removeItem("returnToPage");
-      setCurrentPage(savedPage);
+    try {
+      const savedPage = window.localStorage.getItem("returnToPage");
+      if (savedPage) {
+        console.log("Restoring page:", savedPage);
+        window.localStorage.removeItem("returnToPage");
+        setCurrentPage(savedPage);
+      }
+    } catch (err) {
+      // localStorage can be blocked in some environments (private browsing, sandboxed iframe, strict privacy settings)
+      // so we fail gracefully and just continue without restoring a saved page.
+      console.warn("⚠️ localStorage unavailable (blocked by browser settings):", err);
     }
   }, []);
 

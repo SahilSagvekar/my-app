@@ -1517,7 +1517,10 @@ export function ClientManagement() {
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="overview" className="w-full">
+          <Tabs
+            defaultValue="overview"
+            className="w-full flex flex-col flex-1 min-h-0"
+          >
             <TabsList className="grid w-full grid-cols-4 gap-3 bg-gray-100">
               {/* gap-3 for more spacing */}
               <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -1529,15 +1532,17 @@ export function ClientManagement() {
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-4">
-              <Card className="bg-white border-gray-200">
-                <CardHeader>
-                  <CardTitle className="text-gray-900">
-                    Contact Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-6">
-                  {/* Changed from gap-4 to gap-6 for more spacing */}
+            {/* Make the tab content area scrollable inside the dialog */}
+            <div className="flex-1 min-h-0 overflow-auto">
+              <TabsContent value="overview" className="space-y-4">
+                <Card className="bg-white border-gray-200">
+                  <CardHeader>
+                    <CardTitle className="text-gray-900">
+                      Contact Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-6">
+                    {/* Changed from gap-4 to gap-6 for more spacing */}
 
                   <div className="space-y-1">
                     <Label className="text-gray-500">Contact Name</Label>
@@ -2061,6 +2066,7 @@ export function ClientManagement() {
                 </CardContent>
               </Card>
             </TabsContent>
+          </div>
           </Tabs>
 
           <DialogFooter>

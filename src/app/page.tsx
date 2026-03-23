@@ -7,6 +7,14 @@ import { ArrowRight, Tv, TrendingUp, Users, Video, Target, Scissors, Send, Dolla
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import showsImage from '../../public/assets/c6ec00e7c877a01cc4af52907abc860d47df5b5d.png';
 import Image2 from '../../public/assets/landing/photo.jpg';
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata = buildMetadata({
+  title: "E8 Productions",
+  description:
+    "Full-service video production, social media management, and content strategy to help brands grow.",
+  pathname: "/",
+});
 
 const featuredServices = [
   {

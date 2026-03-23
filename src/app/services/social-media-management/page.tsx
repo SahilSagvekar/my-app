@@ -1,13 +1,17 @@
 import { Navigation } from "@/components/landing/Navigation";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
+import { QnA } from "@/components/landing/QnA";
 import { Share2, BarChart, MessageCircle, Users, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Social Media Management | E8 Productions',
-    description: 'Strategic management of your social presence across all platforms to maximize engagement.',
-};
+export const metadata = buildMetadata({
+  title: "Social Media Management",
+  description:
+    "Strategic management of your social presence across all platforms to maximize engagement.",
+  pathname: "/services/social-media-management",
+});
 
 const features = [
     {
@@ -39,6 +43,29 @@ const benefits = [
     'Community building and loyalty',
     'Time saved on social management',
     'Expert platform-specific strategies',
+];
+
+const qnaItems = [
+    {
+        question: "What's included in social media management?",
+        answer: "Our service includes content creation, scheduling, community management, engagement monitoring, performance analytics, and strategic planning across all major platforms."
+    },
+    {
+        question: "How often do you post content?",
+        answer: "Posting frequency depends on your goals and platform. Typically 3-7 posts per week per platform, optimized for engagement rather than quantity. We focus on quality over quantity."
+    },
+    {
+        question: "What's the onboarding process like?",
+        answer: "1) Strategy consultation and goal setting, 2) Account audit and brand guidelines review, 3) Content calendar planning, 4) Access setup and training, 5) Launch and ongoing optimization."
+    },
+    {
+        question: "Do you handle community management?",
+        answer: "Yes, we monitor comments, messages, and mentions 24/7. We respond professionally, handle customer service issues, and build relationships with your audience."
+    },
+    {
+        question: "How do you measure success?",
+        answer: "We track engagement rates, reach, follower growth, website traffic from social, conversion rates, and ROI. Monthly reports show progress toward your goals."
+    }
 ];
 
 export default function SocialMediaManagementPage() {
@@ -161,6 +188,7 @@ export default function SocialMediaManagementPage() {
                 </section>
 
                 <CallToAction />
+                <QnA items={qnaItems} />
             </div>
             <Footer />
         </div>

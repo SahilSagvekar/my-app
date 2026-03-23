@@ -1,13 +1,18 @@
 import { Navigation } from "@/components/landing/Navigation";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
+import { QnA } from "@/components/landing/QnA";
 import { Video, Camera, Film, Mic, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
-export const metadata = {
-    title: 'Video Production | E8 Productions',
-    description: 'Professional video content that makes your business look bigger than it is. From ads to brand stories.',
-};
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata = buildMetadata({
+  title: "Video Production",
+  description:
+    "Professional video content that makes your business look bigger than it is. From ads to brand stories.",
+  pathname: "/services/video-production",
+});
 
 const features = [
     {
@@ -39,6 +44,29 @@ const benefits = [
     'Fast turnaround without compromising quality',
     'Full creative support from concept to delivery',
     'Scalable production for any budget',
+];
+
+const qnaItems = [
+    {
+        question: "What's included in your video production service?",
+        answer: "Our video production service includes concept development, professional filming, lighting, sound design, and post-production editing. We handle everything from script to screen."
+    },
+    {
+        question: "How long does video production typically take?",
+        answer: "Production timelines vary by project complexity. Simple videos take 1-2 weeks, while complex multi-location shoots can take 3-4 weeks. We provide detailed timelines upfront."
+    },
+    {
+        question: "What's the process for video production?",
+        answer: "1) Initial consultation and concept development, 2) Script and storyboard creation, 3) Location scouting and crew assembly, 4) Professional filming, 5) Post-production editing and delivery."
+    },
+    {
+        question: "Do you provide equipment and crew?",
+        answer: "Yes, we provide professional cameras, lighting, sound equipment, and experienced crew members. We can also work with your preferred equipment if needed."
+    },
+    {
+        question: "Can you produce videos for different platforms?",
+        answer: "Absolutely! We optimize content for YouTube, TikTok, Instagram, LinkedIn, and other platforms, ensuring the best format, length, and style for each channel."
+    }
 ];
 
 export default function VideoProductionPage() {
@@ -161,6 +189,7 @@ export default function VideoProductionPage() {
                 </section>
 
                 <CallToAction />
+                <QnA items={qnaItems} />
             </div>
             <Footer />
         </div>

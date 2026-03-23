@@ -1,13 +1,17 @@
 import { Navigation } from "@/components/landing/Navigation";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
+import { QnA } from "@/components/landing/QnA";
 import { Scissors, Sparkles, Layers, Zap, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Video Editing | E8 Productions',
-    description: 'Polished, professional editing that transforms raw footage into compelling stories.',
-};
+export const metadata = buildMetadata({
+  title: "Video Editing",
+  description:
+    "Polished, professional editing that transforms raw footage into compelling stories.",
+  pathname: "/services/video-editing",
+});
 
 const features = [
     {
@@ -39,6 +43,29 @@ const benefits = [
     'Engaging pacing that holds attention',
     'Professional graphics and animations',
     'Unlimited revisions until you\'re happy',
+];
+
+const qnaItems = [
+    {
+        question: "What's included in your video editing service?",
+        answer: "Our video editing service includes professional editing, motion graphics, color grading, and platform-optimized exports. We work with your raw footage to create compelling narratives that engage your audience."
+    },
+    {
+        question: "How long does the video editing process take?",
+        answer: "Typical turnaround time is 3-5 business days depending on the complexity and length of your video. Rush orders and simple edits can often be completed in 1-2 days."
+    },
+    {
+        question: "What's the process for getting my video edited?",
+        answer: "1) Contact us with your project details, 2) Send us your raw footage and any reference materials, 3) We provide a timeline and start working, 4) Review drafts and provide feedback, 5) Final delivery with all necessary formats."
+    },
+    {
+        question: "Do you offer revisions?",
+        answer: "Yes, we offer unlimited revisions until you're completely satisfied with the final result. We believe in getting it right and want you to love your video."
+    },
+    {
+        question: "What file formats do you deliver?",
+        answer: "We deliver in multiple formats optimized for different platforms including MP4, MOV, and web-optimized versions. All files are compressed for fast loading while maintaining quality."
+    }
 ];
 
 export default function VideoEditingPage() {
@@ -161,6 +188,7 @@ export default function VideoEditingPage() {
                 </section>
 
                 <CallToAction />
+                <QnA items={qnaItems} />
             </div>
             <Footer />
         </div>

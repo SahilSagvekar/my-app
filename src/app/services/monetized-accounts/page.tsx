@@ -1,13 +1,17 @@
 import { Navigation } from "@/components/landing/Navigation";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Footer } from "@/components/landing/Footer";
+import { QnA } from "@/components/landing/QnA";
 import { DollarSign, TrendingUp, Eye, Target, CheckCircle, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = {
-    title: 'Monetized Accounts | E8 Productions',
-    description: 'Build and grow revenue-generating social media accounts that turn views into income.',
-};
+export const metadata = buildMetadata({
+  title: "Monetized Accounts",
+  description:
+    "Build and grow revenue-generating social media accounts that turn views into income.",
+  pathname: "/services/monetized-accounts",
+});
 
 const features = [
     {
@@ -39,6 +43,29 @@ const benefits = [
     'Expert guidance on monetization programs',
     'Brand partnership opportunities',
     'Long-term sustainable income',
+];
+
+const qnaItems = [
+    {
+        question: "What monetization methods do you support?",
+        answer: "We support all major platforms including YouTube ads/revenue, TikTok Creator Fund, Instagram/Facebook monetization, brand partnerships, affiliate marketing, merchandise, and sponsored content."
+    },
+    {
+        question: "How do you help grow accounts to monetization thresholds?",
+        answer: "We develop comprehensive growth strategies including content optimization, audience targeting, cross-platform promotion, collaboration opportunities, and algorithmic optimization to reach platform monetization requirements."
+    },
+    {
+        question: "What's the typical timeline to start monetizing?",
+        answer: "Timeline varies by platform and starting point. YouTube typically requires 1,000 subscribers and 4,000 watch hours. TikTok needs 10,000 followers. We provide realistic timelines based on your current metrics."
+    },
+    {
+        question: "Do you handle brand partnerships and sponsorships?",
+        answer: "Yes, we manage the entire partnership process from outreach to contract negotiation, content creation, and performance tracking. We have established relationships with brands across various industries."
+    },
+    {
+        question: "How do you maximize earnings across platforms?",
+        answer: "We create diversified revenue streams, optimize content for each platform's algorithm, time posts for maximum engagement, and continuously test strategies to maximize earnings potential."
+    }
 ];
 
 export default function MonetizedAccountsPage() {
@@ -161,6 +188,7 @@ export default function MonetizedAccountsPage() {
                 </section>
 
                 <CallToAction />
+                <QnA items={qnaItems} />
             </div>
             <Footer />
         </div>
