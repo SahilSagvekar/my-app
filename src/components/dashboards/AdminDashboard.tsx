@@ -86,6 +86,7 @@ const JobManagementSection = safeDynamic(() => import('../jobs/JobManagementSect
 const GuidelinesManagementTab = safeDynamic(() => import('../admin/GuidelinesManagementTab').then(mod => ({ default: mod.GuidelinesManagementTab })), "Guidelines Management");
 const SalesManagementTab = safeDynamic(() => import('../admin/SalesManagementTab').then(mod => ({ default: mod.SalesManagementTab })), "Sales Management");
 const VideographerManagementTab = safeDynamic(() => import('../admin/VideographerManagementTab').then(mod => ({ default: mod.VideographerManagementTab })), "Videographer Management");
+const MonthlyDeliverablesTab = safeDynamic(() => import('../admin/MonthlyDeliverablesTab').then(mod => ({ default: mod.MonthlyDeliverablesTab })), "Monthly Deliverables");
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
@@ -694,6 +695,14 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         </div>
 
         <DropdownMenuItem
+          onClick={() => onPageChange?.('monthly-deliverables')}
+          className="gap-2 cursor-pointer"
+        >
+          <BarChart3 className="h-4 w-4 text-blue-500" />
+          Monthly Deliverables
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
           onClick={() => onPageChange?.('finance')}
           className="gap-2 cursor-pointer"
         >
@@ -934,6 +943,17 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               description="Post jobs for bidding or directly assign videographers to tasks"
             />
             <VideographerManagementTab />
+          </div>
+        );
+
+      case 'monthly-deliverables':
+        return (
+          <div className="space-y-6">
+            <AdminPageHeader
+              title="Monthly Deliverables"
+              description="Track deliverable completion across clients and employee productivity over time"
+            />
+            <MonthlyDeliverablesTab />
           </div>
         );
 

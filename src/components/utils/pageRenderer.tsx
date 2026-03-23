@@ -38,6 +38,8 @@ import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";  
+import { MonthlyDeliverablesTab } from "../admin/MonthlyDeliverablesTab";
+
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -130,6 +132,8 @@ export function renderPage(
       case "sales-management":
       case "videographer-management":
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
+      case "monthly-deliverables":
+        return <MonthlyDeliverablesTab />;
       case "portfolio":
         return <PortfolioManagementTab />;
       case "contracts":
