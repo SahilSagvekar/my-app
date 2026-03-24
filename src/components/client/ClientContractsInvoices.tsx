@@ -50,6 +50,8 @@ import {
   Receipt,
   Loader2,
   ExternalLink,
+  Upload,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -153,6 +155,18 @@ export function ClientContractsInvoices({
   // Contracts state
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loadingContracts, setLoadingContracts] = useState(false);
+
+  // Upload completed contract state
+  const [showUploadContract, setShowUploadContract] = useState(false);
+  const [uploadingContract, setUploadingContract] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDescription, setUploadDescription] = useState('');
+  const [uploadSignedDate, setUploadSignedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [uploadSigners, setUploadSigners] = useState<{ name: string; email: string }[]>([
+    { name: '', email: '' },
+  ]);
+  const [dragOver, setDragOver] = useState(false);
 
   // Invoices state
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -424,6 +438,122 @@ export function ClientContractsInvoices({
     }
   };
 
+  // Upload completed contract handlers
+  const resetUploadForm = () => {
+    setUploadFile(null);
+    setUploadTitle('');
+    setUploadDescription('');
+    setUploadSignedDate(new Date().toISOString().split('T')[0]);
+    setUploadSigners([{ name: '', email: '' }]);
+  };
+
+  const handleUploadFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f && f.type === 'application/pdf') {
+      setUploadFile(f);
+    } else {
+      toast.error('Please select a PDF file');
+    }
+  };
+
+  const handleUploadDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f && f.type === 'application/pdf') {
+      setUploadFile(f);
+    } else {
+      toast.error('Please drop a PDF file');
+    }
+  };
+
+  const addUploadSigner = () => {
+    setUploadSigners([...uploadSigners, { name: '', email: '' }]);
+  };
+
+  const removeUploadSigner = (index: number) => {
+    if (uploadSigners.length > 1) {
+      setUploadSigners(uploadSigners.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateUploadSigner = (index: number, field: 'name' | 'email', value: string) => {
+    const updated = [...uploadSigners];
+    updated[index] = { ...updated[index], [field]: value };
+    setUploadSigners(updated);
+  };
+
+  const handleUploadContract = async () => {
+    if (!uploadTitle.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+    if (!uploadFile) {
+      toast.error('Please upload the signed PDF');
+      return;
+    }
+
+    setUploadingContract(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('title', uploadTitle.trim());
+      if (uploadDescription.trim()) formData.append('description', uploadDescription.trim());
+      formData.append('clientId', clientId); // Pre-set client
+      if (uploadSignedDate) formData.append('signedDate', uploadSignedDate);
+
+      const validSigners = uploadSigners.filter((s) => s.name.trim() && s.email.trim());
+      if (validSigners.length > 0) {
+        formData.append('signers', JSON.stringify(validSigners.map(s => ({ ...s, role: 'signer' }))));
+      }
+
+      const res = await fetch('/api/contracts/upload-completed', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to upload document');
+      }
+
+      toast.success('Contract uploaded successfully');
+      setShowUploadContract(false);
+      resetUploadForm();
+      fetchContracts();
+    } catch (err: any) {
+      toast.error(err.message || 'Something went wrong');
+    } finally {
+      setUploadingContract(false);
+    }
+  };
+
+  // Download contract
+  const handleDownloadContract = async (contractId: string, type: 'original' | 'signed' = 'signed') => {
+    try {
+      const res = await fetch(`/api/contracts/${contractId}/download?type=${type}`, {
+        credentials: 'include',
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to download');
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contract-${contractId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error: any) {
+      toast.error('Failed to download contract');
+    }
+  };
+
   if (!clientId) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -456,6 +586,15 @@ export function ClientContractsInvoices({
               <RefreshCw className={`h-4 w-4 ${loadingContracts ? 'animate-spin' : ''}`} />
             </Button>
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowUploadContract(true)}
+              className="gap-1"
+            >
+              <Upload className="h-4 w-4" />
+              Upload Signed
+            </Button>
+            <Button
               size="sm"
               onClick={() => window.open('/dashboard?page=contracts', '_blank')}
               className="gap-1"
@@ -476,7 +615,7 @@ export function ClientContractsInvoices({
               <div className="text-center py-8 text-gray-500">
                 <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
                 <p>No contracts yet</p>
-                <p className="text-sm">Create a contract from the Contracts page</p>
+                <p className="text-sm">Upload a signed contract or create a new one</p>
               </div>
             ) : (
               <Table>
@@ -517,14 +656,26 @@ export function ClientContractsInvoices({
                             onClick={() =>
                               window.open(`/contracts/${contract.id}`, '_blank')
                             }
+                            title="View"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
+                          {contract.status === 'COMPLETED' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadContract(contract.id, 'signed')}
+                              title="Download"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          )}
                           {contract.status === 'DRAFT' && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleSendContract(contract.id)}
+                              title="Send"
                             >
                               <Send className="h-4 w-4" />
                             </Button>
@@ -884,6 +1035,189 @@ export function ClientContractsInvoices({
                 <>
                   <Receipt className="h-4 w-4" />
                   {newInvoice.sendImmediately ? 'Create & Send' : 'Create Draft'}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Completed Contract Dialog */}
+      <Dialog open={showUploadContract} onOpenChange={(open) => {
+        setShowUploadContract(open);
+        if (!open) resetUploadForm();
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Upload Signed Contract
+            </DialogTitle>
+            <DialogDescription>
+              Upload an already-signed contract for {companyName || clientName}. 
+              The client will be able to view this contract in their dashboard.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-4">
+            {/* Title */}
+            <div className="space-y-2">
+              <Label>Document Title *</Label>
+              <Input
+                value={uploadTitle}
+                onChange={(e) => setUploadTitle(e.target.value)}
+                placeholder="e.g., Service Agreement - March 2024"
+              />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={uploadDescription}
+                onChange={(e) => setUploadDescription(e.target.value)}
+                placeholder="Brief description of this contract..."
+                rows={2}
+              />
+            </div>
+
+            {/* File Upload */}
+            <div className="space-y-2">
+              <Label>Signed PDF *</Label>
+              <div
+                className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+                  dragOver
+                    ? 'border-green-400 bg-green-50'
+                    : uploadFile
+                    ? 'border-green-300 bg-green-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleUploadDrop}
+              >
+                {uploadFile ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <FileText className="h-8 w-8 text-green-500" />
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-900 text-sm">{uploadFile.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {(uploadFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setUploadFile(null)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">
+                      Drag & drop the signed PDF here, or{' '}
+                      <label className="text-indigo-600 cursor-pointer hover:underline">
+                        browse
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          onChange={handleUploadFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">PDF files only</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Signed Date */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                Date Signed
+              </Label>
+              <Input
+                type="date"
+                value={uploadSignedDate}
+                onChange={(e) => setUploadSignedDate(e.target.value)}
+              />
+            </div>
+
+            {/* Signers */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Signers (for records)</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={addUploadSigner}
+                  className="text-indigo-600 hover:text-indigo-700"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Signer
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {uploadSigners.map((signer, index) => (
+                  <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <Input
+                      value={signer.name}
+                      onChange={(e) => updateUploadSigner(index, 'name', e.target.value)}
+                      placeholder="Full name"
+                      className="flex-1"
+                    />
+                    <Input
+                      value={signer.email}
+                      onChange={(e) => updateUploadSigner(index, 'email', e.target.value)}
+                      placeholder="Email address"
+                      className="flex-1"
+                    />
+                    {uploadSigners.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeUploadSigner(index)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400">
+                Client: {companyName || clientName} ({clientEmail})
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUploadContract(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUploadContract}
+              disabled={uploadingContract}
+              className="gap-2 bg-green-600 hover:bg-green-700"
+            >
+              {uploadingContract ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  Upload Contract
                 </>
               )}
             </Button>
