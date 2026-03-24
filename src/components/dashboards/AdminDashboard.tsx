@@ -87,6 +87,7 @@ const GuidelinesManagementTab = safeDynamic(() => import('../admin/GuidelinesMan
 const SalesManagementTab = safeDynamic(() => import('../admin/SalesManagementTab').then(mod => ({ default: mod.SalesManagementTab })), "Sales Management");
 const VideographerManagementTab = safeDynamic(() => import('../admin/VideographerManagementTab').then(mod => ({ default: mod.VideographerManagementTab })), "Videographer Management");
 const MonthlyDeliverablesTab = safeDynamic(() => import('../admin/MonthlyDeliverablesTab').then(mod => ({ default: mod.MonthlyDeliverablesTab })), "Monthly Deliverables");
+const BillingDashboard = safeDynamic(() => import('../billing/BillingDashboard').then(mod => ({ default: mod.BillingDashboard })), "Billing");
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
@@ -711,6 +712,14 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         </DropdownMenuItem>
 
         <DropdownMenuItem
+          onClick={() => onPageChange?.('billing')}
+          className="gap-2 cursor-pointer"
+        >
+          <FileText className="h-4 w-4 text-green-500" />
+          Client Billing
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
           onClick={() => onPageChange?.('analytics')}
           className="gap-2 cursor-pointer"
         >
@@ -954,6 +963,17 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               description="Track deliverable completion across clients and employee productivity over time"
             />
             <MonthlyDeliverablesTab />
+          </div>
+        );
+
+      case 'billing':
+        return (
+          <div className="space-y-6">
+            <AdminPageHeader
+              title="Client Billing"
+              description="Manage invoices, subscriptions, and payment tracking"
+            />
+            <BillingDashboard />
           </div>
         );
 
