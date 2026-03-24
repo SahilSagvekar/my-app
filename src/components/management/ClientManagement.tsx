@@ -73,6 +73,7 @@ import {
   FaLinkedin,
   FaSnapchat,
 } from "react-icons/fa";
+import { ClientContractsInvoices } from "../client/ClientContractsInvoices";
 
 type SocialPlatform =
   | "Instagram"
@@ -3115,6 +3116,20 @@ export function ClientManagement() {
                 />
               </div>
             </div>
+
+            {/* Contracts & Invoices Section - Only show when editing existing client */}
+            {editingClient && (
+              <>
+                <Separator className="my-6" />
+                <ClientContractsInvoices
+                  clientId={editingClient.id}
+                  clientName={editingClient.name}
+                  clientEmail={editingClient.email}
+                  companyName={editingClient.companyName}
+                  deliverables={newClient.monthlyDeliverables || []}
+                />
+              </>
+            )}
           </div>
 
           <DialogFooter>

@@ -39,6 +39,7 @@ import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";  
 import { MonthlyDeliverablesTab } from "../admin/MonthlyDeliverablesTab";
+import { BillingDashboard } from "../billing/BillingDashboard";
 
 import dynamic from "next/dynamic";
 
@@ -138,6 +139,8 @@ export function renderPage(
         return <PortfolioManagementTab />;
       case "contracts":
         return <ContractsDashboard />;
+      case "billing":
+        return <BillingDashboard />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "training":

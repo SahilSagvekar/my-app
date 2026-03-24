@@ -37,6 +37,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'analytics', label: 'Client Analytics', icon: BarChart3 },
     { id: 'leaves', label: 'User Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
+    { id: 'billing', label: 'Client Billing', icon: DollarSign },
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
