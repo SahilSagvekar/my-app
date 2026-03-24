@@ -165,7 +165,7 @@ export async function completeTitlingJob(
     const titleResult = await generateTitlesFromTranscript({
       transcript,
       platform,
-      numTitles: 5,
+      numTitles: 10,
       includeTrends: true,
     });
 
