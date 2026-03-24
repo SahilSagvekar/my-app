@@ -23,6 +23,7 @@ interface MonthData {
   posted: number;
   scheduled: number;
   total: number;
+  byType: Record<string, number>;
 }
 
 interface ClientDeliverable {
@@ -30,6 +31,7 @@ interface ClientDeliverable {
   clientName: string;
   companyName: string | null;
   targetMonthly: number;
+  deliverableTargets: Record<string, number>;
   months: Record<string, MonthData>;
 }
 
@@ -158,6 +160,7 @@ export function MonthlyDeliverablesTab() {
     let posted = 0;
     let scheduled = 0;
     let total = 0;
+    const byType: Record<string, number> = {};
 
     for (const month of visibleMonths) {
       const monthData = client.months[month.key];
@@ -166,10 +169,15 @@ export function MonthlyDeliverablesTab() {
         posted += monthData.posted;
         scheduled += monthData.scheduled;
         total += monthData.total;
+        
+        // Aggregate by type
+        for (const [type, count] of Object.entries(monthData.byType || {})) {
+          byType[type] = (byType[type] || 0) + count;
+        }
       }
     }
 
-    return { completed, posted, scheduled, total };
+    return { completed, posted, scheduled, total, byType };
   }
 
   if (loading) {
@@ -185,6 +193,71 @@ export function MonthlyDeliverablesTab() {
 
   return (
     <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Package className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">This Month</p>
+                <p className="text-2xl font-semibold">{summary?.currentMonthCompleted || 0}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Target className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Monthly Target</p>
+                <p className="text-2xl font-semibold">{summary?.totalTargetDeliverables || 0}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Completion Rate</p>
+                <p className="text-2xl font-semibold">{summary?.completionRate || 0}%</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${(summary?.monthOverMonthChange || 0) >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
+                {(summary?.monthOverMonthChange || 0) >= 0 ? (
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                ) : (
+                  <TrendingDown className="h-5 w-5 text-red-600" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">vs Last Month</p>
+                <p className={`text-2xl font-semibold ${(summary?.monthOverMonthChange || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(summary?.monthOverMonthChange || 0) >= 0 ? '+' : ''}{summary?.monthOverMonthChange || 0}%
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Controls */}
       <Card>
         <CardContent className="p-4">
@@ -215,7 +288,7 @@ export function MonthlyDeliverablesTab() {
                   <SelectValue placeholder="Select month" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* <SelectItem value="all">Last 6 Months</SelectItem> */}
+                  <SelectItem value="all">Last 6 Months</SelectItem>
                   {monthsList.map((month) => (
                     <SelectItem key={month.key} value={month.key}>
                       {month.label}
@@ -248,6 +321,7 @@ export function MonthlyDeliverablesTab() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
+                    <th className="text-left py-3 px-4 font-medium w-8"></th>
                     <th className="text-left py-3 px-4 font-medium">Client</th>
                     <th className="text-center py-3 px-4 font-medium">Target/Mo</th>
                     {visibleMonths.map((month) => (
@@ -274,43 +348,96 @@ export function MonthlyDeliverablesTab() {
                       const totals = getClientTotals(client);
                       const targetTotal = client.targetMonthly * visibleMonths.length;
                       const isOnTrack = totals.total >= targetTotal * 0.8;
+                      const isExpanded = expandedRows.has(client.clientId);
+                      
+                      // Get all deliverable types
+                      const allTypes = Array.from(new Set([
+                        ...Object.keys(client.deliverableTargets || {}),
+                        ...Object.keys(totals.byType || {})
+                      ]));
+                      const hasDeliverables = allTypes.length > 0;
 
                       return (
-                        <tr key={client.clientId} className="border-b hover:bg-muted/30">
-                          <td className="py-3 px-4">
-                            <span className="font-medium">{client.companyName || client.clientName}</span>
-                          </td>
-                          <td className="text-center py-3 px-4">
-                            <Badge variant="outline">{client.targetMonthly}</Badge>
-                          </td>
-                          {visibleMonths.map((month) => {
-                            const monthData = client.months[month.key];
-                            const count = monthData?.total || 0;
-                            const isLow = count < client.targetMonthly * 0.5;
-                            const isGood = count >= client.targetMonthly;
-
-                            return (
-                              <td key={month.key} className="text-center py-3 px-4">
-                                {count > 0 ? (
-                                  <span className={`inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded text-sm font-medium ${
-                                    isGood ? 'bg-green-100 text-green-800' :
-                                    isLow ? 'bg-red-100 text-red-800' :
-                                    'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    {count}
-                                  </span>
+                        <React.Fragment key={client.clientId}>
+                          <tr 
+                            className={`border-b hover:bg-muted/30 ${hasDeliverables ? 'cursor-pointer' : ''}`}
+                            onClick={() => hasDeliverables && toggleExpand(client.clientId)}
+                          >
+                            <td className="py-3 px-4">
+                              {hasDeliverables && (
+                                isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                 ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-medium">{client.companyName || client.clientName}</span>
+                            </td>
+                            <td className="text-center py-3 px-4">
+                              <Badge variant="outline">{client.targetMonthly}</Badge>
+                            </td>
+                            {visibleMonths.map((month) => {
+                              const monthData = client.months[month.key];
+                              const count = monthData?.total || 0;
+                              const isLow = count < client.targetMonthly * 0.5;
+                              const isGood = count >= client.targetMonthly;
+
+                              return (
+                                <td key={month.key} className="text-center py-3 px-4">
+                                  {count > 0 ? (
+                                    <span className={`inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded text-sm font-medium ${
+                                      isGood ? 'bg-green-100 text-green-800' :
+                                      isLow ? 'bg-red-100 text-red-800' :
+                                      'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {count}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="text-center py-3 px-4">
+                              <Badge className={isOnTrack ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
+                                {totals.total}
+                              </Badge>
+                            </td>
+                          </tr>
+
+                          {/* Expanded Deliverable Breakdown */}
+                          {isExpanded && hasDeliverables && (
+                            <tr className="bg-muted/20">
+                              <td colSpan={4 + visibleMonths.length} className="py-4 px-4 pl-12">
+                                <div className="text-xs text-muted-foreground mb-3">Deliverable Breakdown:</div>
+                                <div className="space-y-3 max-w-md">
+                                  {allTypes.map(type => {
+                                    const target = (client.deliverableTargets?.[type] || 0) * visibleMonths.length;
+                                    const completed = totals.byType?.[type] || 0;
+                                    const percentage = target > 0 ? Math.min(Math.round((completed / target) * 100), 100) : 0;
+                                    
+                                    return (
+                                      <div key={type} className="space-y-1">
+                                        <div className="flex justify-between text-sm">
+                                          <span className="font-medium">{type}</span>
+                                          <span className="text-muted-foreground">{completed} / {target}</span>
+                                        </div>
+                                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                          <div 
+                                            className="h-full bg-gray-600 rounded-full transition-all"
+                                            style={{ width: `${percentage}%` }}
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </td>
-                            );
-                          })}
-                          <td className="text-center py-3 px-4">
-                            <Badge className={isOnTrack ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
-                              {totals.total}
-                            </Badge>
-                          </td>
-                        </tr>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                 </tbody>
@@ -423,7 +550,7 @@ export function MonthlyDeliverablesTab() {
                                         key={clientId}
                                         className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded text-xs"
                                       >
-                                        <span className="font-medium">{data.companyName}:</span>
+                                        <span className="font-medium">{data.companyName || data.clientName}:</span>
                                         <span className="text-blue-600">{data.count}</span>
                                       </span>
                                     ))}

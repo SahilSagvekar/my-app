@@ -73,6 +73,12 @@ export async function GET(req: NextRequest) {
         updatedAt: true,
         deliverableType: true,
         monthlyDeliverableId: true,
+        monthlyDeliverable: {
+          select: {
+            id: true,
+            type: true,
+          },
+        },
         user: {
           select: {
             id: true,
@@ -112,17 +118,31 @@ export async function GET(req: NextRequest) {
       clientName: string;
       companyName: string | null;
       targetMonthly: number;
-      months: Record<string, { completed: number; posted: number; scheduled: number; total: number }>;
+      deliverableTargets: Record<string, number>; // type -> quantity per month
+      months: Record<string, { 
+        completed: number; 
+        posted: number; 
+        scheduled: number; 
+        total: number;
+        byType: Record<string, number>; // type -> count
+      }>;
     }> = {};
 
     // Initialize client data
     for (const client of clients) {
       const totalTarget = client.monthlyDeliverables.reduce((sum, d) => sum + d.quantity, 0);
+      const deliverableTargets: Record<string, number> = {};
+      
+      for (const d of client.monthlyDeliverables) {
+        deliverableTargets[d.type] = (deliverableTargets[d.type] || 0) + d.quantity;
+      }
+      
       clientDeliverables[client.id] = {
         clientId: client.id,
         clientName: client.name,
         companyName: client.companyName,
         targetMonthly: totalTarget,
+        deliverableTargets,
         months: {},
       };
     }
@@ -139,11 +159,16 @@ export async function GET(req: NextRequest) {
           posted: 0,
           scheduled: 0,
           total: 0,
+          byType: {},
         };
       }
 
       const monthData = clientDeliverables[task.clientId].months[monthKey];
       monthData.total++;
+
+      // Track by deliverable type - prefer monthlyDeliverable.type, fallback to deliverableType
+      const deliverableType = task.monthlyDeliverable?.type || task.deliverableType || 'Other';
+      monthData.byType[deliverableType] = (monthData.byType[deliverableType] || 0) + 1;
 
       if (task.status === 'COMPLETED') monthData.completed++;
       if (task.status === 'POSTED') monthData.posted++;
@@ -321,4 +346,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+} 

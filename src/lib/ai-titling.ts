@@ -1,6 +1,6 @@
 // src/lib/ai-titling.ts
 
-const AI_TITLING_API_URL = process.env.AI_TITLING_API_URL || 'https://ai.e8productions.com';
+const AI_TITLING_API_URL = process.env.AI_TITLING_API_URL;
 
 export interface GeneratedTitle {
   title: string;
