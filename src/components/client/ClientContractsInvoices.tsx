@@ -101,7 +101,63 @@ interface ClientContractsInvoicesProps {
   clientEmail: string;
   companyName?: string;
   deliverables: MonthlyDeliverable[];
+  monthlyFee?: string; // e.g., "2500" or "$2,500"
+  hasPostingServices?: boolean;
 }
+
+// Helper to parse monthly fee string to number
+const parseMonthlyFee = (fee?: string): number => {
+  if (!fee) return 0;
+  // Remove $ , and any other non-numeric characters except .
+  const cleaned = fee.replace(/[^0-9.]/g, '');
+  return parseFloat(cleaned) || 0;
+};
+
+// Helper to generate invoice description (Stripe has 500 char limit)
+const generateInvoiceDescription = (
+  deliverables: MonthlyDeliverable[],
+  hasPostingServices: boolean,
+  clientName: string
+): string => {
+  const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  
+  let description = `${currentMonth} Content Services for ${clientName}\n\n`;
+  
+  // List deliverables in condensed format
+  if (deliverables.length > 0) {
+    description += 'Services:\n';
+    deliverables.forEach((d) => {
+      // Shorten platform names
+      const platformAbbrev: Record<string, string> = {
+        'Instagram': 'IG',
+        'Tiktok': 'TT',
+        'TikTok': 'TT',
+        'Facebook': 'FB',
+        'Youtube': 'YT',
+        'YouTube': 'YT',
+        'Twitter': 'X',
+        'Linkedin': 'LI',
+        'LinkedIn': 'LI',
+        'Snapchat': 'SC',
+      };
+      const platforms = d.platforms?.map(p => platformAbbrev[p] || p).join('/') || '';
+      const platformStr = platforms ? ` (${platforms})` : '';
+      description += `• ${d.quantity}x ${d.type}${platformStr}\n`;
+    });
+  }
+  
+  // Posting services - short version
+  description += hasPostingServices 
+    ? '\n✓ Posting included' 
+    : '\n✗ No posting (delivery only)';
+  
+  // Truncate to 500 chars if needed
+  if (description.length > 500) {
+    description = description.substring(0, 497) + '...';
+  }
+  
+  return description;
+};
 
 // Status badge helper
 const getContractStatusBadge = (status: Contract['status']) => {
@@ -151,6 +207,8 @@ export function ClientContractsInvoices({
   clientEmail,
   companyName,
   deliverables,
+  monthlyFee,
+  hasPostingServices = true,
 }: ClientContractsInvoicesProps) {
   // Contracts state
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -171,6 +229,9 @@ export function ClientContractsInvoices({
   // Invoices state
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+
+  // Parsed monthly fee
+  const parsedMonthlyFee = parseMonthlyFee(monthlyFee);
 
   // Create invoice dialog state
   const [showCreateInvoice, setShowCreateInvoice] = useState(false);
@@ -241,29 +302,27 @@ export function ClientContractsInvoices({
     const defaultDueDate = new Date();
     defaultDueDate.setDate(defaultDueDate.getDate() + 30);
 
-    // Pre-populate line items from deliverables
-    const lineItemsFromDeliverables = deliverables.map((d) => ({
-      description: `${d.type} (${d.quantity}/month)`,
-      amount: '', // Admin will fill in the price
+    // Generate description with deliverables and posting services info
+    const autoDescription = generateInvoiceDescription(
+      deliverables,
+      hasPostingServices,
+      companyName || clientName
+    );
+
+    // Create a single line item with the monthly fee as the total
+    // The description will contain all the details
+    const lineItems = [{
+      description: `Monthly Content Services - ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
+      amount: parsedMonthlyFee > 0 ? parsedMonthlyFee.toString() : '',
       quantity: 1,
       selected: true,
-    }));
-
-    // Add a default custom line item option
-    if (lineItemsFromDeliverables.length === 0) {
-      lineItemsFromDeliverables.push({
-        description: '',
-        amount: '',
-        quantity: 1,
-        selected: true,
-      });
-    }
+    }];
 
     setNewInvoice({
       dueDate: defaultDueDate.toISOString().split('T')[0],
-      description: `Monthly services for ${companyName || clientName}`,
+      description: autoDescription,
       notes: '',
-      lineItems: lineItemsFromDeliverables,
+      lineItems,
       sendImmediately: false,
     });
     setShowCreateInvoice(true);
@@ -868,11 +927,21 @@ export function ClientContractsInvoices({
               Create Invoice for {companyName || clientName}
             </DialogTitle>
             <DialogDescription>
-              Create an invoice based on the client's deliverables. Adjust prices and quantities as needed.
+              Invoice will be auto-filled from the client's monthly fee and deliverables.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
+            {/* Monthly Fee Info */}
+            {parsedMonthlyFee > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-green-700">Client's Monthly Fee:</span>
+                  <span className="text-lg font-bold text-green-700">${parsedMonthlyFee.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+
             {/* Invoice Details */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -886,15 +955,25 @@ export function ClientContractsInvoices({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description</Label>
-                <Input
-                  value={newInvoice.description}
-                  onChange={(e) =>
-                    setNewInvoice((prev) => ({ ...prev, description: e.target.value }))
-                  }
-                  placeholder="Invoice description"
-                />
+                <Label>Posting Services</Label>
+                <div className={`text-sm px-3 py-2 rounded-md border ${hasPostingServices ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                  {hasPostingServices ? '✓ Included' : '✗ Not Included'}
+                </div>
               </div>
+            </div>
+
+            {/* Description - Full Width Textarea */}
+            <div className="space-y-2">
+              <Label>Invoice Description (shown to client)</Label>
+              <Textarea
+                value={newInvoice.description}
+                onChange={(e) =>
+                  setNewInvoice((prev) => ({ ...prev, description: e.target.value }))
+                }
+                placeholder="Invoice description with services..."
+                rows={6}
+                className="text-sm"
+              />
             </div>
 
             {/* Line Items */}

@@ -197,30 +197,48 @@ export async function createStripeInvoice(
   customerId: string,
   lineItems: Array<{ description: string; amount: number; quantity?: number }>,
   daysUntilDue: number = 30,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  invoiceDescription?: string
 ): Promise<Stripe.Invoice> {
-  // Add invoice items
-  for (const item of lineItems) {
-
-    console.log("items", item);
-    await stripe.invoiceItems.create({
-      customer: customerId,
-      amount: item.amount,
-      currency: 'usd',
-      description: item.description,
-    });
-  }
+  console.log('🔵 Creating Stripe invoice for customer:', customerId);
+  console.log('🔵 Line items:', JSON.stringify(lineItems));
+  console.log('🔵 Invoice description:', invoiceDescription);
   
-  // Create and finalize the invoice
+  // First create the invoice (in draft state)
   const invoice = await stripe.invoices.create({
     customer: customerId,
     collection_method: 'send_invoice',
     days_until_due: daysUntilDue,
     metadata,
-    auto_advance: false,
+    description: invoiceDescription || undefined, // Invoice-level description shown to customer
+    auto_advance: false, // Don't auto-finalize, we'll do it manually after adding items
   });
   
-  return invoice;
+  console.log('🔵 Created draft invoice:', invoice.id);
+  
+  // Add invoice items TO THIS SPECIFIC INVOICE
+  for (const item of lineItems) {
+    if (item.amount <= 0) {
+      console.warn('⚠️ Skipping line item with zero/negative amount:', item);
+      continue;
+    }
+    
+    const invoiceItem = await stripe.invoiceItems.create({
+      customer: customerId,
+      invoice: invoice.id, // <-- THIS IS THE KEY FIX: attach to specific invoice
+      amount: item.amount,
+      currency: 'usd',
+      description: item.description,
+    });
+    
+    console.log('🔵 Added invoice item:', invoiceItem.id, 'amount:', item.amount);
+  }
+  
+  // Retrieve the updated invoice with items
+  const updatedInvoice = await stripe.invoices.retrieve(invoice.id);
+  console.log('🔵 Invoice total after adding items:', updatedInvoice.amount_due);
+  
+  return updatedInvoice;
 }
 
 // Send a Stripe invoice

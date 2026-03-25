@@ -197,7 +197,8 @@ export async function POST(req: NextRequest) {
           amount: item.amount * item.quantity,
         })),
         daysUntilDue,
-        { invoiceNumber, clientId }
+        { invoiceNumber, clientId },
+        description // Pass the invoice description to Stripe
       );
 
       stripeInvoiceId = stripeInvoice.id;
