@@ -37,16 +37,29 @@ import {
     Linkedin,
     Twitter,
     Music,
-    Clock
+    Clock,
+    Pencil,
+    Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
+
+// Custom TikTok Icon Component
+const TikTokIcon = ({ className }: { className?: string }) => (
+    <svg 
+        viewBox="0 0 24 24" 
+        fill="currentColor" 
+        className={className}
+    >
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+    </svg>
+);
 
 // Platform icons and colors
 const PLATFORMS = {
     instagram: { label: 'IG', icon: Instagram, color: 'text-pink-600', bgColor: 'bg-pink-50' },
     youtube: { label: 'YT', icon: Youtube, color: 'text-red-600', bgColor: 'bg-red-50' },
-    tiktok: { label: 'TT', icon: Music, color: 'text-black', bgColor: 'bg-gray-100' },
+    tiktok: { label: 'TT', icon: TikTokIcon, color: 'text-black', bgColor: 'bg-gray-100' },
     facebook: { label: 'FB', icon: Facebook, color: 'text-blue-600', bgColor: 'bg-blue-50' },
     linkedin: { label: 'LI', icon: Linkedin, color: 'text-blue-700', bgColor: 'bg-blue-50' },
     twitter: { label: 'X', icon: Twitter, color: 'text-gray-900', bgColor: 'bg-gray-100' },
@@ -101,8 +114,14 @@ export function SchedulerSpreadsheetView() {
     const [playingVideo, setPlayingVideo] = useState<string | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    // Social link dialog
-    const [linkDialog, setLinkDialog] = useState<{ open: boolean; taskId: string; platform: PlatformKey } | null>(null);
+    // Social link dialog - now supports edit mode
+    const [linkDialog, setLinkDialog] = useState<{ 
+        open: boolean; 
+        taskId: string; 
+        platform: PlatformKey; 
+        mode: 'add' | 'edit';
+        existingUrl?: string;
+    } | null>(null);
     const [linkUrl, setLinkUrl] = useState('');
     const [submittingLink, setSubmittingLink] = useState(false);
 
@@ -169,8 +188,11 @@ export function SchedulerSpreadsheetView() {
 
         try {
             setSubmittingLink(true);
+            
+            const isEdit = linkDialog.mode === 'edit';
+            
             const res = await fetch(`/api/tasks/${linkDialog.taskId}/social-media-link`, {
-                method: 'POST',
+                method: isEdit ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     platform: linkDialog.platform,
@@ -178,29 +200,74 @@ export function SchedulerSpreadsheetView() {
                 }),
             });
 
-            if (!res.ok) throw new Error('Failed to submit link');
+            if (!res.ok) throw new Error(`Failed to ${isEdit ? 'update' : 'add'} link`);
 
             // Update local state
             setTasks(prev => prev.map(t => {
                 if (t.id === linkDialog.taskId) {
+                    if (isEdit) {
+                        // Update existing link
+                        return {
+                            ...t,
+                            socialMediaLinks: (t.socialMediaLinks || []).map(link =>
+                                link.platform.toLowerCase() === linkDialog.platform.toLowerCase()
+                                    ? { ...link, url: linkUrl }
+                                    : link
+                            )
+                        };
+                    } else {
+                        // Add new link
+                        return {
+                            ...t,
+                            socialMediaLinks: [
+                                ...(t.socialMediaLinks || []),
+                                { platform: linkDialog.platform, url: linkUrl, postedAt: new Date().toISOString() }
+                            ]
+                        };
+                    }
+                }
+                return t;
+            }));
+
+            toast.success(`${PLATFORMS[linkDialog.platform].label} link ${isEdit ? 'updated' : 'added'}!`);
+            setLinkDialog(null);
+            setLinkUrl('');
+        } catch (err) {
+            toast.error(`Failed to ${linkDialog.mode === 'edit' ? 'update' : 'add'} link`);
+        } finally {
+            setSubmittingLink(false);
+        }
+    }
+
+    // Delete social media link
+    async function deleteSocialLink(taskId: string, platform: string) {
+        if (!confirm(`Are you sure you want to remove this ${platform} link?`)) return;
+
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/social-media-link`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platform }),
+            });
+
+            if (!res.ok) throw new Error('Failed to delete link');
+
+            // Update local state
+            setTasks(prev => prev.map(t => {
+                if (t.id === taskId) {
                     return {
                         ...t,
-                        socialMediaLinks: [
-                            ...(t.socialMediaLinks || []),
-                            { platform: linkDialog.platform, url: linkUrl, postedAt: new Date().toISOString() }
-                        ]
+                        socialMediaLinks: (t.socialMediaLinks || []).filter(
+                            link => link.platform.toLowerCase() !== platform.toLowerCase()
+                        )
                     };
                 }
                 return t;
             }));
 
-            toast.success(`${PLATFORMS[linkDialog.platform].label} link added!`);
-            setLinkDialog(null);
-            setLinkUrl('');
+            toast.success('Link removed');
         } catch (err) {
-            toast.error('Failed to add link');
-        } finally {
-            setSubmittingLink(false);
+            toast.error('Failed to remove link');
         }
     }
 
@@ -673,7 +740,7 @@ export function SchedulerSpreadsheetView() {
                                                                 </button>
                                                             ) : (
                                                                 <button
-                                                                    onClick={() => setLinkDialog({ open: true, taskId: task.id, platform: key as PlatformKey })}
+                                                                    onClick={() => setLinkDialog({ open: true, taskId: task.id, platform: key as PlatformKey, mode: 'add' })}
                                                                     className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors border border-dashed border-gray-300"
                                                                     title={`Add ${key} link`}
                                                                 >
@@ -874,19 +941,64 @@ export function SchedulerSpreadsheetView() {
                                                                 {task.socialMediaLinks && task.socialMediaLinks.length > 0 && (
                                                                     <div className="mt-4">
                                                                         <h4 className="font-semibold mb-2 text-sm">Posted Links</h4>
-                                                                        <div className="space-y-1">
-                                                                            {task.socialMediaLinks.map((link, i) => (
-                                                                                <a
-                                                                                    key={i}
-                                                                                    href={link.url}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                                                                                >
-                                                                                    <ExternalLink className="h-3 w-3" />
-                                                                                    {link.platform}: {link.url.slice(0, 40)}...
-                                                                                </a>
-                                                                            ))}
+                                                                        <div className="space-y-2">
+                                                                            {task.socialMediaLinks.map((link, i) => {
+                                                                                const platformKey = link.platform.toLowerCase() as PlatformKey;
+                                                                                const platform = PLATFORMS[platformKey];
+                                                                                const Icon = platform?.icon || ExternalLink;
+                                                                                
+                                                                                return (
+                                                                                    <div
+                                                                                        key={i}
+                                                                                        className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group"
+                                                                                    >
+                                                                                        <div className={`p-1 rounded ${platform?.bgColor || 'bg-gray-100'}`}>
+                                                                                            <Icon className={`h-3.5 w-3.5 ${platform?.color || 'text-gray-600'}`} />
+                                                                                        </div>
+                                                                                        <a
+                                                                                            href={link.url}
+                                                                                            target="_blank"
+                                                                                            rel="noopener noreferrer"
+                                                                                            className="flex-1 text-sm text-blue-600 hover:underline truncate"
+                                                                                        >
+                                                                                            {link.url.length > 50 ? link.url.slice(0, 50) + '...' : link.url}
+                                                                                        </a>
+                                                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="sm"
+                                                                                                className="h-7 w-7 p-0"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    setLinkUrl(link.url);
+                                                                                                    setLinkDialog({
+                                                                                                        open: true,
+                                                                                                        taskId: task.id,
+                                                                                                        platform: platformKey,
+                                                                                                        mode: 'edit',
+                                                                                                        existingUrl: link.url
+                                                                                                    });
+                                                                                                }}
+                                                                                                title="Edit link"
+                                                                                            >
+                                                                                                <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                                                                                            </Button>
+                                                                                            <Button
+                                                                                                variant="ghost"
+                                                                                                size="sm"
+                                                                                                className="h-7 w-7 p-0 hover:bg-red-50"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    deleteSocialLink(task.id, link.platform);
+                                                                                                }}
+                                                                                                title="Remove link"
+                                                                                            >
+                                                                                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                                                                            </Button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
                                                                         </div>
                                                                     </div>
                                                                 )}
@@ -904,26 +1016,35 @@ export function SchedulerSpreadsheetView() {
                 </div>
             </div>
 
-            {/* Add Link Dialog */}
-            <Dialog open={linkDialog?.open || false} onOpenChange={(open) => !open && setLinkDialog(null)}>
+            {/* Add/Edit Link Dialog */}
+            <Dialog open={linkDialog?.open || false} onOpenChange={(open) => {
+                if (!open) {
+                    setLinkDialog(null);
+                    setLinkUrl('');
+                }
+            }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             {linkDialog && (() => {
                                 const platform = PLATFORMS[linkDialog.platform];
                                 const Icon = platform.icon;
+                                const isEdit = linkDialog.mode === 'edit';
                                 return (
                                     <>
                                         <div className={`p-1.5 rounded-md ${platform.bgColor}`}>
                                             <Icon className={`h-5 w-5 ${platform.color}`} />
                                         </div>
-                                        Add {linkDialog.platform.charAt(0).toUpperCase() + linkDialog.platform.slice(1)} Link
+                                        {isEdit ? 'Edit' : 'Add'} {linkDialog.platform.charAt(0).toUpperCase() + linkDialog.platform.slice(1)} Link
                                     </>
                                 );
                             })()}
                         </DialogTitle>
                         <DialogDescription>
-                            Paste the URL of the published post
+                            {linkDialog?.mode === 'edit' 
+                                ? 'Update the URL for this post'
+                                : 'Paste the URL of the published post'
+                            }
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
@@ -934,11 +1055,17 @@ export function SchedulerSpreadsheetView() {
                             disabled={submittingLink}
                         />
                         <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setLinkDialog(null)} disabled={submittingLink}>
+                            <Button variant="outline" onClick={() => {
+                                setLinkDialog(null);
+                                setLinkUrl('');
+                            }} disabled={submittingLink}>
                                 Cancel
                             </Button>
                             <Button onClick={submitSocialLink} disabled={!linkUrl || submittingLink}>
-                                {submittingLink ? 'Adding...' : 'Add Link'}
+                                {submittingLink 
+                                    ? (linkDialog?.mode === 'edit' ? 'Updating...' : 'Adding...') 
+                                    : (linkDialog?.mode === 'edit' ? 'Update Link' : 'Add Link')
+                                }
                             </Button>
                         </div>
                     </div>
