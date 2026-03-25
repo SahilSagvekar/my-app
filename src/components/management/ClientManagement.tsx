@@ -3127,6 +3127,8 @@ export function ClientManagement() {
                   clientEmail={editingClient.email}
                   companyName={editingClient.companyName}
                   deliverables={newClient.monthlyDeliverables || []}
+                  monthlyFee={newClient.billing?.monthlyFee}
+                  hasPostingServices={newClient.hasPostingServices ?? true}
                 />
               </>
             )}
