@@ -189,6 +189,13 @@ async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
 
   const invoice = await prisma.invoice.findUnique({
     where: { stripeInvoiceId: stripeInvoice.id },
+    include: {
+      stripeCustomer: {
+        include: {
+          client: true,
+        },
+      },
+    },
   });
 
   if (invoice) {
@@ -201,6 +208,30 @@ async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
         sentAt: new Date(),
       },
     });
+
+    // Send CC notification to payments@e8productions.com
+    // This could be done via email service (SendGrid, SES, etc.)
+    // For now, we log it and you can integrate your email service
+    const clientName = invoice.stripeCustomer?.client?.companyName || 
+                       invoice.stripeCustomer?.client?.name || 
+                       'Client';
+    const clientEmail = invoice.stripeCustomer?.client?.email || stripeInvoice.customer_email;
+    
+    console.log(`📧 Invoice ${invoice.invoiceNumber} sent to ${clientEmail}`);
+    console.log(`📧 CC: payments@e8productions.com`);
+    console.log(`📧 Amount: $${(stripeInvoice.amount_due / 100).toFixed(2)}`);
+    console.log(`📧 Invoice URL: ${stripeInvoice.hosted_invoice_url}`);
+    console.log(`📧 PDF URL: ${stripeInvoice.invoice_pdf}`);
+    
+    // TODO: Integrate with your email service to send actual CC
+    // Example with SendGrid or similar:
+    // await sendEmail({
+    //   to: 'payments@e8productions.com',
+    //   subject: `Invoice ${invoice.invoiceNumber} sent to ${clientName}`,
+    //   body: `Invoice for $${(stripeInvoice.amount_due / 100).toFixed(2)} has been sent to ${clientEmail}.
+    //          View: ${stripeInvoice.hosted_invoice_url}
+    //          PDF: ${stripeInvoice.invoice_pdf}`,
+    // });
   }
 }
 
