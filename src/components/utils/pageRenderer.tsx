@@ -38,9 +38,6 @@ import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";  
-import { MonthlyDeliverablesTab } from "../admin/MonthlyDeliverablesTab";
-import { BillingDashboard } from "../billing/BillingDashboard";
-
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -48,9 +45,19 @@ const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Contracts...</div>
 });
 
+const ClientPortalPage = dynamic(() => import("../Clientportalpage").then(mod => mod.ClientPortalPage), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Portal...</div>
+});
+
 const ClientContractsPage = dynamic(() => import("../contracts/ClientContractsPage").then(mod => mod.ClientContractsPage), {
   ssr: false,
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Contracts...</div>
+});
+
+const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(mod => mod.ClientBillingPortal), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Billing...</div>
 });
 import { Loader2 } from "lucide-react";
 
@@ -101,8 +108,9 @@ export function renderPage(
     return <SocialLogins />;
   }
 
+  // Legacy "invoices" page now redirects to billing
   if (page === "invoices") {
-    return <ComingSoonPage title="Invoices & Billing" />;
+    return <ClientBillingPortal />;
   }
 
   if (page === "scheduling") {
@@ -133,14 +141,10 @@ export function renderPage(
       case "sales-management":
       case "videographer-management":
         return <AdminDashboard currentPage={page} onPageChange={onPageChange} />;
-      case "monthly-deliverables":
-        return <MonthlyDeliverablesTab />;
       case "portfolio":
         return <PortfolioManagementTab />;
       case "contracts":
         return <ContractsDashboard />;
-      case "billing":
-        return <BillingDashboard />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "training":
@@ -318,7 +322,7 @@ export function renderPage(
       case "archive":
         return <ComingSoonPage title="Archive" />;
       case "contracts":
-        return <ClientContractsPage />;
+        return <ClientPortalPage />; // Unified page with Info + Contracts + Invoices
       default:
         return <ClientMonthlyOverview />;
     }
