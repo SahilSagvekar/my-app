@@ -108,6 +108,8 @@ export async function POST(req: NextRequest) {
       notes,
       sendImmediately = false,
       useStripeInvoicing = true, // Whether to create Stripe invoice or just local
+      taskIds = [], // IDs of one-off tasks to mark as billed
+      invoiceType = 'STANDARD', // 'STANDARD' | 'ONE_OFF'
     } = body;
 
     if (!clientId || !lineItems || lineItems.length === 0) {
@@ -176,6 +178,8 @@ export async function POST(req: NextRequest) {
 
     console.log('📄 Creating invoice with line items:', processedLineItems);
     console.log('📄 Total amount (cents):', totalAmount);
+    console.log('📄 Invoice type:', invoiceType);
+    console.log('📄 Task IDs to mark as billed:', taskIds);
 
     // Generate invoice number
     const invoiceNumber = generateInvoiceNumber();
@@ -197,7 +201,7 @@ export async function POST(req: NextRequest) {
           amount: item.amount * item.quantity,
         })),
         daysUntilDue,
-        { invoiceNumber, clientId },
+        { invoiceNumber, clientId, invoiceType },
         description // Pass the invoice description to Stripe
       );
 
@@ -228,6 +232,7 @@ export async function POST(req: NextRequest) {
         stripePdfUrl,
         createdBy: currentUser.userId,
         sentAt: sendImmediately ? new Date() : null,
+        metadata: invoiceType === 'ONE_OFF' ? { invoiceType: 'ONE_OFF', taskIds } : undefined,
       },
       include: {
         stripeCustomer: {
@@ -239,6 +244,22 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+
+    // Mark tasks as billed (if any)
+    if (taskIds.length > 0) {
+      await prisma.task.updateMany({
+        where: {
+          id: { in: taskIds },
+          clientId: clientId, // Security: ensure they belong to this client
+          oneOffDeliverableId: { not: null }, // Must be one-off tasks
+        },
+        data: {
+          billedAt: new Date(),
+          invoiceId: invoice.id,
+        },
+      });
+      console.log(`✅ Marked ${taskIds.length} one-off tasks as billed`);
+    }
 
     return NextResponse.json({ ok: true, invoice });
   } catch (error: any) {

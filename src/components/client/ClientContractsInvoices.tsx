@@ -52,6 +52,7 @@ import {
   ExternalLink,
   Upload,
   X,
+  Package,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -92,7 +93,27 @@ interface MonthlyDeliverable {
   id: string;
   type: string;
   quantity: number;
+  platforms?: string[];
   description?: string;
+}
+
+interface OneOffTask {
+  id: string;
+  title: string | null;
+  status: string | null;
+  deliverableType: string | null;
+  socialMediaLinks: Array<{ platform: string; url: string; postedAt?: string }>;
+  createdAt: string;
+  oneOffDeliverableId: string | null;
+}
+
+interface OneOffTaskGroup {
+  type: string;
+  tasks: OneOffTask[];
+  totalCount: number;
+  platforms: string[];
+  unitPrice: string;
+  selected: boolean;
 }
 
 interface ClientContractsInvoicesProps {
@@ -250,6 +271,50 @@ export function ClientContractsInvoices({
     sendImmediately: false,
   });
 
+  // One-off task billing state
+  const [showOneOffInvoice, setShowOneOffInvoice] = useState(false);
+  const [creatingOneOffInvoice, setCreatingOneOffInvoice] = useState(false);
+  const [loadingOneOffTasks, setLoadingOneOffTasks] = useState(false);
+  const [oneOffTaskGroups, setOneOffTaskGroups] = useState<OneOffTaskGroup[]>([]);
+  const [oneOffInvoiceData, setOneOffInvoiceData] = useState<{
+    dueDate: string;
+    notes: string;
+    sendImmediately: boolean;
+  }>({
+    dueDate: '',
+    notes: '',
+    sendImmediately: false,
+  });
+
+  // Fetch unbilled one-off tasks
+  const fetchUnbilledOneOffTasks = useCallback(async () => {
+    if (!clientId) return;
+    setLoadingOneOffTasks(true);
+    try {
+      const res = await fetch(`/api/billing/oneoff-tasks?clientId=${clientId}`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (data.ok) {
+        // Add UI state to each group
+        setOneOffTaskGroups(
+          data.typeGroups.map((group: any) => ({
+            ...group,
+            unitPrice: '',
+            selected: true,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching unbilled one-off tasks:', error);
+    } finally {
+      setLoadingOneOffTasks(false);
+    }
+  }, [clientId]);
+
+  // Get total unbilled task count
+  const totalUnbilledTasks = oneOffTaskGroups.reduce((sum, g) => sum + g.totalCount, 0);
+
   // Fetch contracts for this client
   const fetchContracts = useCallback(async () => {
     if (!clientId) return;
@@ -293,8 +358,9 @@ export function ClientContractsInvoices({
     if (clientId) {
       fetchContracts();
       fetchInvoices();
+      fetchUnbilledOneOffTasks();
     }
-  }, [clientId, fetchContracts, fetchInvoices]);
+  }, [clientId, fetchContracts, fetchInvoices, fetchUnbilledOneOffTasks]);
 
   // Initialize line items from deliverables when opening create dialog
   const handleOpenCreateInvoice = () => {
@@ -429,6 +495,114 @@ export function ClientContractsInvoices({
     } finally {
       setCreatingInvoice(false);
     }
+  };
+
+  // Create one-off invoice
+  const handleCreateOneOffInvoice = async () => {
+    const selectedGroups = oneOffTaskGroups.filter(
+      (group) => group.selected && parseFloat(group.unitPrice) > 0
+    );
+
+    if (selectedGroups.length === 0) {
+      toast.error('Please select at least one task type and set a price');
+      return;
+    }
+
+    // Build line items from selected groups
+    const lineItems = selectedGroups.map((group) => {
+      const taskCount = group.totalCount;
+      const unitPrice = parseFloat(group.unitPrice);
+      return {
+        description: `${group.type} (${taskCount} task${taskCount > 1 ? 's' : ''} @ $${unitPrice.toFixed(2)} each)`,
+        amount: unitPrice * taskCount,
+        quantity: 1,
+      };
+    });
+
+    // Get all task IDs being billed
+    const taskIds = selectedGroups.flatMap((group) =>
+      group.tasks.map((t) => t.id)
+    );
+
+    // Build description with social media links
+    let description = `One-Off Content for ${companyName || clientName}\n\n`;
+    
+    selectedGroups.forEach((group) => {
+      description += `${group.type} (${group.totalCount} tasks):\n`;
+      group.tasks.forEach((task) => {
+        const links = task.socialMediaLinks || [];
+        if (links.length > 0) {
+          links.forEach((link) => {
+            description += `• ${link.platform}: ${link.url}\n`;
+          });
+        } else {
+          description += `• ${task.title || 'Task'} (${task.status})\n`;
+        }
+      });
+      description += '\n';
+    });
+
+    // Truncate to 500 chars for Stripe
+    if (description.length > 500) {
+      description = description.substring(0, 497) + '...';
+    }
+
+    setCreatingOneOffInvoice(true);
+    try {
+      const res = await fetch('/api/billing/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          clientId,
+          lineItems,
+          dueDate: oneOffInvoiceData.dueDate || undefined,
+          description,
+          notes: oneOffInvoiceData.notes,
+          sendImmediately: oneOffInvoiceData.sendImmediately,
+          taskIds, // Backend will mark these tasks as billed
+          invoiceType: 'ONE_OFF',
+        }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(
+          oneOffInvoiceData.sendImmediately
+            ? 'One-off invoice created and sent!'
+            : 'One-off invoice created as draft'
+        );
+        setShowOneOffInvoice(false);
+        fetchInvoices();
+        fetchUnbilledOneOffTasks(); // Refresh unbilled tasks
+      } else {
+        toast.error(data.message || 'Failed to create invoice');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create invoice');
+    } finally {
+      setCreatingOneOffInvoice(false);
+    }
+  };
+
+  // Open one-off invoice dialog
+  const openOneOffInvoiceDialog = () => {
+    setOneOffInvoiceData({
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      notes: '',
+      sendImmediately: false,
+    });
+    setShowOneOffInvoice(true);
+  };
+
+  // Calculate one-off invoice total
+  const calculateOneOffTotal = () => {
+    return oneOffTaskGroups
+      .filter((group) => group.selected)
+      .reduce((total, group) => {
+        const unitPrice = parseFloat(group.unitPrice) || 0;
+        return total + unitPrice * group.totalCount;
+      }, 0);
   };
 
   // Send invoice
@@ -768,17 +942,61 @@ export function ClientContractsInvoices({
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchInvoices}
-              disabled={loadingInvoices}
+              onClick={() => {
+                fetchInvoices();
+                fetchUnbilledOneOffTasks();
+              }}
+              disabled={loadingInvoices || loadingOneOffTasks}
             >
-              <RefreshCw className={`h-4 w-4 ${loadingInvoices ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${(loadingInvoices || loadingOneOffTasks) ? 'animate-spin' : ''}`} />
             </Button>
+            {totalUnbilledTasks > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={openOneOffInvoiceDialog}
+                className="gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+              >
+                <Package className="h-4 w-4" />
+                One-Off Invoice ({totalUnbilledTasks} tasks)
+              </Button>
+            )}
             <Button size="sm" onClick={handleOpenCreateInvoice} className="gap-1">
               <Plus className="h-4 w-4" />
               Create Invoice
             </Button>
           </div>
         </div>
+
+        {/* Unbilled One-Off Tasks Alert */}
+        {totalUnbilledTasks > 0 && (
+          <Card className="bg-orange-50 border-orange-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 rounded-lg">
+                    <Package className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-orange-800">
+                      {totalUnbilledTasks} Unbilled One-Off Task{totalUnbilledTasks > 1 ? 's' : ''}
+                    </h4>
+                    <p className="text-xs text-orange-600">
+                      {oneOffTaskGroups.map(g => `${g.totalCount} ${g.type}`).join(', ')}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={openOneOffInvoiceDialog}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  Create One-Off Invoice
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Deliverables Summary */}
         {deliverables.length > 0 && (
@@ -1297,6 +1515,233 @@ export function ClientContractsInvoices({
                 <>
                   <CheckCircle className="h-4 w-4" />
                   Upload Contract
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* One-Off Invoice Dialog */}
+      <Dialog open={showOneOffInvoice} onOpenChange={(open) => {
+        setShowOneOffInvoice(open);
+        if (!open) {
+          setOneOffInvoiceData({
+            dueDate: '',
+            notes: '',
+            sendImmediately: false,
+          });
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-orange-600" />
+              Create One-Off Invoice
+            </DialogTitle>
+            <DialogDescription>
+              Invoice scheduled/posted one-off tasks for {companyName || clientName}. 
+              Set the price per task for each content type.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-4">
+            {/* Task Type Groups */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Tasks to Invoice</Label>
+              
+              {loadingOneOffTasks ? (
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 mx-auto animate-spin text-orange-500" />
+                  <p className="text-sm text-gray-500 mt-2">Loading unbilled tasks...</p>
+                </div>
+              ) : oneOffTaskGroups.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                  <Package className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                  <p>No unbilled one-off tasks</p>
+                  <p className="text-xs mt-1">Tasks must be SCHEDULED or POSTED to be billed</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {oneOffTaskGroups.map((group, idx) => {
+                    const taskCount = group.totalCount;
+                    const unitPrice = parseFloat(group.unitPrice) || 0;
+                    const lineTotal = unitPrice * taskCount;
+
+                    return (
+                      <Card key={group.type} className={`${group.selected ? 'border-orange-300 bg-orange-50/50' : 'opacity-60'}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              checked={group.selected}
+                              onCheckedChange={(checked) => {
+                                setOneOffTaskGroups((prev) =>
+                                  prev.map((g, i) =>
+                                    i === idx ? { ...g, selected: checked as boolean } : g
+                                  )
+                                );
+                              }}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">{group.type}</h4>
+                                  <p className="text-sm text-gray-500">
+                                    {taskCount} task{taskCount > 1 ? 's' : ''} ready to bill
+                                  </p>
+                                </div>
+                                {group.selected && lineTotal > 0 && (
+                                  <Badge className="bg-green-100 text-green-700 text-base px-3">
+                                    ${lineTotal.toFixed(2)}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {group.selected && (
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1">
+                                    <Label className="text-xs text-gray-500">Price per task ($)</Label>
+                                    <div className="relative">
+                                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        value={group.unitPrice}
+                                        onChange={(e) => {
+                                          setOneOffTaskGroups((prev) =>
+                                            prev.map((g, i) =>
+                                              i === idx ? { ...g, unitPrice: e.target.value } : g
+                                            )
+                                          );
+                                        }}
+                                        className="pl-8"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="text-center">
+                                    <Label className="text-xs text-gray-500">Tasks</Label>
+                                    <p className="text-lg font-bold text-gray-900">{taskCount}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <Label className="text-xs text-gray-500">Line Total</Label>
+                                    <p className="text-lg font-bold text-green-600">
+                                      ${lineTotal.toFixed(2)}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Show individual tasks with social links */}
+                              {group.selected && (
+                                <div className="space-y-1 max-h-32 overflow-y-auto">
+                                  {group.tasks.map((task) => {
+                                    const links = task.socialMediaLinks || [];
+                                    return (
+                                      <div key={task.id} className="flex items-center gap-2 text-xs bg-white p-2 rounded border">
+                                        <Badge variant="outline" className={task.status === 'POSTED' ? 'bg-green-50' : 'bg-blue-50'}>
+                                          {task.status}
+                                        </Badge>
+                                        <span className="truncate flex-1">{task.title || 'Untitled'}</span>
+                                        {links.length > 0 && (
+                                          <span className="text-gray-400">{links.length} link{links.length > 1 ? 's' : ''}</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Invoice Total */}
+            <div className="flex items-center justify-between p-4 bg-gray-100 rounded-lg">
+              <span className="text-lg font-semibold">Invoice Total</span>
+              <span className="text-2xl font-bold text-green-600">
+                ${calculateOneOffTotal().toFixed(2)}
+              </span>
+            </div>
+
+            <Separator />
+
+            {/* Due Date */}
+            <div className="space-y-2">
+              <Label>Due Date</Label>
+              <Input
+                type="date"
+                value={oneOffInvoiceData.dueDate}
+                onChange={(e) =>
+                  setOneOffInvoiceData((prev) => ({
+                    ...prev,
+                    dueDate: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Notes (optional)</Label>
+              <Textarea
+                placeholder="Add any notes for this invoice..."
+                value={oneOffInvoiceData.notes}
+                onChange={(e) =>
+                  setOneOffInvoiceData((prev) => ({
+                    ...prev,
+                    notes: e.target.value,
+                  }))
+                }
+                rows={2}
+              />
+            </div>
+
+            {/* Send Immediately */}
+            <div className="flex items-center space-x-2 pt-2">
+              <Checkbox
+                id="sendOneOffImmediately"
+                checked={oneOffInvoiceData.sendImmediately}
+                onCheckedChange={(checked) =>
+                  setOneOffInvoiceData((prev) => ({
+                    ...prev,
+                    sendImmediately: checked as boolean,
+                  }))
+                }
+              />
+              <Label htmlFor="sendOneOffImmediately" className="text-sm font-normal">
+                Send invoice to client immediately via email
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowOneOffInvoice(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateOneOffInvoice} 
+              disabled={creatingOneOffInvoice || calculateOneOffTotal() <= 0}
+              className="gap-2 bg-orange-600 hover:bg-orange-700"
+            >
+              {creatingOneOffInvoice ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Receipt className="h-4 w-4" />
+                  {oneOffInvoiceData.sendImmediately ? 'Create & Send' : 'Create Draft'}
                 </>
               )}
             </Button>
