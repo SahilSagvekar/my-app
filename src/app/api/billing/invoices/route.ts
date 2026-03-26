@@ -29,24 +29,45 @@ export async function GET(req: NextRequest) {
     // Build where clause
     const where: any = {};
 
-    // If client user, only show their invoices
-    if (currentUser.role === 'client' && currentUser.linkedClientId) {
-      const stripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId: currentUser.linkedClientId },
+    // Check if user is a client - need to fetch from DB since linkedClientId isn't in JWT
+    const isClientRole = currentUser.role === 'client' || currentUser.role === 'CLIENT';
+    
+    if (isClientRole) {
+      // Fetch the user to get their linkedClientId
+      const user = await prisma.user.findUnique({
+        where: { id: currentUser.userId || currentUser.id },
+        select: { linkedClientId: true },
       });
+
+      if (!user?.linkedClientId) {
+        console.log('Client user has no linkedClientId:', currentUser.userId);
+        return NextResponse.json({ ok: true, invoices: [], total: 0 });
+      }
+
+      // Get the stripe customer for this client
+      const stripeCustomer = await prisma.stripeCustomer.findUnique({
+        where: { clientId: user.linkedClientId },
+      });
+
       if (stripeCustomer) {
         where.stripeCustomerId = stripeCustomer.id;
       } else {
+        // No stripe customer for this client - return empty
         return NextResponse.json({ ok: true, invoices: [], total: 0 });
       }
     } else if (clientId) {
+      // Admin/manager filtering by specific client
       const stripeCustomer = await prisma.stripeCustomer.findUnique({
         where: { clientId },
       });
       if (stripeCustomer) {
         where.stripeCustomerId = stripeCustomer.id;
+      } else {
+        // No stripe customer for this client - return empty (not all invoices!)
+        return NextResponse.json({ ok: true, invoices: [], total: 0 });
       }
     }
+    // Note: If no clientId provided and user is admin, returns all invoices (for admin dashboard)
 
     if (status) {
       where.status = status;
