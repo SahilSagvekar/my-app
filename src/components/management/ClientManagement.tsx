@@ -73,6 +73,7 @@ import {
   FaLinkedin,
   FaSnapchat,
 } from "react-icons/fa";
+import { ClientContractsInvoices } from "../client/ClientContractsInvoices";
 
 type SocialPlatform =
   | "Instagram"
@@ -119,6 +120,10 @@ interface OneOffDeliverable {
   description?: string;
   status: "PENDING" | "GENERATED" | "COMPLETED";
   createdAt: string;
+  // Billing fields
+  billedAt?: string | null;
+  invoiceId?: string | null;
+  unitPrice?: number | null;
 }
 
 interface BrandAsset {
@@ -3115,6 +3120,22 @@ export function ClientManagement() {
                 />
               </div>
             </div>
+
+            {/* Contracts & Invoices Section - Only show when editing existing client */}
+            {editingClient && (
+              <>
+                <Separator className="my-6" />
+                <ClientContractsInvoices
+                  clientId={editingClient.id}
+                  clientName={editingClient.name}
+                  clientEmail={editingClient.email}
+                  companyName={editingClient.companyName}
+                  deliverables={newClient.monthlyDeliverables || []}
+                  monthlyFee={newClient.billing?.monthlyFee}
+                  hasPostingServices={newClient.hasPostingServices ?? true}
+                />
+              </>
+            )}
           </div>
 
           <DialogFooter>

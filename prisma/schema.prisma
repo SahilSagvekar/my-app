@@ -30,6 +30,7 @@ model User {
   emailNotifications      Boolean                  @default(true)
   slackNotifications      Boolean                  @default(false)
   slackUserId             String?
+  invoicesCreated         Invoice[]                @relation("InvoiceCreator")
   accounts                Account[]
   affiliateCommissions    AffiliateCommission[]
   auditLogs               AuditLog[]
@@ -153,9 +154,13 @@ model Task {
   qcReviewedBy         Int?
   oneOffDeliverableId  String?
   recurringMonth       String?
+  billedAt             DateTime?
+  invoiceId            String?
+  invoice              Invoice?  @relation(fields: [invoiceId], references: [id])
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   shootDetail          ShootDetail?
+  SocialPost           SocialPost[]
   user                 User                @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client               Client?             @relation(fields: [clientId], references: [id])
   clientUser           User?               @relation("ClientUserTasks", fields: [clientUserId], references: [id])
@@ -164,7 +169,6 @@ model Task {
   qcReviewer           User?               @relation("QCReviewedTasks", fields: [qcReviewedBy], references: [id])
   taskFeedback         TaskFeedback[]
   titlingJob           TitlingJob?
-  SocialPost           SocialPost[]        
 
   @@index([assignedTo])
   @@index([clientId])
@@ -294,6 +298,7 @@ model Client {
   slackEnabled            Boolean                  @default(false)
   slackWebhookUrl         String?
   hasPostingServices      Boolean                  @default(true)
+  stripeCustomer          StripeCustomer?
   brandAssets             BrandAsset[]
   user                    User?                    @relation(fields: [userId], references: [id])
   revenues                ClientRevenue[]
@@ -306,12 +311,12 @@ model Client {
   monthlyRuns             MonthlyRun[]
   oneOffDeliverables      OneOffDeliverable[]
   recurringTasks          RecurringTask[]
+  SocialAccount           SocialAccount[]
   socialLogins            SocialLogin[]
   tasks                   Task[]
   linkedUsers             User[]                   @relation("LinkedClientUsers")
   youtubeChannel          YouTubeChannel?
   youtubeSnapshots        YouTubeSnapshot[]
-  SocialAccount           SocialAccount[]
 
   @@index([status])
 }
@@ -348,6 +353,10 @@ model OneOffDeliverable {
   status          String   @default("PENDING")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  billedAt    DateTime?
+  invoiceId   String?
+  unitPrice   Int?
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id])
   client          Client   @relation(fields: [clientId], references: [id])
   tasks           Task[]
 }
@@ -366,31 +375,31 @@ model BrandAsset {
 }
 
 model File {
-  id            String         @id @default(cuid())
-  taskId        String
-  name          String
-  url           String
-  mimeType      String?
-  size          BigInt
-  uploadedAt    DateTime       @default(now())
-  uploadedBy    Int?
-  createdAt     DateTime       @default(now())
-  folderType    String?
-  isActive      Boolean        @default(true)
-  replacedAt    DateTime?
-  replacedBy    String?
-  revisionNote  String?
-  s3Key         String?
-  proxyUrl      String?        // URL to lower-quality compressed version
-  version       Int            @default(1)
-  codec         String?
-  archivedToNas Boolean        @default(false)
-  nasArchivedAt DateTime?
-  nasPath           String?
-  optimizationStatus String            @default("NONE") // NONE, PENDING, PROCESSING, COMPLETED, FAILED
+  id                 String         @id @default(cuid())
+  taskId             String
+  name               String
+  url                String
+  mimeType           String?
+  size               BigInt
+  uploadedAt         DateTime       @default(now())
+  uploadedBy         Int?
+  createdAt          DateTime       @default(now())
+  folderType         String?
+  isActive           Boolean        @default(true)
+  replacedAt         DateTime?
+  replacedBy         String?
+  revisionNote       String?
+  s3Key              String?
+  version            Int            @default(1)
+  codec              String?
+  archivedToNas      Boolean        @default(false)
+  nasArchivedAt      DateTime?
+  nasPath            String?
+  proxyUrl           String?
   optimizationError  String?
-  task              Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  feedback      TaskFeedback[]
+  optimizationStatus String         @default("NONE")
+  task               Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  feedback           TaskFeedback[]
 
   @@index([taskId, folderType])
   @@index([taskId, isActive])
@@ -532,96 +541,76 @@ model FeedbackResponse {
   @@index([senderId])
 }
 
-// Add to prisma/schema.prisma
-
 model SocialAccount {
-  id            String   @id @default(cuid())
+  id            String            @id @default(cuid())
   clientId      String
-  client        Client   @relation(fields: [clientId], references: [id])
-  
-  platform      String   // youtube, instagram, tiktok, facebook, twitter
-  platformId    String   // Channel ID, Page ID, etc.
-  platformName  String   // Channel name, Page name
-  
-  accessToken   String   // Encrypted
-  refreshToken  String?  // Encrypted
+  platform      String
+  platformId    String
+  platformName  String
+  accessToken   String
+  refreshToken  String?
   tokenExpiry   DateTime?
-  
   profileUrl    String?
   profileImage  String?
-  followerCount Int      @default(0)
-  
-  isActive      Boolean  @default(true)
+  followerCount Int               @default(0)
+  isActive      Boolean           @default(true)
   lastSyncAt    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  client        Client            @relation(fields: [clientId], references: [id])
   analytics     SocialAnalytics[]
   posts         SocialPost[]
-  
+
   @@unique([clientId, platform, platformId])
   @@index([clientId])
   @@index([platform])
 }
 
 model SocialPost {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   socialAccountId String
-  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
-  
-  platformPostId  String   // YouTube video ID, Instagram post ID, etc.
-  postType        String   // video, image, reel, story, short
+  platformPostId  String
+  postType        String
   title           String?
   description     String?
   thumbnailUrl    String?
   postUrl         String
-  
   publishedAt     DateTime
-  
-  // Metrics (updated via sync)
-  views           Int      @default(0)
-  likes           Int      @default(0)
-  comments        Int      @default(0)
-  shares          Int      @default(0)
+  views           Int           @default(0)
+  likes           Int           @default(0)
+  comments        Int           @default(0)
+  shares          Int           @default(0)
   saves           Int?
-  watchTime       Int?     // minutes
+  watchTime       Int?
   engagementRate  Float?
-  
-  // Link to E8 task if posted through system
   taskId          String?
-  task            Task?    @relation(fields: [taskId], references: [id])
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
+  task            Task?         @relation(fields: [taskId], references: [id])
+
   @@unique([socialAccountId, platformPostId])
   @@index([socialAccountId])
   @@index([publishedAt])
 }
 
 model SocialAnalytics {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   socialAccountId String
-  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
-  
-  date            DateTime @db.Date
-  
-  // Daily metrics
-  followers       Int      @default(0)
-  followersGained Int      @default(0)
-  followersLost   Int      @default(0)
-  
-  views           Int      @default(0)
-  likes           Int      @default(0)
-  comments        Int      @default(0)
-  shares          Int      @default(0)
-  
+  date            DateTime      @db.Date
+  followers       Int           @default(0)
+  followersGained Int           @default(0)
+  followersLost   Int           @default(0)
+  views           Int           @default(0)
+  likes           Int           @default(0)
+  comments        Int           @default(0)
+  shares          Int           @default(0)
   impressions     Int?
   reach           Int?
   engagementRate  Float?
-  
-  createdAt       DateTime @default(now())
-  
+  createdAt       DateTime      @default(now())
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
+
   @@unique([socialAccountId, date])
   @@index([socialAccountId, date])
 }
@@ -1262,6 +1251,7 @@ model Contract {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   annotations Json?
+  allowVariableSigners Boolean @default(false)
   createdBy   User               @relation("ContractCreator", fields: [createdById], references: [id])
   template    ContractTemplate?  @relation(fields: [templateId], references: [id])
   auditLogs   ContractAuditLog[]
@@ -1309,6 +1299,8 @@ model ContractSigner {
   userAgent      String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+  isVariableSigner Boolean @default(false)  // Add this
+  smsVerified      Boolean @default(false)  // Add this
   contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@index([contractId])
@@ -1331,6 +1323,171 @@ model ContractAuditLog {
   @@index([contractId])
   @@index([action])
   @@index([createdAt])
+}
+
+model StripeCustomer {
+  id                   String              @id @default(cuid())
+  clientId             String              @unique
+  stripeCustomerId     String              @unique
+  defaultPaymentMethod String?
+  currency             String              @default("usd")
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  client               Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  invoices             Invoice[]
+  subscriptions        Subscription[]
+  paymentMethods       PaymentMethod[]
+
+  @@index([stripeCustomerId])
+}
+
+model PaymentMethod {
+  id                 String          @id @default(cuid())
+  stripeCustomerId   String
+  stripePaymentMethodId String        @unique
+  type               String          // 'card' | 'us_bank_account'
+  isDefault          Boolean         @default(false)
+  // Card details
+  cardBrand          String?
+  cardLast4          String?
+  cardExpMonth       Int?
+  cardExpYear        Int?
+  // Bank account details
+  bankName           String?
+  bankLast4          String?
+  bankAccountType    String?         // 'checking' | 'savings'
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  stripeCustomer     StripeCustomer  @relation(fields: [stripeCustomerId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+}
+
+model Subscription {
+  id                   String          @id @default(cuid())
+  stripeCustomerId     String
+  stripeSubscriptionId String          @unique
+  stripePriceId        String
+  status               SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean         @default(false)
+  canceledAt           DateTime?
+  amount               Int             // Amount in cents
+  currency             String          @default("usd")
+  interval             String          @default("month") // 'month' | 'year'
+  metadata             Json?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  stripeCustomer       StripeCustomer  @relation(fields: [stripeCustomerId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@index([status])
+}
+
+model Invoice {
+  id                 String          @id @default(cuid())
+  stripeCustomerId   String
+  stripeInvoiceId    String?         @unique
+  invoiceNumber      String          @unique
+  status             InvoiceStatus   @default(DRAFT)
+  amount             Int             // Amount in cents
+  amountPaid         Int             @default(0)
+  currency           String          @default("usd")
+  dueDate            DateTime?
+  paidAt             DateTime?
+  description        String?
+  lineItems          Json            // Array of line items
+  notes              String?
+  isRecurring        Boolean         @default(false)
+  subscriptionId     String?
+  stripePaymentIntentId String?
+  stripeHostedInvoiceUrl String?
+  stripePdfUrl       String?
+  metadata           Json?
+  createdBy          Int?
+  sentAt             DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  billedTasks        Task[]
+  oneOffDeliverables OneOffDeliverable[]
+  stripeCustomer     StripeCustomer  @relation(fields: [stripeCustomerId], references: [id], onDelete: Cascade)
+  creator            User?           @relation("InvoiceCreator", fields: [createdBy], references: [id])
+  payments           Payment[]
+
+  @@index([stripeCustomerId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([invoiceNumber])
+}
+
+model Payment {
+  id                   String        @id @default(cuid())
+  invoiceId            String
+  stripePaymentIntentId String?      @unique
+  stripeChargeId       String?
+  amount               Int           // Amount in cents
+  currency             String        @default("usd")
+  status               PaymentStatus @default(PENDING)
+  paymentMethod        String?       // 'card' | 'us_bank_account'
+  failureReason        String?
+  receiptUrl           String?
+  metadata             Json?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  invoice              Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([stripePaymentIntentId])
+  @@index([status])
+}
+
+model BillingPlan {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  stripePriceId   String    @unique
+  stripeProductId String
+  amount          Int       // Amount in cents
+  currency        String    @default("usd")
+  interval        String    @default("month") // 'month' | 'year'
+  isActive        Boolean   @default(true)
+  features        Json?     // Array of feature strings
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  TRIALING
+  PAUSED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELED
+  REFUNDED
 }
 
 enum Role {
