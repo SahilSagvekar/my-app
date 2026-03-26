@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const status = searchParams.get('status');
         const search = searchParams.get('search');
+        const clientId = searchParams.get('clientId');
 
         let whereClause: any = {};
 
@@ -30,6 +31,10 @@ export async function GET(req: NextRequest) {
         if (user.role === 'admin' || user.role === 'manager') {
             if (status && status !== 'all') {
                 whereClause.status = status;
+            }
+            // Allow filtering by clientId for admin/manager
+            if (clientId) {
+                whereClause.clientId = clientId;
             }
         } else if (user.role === 'client') {
             if (status && status !== 'all') {

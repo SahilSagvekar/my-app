@@ -32,7 +32,6 @@ export const NAVIGATION_ITEMS = {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'monthly-deliverables', label: 'Monthly Deliverables', icon: BarChart3 },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'analytics', label: 'Client Analytics', icon: BarChart3 },
     { id: 'leaves', label: 'User Management', icon: Users },
@@ -95,9 +94,8 @@ export const NAVIGATION_ITEMS = {
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
-    { id: 'contracts', label: 'Contracts', icon: PenLine },
+    { id: 'contracts', label: 'Contracts & Billing', icon: FileText },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-
   ],
   videographer: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
