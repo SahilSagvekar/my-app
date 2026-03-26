@@ -24,7 +24,24 @@ export interface SlackNotification {
   body?: string | null;
   payload?: Record<string, any> | null;
   userId?: number | null;
+  mentionUserIds?: number[]; // User IDs to @mention in the message
 }
+
+// ---------------------------------------------------------------------------
+// Channel Configuration (from environment variables)
+// ---------------------------------------------------------------------------
+const CHANNEL_CONFIG = {
+  // Global team channel (default)
+  global: () => process.env.SLACK_WEBHOOK_URL,
+  // QC/Quality Control channel
+  qc: () => process.env.SLACK_QC_CHANNEL_WEBHOOK_URL,
+  // Scheduling channel
+  scheduling: () => process.env.SLACK_SCHEDULING_CHANNEL_WEBHOOK_URL,
+  // Production channel (ready for review, scheduled, posted)
+  production: () => process.env.SLACK_READY_REVIEW_POSTED_WEBHOOK_URL,
+  // Reports channel
+  reports: () => process.env.SLACK_REPORT_WEBHOOK_URL,
+};
 
 // ---------------------------------------------------------------------------
 // Notification-type → emoji mapping for Slack messages
@@ -35,9 +52,11 @@ const TYPE_EMOJI: Record<string, string> = {
   content_ready: "✅",
   task_rejected: "❌",
   qc_approval: "✅",
+  qc_ready: "🔍",
   review_queue: "👀",
   approved_content: "🎉",
   task_scheduled: "📅",
+  scheduling_ready: "📅",
   task_posted: "🚀",
   deadline_reminder: "⏰",
   task_deadline: "⏰",
@@ -58,18 +77,48 @@ function emojiForType(type: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Helper — Get Slack user mentions from user IDs
+// ---------------------------------------------------------------------------
+async function getSlackMentions(userIds: number[]): Promise<string> {
+  if (!userIds || userIds.length === 0) return "";
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, name: true, slackUserId: true },
+  });
+
+  const mentions = users
+    .map((u) => {
+      if (u.slackUserId) {
+        return `<@${u.slackUserId}>`; // Slack mention format
+      }
+      return u.name || `User #${u.id}`; // Fallback to name
+    })
+    .join(" ");
+
+  return mentions;
+}
+
+// ---------------------------------------------------------------------------
 // Helper — build Block Kit blocks for a notification
 // ---------------------------------------------------------------------------
-function buildSlackBlocks(notification: SlackNotification): any[] {
+async function buildSlackBlocks(notification: SlackNotification): Promise<any[]> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const emoji = emojiForType(notification.type);
+
+  // Build mention string if needed
+  let mentionPrefix = "";
+  if (notification.mentionUserIds && notification.mentionUserIds.length > 0) {
+    mentionPrefix = await getSlackMentions(notification.mentionUserIds);
+    if (mentionPrefix) mentionPrefix += " ";
+  }
 
   const blocks: any[] = [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `${emoji} *${notification.title}*${notification.body ? `\n${notification.body}` : ""}`,
+        text: `${mentionPrefix}${emoji} *${notification.title}*${notification.body ? `\n${notification.body}` : ""}`,
       },
     },
   ];
@@ -113,7 +162,7 @@ export async function sendSlackWebhook(
       return;
     }
 
-    const blocks = buildSlackBlocks(notification);
+    const blocks = await buildSlackBlocks(notification);
 
     const res = await fetch(webhookUrl, {
       method: "POST",
@@ -168,6 +217,22 @@ async function sendClientSlackWebhook(
 }
 
 // ---------------------------------------------------------------------------
+// 2b. CHANNEL-SPECIFIC WEBHOOK — Post to QC, Scheduling, etc.
+// ---------------------------------------------------------------------------
+async function sendToChannel(
+  channel: keyof typeof CHANNEL_CONFIG,
+  notification: SlackNotification
+): Promise<void> {
+  const webhookUrl = CHANNEL_CONFIG[channel]();
+  if (!webhookUrl) {
+    console.log(`[Slack ${channel}] No webhook URL configured for ${channel} channel`);
+    return;
+  }
+  console.log(`[Slack ${channel}] Sending notification to ${channel} channel...`);
+  await sendSlackWebhook(notification, webhookUrl);
+}
+
+// ---------------------------------------------------------------------------
 // 3. BOT DM — Send a direct message to a specific user
 // ---------------------------------------------------------------------------
 export async function sendSlackDM(
@@ -215,29 +280,85 @@ export async function deliverSlackNotification(
 ): Promise<void> {
   console.log(`[Slack Dispatch] Delivering notification: type=${notification.type}, title="${notification.title}", clientId=${notification.payload?.clientId || 'none'}, userId=${notification.userId || 'none'}`);
 
-  // A. Special Routing: Send specific statuses to a dedicated production channel
-  // Target: Ready for Review, Scheduled, Posted
-  const productionChannelUrl = process.env.SLACK_READY_REVIEW_POSTED_WEBHOOK_URL;
-  const productionTypes = ["review_queue", "task_scheduled", "task_posted", "content_ready"];
+  const notificationType = notification.type;
 
-  if (productionChannelUrl && productionTypes.includes(notification.type)) {
-    console.log(`[Slack Dispatch] A. Production channel → type=${notification.type}`);
-    await sendSlackWebhook(notification, productionChannelUrl);
+  // =========================================================================
+  // ROUTING RULES BY NOTIFICATION TYPE
+  // =========================================================================
+
+  // A. TASK REJECTED → Client channel (with editor @mention) + Global
+  if (notificationType === "task_rejected") {
+    console.log(`[Slack Dispatch] Task Rejected → Client channel + tag editor`);
+    
+    // Send to client channel with editor mention
+    if (notification.payload?.clientId) {
+      await sendClientSlackWebhook(notification.payload.clientId, notification);
+    }
+    
+    // Also send to global team channel
+    await sendSlackWebhook(notification);
+    
+    // Send DM to the editor if specified
+    if (notification.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: notification.userId },
+        select: { slackUserId: true, slackNotifications: true },
+      });
+      if (user?.slackUserId && user?.slackNotifications) {
+        await sendSlackDM(user.slackUserId, notification);
+      }
+    }
+    return;
   }
 
-  // B. Always send to global team channel webhook
-  console.log(`[Slack Dispatch] B. Global team channel`);
+  // B. READY FOR QC → QC Channel + Global
+  if (notificationType === "qc_ready" || notificationType === "review_queue") {
+    console.log(`[Slack Dispatch] Ready for QC → QC channel`);
+    await sendToChannel("qc", notification);
+    await sendSlackWebhook(notification); // Also global
+    return;
+  }
+
+  // C. READY FOR SCHEDULING / SCHEDULED → Scheduling Channel + Global
+  if (notificationType === "scheduling_ready" || notificationType === "task_scheduled") {
+    console.log(`[Slack Dispatch] Scheduling → Scheduling channel`);
+    await sendToChannel("scheduling", notification);
+    await sendSlackWebhook(notification); // Also global
+    
+    // If task_scheduled, also notify client channel
+    if (notificationType === "task_scheduled" && notification.payload?.clientId) {
+      await sendClientSlackWebhook(notification.payload.clientId, notification);
+    }
+    return;
+  }
+
+  // D. POSTED → Production channel + Client channel + Global
+  if (notificationType === "task_posted" || notificationType === "content_ready") {
+    console.log(`[Slack Dispatch] Posted/Content Ready → Production + Client channels`);
+    await sendToChannel("production", notification);
+    await sendSlackWebhook(notification); // Global
+    
+    if (notification.payload?.clientId) {
+      await sendClientSlackWebhook(notification.payload.clientId, notification);
+    }
+    return;
+  }
+
+  // =========================================================================
+  // DEFAULT ROUTING (for all other notification types)
+  // =========================================================================
+
+  // E. Always send to global team channel webhook
+  console.log(`[Slack Dispatch] Default → Global team channel`);
   await sendSlackWebhook(notification);
 
-  // C. Send to client-specific channel (if clientId in payload)
+  // F. Send to client-specific channel (if clientId in payload)
   if (notification.payload?.clientId) {
-    console.log(`[Slack Dispatch] C. Client channel → clientId=${notification.payload.clientId}`);
+    console.log(`[Slack Dispatch] → Client channel (clientId=${notification.payload.clientId})`);
     await sendClientSlackWebhook(notification.payload.clientId, notification);
-  } else {
-    console.log(`[Slack Dispatch] C. Skipped client channel — no clientId in payload`);
   }
 
-  // D. Send DM to the targeted user (if they have Slack linked + enabled)
+  // G. Send DM to the targeted user (if they have Slack linked + enabled)
   if (notification.userId) {
     const user = await prisma.user.findUnique({
       where: { id: notification.userId },
@@ -245,10 +366,8 @@ export async function deliverSlackNotification(
     });
 
     if (user?.slackUserId && user?.slackNotifications) {
-      console.log(`[Slack Dispatch] D. DM → slackUserId=${user.slackUserId}`);
+      console.log(`[Slack Dispatch] → DM (slackUserId=${user.slackUserId})`);
       await sendSlackDM(user.slackUserId, notification);
-    } else {
-      console.log(`[Slack Dispatch] D. Skipped DM — user has no Slack linked or notifications disabled`);
     }
   }
 }
@@ -287,6 +406,7 @@ export async function sendSlackTestMessage(webhookUrl: string): Promise<boolean>
     return false;
   }
 }
+
 // ---------------------------------------------------------------------------
 // 6. SPECIALIZED — Send Daily Summary Report to a specific channel
 // ---------------------------------------------------------------------------
