@@ -154,6 +154,9 @@ model Task {
   qcReviewedBy         Int?
   oneOffDeliverableId  String?
   recurringMonth       String?
+  billedAt             DateTime?
+  invoiceId            String?
+  invoice              Invoice?  @relation(fields: [invoiceId], references: [id])
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
   shootDetail          ShootDetail?
@@ -350,6 +353,10 @@ model OneOffDeliverable {
   status          String   @default("PENDING")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  billedAt    DateTime?
+  invoiceId   String?
+  unitPrice   Int?
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id])
   client          Client   @relation(fields: [clientId], references: [id])
   tasks           Task[]
 }
@@ -1403,6 +1410,8 @@ model Invoice {
   sentAt             DateTime?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+  billedTasks        Task[]
+  oneOffDeliverables OneOffDeliverable[]
   stripeCustomer     StripeCustomer  @relation(fields: [stripeCustomerId], references: [id], onDelete: Cascade)
   creator            User?           @relation("InvoiceCreator", fields: [createdBy], references: [id])
   payments           Payment[]

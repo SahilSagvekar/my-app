@@ -120,6 +120,10 @@ interface OneOffDeliverable {
   description?: string;
   status: "PENDING" | "GENERATED" | "COMPLETED";
   createdAt: string;
+  // Billing fields
+  billedAt?: string | null;
+  invoiceId?: string | null;
+  unitPrice?: number | null;
 }
 
 interface BrandAsset {
