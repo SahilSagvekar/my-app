@@ -565,7 +565,7 @@ export function SchedulerSpreadsheetView() {
                                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                     </div>
                                 </th>
-                                <th
+                                {/* <th
                                     className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSort('dueDate')}
                                 >
@@ -573,7 +573,7 @@ export function SchedulerSpreadsheetView() {
                                         Due
                                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                     </div>
-                                </th>
+                                </th> */}
                                 <th className="px-3 py-3 text-center font-semibold">
                                     <div className="flex items-center justify-center gap-1">
                                         <FileText className="h-4 w-4" />
@@ -790,7 +790,7 @@ export function SchedulerSpreadsheetView() {
                                                 </td>
 
                                                 {/* Actions */}
-                                                <td className="px-3 py-3 text-center">
+                                                {/* <td className="px-3 py-3 text-center">
                                                     {task.status === 'PENDING' && (
                                                         <Button
                                                             size="sm"
@@ -802,7 +802,7 @@ export function SchedulerSpreadsheetView() {
                                                             Mark
                                                         </Button>
                                                     )}
-                                                </td>
+                                                </td> */}
                                             </tr>
 
                                             {/* Expanded Row - Files & Details */}

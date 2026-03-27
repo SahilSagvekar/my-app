@@ -1502,3 +1502,113 @@ export async function sendContractReminderEmail(data: {
     throw error;
   }
 }
+
+// ==========================================
+// PAYMENT NOTIFICATION EMAILS
+// ==========================================
+
+const PAYMENTS_EMAIL = 'payments@e8productions.com';
+
+interface PaymentNotificationData {
+  type: 'invoice_sent' | 'invoice_paid' | 'payment_failed';
+  invoiceNumber: string;
+  clientName: string;
+  clientEmail: string;
+  amount: number;
+  invoiceUrl?: string;
+  pdfUrl?: string;
+  failureReason?: string;
+}
+
+export async function sendPaymentNotificationEmail(data: PaymentNotificationData) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log(`📧 [DEV] Payment notification: ${data.type} for ${data.invoiceNumber}`);
+    return;
+  }
+
+  const subjects: Record<string, string> = {
+    invoice_sent: `Invoice ${data.invoiceNumber} sent to ${data.clientName}`,
+    invoice_paid: `✅ Invoice ${data.invoiceNumber} paid by ${data.clientName}`,
+    payment_failed: `❌ Payment failed for Invoice ${data.invoiceNumber}`,
+  };
+
+  const statusColors: Record<string, string> = {
+    invoice_sent: '#3b82f6',
+    invoice_paid: '#22c55e',
+    payment_failed: '#ef4444',
+  };
+
+  const statusLabels: Record<string, string> = {
+    invoice_sent: 'Invoice Sent',
+    invoice_paid: 'Payment Received',
+    payment_failed: 'Payment Failed',
+  };
+
+  const mailOptions = {
+    from: `"E8 Productions Billing" <${process.env.SMTP_USER}>`,
+    to: PAYMENTS_EMAIL,
+    subject: subjects[data.type],
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: ${statusColors[data.type]}; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
+            .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+            .label { color: #6b7280; font-weight: 500; }
+            .value { color: #111827; font-weight: 600; }
+            .amount { font-size: 24px; color: ${statusColors[data.type]}; font-weight: bold; }
+            .btn { display: inline-block; padding: 12px 24px; background: ${statusColors[data.type]}; color: white; text-decoration: none; border-radius: 6px; margin: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="margin: 0;">${statusLabels[data.type]}</h1>
+            </div>
+            <div class="content">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <div class="amount">$${data.amount.toFixed(2)}</div>
+              </div>
+              
+              <div class="detail-row">
+                <span class="label">Invoice Number</span>
+                <span class="value">${data.invoiceNumber}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Client</span>
+                <span class="value">${data.clientName}</span>
+              </div>
+              <div class="detail-row">
+                <span class="label">Client Email</span>
+                <span class="value">${data.clientEmail}</span>
+              </div>
+              ${data.failureReason ? `
+              <div class="detail-row">
+                <span class="label">Failure Reason</span>
+                <span class="value" style="color: #ef4444;">${data.failureReason}</span>
+              </div>
+              ` : ''}
+              
+              <div style="text-align: center; margin-top: 20px;">
+                ${data.invoiceUrl ? `<a href="${data.invoiceUrl}" class="btn">View Invoice</a>` : ''}
+                ${data.pdfUrl ? `<a href="${data.pdfUrl}" class="btn" style="background: #6b7280;">Download PDF</a>` : ''}
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions); // No BCC needed, this IS the payment notification
+    console.log(`✅ Payment notification (${data.type}) sent to ${PAYMENTS_EMAIL}`);
+  } catch (error) {
+    console.error(`❌ Failed to send payment notification:`, error);
+  }
+}

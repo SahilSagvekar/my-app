@@ -100,13 +100,21 @@ export async function DELETE(
     });
 
     if (!existing) {
-      return NextResponse.json({ message: "Deliverable not found" }, { status: 404 });
+      return NextResponse.json(
+        { message: "Deliverable not found" },
+        { status: 404 },
+      );
     }
 
     // Deactivate related recurring tasks (don't delete for data safety)
-    await prisma.recurringTask.updateMany({
+    // await prisma.recurringTask.updateMany({
+    //   where: { deliverableId },
+    //   data: { active: false },
+    // });
+
+    // Delete related recurring tasks first
+    await prisma.recurringTask.deleteMany({
       where: { deliverableId },
-      data: { active: false },
     });
 
     // Delete the deliverable
@@ -118,9 +126,8 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: "Deliverable deleted successfully"
+      message: "Deliverable deleted successfully",
     });
-
   } catch (err) {
     console.error("DELETE deliverable failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
