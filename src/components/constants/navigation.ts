@@ -46,6 +46,7 @@ export const NAVIGATION_ITEMS = {
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
     // { id: 'projects', label: 'Projects', icon: FolderOpen },
+    { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'training', label: 'Training', icon: Layout },

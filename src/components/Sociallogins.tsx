@@ -51,8 +51,6 @@ import {
   User,
   AlertTriangle,
   AlertCircle,
-  RefreshCw,
-  Smartphone,
   ExternalLink,
 } from "lucide-react";
 import {
@@ -96,6 +94,8 @@ interface SocialLogin {
   notes?: string;
   backupCodesLocation?: string; // Link or instructions for backup codes
   adminOnly?: boolean; // If true, only admins can see this login
+  allowedRoles?: string[]; // Roles that can view this login (e.g., ["qc", "editor"])
+  allowedUserIds?: number[]; // Specific user IDs that can view this login
   passwordChangedAt?: string; // When the password was last changed
   lastUpdated: string;
   updatedBy: string;
@@ -105,6 +105,13 @@ interface Client {
   id: string;
   name: string;
   companyName: string;
+}
+
+interface Employee {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
 }
 
 interface AuditLog {
@@ -134,8 +141,16 @@ const PLATFORMS: SocialPlatform[] = [
   "Other",
 ];
 
+// Roles that can be granted access to logins (excluding admin and client)
+const GRANTABLE_ROLES = [
+  { value: "editor", label: "Editor" },
+  { value: "qc", label: "QC" },
+  { value: "videographer", label: "Videographer" },
+  { value: "manager", label: "Manager" },
+  { value: "sales", label: "Sales" },
+];
+
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes of inactivity
-const PIN_LENGTH = 6;
 
 /* -------------------------------------------------------------------------- */
 /* HELPER FUNCTIONS                                                           */
@@ -187,324 +202,6 @@ const formatTimeAgo = (dateString: string): string => {
   if (diffMins > 0) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
   return "just now";
 };
-
-/* -------------------------------------------------------------------------- */
-/* TOTP VERIFICATION DIALOG                                                   */
-/* -------------------------------------------------------------------------- */
-
-function TotpVerificationDialog({
-  open,
-  onVerify,
-  onCancel,
-}: {
-  open: boolean;
-  onVerify: (code: string) => void;
-  onCancel: () => void;
-}) {
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-
-  const handleSubmit = () => {
-    const cleanCode = code.replace(/\s/g, "");
-    if (cleanCode.length !== 6) {
-      setError("Enter the 6-digit code from your authenticator app");
-      return;
-    }
-    onVerify(cleanCode);
-    setCode("");
-    setError("");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSubmit();
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-blue-600" />
-            Two-Factor Authentication
-          </DialogTitle>
-          <DialogDescription>
-            Enter the 6-digit code from your authenticator app (Google Authenticator, Authy, etc.)
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="totp-code">Verification Code</Label>
-            <Input
-              id="totp-code"
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={code}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "");
-                setCode(value);
-                setError("");
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="000000"
-              className="text-center text-2xl tracking-[0.5em] font-mono"
-              autoFocus
-            />
-            {error && <p className="text-sm text-red-500">{error}</p>}
-          </div>
-
-          <Alert>
-            <ShieldAlert className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              This section contains sensitive client credentials. Access is logged for security purposes.
-            </AlertDescription>
-          </Alert>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={code.length !== 6}>
-            <Unlock className="h-4 w-4 mr-2" />
-            Verify & Access
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* 2FA SETUP DIALOG (First time setup with QR code)                           */
-/* -------------------------------------------------------------------------- */
-
-function TotpSetupDialog({
-  open,
-  onSetup,
-  onCancel,
-}: {
-  open: boolean;
-  onSetup: (code: string) => void;
-  onCancel: () => void;
-}) {
-  const [step, setStep] = useState<"loading" | "scan" | "verify">("loading");
-  const [qrCode, setQrCode] = useState("");
-  const [secret, setSecret] = useState("");
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
-  const [verifyCode, setVerifyCode] = useState("");
-  const [error, setError] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
-  const [copiedBackup, setCopiedBackup] = useState(false);
-
-  // Fetch QR code and secret on open
-  useEffect(() => {
-    if (open && step === "loading") {
-      fetchSetupData();
-    }
-  }, [open, step]);
-
-  const fetchSetupData = async () => {
-    try {
-      const res = await fetch("/api/logins/2fa/setup", {
-        method: "POST",
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setQrCode(data.qrCode);
-        setSecret(data.secret);
-        setBackupCodes(data.backupCodes);
-        setStep("scan");
-      } else {
-        setError(data.error || "Failed to generate 2FA setup");
-      }
-    } catch (err) {
-      setError("Failed to connect to server");
-    }
-  };
-
-  const handleVerify = () => {
-    if (verifyCode.length !== 6) {
-      setError("Enter the 6-digit code");
-      return;
-    }
-    onSetup(verifyCode);
-    setVerifyCode("");
-    setError("");
-  };
-
-  const copyBackupCodes = async () => {
-    await navigator.clipboard.writeText(backupCodes.join("\n"));
-    setCopiedBackup(true);
-    setTimeout(() => setCopiedBackup(false), 2000);
-  };
-
-  const handleClose = () => {
-    setStep("loading");
-    setQrCode("");
-    setSecret("");
-    setBackupCodes([]);
-    setVerifyCode("");
-    setError("");
-    onCancel();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-blue-600" />
-            Set Up Two-Factor Authentication
-          </DialogTitle>
-          <DialogDescription>
-            Secure your account with an authenticator app like Google Authenticator or Authy
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          {step === "loading" && (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-            </div>
-          )}
-
-          {step === "scan" && (
-            <>
-              {/* QR Code */}
-              <div className="flex flex-col items-center space-y-3">
-                <p className="text-sm text-gray-600">
-                  1. Scan this QR code with your authenticator app:
-                </p>
-                {qrCode && (
-                  <div className="p-3 bg-white rounded-lg border">
-                    <img src={qrCode} alt="QR Code" className="w-48 h-48" />
-                  </div>
-                )}
-              </div>
-
-              {/* Manual Entry */}
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">
-                  Or enter this code manually:
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 px-3 py-2 bg-gray-100 rounded font-mono text-sm break-all">
-                    {showSecret ? secret : "••••••••••••••••••••"}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowSecret(!showSecret)}
-                  >
-                    {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => navigator.clipboard.writeText(secret)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Backup Codes */}
-              <div className="space-y-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-amber-800">
-                    ⚠️ Save these backup codes:
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={copyBackupCodes}
-                    className="text-amber-700"
-                  >
-                    {copiedBackup ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    <span className="ml-1">{copiedBackup ? "Copied!" : "Copy"}</span>
-                  </Button>
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {backupCodes.map((code, i) => (
-                    <code key={i} className="px-2 py-1 bg-white rounded text-xs font-mono text-center">
-                      {code}
-                    </code>
-                  ))}
-                </div>
-                <p className="text-xs text-amber-600">
-                  Store these safely! You'll need them if you lose access to your authenticator.
-                </p>
-              </div>
-
-              <Button onClick={() => setStep("verify")} className="w-full">
-                Continue to Verification
-              </Button>
-            </>
-          )}
-
-          {step === "verify" && (
-            <>
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">
-                  2. Enter the 6-digit code from your authenticator app:
-                </p>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={verifyCode}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, "");
-                    setVerifyCode(value);
-                    setError("");
-                  }}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                  placeholder="000000"
-                  className="text-center text-2xl tracking-[0.5em] font-mono"
-                  autoFocus
-                />
-                {error && <p className="text-sm text-red-500">{error}</p>}
-              </div>
-
-              <Alert>
-                <ShieldCheck className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  After verification, you'll need this code every time you access login credentials.
-                </AlertDescription>
-              </Alert>
-            </>
-          )}
-
-          {error && step === "loading" && (
-            <p className="text-sm text-red-500 text-center">{error}</p>
-          )}
-        </div>
-
-        <DialogFooter>
-          {step === "verify" && (
-            <Button variant="outline" onClick={() => setStep("scan")}>
-              Back
-            </Button>
-          )}
-          <Button variant="outline" onClick={handleClose}>
-            Cancel
-          </Button>
-          {step === "verify" && (
-            <Button onClick={handleVerify} disabled={verifyCode.length !== 6}>
-              <Lock className="h-4 w-4 mr-2" />
-              Enable 2FA
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /* -------------------------------------------------------------------------- */
 /* PASSWORD FIELD WITH MASK/REVEAL                                            */
@@ -600,6 +297,8 @@ function LoginFormDialog({
   onSave,
   isClient = false,
   userClientId = null,
+  employees = [],
+  isAdmin = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -608,6 +307,8 @@ function LoginFormDialog({
   onSave: (data: Partial<SocialLogin>) => void;
   isClient?: boolean;
   userClientId?: string | null;
+  employees?: Employee[];
+  isAdmin?: boolean;
 }) {
   const [formData, setFormData] = useState({
     clientId: "",
@@ -620,24 +321,27 @@ function LoginFormDialog({
     notes: "",
     backupCodesLocation: "",
     adminOnly: false,
+    allowedRoles: [] as string[],
+    allowedUserIds: [] as number[],
   });
   const [showPassword, setShowPassword] = useState(false);
   const [customPlatformName, setCustomPlatformName] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState<string>("Instagram");
+  const [userSearchTerm, setUserSearchTerm] = useState("");
 
   useEffect(() => {
     const defaultPlatforms = PLATFORMS.filter(p => p !== "Other");
     if (login) {
-      const isDefault = defaultPlatforms.includes(login.platform);
+      const isDefault = defaultPlatforms.includes(login.platform as any);
       if (isDefault) {
-        setSelectedPlatform(login.platform);
+        setSelectedPlatform(login.platform as any);
         setCustomPlatformName("");
       } else {
         setSelectedPlatform("Other");
         setCustomPlatformName(login.platform);
       }
       setFormData({
-        clientId: login.clientId,
+        clientId: login.clientId || "",
         platform: login.platform,
         username: login.username,
         password: login.password,
@@ -647,6 +351,8 @@ function LoginFormDialog({
         notes: login.notes || "",
         backupCodesLocation: login.backupCodesLocation || "",
         adminOnly: login.adminOnly || false,
+        allowedRoles: login.allowedRoles || [],
+        allowedUserIds: login.allowedUserIds || [],
       });
     } else {
       const autoClientId = isClient ? (userClientId || clients[0]?.id || "") : "";
@@ -663,9 +369,12 @@ function LoginFormDialog({
         notes: "",
         backupCodesLocation: "",
         adminOnly: false,
+        allowedRoles: [],
+        allowedUserIds: [],
       });
     }
     setShowPassword(false);
+    setUserSearchTerm("");
   }, [login, open, isClient, userClientId, clients]);
 
   // Clear clientId when adminOnly is toggled on
@@ -679,11 +388,7 @@ function LoginFormDialog({
   };
 
   const handleSubmit = () => {
-    // Only require clientId if NOT admin only
-    if (!formData.adminOnly && !formData.clientId) {
-      toast.error("Please select a client");
-      return;
-    }
+    // Client field is now optional for all scenarios
     if (!formData.username) {
       toast.error("Username is required");
       return;
@@ -745,11 +450,8 @@ function LoginFormDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className={formData.adminOnly ? "text-gray-400" : ""}>
-                Client {!formData.adminOnly && "*"}
-                {formData.adminOnly && (
-                  <span className="text-xs text-gray-400 ml-1">(Optional)</span>
-                )}
+              <Label>
+                Client <span className="text-xs text-gray-400 ml-1">(Optional)</span>
               </Label>
               {isClient && clients.length > 0 ? (
                 // Client users see their company name as fixed text
@@ -763,18 +465,9 @@ function LoginFormDialog({
                   onValueChange={(value) =>
                     setFormData({ ...formData, clientId: value })
                   }
-                  disabled={formData.adminOnly}
                 >
-                  <SelectTrigger
-                    className={formData.adminOnly ? "opacity-50 cursor-not-allowed bg-gray-100" : ""}
-                  >
-                    <SelectValue
-                      placeholder={
-                        formData.adminOnly
-                          ? "Not required for admin-only"
-                          : "Select client"
-                      }
-                    />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select client (optional)" />
                   </SelectTrigger>
                   <SelectContent>
                     {clients.map((client) => (
@@ -784,11 +477,6 @@ function LoginFormDialog({
                     ))}
                   </SelectContent>
                 </Select>
-              )}
-              {formData.adminOnly && (
-                <p className="text-xs text-gray-500">
-                  Admin-only logins don't require a client association
-                </p>
               )}
             </div>
 
@@ -942,6 +630,137 @@ function LoginFormDialog({
               placeholder="2FA enabled, backup codes in drive, etc."
             />
           </div>
+
+          {/* Access Control Section - Admin Only */}
+          {isAdmin && !formData.adminOnly && (
+            <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-blue-600" />
+                <Label className="text-blue-800 dark:text-blue-200 font-medium">
+                  Additional Access Permissions
+                </Label>
+              </div>
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                By default, only Admin, Client (owner), and Scheduler can view logins. 
+                Grant additional access below.
+              </p>
+
+              {/* Access by Role */}
+              <div className="space-y-2">
+                <Label className="text-sm">Grant access to roles</Label>
+                <div className="flex flex-wrap gap-2">
+                  {GRANTABLE_ROLES.map((role) => (
+                    <button
+                      key={role.value}
+                      type="button"
+                      onClick={() => {
+                        const newRoles = formData.allowedRoles.includes(role.value)
+                          ? formData.allowedRoles.filter(r => r !== role.value)
+                          : [...formData.allowedRoles, role.value];
+                        setFormData({ ...formData, allowedRoles: newRoles });
+                      }}
+                      className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                        formData.allowedRoles.includes(role.value)
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                      }`}
+                    >
+                      {role.label}
+                    </button>
+                  ))}
+                </div>
+                {formData.allowedRoles.length > 0 && (
+                  <p className="text-xs text-green-600">
+                    ✓ All {formData.allowedRoles.map(r => GRANTABLE_ROLES.find(gr => gr.value === r)?.label).join(", ")} can view this login
+                  </p>
+                )}
+              </div>
+
+              {/* Access by Specific Users */}
+              <div className="space-y-2">
+                <Label className="text-sm">Grant access to specific people</Label>
+                <Input
+                  placeholder="Search employees by name..."
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                  className="bg-white"
+                />
+                
+                {/* Search Results */}
+                {userSearchTerm && (
+                  <div className="max-h-32 overflow-y-auto border rounded-md bg-white">
+                    {employees
+                      .filter(emp => 
+                        emp.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) &&
+                        !formData.allowedUserIds.includes(emp.id) &&
+                        !["admin", "client", "scheduler"].includes(emp.role)
+                      )
+                      .slice(0, 5)
+                      .map((emp) => (
+                        <button
+                          key={emp.id}
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              allowedUserIds: [...formData.allowedUserIds, emp.id],
+                            });
+                            setUserSearchTerm("");
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between"
+                        >
+                          <span>{emp.name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {emp.role}
+                          </Badge>
+                        </button>
+                      ))}
+                    {employees.filter(emp => 
+                      emp.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) &&
+                      !formData.allowedUserIds.includes(emp.id) &&
+                      !["admin", "client", "scheduler"].includes(emp.role)
+                    ).length === 0 && (
+                      <p className="px-3 py-2 text-sm text-gray-500">No matching employees</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Selected Users */}
+                {formData.allowedUserIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.allowedUserIds.map((userId) => {
+                      const emp = employees.find(e => e.id === userId);
+                      return (
+                        <Badge
+                          key={userId}
+                          variant="secondary"
+                          className="flex items-center gap-1 pr-1"
+                        >
+                          <User className="h-3 w-3" />
+                          {emp?.name || `User #${userId}`}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                allowedUserIds: formData.allowedUserIds.filter(id => id !== userId),
+                              });
+                            }}
+                            className="ml-1 hover:bg-gray-300 rounded-full p-0.5"
+                          >
+                            <span className="sr-only">Remove</span>
+                            <svg className="h-3 w-3" viewBox="0 0 14 14" fill="currentColor">
+                              <path d="M4 4l6 6m0-6l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -965,16 +784,13 @@ export function SocialLogins() {
   const { user } = useAuth();
   const [logins, setLogins] = useState<SocialLogin[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
 
-  // Security state (2FA)
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [showTotpDialog, setShowTotpDialog] = useState(false);
-  const [showTotpSetupDialog, setShowTotpSetupDialog] = useState(false);
-  const [has2FA, setHas2FA] = useState(false);
-  const [lastActivity, setLastActivity] = useState(Date.now());
+  // Security state
+  const [isUnlocked, setIsUnlocked] = useState(true);
 
   // Dialog state
   const [showLoginDialog, setShowLoginDialog] = useState(false);
@@ -992,53 +808,15 @@ export function SocialLogins() {
   // Role checks
   const userRole = user?.role?.toLowerCase() || "";
 
-  // Bypassing 2FA for Admins (TEMPORARY REQUEST)
-  useEffect(() => {
-    if (userRole === "admin") {
-      setIsUnlocked(true);
-    }
-  }, [userRole]);
 
-  const canView = ["admin", "client", "scheduler"].includes(userRole);
-  const canEdit = userRole === "admin" || userRole === "client"; // Both admin and client can add/edit/delete
+
+  const canView = true; // Navigation logic handles entrance; API handles data filtering
+  const canEdit = ["admin", "client", "scheduler"].includes(userRole);
   const isClient = userRole === "client";
   // Get user's client ID from linkedClientId
   const userClientId = user?.linkedClientId || null;
 
-  /* ----------------------------- AUTO-LOCK --------------------------------- */
 
-  // Reset activity timer on any interaction
-  const resetActivity = useCallback(() => {
-    setLastActivity(Date.now());
-  }, []);
-
-  // Auto-lock after inactivity
-  useEffect(() => {
-    if (!isUnlocked) return;
-
-    const checkInactivity = setInterval(() => {
-      if (Date.now() - lastActivity > SESSION_TIMEOUT_MS) {
-        setIsUnlocked(false);
-        toast.info("Session locked due to inactivity", {
-          icon: <Lock className="h-4 w-4" />,
-        });
-      }
-    }, 10000); // Check every 10 seconds
-
-    return () => clearInterval(checkInactivity);
-  }, [isUnlocked, lastActivity]);
-
-  // Add activity listeners
-  useEffect(() => {
-    if (!isUnlocked) return;
-
-    const events = ["mousedown", "keydown", "scroll", "touchstart"];
-    events.forEach((event) => window.addEventListener(event, resetActivity));
-
-    return () => {
-      events.forEach((event) => window.removeEventListener(event, resetActivity));
-    };
-  }, [isUnlocked, resetActivity]);
 
   /* ----------------------------- DATA LOADING ------------------------------ */
 
@@ -1057,10 +835,16 @@ export function SocialLogins() {
           setClients(allClients);
         }
 
-        // Check if user has 2FA enabled
-        const twoFactorRes = await fetch("/api/logins/2fa/check");
-        const twoFactorData = await twoFactorRes.json();
-        setHas2FA(twoFactorData.isEnabled || false);
+        // Load employees for admin (for access control)
+        if (userRole === "admin") {
+          try {
+            const employeesRes = await fetch("/api/employee/list");
+            const employeesData = await employeesRes.json();
+            setEmployees(employeesData.employees || []);
+          } catch (err) {
+            console.error("Failed to load employees:", err);
+          }
+        }
 
         setLoading(false);
       } catch (err) {
@@ -1074,7 +858,7 @@ export function SocialLogins() {
     }
   }, [canView, isClient, userClientId]);
 
-  // Load logins only when unlocked
+  // Load logins
   useEffect(() => {
     async function loadLogins() {
       try {
@@ -1099,76 +883,10 @@ export function SocialLogins() {
       }
     }
 
-    if (isUnlocked) {
-      loadLogins();
-    }
-  }, [isUnlocked, isClient, userClientId]);
+    loadLogins();
+  }, [isClient, userClientId]);
 
-  /* ----------------------------- 2FA HANDLERS ------------------------------ */
 
-  const handleUnlockAttempt = () => {
-    if (has2FA) {
-      setShowTotpDialog(true);
-    } else {
-      setShowTotpSetupDialog(true);
-    }
-  };
-
-  const handleTotpVerify = async (code: string) => {
-    try {
-      const res = await fetch("/api/logins/2fa/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-
-      const data = await res.json();
-
-      if (data.verified) {
-        setIsUnlocked(true);
-        setShowTotpDialog(false);
-        setLastActivity(Date.now());
-        toast.success("Access granted", {
-          icon: <ShieldCheck className="h-4 w-4" />,
-        });
-
-        // Log access
-        await fetch("/api/logins/audit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "unlock" }),
-        });
-      } else {
-        toast.error(data.error || "Invalid code");
-      }
-    } catch (err) {
-      toast.error("Verification failed");
-    }
-  };
-
-  const handleTotpSetup = async (code: string) => {
-    try {
-      const res = await fetch("/api/logins/2fa/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, enableAfterVerify: true }),
-      });
-
-      const data = await res.json();
-
-      if (data.enabled) {
-        setHas2FA(true);
-        setIsUnlocked(true);
-        setShowTotpSetupDialog(false);
-        setLastActivity(Date.now());
-        toast.success("Two-Factor Authentication enabled successfully!");
-      } else {
-        toast.error(data.error || "Failed to enable 2FA");
-      }
-    } catch (err) {
-      toast.error("Failed to enable 2FA");
-    }
-  };
 
   /* ----------------------------- CRUD HANDLERS ----------------------------- */
 
@@ -1203,7 +921,6 @@ export function SocialLogins() {
       }
 
       setEditingLogin(null);
-      resetActivity();
     } catch (err) {
       toast.error("Server error");
     }
@@ -1256,7 +973,7 @@ export function SocialLogins() {
       setDeleteConfirmLogin(null);
       setDeletePassword("");
       setDeletePasswordError("");
-      resetActivity();
+      setDeletePasswordError("");
     } catch (err) {
       toast.error("Server error");
     } finally {
@@ -1276,7 +993,6 @@ export function SocialLogins() {
     } catch (err) {
       console.error("Failed to log view:", err);
     }
-    resetActivity();
   };
 
   const logPasswordCopy = async (password: string, loginId: string) => {
@@ -1289,9 +1005,7 @@ export function SocialLogins() {
     } catch (err) {
       console.error("Failed to log copy:", err);
     }
-    resetActivity();
   };
-
   /* ----------------------------- FILTERING --------------------------------- */
 
   const filteredLogins = logins.filter((login) => {
@@ -1306,7 +1020,7 @@ export function SocialLogins() {
     const matchesPlatform =
       platformFilter === "all" ||
       (platformFilter === "Other"
-        ? !PLATFORMS.filter(p => p !== "Other").includes(login.platform)
+        ? !PLATFORMS.filter(p => p !== "Other").includes(login.platform as any)
         : login.platform === platformFilter);
 
     return matchesSearch && matchesClient && matchesPlatform;
@@ -1334,7 +1048,7 @@ export function SocialLogins() {
             <ShieldAlert className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
             <p className="text-gray-600">
-              You don't have permission to view this section. Only Admin, Client, and Scheduler roles can access login credentials.
+              You don't have permission to view this section. If you believe this is an error, please contact an admin to be granted individual permissions.
             </p>
           </CardContent>
         </Card>
@@ -1342,62 +1056,7 @@ export function SocialLogins() {
     );
   }
 
-  /* ----------------------------- LOCKED VIEW ------------------------------- */
 
-  if (!isUnlocked) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Social Media Logins</h2>
-          <p className="text-sm text-gray-600">
-            {isClient
-              ? "Access your social media credentials securely"
-              : "Secure storage for client social media credentials"}
-          </p>
-        </div>
-
-        <div className="flex items-center justify-center h-[50vh]">
-          <Card className="max-w-md w-full">
-            <CardContent className="pt-8 pb-8 text-center">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Lock className="h-10 w-10 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Section Locked</h3>
-              <p className="text-gray-600 mb-6">
-                This section contains sensitive {isClient ? "account" : "client"} credentials.
-                {has2FA
-                  ? " Verify your identity with your authenticator app."
-                  : " Set up two-factor authentication to continue."}
-              </p>
-              <Button onClick={handleUnlockAttempt} size="lg" className="gap-2">
-                <Smartphone className="h-4 w-4" />
-                {has2FA ? "Verify with 2FA" : "Set Up Two-Factor Auth"}
-              </Button>
-
-              <div className="mt-6 pt-6 border-t">
-                <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                  <ShieldCheck className="h-4 w-4" />
-                  <span>All access is logged for security</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <TotpVerificationDialog
-          open={showTotpDialog}
-          onVerify={handleTotpVerify}
-          onCancel={() => setShowTotpDialog(false)}
-        />
-
-        <TotpSetupDialog
-          open={showTotpSetupDialog}
-          onSetup={handleTotpSetup}
-          onCancel={() => setShowTotpSetupDialog(false)}
-        />
-      </div>
-    );
-  }
 
   /* ----------------------------- UNLOCKED VIEW ----------------------------- */
 
@@ -1406,15 +1065,9 @@ export function SocialLogins() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {isClient ? "Your Social Media Logins" : "Social Media Logins"}
-            </h2>
-            <Badge variant="outline" className="gap-1 text-green-600 border-green-300 bg-green-50">
-              <Unlock className="h-3 w-3" />
-              Unlocked
-            </Badge>
-          </div>
+          <h2 className="text-2xl font-bold text-gray-900">
+            {isClient ? "Your Social Media Logins" : "Social Media Logins"}
+          </h2>
           <p className="text-sm text-gray-600">
             {isClient
               ? "Your social media credentials"
@@ -1422,39 +1075,21 @@ export function SocialLogins() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {canEdit && (
           <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsUnlocked(false)}
+            onClick={() => {
+              setEditingLogin(null);
+              setShowLoginDialog(true);
+            }}
             className="gap-2"
           >
-            <Lock className="h-4 w-4" />
-            Lock
+            <Plus className="h-4 w-4" />
+            Add Login
           </Button>
-
-          {canEdit && (
-            <Button
-              onClick={() => {
-                setEditingLogin(null);
-                setShowLoginDialog(true);
-              }}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Add Login
-            </Button>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Session Timer Warning */}
-      <Alert className="bg-amber-50 border-amber-200">
-        <Clock className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-amber-800 text-sm">
-          Session will auto-lock after 5 minutes of inactivity. Your access is being logged.
-        </AlertDescription>
-      </Alert>
+
 
       {/* Filters - Hide client filter for client users since they only see their own */}
       <Card>
@@ -1496,7 +1131,7 @@ export function SocialLogins() {
                 {PLATFORMS.map((platform) => (
                   <SelectItem key={platform} value={platform}>
                     <div className="flex items-center gap-2">
-                      {getPlatformIcon(platform, "h-4 w-4")}
+                      {getPlatformIcon(platform as any, "h-4 w-4")}
                       {platform}
                     </div>
                   </SelectItem>
@@ -1533,12 +1168,12 @@ export function SocialLogins() {
                         login.platform
                       )}`}
                     >
-                      {getPlatformIcon(login.platform, "h-6 w-6")}
+                      {getPlatformIcon(login.platform as any, "h-6 w-6")}
                     </div>
 
                     {/* Details */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-medium text-gray-900">
                           {login.platform}
                         </span>
@@ -1550,7 +1185,21 @@ export function SocialLogins() {
                             🔒 Admin Only
                           </Badge>
                         )}
-
+                        {/* Show access permissions for admin */}
+                        {userRole === "admin" && !login.adminOnly && (
+                          <>
+                            {login.allowedRoles && login.allowedRoles.length > 0 && (
+                              <Badge className="text-xs bg-blue-100 text-blue-800 border-blue-300">
+                                👥 {login.allowedRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(", ")}
+                              </Badge>
+                            )}
+                            {login.allowedUserIds && login.allowedUserIds.length > 0 && (
+                              <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
+                                👤 {login.allowedUserIds.length} user{login.allowedUserIds.length > 1 ? "s" : ""}
+                              </Badge>
+                            )}
+                          </>
+                        )}
                       </div>
 
                       <PasswordField
@@ -1701,6 +1350,8 @@ export function SocialLogins() {
         onSave={handleSaveLogin}
         isClient={isClient}
         userClientId={userClientId}
+        employees={employees}
+        isAdmin={userRole === "admin"}
       />
 
       <AlertDialog
@@ -1759,11 +1410,6 @@ export function SocialLogins() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <TotpVerificationDialog
-        open={showTotpDialog}
-        onVerify={handleTotpVerify}
-        onCancel={() => setShowTotpDialog(false)}
-      />
     </div >
   );
 }

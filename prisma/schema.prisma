@@ -634,6 +634,8 @@ model SocialLogin {
   auditLogs           LoginAuditLog[]
   client              Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedByUser       User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
+  allowedRoles        String[]        @default([])
+  allowedUserIds      Int[]           @default([]) 
 
   @@unique([clientId, platform])
   @@index([clientId])

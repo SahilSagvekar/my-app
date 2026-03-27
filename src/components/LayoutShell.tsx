@@ -23,7 +23,8 @@ import {
   X,
   Settings as SettingsIcon,
   ArrowLeftRight,
-  FileText
+  FileText,
+  LogIn
 } from 'lucide-react';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
@@ -394,7 +395,9 @@ export function LayoutShell({
               </div>
             ) : items.map((item) => {
               const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
-              const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || FileText;
+              // Map of dynamically injected nav item IDs to their icons
+              const dynamicIconMap: Record<string, any> = { 'logins': LogIn };
+              const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || dynamicIconMap[item.id] || FileText;
               const isActive = currentPage === item.id;
 
               return (

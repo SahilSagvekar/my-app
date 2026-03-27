@@ -58,13 +58,51 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        // 🔥 Dynamically inject 'logins' nav item for users who have login access
+        // but whose role doesn't include it in the default nav config
+        const hasLoginsInNav = finalItems.some(item => item.id === 'logins');
+        if (!hasLoginsInNav) {
+            const userId = Number(decoded.userId);
+            const userRole = (decoded.role as string).toLowerCase();
+            
+            const hasLoginAccess = await prisma.socialLogin.findFirst({
+                where: {
+                    OR: [
+                        { allowedRoles: { has: userRole } },
+                        { allowedUserIds: { has: userId } },
+                    ],
+                },
+                select: { id: true },
+            });
+
+            if (hasLoginAccess) {
+                // Insert 'logins' before 'feedback' if it exists, otherwise at the end
+                const feedbackIndex = finalItems.findIndex(item => item.id === 'feedback');
+                const loginsItem = { id: 'logins', label: 'Logins', icon: 'LogIn' };
+                if (feedbackIndex !== -1) {
+                    finalItems.splice(feedbackIndex, 0, loginsItem as any);
+                } else {
+                    finalItems.push(loginsItem as any);
+                }
+            }
+        }
+
+        // Track which items were dynamically injected (not in the original nav config)
+        const staticItemIds = new Set(allItems.map(item => item.id));
+        const dynamicallyInjectedIds = new Set(
+            finalItems.filter(item => !staticItemIds.has(item.id)).map(item => item.id)
+        );
+
         if (!permissions) {
             // Default to filtered items if no record exists
             return NextResponse.json(finalItems);
         }
 
         const enabledIds = permissions.navigationItems as string[];
-        const filteredItems = finalItems.filter(item => enabledIds.includes(item.id));
+        // Keep dynamically injected items (they were granted via allowedUserIds/allowedRoles)
+        const filteredItems = finalItems.filter(item => 
+            enabledIds.includes(item.id) || dynamicallyInjectedIds.has(item.id)
+        );
 
         return NextResponse.json(filteredItems);
 

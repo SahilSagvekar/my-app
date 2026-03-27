@@ -1,0 +1,398 @@
+{
+  "totalLogins": 10,
+  "allLogins": [
+    {
+      "id": "cmlpfmas20005p6pzjeih1ju6",
+      "platform": "Facebook",
+      "clientId": null,
+      "allowedRoles": [],
+      "allowedUserIds": [],
+      "adminOnly": true
+    },
+    {
+      "id": "cmluzisyg0001p6u1uk0v2bim",
+      "platform": "Twitter",
+      "clientId": "cmk2d1hmb0004onnssi9x2shx",
+      "allowedRoles": [],
+      "allowedUserIds": [],
+      "adminOnly": false
+    },
+    {
+      "id": "cmluzjfwc0005p6u1ov8rsftg",
+      "platform": "Instagram",
+      "clientId": "cmk2d1hmb0004onnssi9x2shx",
+      "allowedRoles": [],
+      "allowedUserIds": [],
+      "adminOnly": false
+    },
+    {
+      "id": "cmlwf3g7y0001p6lrrox1zi0q",
+      "platform": "Facebook",
+      "clientId": "cmk2dgorc0013onns9dxrgau4",
+      "allowedRoles": [],
+      "allowedUserIds": [],
+      "adminOnly": false
+    },
+    {
+      "id": "cmlh4bjib0001p695wcb02i4k",
+      "platform": "Editing Email Password",
+      "clientId": null,
+      "allowedRoles": [],
+      "allowedUserIds": [],
+      "adminOnly": true
+    },
+    {
+      "id": "cmm7d2s4g0001on8oicetrj7r",
+      "platform": "E8 App Nas",
+      "clientId": null,
+      "allowedRoles": [],
+      "allowedUserIds": [],
+      "adminOnly": true
+    },
+    {
+      "id": "cmlth10sj0001p6v1lscds4zr",
+      "platform": "E8 Eric Gmail",
+      "clientId": null,
+      "allowedRoles": [],
+      "allowedUserIds": [],
+      "adminOnly": true
+    },
+    {
+      "id": "cmlh4d98r000dp695rx8ea2od",
+      "platform": "i@needediting Gmail",
+      "clientId": null,
+      "allowedRoles": [],
+      "allowedUserIds": [],
+      "adminOnly": true
+    },
+    {
+      "id": "cmn8wm6ns0001onmoct5l2do5",
+      "platform": "Instagram",
+      "clientId": null,
+      "allowedRoles": [],
+      "allowedUserIds": [
+        53
+      ],
+      "adminOnly": false
+    },
+    {
+      "id": "cmluzkmso0009p6u1auifaxw5",
+      "platform": "Facebook",
+      "clientId": "cmk2d1hmb0004onnssi9x2shx",
+      "allowedRoles": [
+        "editor"
+      ],
+      "allowedUserIds": [],
+      "adminOnly": false
+    }
+  ],
+  "loginsWithExplicitPermissions": [
+    {
+      "id": "cmn8wm6ns0001onmoct5l2do5",
+      "platform": "Instagram",
+      "clientId": null,
+      "allowedRoles": [],
+      "allowedUserIds": [
+        53
+      ],
+      "adminOnly": false
+    },
+    {
+      "id": "cmluzkmso0009p6u1auifaxw5",
+      "platform": "Facebook",
+      "clientId": "cmk2d1hmb0004onnssi9x2shx",
+      "allowedRoles": [
+        "editor"
+      ],
+      "allowedUserIds": [],
+      "adminOnly": false
+    }
+  ],
+  "users": [
+    {
+      "id": 12,
+      "name": "Eric Davis",
+      "role": "admin"
+    },
+    {
+      "id": 22,
+      "name": "Feb Vincent  Salomon",
+      "role": "editor"
+    },
+    {
+      "id": 23,
+      "name": "Mark Ryan Abuda",
+      "role": "scheduler"
+    },
+    {
+      "id": 24,
+      "name": "Hanzel Endriga",
+      "role": "editor"
+    },
+    {
+      "id": 25,
+      "name": "Andrea Lyssa Bartolaba",
+      "role": "editor"
+    },
+    {
+      "id": 26,
+      "name": "Farah Togoto",
+      "role": "scheduler"
+    },
+    {
+      "id": 27,
+      "name": "Westin Westley",
+      "role": "videographer"
+    },
+    {
+      "id": 28,
+      "name": "Vida Mari",
+      "role": "qc"
+    },
+    {
+      "id": 34,
+      "name": "sahil salvekar",
+      "role": "editor"
+    },
+    {
+      "id": 39,
+      "name": "sano manjirpo",
+      "role": "admin"
+    },
+    {
+      "id": 40,
+      "name": "Patrick Quin Llanos",
+      "role": "editor"
+    },
+    {
+      "id": 41,
+      "name": "Sahil-4 Sagvekar",
+      "role": "client"
+    },
+    {
+      "id": 42,
+      "name": "Jay Mark Daplin",
+      "role": "editor"
+    },
+    {
+      "id": 43,
+      "name": "Eric Davis",
+      "role": "qc"
+    },
+    {
+      "id": 44,
+      "name": "Brandon Schlicter",
+      "role": "client"
+    },
+    {
+      "id": 45,
+      "name": "Brian Wallace",
+      "role": "client"
+    },
+    {
+      "id": 46,
+      "name": "Cole Simpson",
+      "role": "client"
+    },
+    {
+      "id": 47,
+      "name": "Eric Davis",
+      "role": "client"
+    },
+    {
+      "id": 48,
+      "name": "The Dating Blind Show",
+      "role": "client"
+    },
+    {
+      "id": 49,
+      "name": "Eric Davis",
+      "role": "client"
+    },
+    {
+      "id": 51,
+      "name": "admin admin",
+      "role": "admin"
+    },
+    {
+      "id": 52,
+      "name": "manager manager",
+      "role": "manager"
+    },
+    {
+      "id": 53,
+      "name": "Editor Test Portal",
+      "role": "editor"
+    },
+    {
+      "id": 54,
+      "name": "Test Scheduler",
+      "role": "scheduler"
+    },
+    {
+      "id": 55,
+      "name": "QC Demo Portal",
+      "role": "qc"
+    },
+    {
+      "id": 58,
+      "name": "Brian Wallace",
+      "role": "client"
+    },
+    {
+      "id": 60,
+      "name": "Danielle Bauer",
+      "role": "client"
+    },
+    {
+      "id": 61,
+      "name": "Nika Thomas",
+      "role": "client"
+    },
+    {
+      "id": 62,
+      "name": "Val Almonte",
+      "role": "editor"
+    },
+    {
+      "id": 64,
+      "name": "Videographer Test Portal",
+      "role": "videographer"
+    },
+    {
+      "id": 65,
+      "name": "Sahil Sagvekar",
+      "role": "manager"
+    },
+    {
+      "id": 68,
+      "name": "sahil sagvekar",
+      "role": "editor"
+    },
+    {
+      "id": 69,
+      "name": "Brittany Jones",
+      "role": "client"
+    },
+    {
+      "id": 70,
+      "name": "Brandon  Schlichter",
+      "role": "client"
+    },
+    {
+      "id": 74,
+      "name": "Jerome Demonguitan",
+      "role": "editor"
+    },
+    {
+      "id": 75,
+      "name": "mia swinehart",
+      "role": "videographer"
+    },
+    {
+      "id": 80,
+      "name": "sales",
+      "role": "sales"
+    },
+    {
+      "id": 81,
+      "name": "Danny D'Angelo",
+      "role": "client"
+    },
+    {
+      "id": 82,
+      "name": "Nik Yuker",
+      "role": "sales"
+    },
+    {
+      "id": 83,
+      "name": "test test",
+      "role": "sales"
+    },
+    {
+      "id": 84,
+      "name": "Seth Wilks",
+      "role": "sales"
+    },
+    {
+      "id": 85,
+      "name": "Christine Tanis",
+      "role": null
+    },
+    {
+      "id": 86,
+      "name": "Rebecca Gennett",
+      "role": "client"
+    },
+    {
+      "id": 87,
+      "name": "Coast To Coast",
+      "role": "client"
+    },
+    {
+      "id": 99,
+      "name": "Seb Hall",
+      "role": "client"
+    },
+    {
+      "id": 100,
+      "name": "Samantha Daphne Cubillas",
+      "role": "editor"
+    },
+    {
+      "id": 103,
+      "name": "Buddy Ramantanin",
+      "role": "client"
+    },
+    {
+      "id": 104,
+      "name": "Alex Pittsley",
+      "role": "client"
+    },
+    {
+      "id": 105,
+      "name": "Twisted Media",
+      "role": "client"
+    },
+    {
+      "id": 106,
+      "name": "Xavier  Phillips",
+      "role": "client"
+    },
+    {
+      "id": 107,
+      "name": "Twisted",
+      "role": "client"
+    },
+    {
+      "id": 108,
+      "name": "COLLEGIATE Nightlife",
+      "role": "client"
+    },
+    {
+      "id": 109,
+      "name": "E8 Production Team",
+      "role": null
+    },
+    {
+      "id": 110,
+      "name": "Filmore HQs",
+      "role": null
+    },
+    {
+      "id": 111,
+      "name": "nFIoJsWCTUnudCdfHOkhW NDMBmdXAFRZzQVzhGXVD",
+      "role": null
+    },
+    {
+      "id": 112,
+      "name": "Cassidy Campbell",
+      "role": "client"
+    },
+    {
+      "id": 113,
+      "name": "Cassidy Campbell",
+      "role": "client"
+    }
+  ]
+}
