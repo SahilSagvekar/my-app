@@ -625,6 +625,18 @@ export function ClientManagement() {
     return `${hours}:${minutes} ${period}`;
   };
 
+  // Helper: format a posting time for display (ensures AM/PM is shown)
+  const formatPostingTimeDisplay = (timeStr: string): string => {
+    const parsed = parsePostingTime(timeStr);
+    return `${parsed.hours}:${parsed.minutes} ${parsed.period}`;
+  };
+
+  // Helper: format array of posting times for display
+  const formatPostingTimesDisplay = (times: string[] | undefined): string => {
+    if (!times || times.length === 0) return "10:00 AM";
+    return times.map(formatPostingTimeDisplay).join(", ");
+  };
+
   const updatePostingTime = (index: number, time: string) => {
     const currentTimes = newDeliverable.postingTimes || ["10:00 AM"];
     const newTimes = [...currentTimes];
@@ -1702,7 +1714,7 @@ export function ClientManagement() {
                           {(deliverable.postingTimes?.length || 1) > 1
                             ? "s"
                             : ""}
-                          : {(deliverable.postingTimes || ["10:00 AM"]).join(", ")}
+                          : {formatPostingTimesDisplay(deliverable.postingTimes)}
                         </div>
                       </div>
                     )
@@ -2762,7 +2774,7 @@ export function ClientManagement() {
                                     deliverable.postingDays.length > 0
                                     ? deliverable.postingDays.join(", ")
                                     : "Various days"}{" "}
-                                  • {(deliverable.postingTimes || ["10:00 AM"]).join(", ")}
+                                  • {formatPostingTimesDisplay(deliverable.postingTimes)}
                                 </div>
                                 <div className="flex flex-wrap gap-1 mt-2">
                                   {deliverable.platforms.map((platform) => (
@@ -3379,18 +3391,26 @@ export function ClientManagement() {
                           <Input
                             id={`postingTime-${index}`}
                             type="text"
-                            placeholder="10:00"
+                            placeholder="10:30"
                             value={`${parsed.hours}:${parsed.minutes}`}
                             disabled={newClient.hasPostingServices === false}
                             onChange={(e) => {
                               const val = e.target.value;
                               // Allow typing digits and colon only
                               if (/^[0-9:]*$/.test(val) && val.length <= 5) {
-                                updatePostingTime(index, buildPostingTime(val.split(':')[0] || parsed.hours, val.split(':')[1] || parsed.minutes, parsed.period));
+                                const parts = val.split(':');
+                                const hours = parts[0] || parsed.hours;
+                                // Keep minutes as typed (don't pad while typing)
+                                const minutes = parts.length > 1 ? parts[1] : parsed.minutes;
+                                // Store raw value - will normalize on blur
+                                const currentTimes = newDeliverable.postingTimes || ["10:00 AM"];
+                                const newTimes = [...currentTimes];
+                                newTimes[index] = `${hours}:${minutes} ${parsed.period}`;
+                                setNewDeliverable({ ...newDeliverable, postingTimes: newTimes });
                               }
                             }}
                             onBlur={(e) => {
-                              // Normalize on blur
+                              // Normalize on blur - ensure proper format with AM/PM
                               const parts = e.target.value.split(':');
                               let h = parseInt(parts[0], 10) || 10;
                               let m = parseInt(parts[1], 10) || 0;
@@ -3425,7 +3445,7 @@ export function ClientManagement() {
               </div>
               {(newDeliverable.videosPerDay || 1) > 1 && (
                 <p className="text-xs text-gray-500">
-                  Times: {(newDeliverable.postingTimes || ["10:00 AM"]).join(", ")}
+                  Times: {formatPostingTimesDisplay(newDeliverable.postingTimes)}
                 </p>
               )}
             </div>
