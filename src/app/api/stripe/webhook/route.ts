@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe, constructWebhookEvent, STRIPE_WEBHOOK_EVENTS } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
+import { sendPaymentNotificationEmail } from '@/lib/email';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -153,6 +154,11 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
   // Find our invoice by Stripe invoice ID
   const invoice = await prisma.invoice.findUnique({
     where: { stripeInvoiceId: stripeInvoice.id },
+    include: {
+      stripeCustomer: {
+        include: { client: true },
+      },
+    },
   });
 
   if (invoice) {
@@ -164,6 +170,22 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
         paidAt: new Date(),
       },
     });
+
+    // Send payment received notification
+    const clientName = invoice.stripeCustomer?.client?.companyName || 
+                       invoice.stripeCustomer?.client?.name || 
+                       'Client';
+    const clientEmail = invoice.stripeCustomer?.client?.email || stripeInvoice.customer_email;
+
+    await sendPaymentNotificationEmail({
+      type: 'invoice_paid',
+      invoiceNumber: invoice.invoiceNumber,
+      clientName,
+      clientEmail: clientEmail || 'N/A',
+      amount: stripeInvoice.amount_paid / 100,
+      invoiceUrl: stripeInvoice.hosted_invoice_url || undefined,
+      pdfUrl: stripeInvoice.invoice_pdf || undefined,
+    });
   }
 }
 
@@ -172,6 +194,11 @@ async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
 
   const invoice = await prisma.invoice.findUnique({
     where: { stripeInvoiceId: stripeInvoice.id },
+    include: {
+      stripeCustomer: {
+        include: { client: true },
+      },
+    },
   });
 
   if (invoice) {
@@ -180,6 +207,22 @@ async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
       data: {
         status: invoice.dueDate && new Date() > invoice.dueDate ? 'OVERDUE' : 'PENDING',
       },
+    });
+
+    // Send payment failed notification
+    const clientName = invoice.stripeCustomer?.client?.companyName || 
+                       invoice.stripeCustomer?.client?.name || 
+                       'Client';
+    const clientEmail = invoice.stripeCustomer?.client?.email || stripeInvoice.customer_email;
+
+    await sendPaymentNotificationEmail({
+      type: 'payment_failed',
+      invoiceNumber: invoice.invoiceNumber,
+      clientName,
+      clientEmail: clientEmail || 'N/A',
+      amount: stripeInvoice.amount_due / 100,
+      invoiceUrl: stripeInvoice.hosted_invoice_url || undefined,
+      failureReason: 'Payment was declined or failed to process',
     });
   }
 }
@@ -210,28 +253,23 @@ async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
     });
 
     // Send CC notification to payments@e8productions.com
-    // This could be done via email service (SendGrid, SES, etc.)
-    // For now, we log it and you can integrate your email service
     const clientName = invoice.stripeCustomer?.client?.companyName || 
                        invoice.stripeCustomer?.client?.name || 
                        'Client';
     const clientEmail = invoice.stripeCustomer?.client?.email || stripeInvoice.customer_email;
     
     console.log(`📧 Invoice ${invoice.invoiceNumber} sent to ${clientEmail}`);
-    console.log(`📧 CC: payments@e8productions.com`);
-    console.log(`📧 Amount: $${(stripeInvoice.amount_due / 100).toFixed(2)}`);
-    console.log(`📧 Invoice URL: ${stripeInvoice.hosted_invoice_url}`);
-    console.log(`📧 PDF URL: ${stripeInvoice.invoice_pdf}`);
     
-    // TODO: Integrate with your email service to send actual CC
-    // Example with SendGrid or similar:
-    // await sendEmail({
-    //   to: 'payments@e8productions.com',
-    //   subject: `Invoice ${invoice.invoiceNumber} sent to ${clientName}`,
-    //   body: `Invoice for $${(stripeInvoice.amount_due / 100).toFixed(2)} has been sent to ${clientEmail}.
-    //          View: ${stripeInvoice.hosted_invoice_url}
-    //          PDF: ${stripeInvoice.invoice_pdf}`,
-    // });
+    // Send notification email to payments@e8productions.com
+    await sendPaymentNotificationEmail({
+      type: 'invoice_sent',
+      invoiceNumber: invoice.invoiceNumber,
+      clientName,
+      clientEmail: clientEmail || 'N/A',
+      amount: stripeInvoice.amount_due / 100,
+      invoiceUrl: stripeInvoice.hosted_invoice_url || undefined,
+      pdfUrl: stripeInvoice.invoice_pdf || undefined,
+    });
   }
 }
 
