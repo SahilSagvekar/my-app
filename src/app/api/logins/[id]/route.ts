@@ -86,7 +86,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await req.json();
-    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly, allowedRoles, allowedUserIds } = body;
 
     // Check if login exists
     const existingLogin = await prisma.socialLogin.findUnique({
@@ -118,6 +118,14 @@ export async function PUT(
       if (existingLogin.clientId !== userClientId) {
         return NextResponse.json(
           { message: "You can only edit logins for your own client" },
+          { status: 403 }
+        );
+      }
+
+      // Clients cannot modify access permissions
+      if (allowedRoles !== undefined || allowedUserIds !== undefined) {
+        return NextResponse.json(
+          { message: "Only admins can modify access permissions" },
           { status: 403 }
         );
       }
@@ -160,6 +168,9 @@ export async function PUT(
         notes: notes || null,
         backupCodesLocation: backupCodesLocation || null,
         adminOnly: adminOnly ?? existingLogin.adminOnly,
+        // Only update permissions if provided (admin only)
+        ...(allowedRoles !== undefined ? { allowedRoles } : {}),
+        ...(allowedUserIds !== undefined ? { allowedUserIds } : {}),
         updatedById: userId,
         // Update passwordChangedAt only if password is being changed
         ...(passwordIsChanging ? { passwordChangedAt: new Date() } : {}),
@@ -175,7 +186,9 @@ export async function PUT(
         details: JSON.stringify({
           platform,
           clientId,
-          passwordChanged: !!password
+          passwordChanged: !!password,
+          allowedRoles: allowedRoles ?? existingLogin.allowedRoles,
+          allowedUserIds: allowedUserIds ?? existingLogin.allowedUserIds,
         }),
       },
     });
@@ -197,6 +210,8 @@ export async function PUT(
         notes: login.notes,
         backupCodesLocation: login.backupCodesLocation,
         adminOnly: login.adminOnly,
+        allowedRoles: login.allowedRoles,
+        allowedUserIds: login.allowedUserIds,
         passwordChangedAt: passwordIsChanging
           ? new Date().toISOString()
           : (existingLogin.passwordChangedAt?.toISOString() || existingLogin.createdAt.toISOString()),

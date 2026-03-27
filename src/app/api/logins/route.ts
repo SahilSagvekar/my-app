@@ -72,23 +72,61 @@ export async function GET(req: NextRequest) {
 
 
     const userRole = user.role;
-    const allowedRoles = ["admin", "client", "scheduler"];
 
     if (!userRole) {
       return NextResponse.json({ message: "Role Not Found" }, { status: 403 });
     }
 
-    if (!allowedRoles.includes(userRole)) {
-      return NextResponse.json({ message: "Access denied" }, { status: 403 });
+    // Roles with built-in full access (no per-login permission needed)
+    const fullAccessRoles = ["admin", "client", "scheduler"];
+    
+    // For other roles, check if the user has been granted access to ANY login
+    if (!fullAccessRoles.includes(userRole)) {
+      const hasAnyAccess = await prisma.socialLogin.findFirst({
+        where: {
+          OR: [
+            { allowedRoles: { has: userRole } },
+            { allowedUserIds: { has: userId } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (!hasAnyAccess) {
+        return NextResponse.json({ message: "Access denied" }, { status: 403 });
+      }
     }
 
     // For client role, only show their own logins
     // For non-admin roles, also hide admin-only logins
+    // NEW: Also check allowedRoles and allowedUserIds for granular access
     const isAdmin = userRole === "admin";
 
-    let whereClause: any = {};
+    let logins;
 
-    if (userRole === "client") {
+    if (isAdmin) {
+      // Admins see everything
+      logins = await prisma.socialLogin.findMany({
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              companyName: true,
+            },
+          },
+          updatedByUser: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [
+          { client: { companyName: "asc" } },
+          { platform: "asc" },
+        ],
+      });
+    } else if (userRole === "client") {
       // Get the client ID for this user (via linkedClientId or fallback to Client.userId)
       const userWithClient = await prisma.user.findUnique({
         where: { id: userId },
@@ -107,41 +145,72 @@ export async function GET(req: NextRequest) {
       }
 
       // Clients only see their own client's logins (and NOT admin-only ones)
-      // If no clientId found, return empty results (whereClause will match nothing)
-      whereClause = {
-        clientId: clientId || 'NO_CLIENT_FOUND',
-        adminOnly: false
-      };
-    } else if (!isAdmin) {
-      // Non-admin roles (scheduler, etc.) can't see admin-only logins
-      whereClause = { adminOnly: false };
+      logins = await prisma.socialLogin.findMany({
+        where: {
+          clientId: clientId || 'NO_CLIENT_FOUND',
+          adminOnly: false
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              companyName: true,
+            },
+          },
+          updatedByUser: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [
+          { client: { companyName: "asc" } },
+          { platform: "asc" },
+        ],
+      });
+    } else {
+      // Non-admin, non-client roles (scheduler, editor, qc, etc.)
+      // They can see logins where:
+      // 1. adminOnly is false AND (standard access for scheduler)
+      // 2. Their role is in allowedRoles OR
+      // 3. Their userId is in allowedUserIds
+      logins = await prisma.socialLogin.findMany({
+        where: {
+          adminOnly: false,
+          OR: [
+            // Standard access for allowed roles (admin, client, scheduler)
+            ...(["scheduler"].includes(userRole!) ? [{}] : []),
+            // Role-based access
+            { allowedRoles: { has: userRole! } },
+            // User-specific access
+            { allowedUserIds: { has: userId } },
+          ],
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              companyName: true,
+            },
+          },
+          updatedByUser: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [
+          { client: { companyName: "asc" } },
+          { platform: "asc" },
+        ],
+      });
     }
-    // Admins see everything (empty whereClause)
-
-    const logins = await prisma.socialLogin.findMany({
-      where: whereClause,
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            companyName: true,
-          },
-        },
-        updatedByUser: {
-          select: {
-            name: true,
-          },
-        },
-      },
-      orderBy: [
-        { client: { companyName: "asc" } },
-        { platform: "asc" },
-      ],
-    });
 
     // Decrypt passwords before sending
     // Hide client data for admin-only logins
+    // Include allowedRoles and allowedUserIds for admin to manage
     const decryptedLogins = logins.map((login) => ({
       id: login.id,
       // Only include client info if NOT adminOnly
@@ -158,6 +227,8 @@ export async function GET(req: NextRequest) {
       notes: login.notes,
       backupCodesLocation: login.backupCodesLocation,
       adminOnly: login.adminOnly,
+      allowedRoles: login.allowedRoles || [],
+      allowedUserIds: login.allowedUserIds || [],
       passwordChangedAt: login.passwordChangedAt?.toISOString() || login.createdAt.toISOString(),
       lastUpdated: login.updatedAt.toISOString(),
       updatedBy: login.updatedByUser?.name || "Unknown",
@@ -223,7 +294,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly, allowedRoles, allowedUserIds } = body;
 
     const isAdminOnlyLogin = adminOnly === true;
 
@@ -247,6 +318,14 @@ export async function POST(req: NextRequest) {
     if (isAdminOnlyLogin && userRole !== "admin") {
       return NextResponse.json(
         { message: "Only admins can create admin-only logins" },
+        { status: 403 }
+      );
+    }
+
+    // Only admins can set allowedRoles and allowedUserIds
+    if ((allowedRoles?.length > 0 || allowedUserIds?.length > 0) && userRole !== "admin") {
+      return NextResponse.json(
+        { message: "Only admins can set access permissions" },
         { status: 403 }
       );
     }
@@ -305,6 +384,8 @@ export async function POST(req: NextRequest) {
         notes: notes || null,
         backupCodesLocation: backupCodesLocation || null,
         adminOnly: isAdminOnlyLogin,
+        allowedRoles: allowedRoles || [],
+        allowedUserIds: allowedUserIds || [],
         updatedById: userId,
       },
     });
@@ -315,7 +396,7 @@ export async function POST(req: NextRequest) {
         action: "create",
         loginId: login.id,
         userId: userId,
-        details: JSON.stringify(isAdminOnlyLogin ? { platform } : { platform, clientId }),
+        details: JSON.stringify(isAdminOnlyLogin ? { platform } : { platform, clientId, allowedRoles, allowedUserIds }),
       },
     });
 
@@ -336,6 +417,8 @@ export async function POST(req: NextRequest) {
         notes: login.notes,
         backupCodesLocation: login.backupCodesLocation,
         adminOnly: login.adminOnly,
+        allowedRoles: login.allowedRoles,
+        allowedUserIds: login.allowedUserIds,
         passwordChangedAt: login.createdAt.toISOString(), // New login, password just set
         lastUpdated: login.updatedAt.toISOString(),
         updatedBy: user.name || "Admin",

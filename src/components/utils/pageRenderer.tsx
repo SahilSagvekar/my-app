@@ -37,7 +37,7 @@ import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
-import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";  
+import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -212,6 +212,8 @@ export function renderPage(
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
+      case "logins":
+        return <SocialLogins />;
       default:
         return <EditorDashboard />;
     }
@@ -241,6 +243,8 @@ export function renderPage(
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
+      case "logins":
+        return <SocialLogins />;
       default:
         return <QCDashboard />;
     }
@@ -297,6 +301,8 @@ export function renderPage(
         return <ContractsDashboard />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
+      case "logins":
+        return <SocialLogins />;
       default:
         return <ManagerDashboard currentPage="team" />;
     }
@@ -316,7 +322,7 @@ export function renderPage(
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "social":
-        return <SocialAnalyticsDashboard />;
+        return <SocialAnalyticsDashboard clientId="" />;
       case "training":
         return <TrainingPortalPage />;
       case "archive":
@@ -346,6 +352,8 @@ export function renderPage(
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
+      case "logins":
+        return <SocialLogins />;
       default:
         return <VideographerDashboard initialTab="jobs" />;
     }
@@ -366,6 +374,8 @@ export function renderPage(
         return <EmploymentInfo currentRole={role} />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
+      case "logins":
+        return <SocialLogins />;
       default:
         return <SalesDashboard />;
     }
