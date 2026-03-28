@@ -2,13 +2,21 @@
 import { prisma } from "@/lib/prisma";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
+// R2-compatible S3 client configuration
+const IS_R2 = !!process.env.R2_ENDPOINT;
 const s3Client = new S3Client({
-  region: process.env.AWS_S3_REGION!,
+  region: IS_R2 ? "auto" : (process.env.AWS_S3_REGION || "us-east-1"),
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
+  ...(IS_R2 && {
+    endpoint: process.env.R2_ENDPOINT!,
+    forcePathStyle: true,
+  }),
 });
+
+const BUCKET = process.env.AWS_S3_BUCKET || "e8-app-r2-prod";
 
 function getDeliverableShortCode(type: string) {
   const normalized = type.toLowerCase().trim();
@@ -32,14 +40,16 @@ function formatDateMMDDYYYY(date: Date) {
 
 async function createTaskFolderStructure(
   companyName: string,
-  taskTitle: string
+  taskTitle: string,
+  monthFolder: string
 ): Promise<string> {
   try {
-    const taskFolderPath = `${companyName}/outputs/${taskTitle}/`;
+    // Monthly grouped path: CompanyName/outputs/Month-Year/TaskTitle/
+    const taskFolderPath = `${companyName}/outputs/${monthFolder}/${taskTitle}/`;
 
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: taskFolderPath,
         ContentType: "application/x-directory",
       })
@@ -47,7 +57,7 @@ async function createTaskFolderStructure(
 
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: `${taskFolderPath}thumbnails/`,
         ContentType: "application/x-directory",
       })
@@ -55,7 +65,7 @@ async function createTaskFolderStructure(
 
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: `${taskFolderPath}tiles/`,
         ContentType: "application/x-directory",
       })
@@ -63,7 +73,7 @@ async function createTaskFolderStructure(
 
     await s3Client.send(
       new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
+        Bucket: BUCKET,
         Key: `${taskFolderPath}music-license/`,
         ContentType: "application/x-directory",
       })
@@ -91,13 +101,19 @@ export async function backfillMissingTasks() {
   let totalCreated = 0;
   let groupsFixed = 0;
 
+  // Get current month in YYYY-MM format
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  console.log(`📅 Filtering tasks for month: ${currentMonth}\n`);
+
   for (const deliverable of deliverables) {
     const expectedQuantity = deliverable.quantity ?? 1;
 
-    // Count existing tasks for this deliverable
+    // Count existing tasks for this deliverable IN CURRENT MONTH ONLY
     const existingTasks = await prisma.task.findMany({
       where: {
         monthlyDeliverableId: deliverable.id,
+        recurringMonth: currentMonth,  // 👈 Filter by current month
       },
       orderBy: { createdAt: "asc" },
     });
@@ -180,7 +196,12 @@ export async function backfillMissingTasks() {
         const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${count}`;
 
         try {
-          const taskFolderPath = await createTaskFolderStructure(companyName, title);
+          // Get month folder name (e.g., "March-2026")
+          const monthNames = ["January", "February", "March", "April", "May", "June", 
+                              "July", "August", "September", "October", "November", "December"];
+          const monthFolder = `${monthNames[date.getMonth()]}-${date.getFullYear()}`;
+          
+          const taskFolderPath = await createTaskFolderStructure(companyName, title, monthFolder);
 
           creates.push(
             prisma.task.create({
@@ -199,6 +220,8 @@ export async function backfillMissingTasks() {
                 videographer: templateTask.videographer,
                 qc_specialist: templateTask.qc_specialist,
                 monthlyDeliverableId: deliverable.id,
+                recurringMonth: currentMonth,  // 👈 Tag with current month
+                monthFolder: monthFolder,       // 👈 Month folder for R2 path
               },
             })
           );
