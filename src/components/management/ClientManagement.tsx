@@ -77,11 +77,11 @@ import { ClientContractsInvoices } from "../client/ClientContractsInvoices";
 
 type SocialPlatform =
   | "Instagram"
-  | "Tiktok"
+  | "TikTok"
   | "Facebook"
-  | "Youtube"
+  | "YouTube"
   | "Twitter"
-  | "Linkedin"
+  | "LinkedIn"
   | "Snapchat";
 
 type DeliverableType =
@@ -194,12 +194,12 @@ interface Client {
       weekends: string;
       bestTimes: string;
     };
-    Tiktok?: {
+    TikTok?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
     };
-    Youtube?: {
+    YouTube?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
@@ -214,7 +214,7 @@ interface Client {
       weekends: string;
       bestTimes: string;
     };
-    Linkedin?: {
+    LinkedIn?: {
       weekdays: string;
       weekends: string;
       bestTimes: string;
@@ -494,11 +494,11 @@ export function ClientManagement() {
   const getPlatformBadgeColor = (platform: SocialPlatform): string => {
     const colors: Record<SocialPlatform, string> = {
       Instagram: "bg-pink-100 text-pink-700 border-pink-300",
-      Tiktok: "bg-gray-900 text-white border-gray-700",
+      TikTok: "bg-gray-900 text-white border-gray-700",
       Facebook: "bg-blue-100 text-blue-700 border-blue-300",
-      Youtube: "bg-red-100 text-red-700 border-red-300",
+      YouTube: "bg-red-100 text-red-700 border-red-300",
       Twitter: "bg-sky-100 text-sky-700 border-sky-300",
-      Linkedin: "bg-indigo-100 text-indigo-700 border-indigo-300",
+      LinkedIn: "bg-indigo-100 text-indigo-700 border-indigo-300",
       Snapchat: "bg-yellow-100 text-yellow-700 border-yellow-300",
     };
     return colors[platform] || "bg-gray-100 text-gray-700";
@@ -508,11 +508,11 @@ export function ClientManagement() {
     const iconProps = { className: "h-5 w-5" };
     const icons: Record<SocialPlatform, React.ReactElement> = {
       Instagram: <FaInstagram {...iconProps} />,
-      Tiktok: <FaTiktok {...iconProps} />,
+      TikTok: <FaTiktok {...iconProps} />,
       Facebook: <FaFacebook {...iconProps} />,
-      Youtube: <FaYoutube {...iconProps} />,
+      YouTube: <FaYoutube {...iconProps} />,
       Twitter: <FaTwitter {...iconProps} />,
-      Linkedin: <FaLinkedin {...iconProps} />,
+      LinkedIn: <FaLinkedin {...iconProps} />,
       Snapchat: <FaSnapchat {...iconProps} />,
     };
     return icons[platform] || <FaInstagram {...iconProps} />;
@@ -521,11 +521,11 @@ export function ClientManagement() {
   const setAllPlatforms = () => {
     const allPlatforms: SocialPlatform[] = [
       "Instagram",
-      "Tiktok",
+      "TikTok",
       "Facebook",
-      "Youtube",
+      "YouTube",
       "Twitter",
-      "Linkedin",
+      "LinkedIn",
       "Snapchat",
     ];
     const currentPlatforms = newDeliverable.platforms || [];
@@ -3472,11 +3472,11 @@ export function ClientManagement() {
                 {(
                   [
                     "Instagram",
-                    "Tiktok",
+                    "TikTok",
                     "Facebook",
-                    "Youtube",
+                    "YouTube",
                     "Twitter",
-                    "Linkedin",
+                    "LinkedIn",
                     "Snapchat",
                   ] as SocialPlatform[]
                 ).map((platform) => (

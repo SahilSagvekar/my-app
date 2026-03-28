@@ -921,22 +921,22 @@ export function ClientDashboard() {
         {/* Page Header & Filter Row */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-gray-200">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
-            <p className="text-muted-foreground mt-1 text-lg">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
+            <p className="text-muted-foreground mt-1 text-sm sm:text-lg hidden sm:block">
               Review content from your team and approve or request revisions
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 w-full lg:w-auto overflow-x-auto">
             <Tabs
               value={currentFilter}
               onValueChange={(val: any) => setCurrentFilter(val)}
               className="w-full lg:w-auto"
             >
-              <TabsList className="bg-zinc-100 p-1">
+              <TabsList className="bg-zinc-100 p-1 flex-nowrap">
                 <TabsTrigger
                   value="all"
-                  className="px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
                 >
                   All Tasks
                   {tasks.length > 0 && (
@@ -950,9 +950,9 @@ export function ClientDashboard() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="pending"
-                  className="px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
                 >
-                  Pending Review
+                  Pending
                   {pendingReviews > 0 && (
                     <Badge
                       variant="secondary"
@@ -964,7 +964,7 @@ export function ClientDashboard() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="approved"
-                  className="px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
                 >
                   Approved
                   {approvedCount > 0 && (
@@ -978,7 +978,7 @@ export function ClientDashboard() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="posted"
-                  className="px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2"
+                  className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
                 >
                   Posted
                   {postedCount > 0 && (
