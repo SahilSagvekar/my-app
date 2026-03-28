@@ -139,7 +139,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
                 <Button
                   variant="secondary"
                   size="icon"
-                  className="h-7 w-7 rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300"
+                  className="h-7 w-7 min-h-[44px] min-w-[44px] rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300 active:bg-zinc-100"
                   onClick={(e) => onShare(e, task)}
                   disabled={isSharing}
                 >
@@ -156,7 +156,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
                 <Button
                   variant="secondary"
                   size="icon"
-                  className="h-7 w-7 rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300"
+                  className="h-7 w-7 min-h-[44px] min-w-[44px] rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300 active:bg-zinc-100"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDownload(task);
