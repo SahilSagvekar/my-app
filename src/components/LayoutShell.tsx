@@ -23,8 +23,7 @@ import {
   X,
   Settings as SettingsIcon,
   ArrowLeftRight,
-  FileText,
-  LogIn
+  FileText
 } from 'lucide-react';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
@@ -174,7 +173,7 @@ export function LayoutShell({
             <Button
               variant="ghost"
               size="sm"
-              className="lg:hidden"
+              className="lg:hidden min-h-[44px] min-w-[44px]"
               onClick={toggleSidebar}
             >
               {isSidebarOpen ? <X className="h-5 w-5" /> : <MenuToggleIcon className="h-5 w-5" />}
@@ -212,7 +211,7 @@ export function LayoutShell({
           {/* Right Section */}
           <div className="flex items-center gap-3">
             {/* Mobile search */}
-            <Button variant="ghost" size="sm" className="md:hidden">
+            <Button variant="ghost" size="sm" className="md:hidden min-h-[44px] min-w-[44px]">
               <Search className="h-5 w-5" />
             </Button>
 
@@ -380,7 +379,7 @@ export function LayoutShell({
         <div className="flex flex-col h-full">
           {/* Mobile close button */}
           <div className="lg:hidden flex justify-end p-4">
-            <Button variant="ghost" size="sm" onClick={toggleSidebar}>
+            <Button variant="ghost" size="sm" className="min-h-[44px] min-w-[44px]" onClick={toggleSidebar}>
               <X className="h-5 w-5" />
             </Button>
           </div>
@@ -395,9 +394,7 @@ export function LayoutShell({
               </div>
             ) : items.map((item) => {
               const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
-              // Map of dynamically injected nav item IDs to their icons
-              const dynamicIconMap: Record<string, any> = { 'logins': LogIn };
-              const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || dynamicIconMap[item.id] || FileText;
+              const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || FileText;
               const isActive = currentPage === item.id;
 
               return (
@@ -408,7 +405,7 @@ export function LayoutShell({
                     setIsSidebarOpen(false); // Close mobile sidebar
                   }}
                   className={`
-                    w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors
+                    w-full flex items-center gap-3 px-3 py-3 sm:py-2 text-sm rounded-lg transition-colors
                     ${isActive
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-gray-700 hover:bg-gray-100'
@@ -441,7 +438,7 @@ export function LayoutShell({
 
       {/* Main Content */}
       <main className={`transition-all duration-300 ease-in-out pt-16 ${isSidebarCollapsed ? 'lg:ml-0' : 'lg:ml-72'}`}>
-        <div className="p-6 sm:p-8">{children}</div>
+        <div className="p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
 
       {/* Settings Dialog */}

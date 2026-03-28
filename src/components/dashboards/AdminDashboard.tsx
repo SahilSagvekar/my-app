@@ -4,7 +4,6 @@ import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Button } from '../ui/button';
 import {
   DropdownMenu,
@@ -32,6 +31,8 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
@@ -311,21 +312,43 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
       }
     ];
 
+    const [revenueVisible, setRevenueVisible] = useState(false);
+
     return (
       <div className="space-y-6">
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 items-stretch">
           {kpiCards.map((kpi, index) => {
             const Icon = kpi.icon;
+            const isRevenue = kpi.title === 'Total Revenue';
             return (
-              <Card key={index}>
-                <CardContent className="p-6 flex flex-col items-center justify-center text-center">
-                  <Icon className={`h-8 w-8 mb-4 ${kpi.color}`} />
-                  <p className="text-sm text-muted-foreground">{kpi.title}</p>
-                  <h3 className="text-3xl font-bold mt-1">{kpi.value}</h3>
-                  <p className={`text-xs mt-2 px-2 py-0.5 rounded-full bg-muted ${kpi.color}`}>
-                    {kpi.change} from last month
-                  </p>
+              <Card key={index} className="flex flex-col">
+                <CardContent className="p-3 sm:p-5 flex flex-1 flex-row items-center justify-center gap-3">
+                  {/* Icon — left side */}
+                  <div className="flex-shrink-0 rounded-lg p-2 bg-muted">
+                    <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${kpi.color}`} />
+                  </div>
+                  {/* Data — centered within its block */}
+                  <div className="flex flex-col items-center text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <h3 className="text-base sm:text-lg font-bold whitespace-nowrap">
+                        {isRevenue ? (revenueVisible ? kpi.value : '••••••') : kpi.value}
+                      </h3>
+                      {isRevenue && (
+                        <button
+                          onClick={() => setRevenueVisible(v => !v)}
+                          className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                          aria-label={revenueVisible ? 'Hide revenue' : 'Show revenue'}
+                        >
+                          {revenueVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight whitespace-nowrap">{kpi.title}</p>
+                    <span className={`inline-block text-[9px] sm:text-xs mt-1 px-2 py-0.5 rounded-full bg-muted whitespace-nowrap ${kpi.color}`}>
+                      {kpi.change} vs last month
+                    </span>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -341,13 +364,13 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
             </CardTitle>
             {clientProgress.length > 1 && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
+                <span className="text-sm font-semibold text-gray-700">
                   {carouselIndex + 1} / {clientProgress.length}
                 </span>
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-9 w-9 sm:h-8 sm:w-8"
                   onClick={() => setCarouselIndex((prev) => (prev - 1 + clientProgress.length) % clientProgress.length)}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -355,7 +378,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-9 w-9 sm:h-8 sm:w-8"
                   onClick={() => setCarouselIndex((prev) => (prev + 1) % clientProgress.length)}
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -368,54 +391,69 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               const client = clientProgress[carouselIndex];
               if (!client) return null;
               return (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {/* Client Header */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{client.clientName}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {client.totalCompleted} of {client.totalExpected} deliverables completed
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{client.clientName}</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        {client.totalCompleted} of {client.totalExpected} completed
                       </p>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-gray-900">{client.overallProgress}%</div>
+                    <div className="text-right flex-shrink-0">
+                      <div className={`text-xl sm:text-2xl font-bold ${client.overallProgress >= 100 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                        {client.overallProgress}%
+                      </div>
                       <p className="text-xs text-muted-foreground">Overall</p>
                     </div>
                   </div>
 
                   {/* Overall progress bar */}
-                  <Progress value={client.overallProgress} className="h-2" />
+                  <Progress
+                    value={client.overallProgress}
+                    className="h-2"
+                    indicatorColor={client.overallProgress >= 100 ? '#10b981' : '#3b82f6'}
+                  />
 
                   {/* Individual deliverables */}
-                  <div className="space-y-3">
-                    {client.deliverables.map((d: any) => (
-                      <div key={d.id} className="p-3 rounded-lg border bg-gray-50/50">
-                        <div className="flex items-center justify-between mb-2">
+                  <div className="space-y-2">
+                    {client.deliverables.map((d: any) => {
+                      const progress = Math.min(d.progress, 100);
+                      const isComplete = progress >= 100;
+                      return (
+                        <div key={d.id} className="p-3 rounded-lg border bg-gray-50/50">
+                          {/* Top: type + count left, badges right — stacks on very small screens */}
+                          <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-medium text-sm text-gray-900 truncate">{d.type}</span>
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                ({d.completedTasks}/{d.quantity || d.totalTasks})
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1">
+                              {(d.platforms || []).slice(0, 2).map((p: string) => (
+                                <Badge key={p} variant="outline" className="text-[10px] h-5 px-1.5">
+                                  {p}
+                                </Badge>
+                              ))}
+                              {(d.platforms || []).length > 2 && (
+                                <span className="text-[10px] text-muted-foreground">+{d.platforms.length - 2}</span>
+                              )}
+                            </div>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm text-gray-900">{d.type}</span>
-                            <span className="text-xs text-muted-foreground">
-                              ({d.completedTasks}/{d.quantity || d.totalTasks})
+                            <Progress
+                              value={progress}
+                              className="h-1.5 flex-1"
+                              indicatorColor={isComplete ? '#10b981' : '#3b82f6'}
+                            />
+                            <span className={`text-xs font-medium w-9 text-right whitespace-nowrap ${isComplete ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                              {progress}%
                             </span>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            {(d.platforms || []).slice(0, 3).map((p: string) => (
-                              <Badge key={p} variant="outline" className="text-[10px] h-5 px-1.5">
-                                {p}
-                              </Badge>
-                            ))}
-                            {(d.platforms || []).length > 3 && (
-                              <span className="text-[10px] text-muted-foreground">+{d.platforms.length - 3}</span>
-                            )}
-                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Progress value={Math.min(d.progress, 100)} className="h-1.5 flex-1" />
-                          <span className="text-xs font-medium text-muted-foreground w-10 text-right">
-                            {Math.min(d.progress, 100)}%
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Dots indicator */}
@@ -495,135 +533,8 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           />
         </div>
 
-        {/* System Status + Job Management — side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5" />
-                System Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {systemStatus ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Server Status</span>
-                    <Badge
-                      variant="default"
-                      className={systemStatus.serverStatus === 'Online' ? 'bg-green-500' : 'bg-red-500'}
-                    >
-                      {systemStatus.serverStatus}
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Database</span>
-                    <Badge
-                      variant="default"
-                      className={systemStatus.databaseStatus === 'Healthy' ? 'bg-green-500' : 'bg-red-500'}
-                    >
-                      {systemStatus.databaseStatus}
-                    </Badge>
-                  </div>
-
-                  {systemStatus.databaseResponseTime && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">DB Response Time</span>
-                      <span className="text-sm font-medium">{systemStatus.databaseResponseTime}</span>
-                    </div>
-                  )}
-
-                  {systemStatus.databaseSize && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Database Size</span>
-                      <span className="text-sm font-medium">{systemStatus.databaseSize}</span>
-                    </div>
-                  )}
-
-                  {systemStatus.apiResponseTime && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">API Response Time</span>
-                      <span className="text-sm font-medium">{systemStatus.apiResponseTime}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between group cursor-help relative">
-                    <span className="text-sm">Active Users</span>
-                    <span className="text-sm font-medium">{systemStatus.activeUsers}</span>
-
-                    {systemStatus.activeUserList && systemStatus.activeUserList.length > 0 && (
-                      <div className="absolute hidden group-hover:block right-0 top-full mt-2 w-64 p-3 bg-popover border rounded-lg shadow-lg z-50">
-                        <p className="text-xs font-semibold mb-2">Currently Active:</p>
-                        <div className="space-y-1 max-h-48 overflow-y-auto">
-                          {systemStatus.activeUserList.map((user: any, idx: number) => (
-                            <div key={idx} className="text-xs flex items-center justify-between py-1">
-                              <span className="truncate">{user.name || 'Unknown'}</span>
-                              <Badge variant="outline" className="text-xs ml-2">
-                                {user.role}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {systemStatus.serverUptime && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Server Uptime</span>
-                      <span className="text-sm font-medium">{systemStatus.serverUptime}</span>
-                    </div>
-                  )}
-
-                  {systemStatus.memoryUsage && (
-                    <div className="border-t pt-3 mt-3">
-                      <p className="text-xs text-muted-foreground mb-2">Memory Usage</p>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">Heap Used</span>
-                          <span>{systemStatus.memoryUsage.heapUsed} MB</span>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">Heap Total</span>
-                          <span>{systemStatus.memoryUsage.heapTotal} MB</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {systemStatus.statistics && (
-                    <div className="border-t pt-3 mt-3">
-                      <p className="text-xs text-muted-foreground mb-2">Database Records</p>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Tasks</span>
-                          <span className="font-medium">{systemStatus.statistics.totalTasks}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Users</span>
-                          <span className="font-medium">{systemStatus.statistics.totalUsers}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Clients</span>
-                          <span className="font-medium">{systemStatus.statistics.totalClients}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Logs</span>
-                          <span className="font-medium">{systemStatus.statistics.totalAuditLogs}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Loading system status...</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <JobManagementSection />
-        </div>
+        {/* Job Management — full width */}
+        <JobManagementSection />
       </div>
     );
   };
@@ -784,18 +695,20 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           {description}
         </p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center w-full md:w-auto gap-3">
         {children}
-        <ManagementDropdown />
-        <CreateTaskDialog
-          onTaskCreated={handleTaskCreated}
-          trigger={
-            <Button className="shadow-sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Task
-            </Button>
-          }
-        />
+        <div className="flex items-center gap-3 ml-auto md:ml-0">
+          <ManagementDropdown />
+          <CreateTaskDialog
+            onTaskCreated={handleTaskCreated}
+            trigger={
+              <Button className="shadow-sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Task
+              </Button>
+            }
+          />
+        </div>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ const nextConfig = {
         // Add more domains if needed (staging, etc.)
       ],
     },
+    optimizePackageImports: ['lucide-react', 'react-icons'],
   },
   // Disable static optimization for pages that use cookies/context
   // async headers() {
