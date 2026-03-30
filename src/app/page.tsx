@@ -41,7 +41,7 @@ export default function LandingPage() {
       <Hero />
 
       {/* Services Preview */}
-      <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02] overflow-hidden">
+      <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-8 sm:gap-10 lg:gap-12">
             <div className="flex-1 order-2 md:order-1 w-full">
@@ -180,7 +180,7 @@ export default function LandingPage() {
       </section>
 
       {/* Original Shows Preview */}
-      <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02] overflow-hidden">
+      <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-8 sm:gap-10 lg:gap-12">
             <div className="flex-1 order-2 md:order-1 w-full md:w-auto">

@@ -102,45 +102,46 @@ export function LayoutShell({
   // UPDATED: Handle null role
   // UPDATED: Fetch permitted navigation items
   useEffect(() => {
-    if (!currentRole) return;
-    const controller = new AbortController();
-    const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
-    const clientForbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
-
-    const applyClientFilter = (data: any[]) => {
-      if (normalizedRole === 'client' && authUser?.hasPostingServices === false) {
-        return data.filter((item: any) => !clientForbiddenIds.includes(item.id));
-      }
-      return data;
-    };
-
-    const fallback = () => {
-      const data = applyClientFilter([...(NAVIGATION_ITEMS[normalizedRole] || [])]);
-      setPermittedItems(data);
-    };
-
     const fetchNavItems = async () => {
+      if (!currentRole) return;
       try {
         setNavLoading(true);
-        const res = await fetch(`/api/user/navigation?role=${currentRole}`, { signal: controller.signal });
-        if (!res.ok) { fallback(); return; }
-        let data = applyClientFilter(await res.json());
-        // Safety: if API returned items that don't belong to this role's nav, fall back to defaults
-        const roleIds = new Set((NAVIGATION_ITEMS[normalizedRole] || []).map((i: any) => i.id));
-        const validData = data.filter((item: any) => roleIds.has(item.id) || item._dynamicInjected);
-        setPermittedItems(validData.length > 0 ? validData : applyClientFilter([...(NAVIGATION_ITEMS[normalizedRole] || [])]));
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
+        const res = await fetch(`/api/user/navigation?role=${currentRole}`);
+        if (res.ok) {
+          let data = await res.json();
+          // 🔥 Filter for clients without posting services
+          if (currentRole.toLowerCase() === 'client' && authUser?.hasPostingServices === false) {
+            const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+            data = data.filter((item: any) => !forbiddenIds.includes(item.id));
+          }
+          setPermittedItems(data);
+        } else {
+          // Fallback to defaults if API fails
+          const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
+          let data = [...(NAVIGATION_ITEMS[normalizedRole] || [])];
+          // 🔥 Filter for clients without posting services
+          if (normalizedRole === 'client' && authUser?.hasPostingServices === false) {
+            const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+            data = data.filter(item => !forbiddenIds.includes(item.id));
+          }
+          setPermittedItems(data);
+        }
+      } catch (err) {
         console.error("Failed to fetch navigation:", err);
-        fallback();
+        const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
+        let data = [...(NAVIGATION_ITEMS[normalizedRole] || [])];
+        // 🔥 Filter for clients without posting services
+        if (normalizedRole === 'client' && authUser?.hasPostingServices === false) {
+          const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+          data = data.filter(item => !forbiddenIds.includes(item.id));
+        }
+        setPermittedItems(data);
       } finally {
         setNavLoading(false);
       }
     };
-
     fetchNavItems();
-    return () => controller.abort();
-  }, [currentRole, authUser?.hasPostingServices]);
+  }, [currentRole]);
 
   const items = permittedItems;
 
