@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { prisma, withRetry } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { getGeoLocation, formatLocation } from '@/lib/geo';
 import { NextRequest, NextResponse } from "next/server";
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("[LOGIN] 3. Finding user...");
-    const user = await withRetry(() => prisma.user.findFirst({ where: { email } }), { label: 'login-findUser' });
+    const user = await prisma.user.findFirst({ where: { email } });
     console.log("[LOGIN] 4. User found:", !!user);
 
     if (!user) {
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     // Add audit log for login (skip if from India)
     if (locationData?.countryCode !== 'IN') {
-      await withRetry(() => prisma.auditLog.create({
+      await prisma.auditLog.create({
         data: {
           userId: user.id,
           action: 'USER_LOGIN',
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
             sessionType: 'standard'
           } as any
         }
-      }), { label: 'login-auditLog' });
+      });
     } else {
       console.log(`[LOGIN] Skipping audit log for user ${user.email} — login from India`);
     }

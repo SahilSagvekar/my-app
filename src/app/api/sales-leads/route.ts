@@ -25,16 +25,6 @@ export async function GET(req: NextRequest) {
       prisma.salesLead.findMany({
         where: { userId: decoded.userId },
         orderBy: { createdAt: 'asc' },
-        select: {
-          id: true, userId: true, name: true, company: true, email: true,
-          phone: true, socials: true, instagram: true, facebook: true,
-          linkedin: true, twitter: true, tiktok: true, status: true,
-          source: true, value: true, priority: true, meetingBooked: true,
-          emailed: true, called: true, texted: true, notes: true,
-          emailTemplate: true, metadata: true,
-          dmAt: true, meetingAt: true, emailedAt: true, calledAt: true,
-          textedAt: true, createdAt: true, updatedAt: true,
-        },
       }),
       prisma.salesDashboardColumn.findMany({
         where: { userId: decoded.userId },
@@ -42,9 +32,7 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const response = NextResponse.json({ ok: true, leads, columns });
-    response.headers.set('Cache-Control', 'private, max-age=0, stale-while-revalidate=30');
-    return response;
+    return NextResponse.json({ ok: true, leads, columns });
   } catch (err) {
     console.error('[GET /api/sales-leads]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, Fragment, useMemo, memo, useDeferredValue } from 'react';
+import { useState, useRef, useEffect, useCallback, Fragment, useMemo } from 'react';
 import {
   X, Check, ChevronRight, Send, Link as LinkIcon, Info as InfoIcon,
   History as HistoryIcon, Clock, Loader2, RefreshCw, Plus, Trash2,
@@ -73,7 +73,6 @@ interface ColumnDef {
   width: string;
   align?: 'left' | 'center' | 'right';
   sticky?: boolean;
-  minPx?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -110,7 +109,6 @@ function dbLeadToLocal(l: any): Lead {
     dmAt: l.dmAt, meetingAt: l.meetingAt, emailedAt: l.emailedAt,
     calledAt: l.calledAt, textedAt: l.textedAt,
     createdAt: l.createdAt, updatedAt: l.updatedAt,
-    metadata: l.metadata || {},
     _saved: true, _dirty: false, _committing: false,
   };
 }
@@ -153,17 +151,25 @@ const DM_PLATFORMS = [
 ];
 
 const CORE_COLUMNS: ColumnDef[] = [
-  { id: 'name', label: 'Lead', width: 'min-w-[220px] w-[220px]', sticky: true, minPx: 220 },
-  { id: 'company', label: 'Company', width: 'min-w-[220px] w-[220px]', minPx: 220 },
-  { id: 'status', label: 'Status', width: 'min-w-[130px] w-[130px]', align: 'center', minPx: 130 },
-  { id: 'priority', label: 'Priority', width: 'min-w-[120px] w-[120px]', align: 'center', minPx: 120 },
-  { id: 'email', label: 'Email', width: 'min-w-[180px] w-[180px]', minPx: 180 },
-  { id: 'phone', label: 'Phone', width: 'min-w-[140px] w-[140px]', minPx: 140 },
-  { id: 'socials', label: 'Socials', width: 'min-w-[160px] w-[160px]', minPx: 160 },
-  { id: 'value', label: 'Deal Value', width: 'min-w-[110px] w-[110px]', align: 'center', minPx: 110 },
-  { id: 'source', label: 'Source', width: 'min-w-[120px] w-[120px]', minPx: 120 },
-  { id: 'activity', label: 'Activity', width: 'min-w-[160px] w-[160px]', minPx: 160 },
-  { id: 'notes', label: 'Notes', width: 'min-w-[120px] w-[120px]', align: 'center', minPx: 120 },
+  { id: 'name', label: 'Lead', width: 'min-w-[220px] w-[220px]', sticky: true },
+  { id: 'company', label: 'Company', width: 'min-w-[150px] w-[150px]' },
+  { id: 'status', label: 'Status', width: 'min-w-[130px] w-[130px]', align: 'center' },
+  { id: 'priority', label: 'Priority', width: 'min-w-[120px] w-[120px]', align: 'center' },
+  { id: 'email', label: 'Email', width: 'min-w-[180px] w-[180px]' },
+  { id: 'phone', label: 'Phone', width: 'min-w-[140px] w-[140px]' },
+  { id: 'instagram', label: 'Instagram', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'facebook', label: 'Facebook', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'linkedin', label: 'LinkedIn', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'twitter', label: 'Twitter', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'tiktok', label: 'TikTok', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'socials', label: 'Social Handles', width: 'min-w-[150px] w-[150px]' },
+  { id: 'value', label: 'Deal Value', width: 'min-w-[110px] w-[110px]', align: 'center' },
+  { id: 'source', label: 'Source', width: 'min-w-[120px] w-[120px]' },
+  { id: 'meeting', label: 'Meeting', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'emailed', label: 'Emailed', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'called', label: 'Called', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'texted', label: 'Texted', width: 'min-w-[80px] w-[80px]', align: 'center' },
+  { id: 'notes', label: 'Notes', width: 'min-w-[120px] w-[120px]', align: 'center' },
 ];
 
 const ALL_COLUMNS = CORE_COLUMNS; // For backward compatibility in some utility parts
@@ -274,276 +280,6 @@ function PlatformSelect({ value, onChange, disabled }: { value: string; onChange
         <option key={p.id} value={p.id}>{p.label}</option>
       ))}
     </select>
-  );
-}
-
-// ─── Social Cell ─────────────────────────────────────────────────────────────
-
-const SOCIAL_PLATFORMS = [
-  { id: 'instagram', label: 'IG', fullLabel: 'Instagram', color: '#E1306C' },
-  { id: 'facebook', label: 'FB', fullLabel: 'Facebook', color: '#1877F2' },
-  { id: 'linkedin', label: 'LI', fullLabel: 'LinkedIn', color: '#0A66C2' },
-  { id: 'twitter', label: 'X', fullLabel: 'Twitter / X', color: '#1DA1F2' },
-  { id: 'tiktok', label: 'TT', fullLabel: 'TikTok', color: '#010101' },
-  { id: 'youtube', label: 'YT', fullLabel: 'YouTube', color: '#FF0000' },
-  { id: 'other', label: '•••', fullLabel: 'Other', color: '#6B7280' },
-];
-
-function parseSocials(raw: string): Array<{ platform: string; url: string }> {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-  } catch {}
-  return raw.trim() ? [{ platform: 'other', url: raw.trim() }] : [];
-}
-
-function SocialCell({ value, onUpdate }: {
-  value: string;
-  onUpdate: (patch: { socials: string; instagram: boolean; facebook: boolean; linkedin: boolean; twitter: boolean; tiktok: boolean }) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [newPlatform, setNewPlatform] = useState('instagram');
-  const [newUrl, setNewUrl] = useState('');
-
-  const entries = parseSocials(value);
-
-  const commit = (newEntries: Array<{ platform: string; url: string }>) => {
-    onUpdate({
-      socials: JSON.stringify(newEntries),
-      instagram: newEntries.some(e => e.platform === 'instagram'),
-      facebook: newEntries.some(e => e.platform === 'facebook'),
-      linkedin: newEntries.some(e => e.platform === 'linkedin'),
-      twitter: newEntries.some(e => e.platform === 'twitter'),
-      tiktok: newEntries.some(e => e.platform === 'tiktok'),
-    });
-  };
-
-  const addEntry = () => {
-    if (!newUrl.trim()) return;
-    commit([...entries, { platform: newPlatform, url: newUrl.trim() }]);
-    setNewUrl('');
-  };
-
-  const removeEntry = (idx: number) => {
-    commit(entries.filter((_, i) => i !== idx));
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button className="w-full h-[30px] px-1.5 flex items-center gap-1 bg-transparent hover:bg-[#F5F6F8] rounded text-left overflow-hidden">
-          {entries.length === 0 ? (
-            <span className="text-[11px] text-gray-300">+ Add</span>
-          ) : (
-            <>
-              {entries.slice(0, 4).map((e, i) => {
-                const p = SOCIAL_PLATFORMS.find(p => p.id === e.platform);
-                return (
-                  <span key={i}
-                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
-                    style={{ backgroundColor: p?.color || '#6B7280' }}
-                    title={e.url}>
-                    {p?.label || '?'}
-                  </span>
-                );
-              })}
-              {entries.length > 4 && (
-                <span className="text-[10px] text-gray-400 ml-0.5">+{entries.length - 4}</span>
-              )}
-            </>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-3 space-y-2.5" align="start" sideOffset={4}>
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Social Links</p>
-
-        {entries.length === 0 && (
-          <p className="text-[12px] text-gray-400 italic">No socials added yet.</p>
-        )}
-
-        {entries.map((e, i) => {
-          const p = SOCIAL_PLATFORMS.find(p => p.id === e.platform);
-          return (
-            <div key={i} className="flex items-center gap-1.5">
-              <span className="inline-flex items-center justify-center w-[28px] h-[22px] rounded text-[10px] font-bold text-white shrink-0"
-                style={{ backgroundColor: p?.color || '#6B7280' }}>
-                {p?.label || '?'}
-              </span>
-              <input
-                value={e.url}
-                onChange={ev => {
-                  const updated = entries.map((entry, idx) => idx === i ? { ...entry, url: ev.target.value } : entry);
-                  commit(updated);
-                }}
-                className="flex-1 h-7 text-[12px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA] min-w-0"
-              />
-              <button
-                onClick={() => removeEntry(i)}
-                className="shrink-0 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          );
-        })}
-
-        <div className="flex items-center gap-1.5 pt-1.5 border-t border-gray-100">
-          <select value={newPlatform} onChange={e => setNewPlatform(e.target.value)}
-            className="h-7 text-[11px] border border-gray-200 rounded px-1 bg-white w-[90px] shrink-0">
-            {SOCIAL_PLATFORMS.map(p => (
-              <option key={p.id} value={p.id}>{p.fullLabel}</option>
-            ))}
-          </select>
-          <input
-            value={newUrl}
-            onChange={e => setNewUrl(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEntry(); } }}
-            placeholder="URL or @handle"
-            className="flex-1 h-7 text-[12px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA] min-w-0" />
-          <button onClick={addEntry}
-            className="h-7 w-7 flex items-center justify-center bg-[#0073EA] hover:bg-[#0060C0] text-white rounded shrink-0">
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ─── Activity Cell ────────────────────────────────────────────────────────────
-
-const ACTIVITY_TYPES = [
-  { id: 'meeting', label: 'Mtg', fullLabel: 'Meeting', color: '#00C875', icon: '🤝' },
-  { id: 'email',   label: 'Email', fullLabel: 'Email',   color: '#579BFC', icon: '✉️' },
-  { id: 'call',    label: 'Call', fullLabel: 'Call',    color: '#FDAB3D', icon: '📞' },
-  { id: 'text',    label: 'Text', fullLabel: 'Text',    color: '#A25DDC', icon: '💬' },
-];
-
-interface ActivityEntry {
-  type: string;
-  time: string;   // ISO string
-  location: string;
-}
-
-function parseActivities(raw?: string | ActivityEntry[]): ActivityEntry[] {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return raw;
-  try {
-    const parsed = JSON.parse(raw as string);
-    if (Array.isArray(parsed)) return parsed;
-  } catch {}
-  return [];
-}
-
-function ActivityCell({ value, onUpdate }: {
-  value: ActivityEntry[];
-  onUpdate: (patch: Partial<Lead>) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [newType, setNewType] = useState('call');
-  const [newTime, setNewTime] = useState(() => new Date().toISOString().slice(0, 16));
-  const [newLocation, setNewLocation] = useState('');
-
-  const entries = value;
-
-  const commit = (next: ActivityEntry[]) => {
-    onUpdate({
-      metadata: { __activities: next },
-      meetingBooked: next.some(e => e.type === 'meeting'),
-      emailed:       next.some(e => e.type === 'email'),
-      called:        next.some(e => e.type === 'call'),
-      texted:        next.some(e => e.type === 'text'),
-      meetingAt:     next.filter(e => e.type === 'meeting').at(-1)?.time,
-      emailedAt:     next.filter(e => e.type === 'email').at(-1)?.time,
-      calledAt:      next.filter(e => e.type === 'call').at(-1)?.time,
-      textedAt:      next.filter(e => e.type === 'text').at(-1)?.time,
-    });
-  };
-
-  const addEntry = () => {
-    commit([...entries, { type: newType, time: new Date(newTime).toISOString(), location: newLocation.trim() }]);
-    setNewLocation('');
-    setNewTime(new Date().toISOString().slice(0, 16));
-  };
-
-  const removeEntry = (idx: number) => commit(entries.filter((_, i) => i !== idx));
-
-  // Show up to 3 type pills in the cell
-  const typeCounts = ACTIVITY_TYPES.map(at => ({ ...at, count: entries.filter(e => e.type === at.id).length })).filter(a => a.count > 0);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button className="w-full h-[30px] px-1.5 flex items-center gap-1 bg-transparent hover:bg-[#F5F6F8] rounded text-left overflow-hidden">
-          {typeCounts.length === 0 ? (
-            <span className="text-[11px] text-gray-300">+ Log</span>
-          ) : (
-            <>
-              {typeCounts.slice(0, 3).map((a) => (
-                <span key={a.id}
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
-                  style={{ backgroundColor: a.color }}>
-                  {a.label}{a.count > 1 ? ` ×${a.count}` : ''}
-                </span>
-              ))}
-              {typeCounts.length > 3 && <span className="text-[10px] text-gray-400">+{typeCounts.length - 3}</span>}
-            </>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-3 space-y-2.5" align="start" sideOffset={4}>
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Activity Log</p>
-
-        {entries.length === 0 && (
-          <p className="text-[12px] text-gray-400 italic">No activity logged yet.</p>
-        )}
-
-        <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-          {entries.map((e, i) => {
-            const at = ACTIVITY_TYPES.find(a => a.id === e.type);
-            return (
-              <div key={i} className="flex items-start gap-1.5 text-[12px]">
-                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0 mt-0.5"
-                  style={{ backgroundColor: at?.color || '#6B7280' }}>
-                  {at?.label || e.type}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-gray-600 text-[11px]">
-                    {new Date(e.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                  </div>
-                  {e.location && <div className="text-gray-400 text-[11px] truncate">{e.location}</div>}
-                </div>
-                <button onClick={() => removeEntry(i)}
-                  className="shrink-0 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors mt-0.5">
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="pt-2 border-t border-gray-100 space-y-1.5">
-          <div className="flex gap-1.5">
-            <select value={newType} onChange={e => setNewType(e.target.value)}
-              className="h-7 text-[11px] border border-gray-200 rounded px-1 bg-white w-[90px] shrink-0">
-              {ACTIVITY_TYPES.map(a => <option key={a.id} value={a.id}>{a.fullLabel}</option>)}
-            </select>
-            <input type="datetime-local" value={newTime} onChange={e => setNewTime(e.target.value)}
-              className="flex-1 h-7 text-[11px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA] min-w-0" />
-          </div>
-          <div className="flex gap-1.5">
-            <input value={newLocation} onChange={e => setNewLocation(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEntry(); } }}
-              placeholder="Location or notes (optional)"
-              className="flex-1 h-7 text-[12px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA]" />
-            <button onClick={addEntry}
-              className="h-7 w-7 flex items-center justify-center bg-[#0073EA] hover:bg-[#0060C0] text-white rounded shrink-0">
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
 
@@ -1018,41 +754,34 @@ function BulkActionToolbar({ count, onClear, onMassEmail }: { count: number; onC
 
 // ─── Group Header ─────────────────────────────────────────────────────────────
 
-function GroupHeader({ group, count, collapsed, onToggle, onAddItem, onSelectAll, isAllSelected, colCount }: {
+function GroupHeader({ group, count, collapsed, onToggle, onAddItem, onSelectAll, isAllSelected }: {
   group: typeof STATUS_GROUPS[0]; count: number; collapsed: boolean;
   onToggle: () => void; onAddItem: () => void;
   onSelectAll: () => void; isAllSelected: boolean;
-  colCount: number;
 }) {
   return (
-    <>
-      <td className="w-[40px] px-2 py-2 sticky left-0 z-30 bg-gray-50 border-b border-gray-100" style={{ borderLeft: `3px solid ${group.color}`, transform: 'translateZ(0)' }}>
-        <div className="flex items-center justify-center">
-          <input
-            type="checkbox"
-            checked={isAllSelected}
-            onChange={e => { e.stopPropagation(); onSelectAll(); }}
-            className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
-          />
-        </div>
-      </td>
-      <td colSpan={colCount + 1} className="px-3 py-2 bg-gray-50 select-none group/gh">
-        <div className="flex items-center gap-2">
-          <button onClick={onToggle} className="flex items-center gap-1.5 font-semibold text-[15px] hover:opacity-80 transition-opacity"
-            style={{ color: group.color }}>
-            <ChevronRight className={cn("h-4 w-4 transition-transform", !collapsed && "rotate-90")} />
-            {group.label}
-            <span className="text-[12px] font-normal text-gray-400 ml-1">
-              {count} {count === 1 ? 'item' : 'items'}
-            </span>
-          </button>
-          <button onClick={onAddItem}
-            className="opacity-0 group-hover/gh:opacity-100 transition-opacity h-5 w-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
-            <Plus className="h-3 w-3 text-gray-500" />
-          </button>
-        </div>
-      </td>
-    </>
+    <div className="flex items-center gap-2 py-2 px-1 select-none group/gh">
+      <div className="flex items-center justify-center w-[40px] h-[30px]">
+        <input
+          type="checkbox"
+          checked={isAllSelected}
+          onChange={e => { e.stopPropagation(); onSelectAll(); }}
+          className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
+        />
+      </div>
+      <button onClick={onToggle} className="flex items-center gap-1.5 font-semibold text-[15px] hover:opacity-80 transition-opacity"
+        style={{ color: group.color }}>
+        <ChevronRight className={cn("h-4 w-4 transition-transform", !collapsed && "rotate-90")} />
+        {group.label}
+        <span className="text-[12px] font-normal text-gray-400 ml-1">
+          {count} {count === 1 ? 'item' : 'items'}
+        </span>
+      </button>
+      <button onClick={onAddItem}
+        className="opacity-0 group-hover/gh:opacity-100 transition-opacity h-5 w-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
+        <Plus className="h-3 w-3 text-gray-500" />
+      </button>
+    </div>
   );
 }
 
@@ -1063,151 +792,30 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
   if (saved.length === 0) return null;
   return (
     <tr className="bg-gray-50/60 border-t-2" style={{ borderTopColor: groupColor + '40' }}>
-      <td className="w-[40px] sticky left-0 z-30 bg-gray-50/60 border-t-2 border-b border-gray-100" style={{ borderLeft: `3px solid ${groupColor}`, transform: 'translateZ(0)' }} />
-      <td className="px-3 py-2 text-[11px] font-semibold text-gray-400 sticky left-[40px] bg-gray-50/60 z-10 border-t-2 border-b border-gray-100"
-        style={{ boxShadow: '1px 0 0 0 #f3f4f6', transform: 'translateZ(0)' }}>
+      <td className="w-[40px] sticky left-0 z-30 bg-gray-50/60 border-r border-gray-100" />
+      <td className="px-3 py-2 text-[11px] font-semibold text-gray-400 sticky left-[40px] bg-gray-50/60 z-10"
+        style={{ borderLeft: `3px solid ${groupColor}` }}>
         {saved.length} {saved.length === 1 ? 'lead' : 'leads'}
       </td>
       {visibleCols.filter(c => c !== 'name').map(colId => (
-        <td key={colId} className={cn("px-2 py-2 text-center text-[11px] text-gray-400", colId === 'company' && 'sticky left-[260px] bg-gray-50/60 z-10')}>
+        <td key={colId} className="px-2 py-2 text-center text-[11px] text-gray-400">
           {colId === 'value' ? `$${saved.reduce((s, l) => s + (l.value ?? 0), 0).toLocaleString()}` :
-            colId === 'activity' ? (() => { const n = saved.reduce((s, l) => s + parseActivities(l.metadata?.__activities).length, 0); return n || ''; })() :
-            colId === 'instagram' ? saved.filter(l => l.instagram).length || '' :
-              colId === 'facebook' ? saved.filter(l => l.facebook).length || '' :
-                colId === 'linkedin' ? saved.filter(l => l.linkedin).length || '' :
-                  colId === 'twitter' ? saved.filter(l => l.twitter).length || '' :
-                    colId === 'tiktok' ? saved.filter(l => l.tiktok).length || '' :
-                      ''}
+            colId === 'meeting' ? saved.filter(l => l.meetingBooked).length || '' :
+              colId === 'emailed' ? saved.filter(l => l.emailed).length || '' :
+                colId === 'called' ? saved.filter(l => l.called).length || '' :
+                  colId === 'texted' ? saved.filter(l => l.texted).length || '' :
+                    colId === 'instagram' ? saved.filter(l => l.instagram).length || '' :
+                      colId === 'facebook' ? saved.filter(l => l.facebook).length || '' :
+                        colId === 'linkedin' ? saved.filter(l => l.linkedin).length || '' :
+                          colId === 'twitter' ? saved.filter(l => l.twitter).length || '' :
+                            colId === 'tiktok' ? saved.filter(l => l.tiktok).length || '' :
+                              ''}
         </td>
       ))}
       <td />
     </tr>
   );
 }
-
-// ─── Lead Row (memoized — only re-renders when THIS lead changes) ─────────────
-
-interface LeadRowProps {
-  lead: Lead;
-  isSelected: boolean;
-  activeColumns: ColumnDef[];
-  customColumns: SalesColumn[];
-  groupColor: string;
-  onUpdate: (id: string, patch: Partial<Lead>) => void;
-  onDelete: (id: string) => void;
-  onSelect: (id: string) => void;
-  onOpenNotes: (lead: Lead) => void;
-  onOpenDrawer: (lead: Lead) => void;
-}
-
-const LeadRow = memo(function LeadRow({
-  lead, isSelected, activeColumns, customColumns,
-  groupColor, onUpdate, onDelete, onSelect, onOpenNotes, onOpenDrawer,
-}: LeadRowProps) {
-  const isWorking = lead._committing;
-  return (
-    <tr className={cn('group hover:bg-[#F0F7FF] transition-colors', isSelected && 'bg-blue-50/50')}>
-      <td className="w-[40px] px-0 py-0 sticky left-0 z-30 bg-white group-hover:bg-[#F0F7FF] transition-colors border-b border-gray-100"
-        style={{ borderLeft: `3px solid ${groupColor}`, transform: 'translateZ(0)' }}>
-        <div className="flex items-center justify-center h-[38px]">
-          {lead._saved && (
-            <input type="checkbox" checked={isSelected} onChange={() => onSelect(lead.id)}
-              className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer" />
-          )}
-        </div>
-      </td>
-      <td className={cn('px-0 py-0 sticky left-[40px] bg-white group-hover:bg-[#F0F7FF] z-20 transition-colors border-b border-gray-100', CORE_COLUMNS[0].width)}
-        style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #f3f4f6', transform: 'translateZ(0)' }}>
-        <div className="flex items-center h-[38px]">
-          <input value={lead.name} onChange={e => onUpdate(lead.id, { name: e.target.value })}
-            placeholder="+ Add lead" className="flex-1 h-full px-3 bg-transparent outline-none text-[13px] font-medium placeholder:text-gray-300 placeholder:font-normal" />
-          <button onClick={() => onOpenDrawer(lead)}
-            className="opacity-0 group-hover:opacity-100 transition-opacity px-1.5 mr-1 text-gray-400 hover:text-[#0073EA]">
-            <InfoIcon className="h-3.5 w-3.5" />
-          </button>
-          {isWorking && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0073EA] mr-2" />}
-        </div>
-      </td>
-      {activeColumns.filter(c => c.id !== 'name').map(col => (
-        <td key={col.id}
-          style={col.minPx ? {
-            width: col.minPx, minWidth: col.minPx,
-            ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6' } : {})
-          } : undefined}
-          style={col.minPx ? {
-            width: col.minPx, minWidth: col.minPx,
-            ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6', transform: 'translateZ(0)' } : {})
-          } : undefined}
-          className={cn(
-            'px-1.5 py-1 border-b border-gray-100 last:border-r-0',
-            col.id === 'company' ? 'sticky left-[260px] bg-white group-hover:bg-[#F0F7FF] z-10' : 'border-r border-gray-100',
-            col.width
-          )}>
-          {col.id === 'company' && (
-            <input value={lead.company} onChange={e => onUpdate(lead.id, { company: e.target.value })}
-              placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'status' && <StatusPill value={lead.status} onChange={v => onUpdate(lead.id, { status: v })} />}
-          {col.id === 'priority' && <PriorityPill value={lead.priority} onChange={v => onUpdate(lead.id, { priority: v })} />}
-          {col.id === 'email' && (
-            <input value={lead.email} onChange={e => onUpdate(lead.id, { email: e.target.value })}
-              placeholder="—" type="email" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'phone' && (
-            <input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })}
-              placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'socials' && (
-            <SocialCell value={lead.socials} onUpdate={patch => onUpdate(lead.id, patch)} />
-          )}
-          {col.id === 'value' && (
-            <input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
-              placeholder="$0" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] text-center placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'source' && (
-            <input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })}
-              placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'activity' && (
-            <ActivityCell
-              value={parseActivities(lead.metadata?.__activities)}
-              onUpdate={patch => onUpdate(lead.id, { ...patch, metadata: { ...lead.metadata, ...(patch.metadata as any) } })}
-            />
-          )}
-          {col.id === 'notes' && (
-            <button onClick={() => onOpenNotes(lead)}
-              className={cn('w-full text-left text-[11px] px-2 py-1.5 rounded transition-colors truncate max-w-[120px]',
-                lead.notes ? 'text-[#323338] bg-[#F5F6F8] hover:bg-gray-200' : 'text-gray-300 hover:bg-[#F5F6F8]')}>
-              {lead.notes ? lead.notes.slice(0, 30) : '+ Add'}
-            </button>
-          )}
-          {(col as any).isCustom && (
-            <div className="flex items-center justify-center h-full">
-              {customColumns.find(cc => cc.name === col.id)?.type === 'checkbox' ? (
-                <MondayTick checked={!!lead.metadata?.[col.id]} onChange={v => onUpdate(lead.id, { metadata: { ...lead.metadata, [col.id]: v } })} />
-              ) : (
-                <input
-                  type={customColumns.find(cc => cc.name === col.id)?.type === 'number' ? 'number' : 'text'}
-                  value={lead.metadata?.[col.id] ?? ''}
-                  onChange={e => onUpdate(lead.id, { metadata: { ...lead.metadata, [col.id]: e.target.value } })}
-                  placeholder="—"
-                  className={cn('w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded',
-                    customColumns.find(cc => cc.name === col.id)?.type === 'number' && 'text-center')}
-                />
-              )}
-            </div>
-          )}
-        </td>
-      ))}
-      <td className="px-1 py-1">
-        <button onClick={() => onDelete(lead.id)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-[#E2445C] rounded hover:bg-red-50">
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      </td>
-    </tr>
-  );
-});
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN COMPONENT
@@ -1226,19 +834,15 @@ export function SalesDashboard() {
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [massEmailModal, setMassEmailModal] = useState(false);
 
-  const deferredSearch = useDeferredValue(search);
-  const openNotes = useCallback((lead: Lead) => setNotesModal({ open: true, lead }), []);
-  const openDrawer = useCallback((lead: Lead) => setDrawerLead(lead), []);
-
   // ── Selection Logic ──
-  const toggleSelect = useCallback((id: string) => {
+  const toggleSelect = (id: string) => {
     setSelectedLeads(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }, []);
+  };
 
   const selectAllGlobal = () => {
     const saved = leads.filter(l => l._saved);
@@ -1270,27 +874,23 @@ export function SalesDashboard() {
 
   // ── Load leads & columns ──
   useEffect(() => {
-    const controller = new AbortController();
     (async () => {
       try {
-        const res = await fetch('/api/sales-leads', { signal: controller.signal });
+        const res = await fetch('/api/sales-leads');
         const data = await res.json();
         if (data.ok) {
           const saved = data.leads.map(dbLeadToLocal);
           setLeads(saved.length > 0 ? [...saved, emptyDraftLead()] : [emptyDraftLead()]);
           setCustomColumns(data.columns || []);
+          // Ensure visibleCols includes any new custom columns that are visible
           if (data.columns) {
             const customVisible = data.columns.filter((c: any) => c.isVisible).map((c: any) => c.name);
             setVisibleCols(prev => [...new Set([...prev, ...customVisible])]);
           }
         }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        toast.error('Failed to load dashboard data');
-      }
+      } catch { toast.error('Failed to load dashboard data'); }
       finally { setLoading(false); }
     })();
-    return () => controller.abort();
   }, []);
 
   // Keep drawer synced
@@ -1359,13 +959,13 @@ export function SalesDashboard() {
   }, []);
 
   const deleteRow = useCallback(async (id: string) => {
-    const lead = leadsRef.current.find(l => l.id === id);
+    const lead = leads.find(l => l.id === id);
     if (saveTimers.current[id]) { clearTimeout(saveTimers.current[id]); delete saveTimers.current[id]; }
     setLeads(prev => { const next = prev.filter(l => l.id !== id); return next.length === 0 ? [emptyDraftLead()] : next; });
     if (!lead?._saved) return;
     try { await fetch(`/api/sales-leads/${id}`, { method: 'DELETE' }); toast.success('Lead deleted'); }
     catch { toast.error('Failed to delete'); }
-  }, []);
+  }, [leads]);
 
   const toggleGroup = (id: string) => {
     setCollapsedGroups(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -1404,12 +1004,12 @@ export function SalesDashboard() {
   // ── Export CSV ──
   const exportCSV = () => {
     const saved = leads.filter(l => l._saved);
-    const headers = ['Name', 'Company', 'Status', 'Priority', 'Email', 'Phone', 'Social Handles', 'Insta', 'FB', 'LI', 'X', 'TT', 'Value ($)', 'Source', 'Activity Log', 'Notes'];
+    const headers = ['Name', 'Company', 'Status', 'Priority', 'Email', 'Phone', 'Social Handles', 'Insta', 'FB', 'LI', 'X', 'TT', 'Value ($)', 'Source', 'Meeting', 'Emailed', 'Called', 'Texted', 'Notes'];
     const rows = saved.map(l => [
       l.name, l.company, l.status, l.priority || '—', l.email, l.phone, l.socials,
       l.instagram ? 'Yes' : 'No', l.facebook ? 'Yes' : 'No', l.linkedin ? 'Yes' : 'No', l.twitter ? 'Yes' : 'No', l.tiktok ? 'Yes' : 'No',
       l.value ?? '', l.source,
-      `"${parseActivities(l.metadata?.__activities).map(a => `${a.type} @ ${new Date(a.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}${a.location ? ` (${a.location})` : ''}`).join('; ')}"`,
+      l.meetingBooked ? 'Yes' : 'No', l.emailed ? 'Yes' : 'No', l.called ? 'Yes' : 'No', l.texted ? 'Yes' : 'No',
       `"${l.notes.replace(/"/g, '""')}"`,
     ]);
     const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
@@ -1423,12 +1023,12 @@ export function SalesDashboard() {
 
   // ── Filtered + grouped ──
   const filtered = useMemo(() => {
-    const q = deferredSearch.toLowerCase();
+    const q = search.toLowerCase();
     return leads.filter(l =>
       l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q) ||
       l.company.toLowerCase().includes(q) || l.socials.toLowerCase().includes(q)
     );
-  }, [leads, deferredSearch]);
+  }, [leads, search]);
 
   const grouped = useMemo(() => {
     return STATUS_GROUPS.map(g => ({
@@ -1441,7 +1041,7 @@ export function SalesDashboard() {
   const saved = leads.filter(l => l._saved);
   const stats = {
     total: saved.length,
-    contacted: saved.filter(l => l.emailed || l.called || l.texted || parseSocials(l.socials).length > 0).length,
+    contacted: saved.filter(l => l.emailed || l.called || l.texted || l.instagram || l.facebook || l.linkedin || l.twitter || l.tiktok).length,
     meetings: saved.filter(l => l.meetingBooked).length,
     highPriority: saved.filter(l => l.priority === 'critical' || l.priority === 'high').length,
     pipeline: saved.reduce((s, l) => s + (l.value ?? 0), 0),
@@ -1521,11 +1121,11 @@ export function SalesDashboard() {
       {/* ── Grouped Table ── */}
       <div className="rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px] border-separate border-spacing-0">
+          <table className="w-full text-[13px] border-collapse">
             {/* Table header */}
             <thead>
-              <tr className="bg-[#F5F6F8] z-30">
-                <th style={{ transform: 'translateZ(0)' }} className="w-[40px] px-2 py-2 bg-[#F5F6F8] sticky left-0 z-40 border-b-2 border-gray-200">
+              <tr className="bg-[#F5F6F8] border-b border-gray-200 z-30">
+                <th className="w-[40px] px-2 py-2 bg-[#F5F6F8] sticky left-0 z-40 border-r border-gray-200">
                   <input
                     type="checkbox"
                     checked={selectedLeads.size === leads.filter(l => l._saved).length && leads.filter(l => l._saved).length > 0}
@@ -1533,21 +1133,15 @@ export function SalesDashboard() {
                     className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
                   />
                 </th>
-                <th style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #e5e7eb', transform: 'translateZ(0)' }} className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider sticky left-[40px] bg-[#F5F6F8] z-30 border-b-2 border-gray-200",
+                <th className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 sticky left-[40px] bg-[#F5F6F8] z-30",
                   CORE_COLUMNS[0].width)}>
                   Lead
                 </th>
                 {activeColumns.filter(c => c.id !== 'name').map(col => (
-                  <th key={col.id}
-                    style={col.minPx ? {
-                      width: col.minPx, minWidth: col.minPx,
-                      ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #e5e7eb', transform: 'translateZ(0)' } : {})
-                    } : undefined}
-                    className={cn(
-                      "px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 last:border-r-0",
-                      col.id === 'company' ? 'sticky left-[260px] bg-[#F5F6F8] z-20' : 'border-r border-gray-200',
-                      col.width, col.align === 'center' ? 'text-center' : 'text-left'
-                    )}>
+                  <th key={col.id} className={cn(
+                    "px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 last:border-r-0",
+                    col.width, col.align === 'center' ? 'text-center' : 'text-left'
+                  )}>
                     {col.label}
                   </th>
                 ))}
@@ -1565,28 +1159,121 @@ export function SalesDashboard() {
                 return (
                   <Fragment key={group.id}>
                     {/* Group header row */}
-                    <tr className="bg-gray-50 border-b border-gray-100">
-                      <GroupHeader group={group} count={group.leads.length} collapsed={isCollapsed}
-                        onToggle={() => toggleGroup(group.id)} onAddItem={() => addRow(group.id)}
-                        onSelectAll={() => selectAllInGroup(group.id)} isAllSelected={isAllGroupSelected}
-                        colCount={activeColumns.length} />
+                    <tr>
+                      <td colSpan={activeColumns.length + 2} className="p-0 border-b border-gray-100">
+                        <GroupHeader group={group} count={group.leads.length} collapsed={isCollapsed}
+                          onToggle={() => toggleGroup(group.id)} onAddItem={() => addRow(group.id)}
+                          onSelectAll={() => selectAllInGroup(group.id)} isAllSelected={isAllGroupSelected} />
+                      </td>
                     </tr>
                     {/* Group items */}
-                    {!isCollapsed && group.leads.map((lead) => (
-                      <LeadRow
-                        key={lead.id}
-                        lead={lead}
-                        isSelected={selectedLeads.has(lead.id)}
-                        activeColumns={activeColumns}
-                        customColumns={customColumns}
-                        groupColor={group.color}
-                        onUpdate={updateLead}
-                        onDelete={deleteRow}
-                        onSelect={toggleSelect}
-                        onOpenNotes={openNotes}
-                        onOpenDrawer={openDrawer}
-                      />
-                    ))}
+                    {!isCollapsed && group.leads.map((lead) => {
+                      const isWorking = lead._committing;
+                      const isSelected = selectedLeads.has(lead.id);
+                      return (
+                        <tr key={lead.id} className={cn("group border-b border-gray-100 hover:bg-[#F0F7FF] transition-colors", isSelected && "bg-blue-50/50")}>
+                          {/* Selection Checkbox */}
+                          <td className="w-[40px] px-0 py-0 border-r border-gray-100 sticky left-0 z-30 bg-white group-hover:bg-[#F0F7FF] transition-colors">
+                            <div className="flex items-center justify-center h-[38px]">
+                              {lead._saved && (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelect(lead.id)}
+                                  className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
+                                />
+                              )}
+                            </div>
+                          </td>
+                          {/* Name — sticky */}
+                          <td className={cn("px-0 py-0 border-r border-gray-100 sticky left-[40px] bg-white group-hover:bg-[#F0F7FF] z-20 transition-colors",
+                            CORE_COLUMNS[0].width)}
+                            style={{ borderLeft: `3px solid ${group.color}` }}>
+                            <div className="flex items-center h-[38px]">
+                              <input value={lead.name} onChange={e => updateLead(lead.id, { name: e.target.value })}
+                                placeholder="+ Add lead" className="flex-1 h-full px-3 bg-transparent outline-none text-[13px] font-medium placeholder:text-gray-300 placeholder:font-normal" />
+                              <button onClick={() => setDrawerLead(lead)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity px-1.5 mr-1 text-gray-400 hover:text-[#0073EA]">
+                                <InfoIcon className="h-3.5 w-3.5" />
+                              </button>
+                              {isWorking && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0073EA] mr-2" />}
+                            </div>
+                          </td>
+                          {/* Dynamic columns */}
+                          {activeColumns.filter(c => c.id !== 'name').map(col => (
+                            <td key={col.id} className={cn("px-1.5 py-1 border-r border-gray-100 last:border-r-0", col.width)}>
+                              {col.id === 'company' && (
+                                <input value={lead.company} onChange={e => updateLead(lead.id, { company: e.target.value })}
+                                  placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
+                              )}
+                              {col.id === 'status' && <StatusPill value={lead.status} onChange={v => updateLead(lead.id, { status: v })} />}
+                              {col.id === 'priority' && <PriorityPill value={lead.priority} onChange={v => updateLead(lead.id, { priority: v })} />}
+                              {col.id === 'email' && (
+                                <input value={lead.email} onChange={e => updateLead(lead.id, { email: e.target.value })}
+                                  placeholder="—" type="email" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
+                              )}
+                              {col.id === 'phone' && (
+                                <input value={lead.phone} onChange={e => updateLead(lead.id, { phone: e.target.value })}
+                                  placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
+                              )}
+                              {col.id === 'instagram' && <MondayTick checked={lead.instagram} onChange={v => updateLead(lead.id, { instagram: v })} color="#E1306C" />}
+                              {col.id === 'facebook' && <MondayTick checked={lead.facebook} onChange={v => updateLead(lead.id, { facebook: v })} color="#1877F2" />}
+                              {col.id === 'linkedin' && <MondayTick checked={lead.linkedin} onChange={v => updateLead(lead.id, { linkedin: v })} color="#0A66C2" />}
+                              {col.id === 'twitter' && <MondayTick checked={lead.twitter} onChange={v => updateLead(lead.id, { twitter: v })} color="#1DA1F2" />}
+                              {col.id === 'tiktok' && <MondayTick checked={lead.tiktok} onChange={v => updateLead(lead.id, { tiktok: v })} color="#000000" />}
+                              {col.id === 'socials' && (
+                                <input value={lead.socials} onChange={e => updateLead(lead.id, { socials: e.target.value })}
+                                  placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
+                              )}
+                              {col.id === 'value' && (
+                                <input type="number" value={lead.value ?? ''} onChange={e => updateLead(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
+                                  placeholder="$0" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] text-center placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
+                              )}
+                              {col.id === 'source' && (
+                                <input value={lead.source} onChange={e => updateLead(lead.id, { source: e.target.value })}
+                                  placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
+                              )}
+                              {col.id === 'meeting' && <MondayTick checked={lead.meetingBooked} onChange={v => updateLead(lead.id, { meetingBooked: v })} color="#00C875" />}
+                              {col.id === 'emailed' && <MondayTick checked={lead.emailed} onChange={v => updateLead(lead.id, { emailed: v })} color="#579BFC" />}
+                              {col.id === 'called' && <MondayTick checked={lead.called} onChange={v => updateLead(lead.id, { called: v })} color="#00C875" />}
+                              {col.id === 'texted' && <MondayTick checked={lead.texted} onChange={v => updateLead(lead.id, { texted: v })} color="#A25DDC" />}
+                              {col.id === 'notes' && (
+                                <button onClick={() => setNotesModal({ open: true, lead })}
+                                  className={cn("w-full text-left text-[11px] px-2 py-1.5 rounded transition-colors truncate max-w-[120px]",
+                                    lead.notes ? "text-[#323338] bg-[#F5F6F8] hover:bg-gray-200" : "text-gray-300 hover:bg-[#F5F6F8]")}>
+                                  {lead.notes ? lead.notes.slice(0, 30) : '+ Add'}
+                                </button>
+                              )}
+
+                              {/* Custom Column Fallback */}
+                              {(col as any).isCustom && (
+                                <div className="flex items-center justify-center h-full">
+                                  {customColumns.find(cc => cc.name === col.id)?.type === 'checkbox' ? (
+                                    <MondayTick checked={!!lead.metadata?.[col.id]} onChange={v => updateLead(lead.id, { metadata: { ...lead.metadata, [col.id]: v } })} />
+                                  ) : (
+                                    <input
+                                      type={customColumns.find(cc => cc.name === col.id)?.type === 'number' ? 'number' : 'text'}
+                                      value={lead.metadata?.[col.id] ?? ''}
+                                      onChange={e => updateLead(lead.id, { metadata: { ...lead.metadata, [col.id]: e.target.value } })}
+                                      placeholder="—"
+                                      className={cn("w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded",
+                                        customColumns.find(cc => cc.name === col.id)?.type === 'number' && "text-center")}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          ))}
+                          {/* Delete */}
+                          <td className="px-1 py-1">
+                            <button onClick={() => deleteRow(lead.id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-[#E2445C] rounded hover:bg-red-50">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {/* Summary row */}
                     {!isCollapsed && <SummaryRow leads={group.leads} visibleCols={activeColumns.filter(c => c.id !== 'name').map(c => c.id)} groupColor={group.color} />}
                   </Fragment>
