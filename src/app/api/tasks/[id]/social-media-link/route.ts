@@ -2,6 +2,26 @@ export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/social-media-link/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
+import jwt from 'jsonwebtoken';
+import { createAuditLog, AuditAction } from '@/lib/audit-logger';
+
+function getTokenFromCookies(req: Request) {
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
+  const m = cookieHeader.match(/authToken=([^;]+)/);
+  return m ? m[1] : null;
+}
+
+function getUserFromToken(req: Request): { userId: number; role: string } | null {
+  try {
+    const token = getTokenFromCookies(req);
+    if (!token) return null;
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    return { userId: decoded.userId, role: decoded.role };
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(
   request: NextRequest,
@@ -11,11 +31,12 @@ export async function POST(
     const { id } = await params;  // Await params
     const body = await request.json();
     const { platform, url } = body;
+    const user = getUserFromToken(request);
 
     // Get current task
     const task = await prisma.task.findUnique({
       where: { id: id },
-      select: { socialMediaLinks: true }
+      select: { socialMediaLinks: true, title: true, description: true }
     });
 
     if (!task) {
@@ -30,11 +51,12 @@ export async function POST(
       ? task.socialMediaLinks 
       : [];
 
-    // Add new link
+    // Add new link with user info
     const newLink = {
       platform,
       url,
       postedAt: new Date().toISOString(),
+      addedBy: user?.userId || null,
     };
 
     // Update task with new link
@@ -44,6 +66,24 @@ export async function POST(
         socialMediaLinks: [...existingLinks, newLink],
       },
     });
+
+    // 📝 Audit log
+    if (user) {
+      await createAuditLog({
+        userId: user.userId,
+        action: 'SOCIAL_LINK_ADDED',
+        entity: 'Task',
+        entityId: id,
+        details: `Added ${platform} link to task`,
+        metadata: {
+          taskId: id,
+          taskTitle: task.title || task.description,
+          platform,
+          url,
+          role: user.role,
+        },
+      });
+    }
 
     return NextResponse.json({ link: newLink });
   } catch (error) {
@@ -64,11 +104,12 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const { platform, url } = body;
+    const user = getUserFromToken(request);
 
     // Get current task
     const task = await prisma.task.findUnique({
       where: { id: id },
-      select: { socialMediaLinks: true }
+      select: { socialMediaLinks: true, title: true, description: true }
     });
 
     if (!task) {
@@ -80,8 +121,11 @@ export async function PATCH(
 
     // Parse existing links
     const existingLinks = Array.isArray(task.socialMediaLinks) 
-      ? task.socialMediaLinks as Array<{ platform: string; url: string; postedAt: string }>
+      ? task.socialMediaLinks as Array<{ platform: string; url: string; postedAt: string; addedBy?: number }>
       : [];
+
+    // Find old URL for audit log
+    const oldLink = existingLinks.find(l => l.platform.toLowerCase() === platform.toLowerCase());
 
     // Find and update the link for the specified platform
     const updatedLinks = existingLinks.map((link) => {
@@ -90,6 +134,7 @@ export async function PATCH(
           ...link,
           url,
           updatedAt: new Date().toISOString(),
+          updatedBy: user?.userId || null,
         };
       }
       return link;
@@ -102,6 +147,25 @@ export async function PATCH(
         socialMediaLinks: updatedLinks,
       },
     });
+
+    // 📝 Audit log
+    if (user) {
+      await createAuditLog({
+        userId: user.userId,
+        action: 'SOCIAL_LINK_UPDATED',
+        entity: 'Task',
+        entityId: id,
+        details: `Updated ${platform} link on task`,
+        metadata: {
+          taskId: id,
+          taskTitle: task.title || task.description,
+          platform,
+          oldUrl: oldLink?.url,
+          newUrl: url,
+          role: user.role,
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, links: updatedLinks });
   } catch (error) {
@@ -122,11 +186,12 @@ export async function DELETE(
     const { id } = await params;
     const body = await request.json();
     const { platform } = body;
+    const user = getUserFromToken(request);
 
     // Get current task
     const task = await prisma.task.findUnique({
       where: { id: id },
-      select: { socialMediaLinks: true }
+      select: { socialMediaLinks: true, title: true, description: true }
     });
 
     if (!task) {
@@ -141,6 +206,11 @@ export async function DELETE(
       ? task.socialMediaLinks as Array<{ platform: string; url: string; postedAt: string }>
       : [];
 
+    // Find the link being deleted for audit log
+    const deletedLink = existingLinks.find(
+      (link) => link.platform.toLowerCase() === platform.toLowerCase()
+    );
+
     // Filter out the link for the specified platform
     const filteredLinks = existingLinks.filter(
       (link) => link.platform.toLowerCase() !== platform.toLowerCase()
@@ -153,6 +223,24 @@ export async function DELETE(
         socialMediaLinks: filteredLinks,
       },
     });
+
+    // 📝 Audit log
+    if (user) {
+      await createAuditLog({
+        userId: user.userId,
+        action: 'SOCIAL_LINK_DELETED',
+        entity: 'Task',
+        entityId: id,
+        details: `Removed ${platform} link from task`,
+        metadata: {
+          taskId: id,
+          taskTitle: task.title || task.description,
+          platform,
+          deletedUrl: deletedLink?.url,
+          role: user.role,
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, links: filteredLinks });
   } catch (error) {
