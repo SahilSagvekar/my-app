@@ -77,9 +77,10 @@ export function renderPage(
   role: string,
   page: string,
   onPageChange?: (page: string) => void,
-  hasPostingServices?: boolean
+  hasPostingServices?: boolean,
+  originalRole?: string // The user's actual role (for admin viewing as other roles)
 ): React.ReactElement {
-  console.log(`Rendering page for role: ${role}, page: ${page}`);
+  console.log(`Rendering page for role: ${role}, page: ${page}, originalRole: ${originalRole}`);
 
   // 🔥 Block unauthorized access for clients without posting services
   if (role.toLowerCase() === 'client' && hasPostingServices === false) {
@@ -360,14 +361,17 @@ export function renderPage(
   }
 
   if (role === "sales") {
+    // 🔥 If admin is viewing as sales, show the SalesManagementTab instead of SalesDashboard
+    const isAdminViewingAsSales = originalRole?.toLowerCase() === 'admin';
+    
     switch (page) {
       case "dashboard":
-      case "sales-management": // Redirect sales reps away from management tab if they click it
-        return <SalesDashboard />;
+      case "sales-management":
+        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "affiliate":
         return <AffiliateSection />;
       case "clients":
-        return <SalesDashboard />;
+        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "training":
         return <TrainingPortalPage />;
       case "employment-info":
@@ -377,7 +381,7 @@ export function renderPage(
       case "logins":
         return <SocialLogins />;
       default:
-        return <SalesDashboard />;
+        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
     }
   }
 
