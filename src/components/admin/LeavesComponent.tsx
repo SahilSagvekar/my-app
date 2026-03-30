@@ -132,6 +132,11 @@ const roles = [
     name: "Client",
     color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
   },
+  {
+    id: "sales",
+    name: "Sales",
+    color: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+  },
 ];
 
 const statusOptions = [
@@ -1099,15 +1104,11 @@ export default function LeavesComponent() {
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="videographer">
-                          Videographer
-                        </SelectItem>
-                        <SelectItem value="scheduler">Scheduler</SelectItem>
-                        <SelectItem value="qc">QC</SelectItem>
-                        <SelectItem value="client">Client</SelectItem>
+                        {roles.map((role) => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

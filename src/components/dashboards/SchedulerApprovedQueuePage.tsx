@@ -25,8 +25,25 @@ type SchedulerTask = {
   files: { id: string | number; name: string; url: string; size: number; key?: string; folderType?: string }[];
   createdAt: string;
   projectId: string;
-  deliverable?: any;
+  deliverable?: {
+    id: string;
+    type: string;
+    platforms?: string[];
+    [key: string]: any;
+  };
   socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
+};
+
+// All available social media platforms with labels
+const ALL_PLATFORMS: Record<string, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  twitter: 'Twitter/X',
+  youtube: 'YouTube',
+  tiktok: 'TikTok',
+  linkedin: 'LinkedIn',
+  snapchat: 'Snapchat',
+  other: 'Other',
 };
 
 // Folder type labels and icons
@@ -116,7 +133,7 @@ export function SchedulerApprovedQueuePage() {
           files: allFiles,
           createdAt: t.createdAt,
           projectId: t.clientId,
-          deliverable: t.monthlyDeliverable,
+          deliverable: t.monthlyDeliverable || t.oneOffDeliverable,
           socialMediaLinks: t.socialMediaLinks || [],
         };
       });
@@ -734,15 +751,26 @@ export function SchedulerApprovedQueuePage() {
                   <SelectValue placeholder="Select platform" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="instagram">Instagram</SelectItem>
-                  <SelectItem value="facebook">Facebook</SelectItem>
-                  <SelectItem value="twitter">Twitter/X</SelectItem>
-                  <SelectItem value="youtube">YouTube</SelectItem>
-                  <SelectItem value="tiktok">TikTok</SelectItem>
-                  <SelectItem value="linkedin">LinkedIn</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {/* Show only platforms from the deliverable, or all if none specified */}
+                  {(selectedTask?.deliverable?.platforms && selectedTask.deliverable.platforms.length > 0
+                    ? selectedTask.deliverable.platforms
+                    : Object.keys(ALL_PLATFORMS)
+                  ).map((platform: string) => {
+                    const normalizedPlatform = platform.toLowerCase();
+                    const label = ALL_PLATFORMS[normalizedPlatform] || platform;
+                    return (
+                      <SelectItem key={normalizedPlatform} value={normalizedPlatform}>
+                        {label}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
+              {selectedTask?.deliverable?.platforms && selectedTask.deliverable.platforms.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Showing platforms configured for this deliverable
+                </p>
+              )}
             </div>
 
             <div>

@@ -85,10 +85,16 @@ interface SchedulerTask {
     createdAt: string;
     clientId: string;
     client?: {
+        id?: string;
         name: string;
         companyName?: string;
     };
-    deliverable?: any;
+    deliverable?: {
+        id: string;
+        type: string;
+        platforms?: string[];
+        [key: string]: any;
+    };
     socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
     // AI Titling fields
     suggestedTitles?: Array<{ style?: string; title: string; reasoning?: string }> | string[];
@@ -161,7 +167,7 @@ export function SchedulerSpreadsheetView() {
                 createdAt: t.createdAt,
                 clientId: t.clientId,
                 client: t.client,
-                deliverable: t.monthlyDeliverable,
+                deliverable: t.monthlyDeliverable || t.oneOffDeliverable,
                 socialMediaLinks: t.socialMediaLinks || [],
                 suggestedTitles: t.suggestedTitles || [],
                 titlingStatus: t.titlingStatus || 'NONE',
@@ -565,7 +571,7 @@ export function SchedulerSpreadsheetView() {
                                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                     </div>
                                 </th>
-                                {/* <th
+                                <th
                                     className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSort('dueDate')}
                                 >
@@ -573,7 +579,7 @@ export function SchedulerSpreadsheetView() {
                                         Due
                                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                     </div>
-                                </th> */}
+                                </th>
                                 <th className="px-3 py-3 text-center font-semibold">
                                     <div className="flex items-center justify-center gap-1">
                                         <FileText className="h-4 w-4" />
@@ -728,6 +734,11 @@ export function SchedulerSpreadsheetView() {
                                                 {Object.entries(PLATFORMS).map(([key, platform]) => {
                                                     const linkUrl = hasPlatformLink(task, key as PlatformKey);
                                                     const Icon = platform.icon;
+                                                    
+                                                    // Check if this platform is in the task's deliverable
+                                                    const deliverablePlatforms = task.deliverable?.platforms?.map((p: string) => p.toLowerCase()) || [];
+                                                    const isPlatformInDeliverable = deliverablePlatforms.length === 0 || deliverablePlatforms.includes(key.toLowerCase());
+                                                    
                                                     return (
                                                         <td key={key} className="px-2 py-3 text-center">
                                                             {linkUrl ? (
@@ -738,7 +749,7 @@ export function SchedulerSpreadsheetView() {
                                                                 >
                                                                     <Icon className="h-4 w-4" />
                                                                 </button>
-                                                            ) : (
+                                                            ) : isPlatformInDeliverable ? (
                                                                 <button
                                                                     onClick={() => setLinkDialog({ open: true, taskId: task.id, platform: key as PlatformKey, mode: 'add' })}
                                                                     className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors border border-dashed border-gray-300"
@@ -746,6 +757,13 @@ export function SchedulerSpreadsheetView() {
                                                                 >
                                                                     <Plus className="h-3 w-3" />
                                                                 </button>
+                                                            ) : (
+                                                                <span 
+                                                                    className="inline-flex items-center justify-center w-7 h-7 text-gray-200"
+                                                                    title={`${key} not configured for this deliverable`}
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </span>
                                                             )}
                                                         </td>
                                                     );

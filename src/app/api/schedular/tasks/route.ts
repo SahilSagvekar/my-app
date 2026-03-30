@@ -66,6 +66,7 @@ export async function GET(req: Request) {
           },
         },
         monthlyDeliverable: true,
+        oneOffDeliverable: true,
         ...(includeTitling && {
           titlingJob: {
             select: {
@@ -123,6 +124,13 @@ export async function GET(req: Request) {
             postingTimes: t.monthlyDeliverable.postingTimes,
             platforms: t.monthlyDeliverable.platforms,
             description: t.monthlyDeliverable.description
+          } : null,
+          oneOffDeliverable: (t as any).oneOffDeliverable ? {
+            id: (t as any).oneOffDeliverable.id,
+            type: (t as any).oneOffDeliverable.type,
+            quantity: (t as any).oneOffDeliverable.quantity,
+            platforms: (t as any).oneOffDeliverable.platforms,
+            description: (t as any).oneOffDeliverable.description
           } : null,
         };
       })
