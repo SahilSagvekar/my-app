@@ -106,6 +106,8 @@ function isConnectionError(error: any): boolean {
     errorCode === "P1002" ||
     errorCode === "P1008" ||
     errorMessage.includes("connection") ||
+    errorMessage.includes("not yet connected") ||
+    errorMessage.includes("engine is not") ||
     errorMessage.includes("etimedout") ||
     errorMessage.includes("econnreset") ||
     errorMessage.includes("econnrefused") ||
@@ -119,7 +121,7 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   options: { retries?: number; label?: string } = {}
 ): Promise<T> {
-  const { retries = 2, label = "query" } = options;
+  const { retries = 3, label = "query" } = options;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -127,10 +129,24 @@ export async function withRetry<T>(
     } catch (error: any) {
       if (isConnectionError(error) && attempt < retries) {
         console.log(`[Prisma] Retry ${attempt + 1}/${retries} for ${label}...`);
-        // We no longer force $disconnect here because it kills all active connections 
-        // in the pool for other requests. Prisma Client handles its own reconnection 
-        // logic more efficiently. We just wait and retry.
-        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+
+        if (globalForPrisma.isReconnecting) {
+          // Another process is already reconnecting — just wait for it
+          await new Promise((r) => setTimeout(r, 2000));
+        } else {
+          // Recreate the client entirely to restart the crashed engine
+          try {
+            await globalForPrisma.prisma?.$disconnect().catch(() => {});
+          } catch {}
+          globalForPrisma.prisma = createPrismaClient();
+          try {
+            await globalForPrisma.prisma.$connect();
+            console.log(`[Prisma] ✓ Engine restarted for retry (${label})`);
+          } catch (connErr: any) {
+            console.error(`[Prisma] ✗ Engine restart failed:`, connErr.message);
+            await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          }
+        }
         continue;
       }
       throw error;
