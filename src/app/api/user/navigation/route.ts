@@ -100,11 +100,12 @@ export async function GET(req: NextRequest) {
 
         const enabledIds = permissions.navigationItems as string[];
         // Keep dynamically injected items (they were granted via allowedUserIds/allowedRoles)
-        const filteredItems = finalItems.filter(item => 
+        const filteredItems = finalItems.filter(item =>
             enabledIds.includes(item.id) || dynamicallyInjectedIds.has(item.id)
         );
 
-        return NextResponse.json(filteredItems);
+        // Safety: if permissions filter wiped all items (stale/wrong DB record), return the full role nav
+        return NextResponse.json(filteredItems.length > 0 ? filteredItems : finalItems);
 
     } catch (error: any) {
         console.error('Error fetching user navigation:', error);
