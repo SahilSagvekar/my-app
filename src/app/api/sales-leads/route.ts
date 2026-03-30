@@ -32,7 +32,12 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    return NextResponse.json({ ok: true, leads, columns });
+    return NextResponse.json({ ok: true, leads, columns }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
   } catch (err) {
     console.error('[GET /api/sales-leads]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });

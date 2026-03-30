@@ -60,6 +60,7 @@ function AuthenticatedAppInner() {
 
   // Use viewingAsRole for UI, but keep actual user.role for auth purposes
   const displayRole = (viewingAsRole || user.role || "admin").toLowerCase();
+  const originalRole = user.role?.toLowerCase(); // The user's actual role
 
   return (
     <NotificationProvider>
@@ -70,7 +71,7 @@ function AuthenticatedAppInner() {
           onPageChange={handlePageChange}
           onLogout={logout}
         >
-          {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices)}
+          {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices, originalRole)}
         </LayoutShell>
       </SearchProvider>
     </NotificationProvider>
