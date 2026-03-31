@@ -4,10 +4,10 @@ import React from "react";
 import Link from "next/link";
 
 const PrivacyPolicy = () => {
-  const lastUpdated = "January 16, 2025";
+  const lastUpdated = "March 31, 2026";
   const companyName = "E8 Productions";
   const companyAddress = "Fort Lauderdale, Florida, United States";
-  const contactEmail = "privacy@e8productions.com"; // Update this
+  const contactEmail = "privacy@e8productions.com";
   const websiteUrl = "https://e8productions.com";
 
   const sections = [
@@ -29,7 +29,9 @@ const PrivacyPolicy = () => {
               {websiteUrl}
             </a>{" "}
             and our production workflow management application (collectively,
-            the &quot;Service&quot;).
+            the &quot;Service&quot;). This Policy applies to all users of the
+            Service, including those who access it via third-party
+            authentication providers such as Google or Meta (Facebook).
           </p>
           <p>
             Please read this Privacy Policy carefully. By accessing or using our
@@ -48,7 +50,8 @@ const PrivacyPolicy = () => {
           <p>
             We collect information that you provide directly to us, information
             we obtain automatically when you use our Service, and information
-            from third-party sources.
+            from third-party sources such as Google or Meta when you choose to
+            sign in using those platforms.
           </p>
 
           <h3 className="text-white font-semibold mt-6 mb-3">
@@ -56,14 +59,14 @@ const PrivacyPolicy = () => {
           </h3>
           <ul>
             <li>
-              <strong className="text-white">Account Information:</strong> When
-              you create an account, we collect your name, email address, phone
-              number, job title, and password.
+              <strong className="text-white">Account Information:</strong> Your
+              name, email address, phone number, job title, and password when
+              you create an account.
             </li>
             <li>
               <strong className="text-white">Profile Information:</strong>{" "}
-              Information you add to your profile, such as a profile photo,
-              company name, and role preferences.
+              Profile photo, company name, and role preferences you add to your
+              profile.
             </li>
             <li>
               <strong className="text-white">Content and Files:</strong> Files,
@@ -71,61 +74,135 @@ const PrivacyPolicy = () => {
               Service.
             </li>
             <li>
-              <strong className="text-white">Communications:</strong> Information
-              you provide when you contact us for support, send us messages, or
-              communicate with other users through the Service.
+              <strong className="text-white">Communications:</strong> Messages,
+              support requests, and other communications you send through or
+              about the Service.
             </li>
             <li>
-              <strong className="text-white">Payment Information:</strong> If you
-              make payments through our Service, we collect billing information
-              such as billing address and payment method details. Payment
-              processing is handled by third-party payment processors.
+              <strong className="text-white">Payment Information:</strong>{" "}
+              Billing address and payment method details if you make payments.
+              Payment processing is handled by third-party processors.
             </li>
           </ul>
 
           <h3 className="text-white font-semibold mt-6 mb-3">
             2.2 Information Collected Automatically
           </h3>
+          <p>
+            When you use the Service, we automatically collect certain technical
+            data, including:
+          </p>
           <ul>
             <li>
-              <strong className="text-white">Usage Data:</strong> Information
-              about how you use the Service, including features accessed, pages
-              viewed, actions taken, and time spent on the Service.
+              <strong className="text-white">Usage Data:</strong> Features
+              accessed, pages viewed, actions taken, and time spent on the
+              Service.
             </li>
             <li>
-              <strong className="text-white">Device Information:</strong>{" "}
-              Information about the device you use to access the Service,
-              including device type, operating system, browser type, and unique
-              device identifiers.
+              <strong className="text-white">Device Information:</strong> Device
+              type, operating system, browser type, and unique device
+              identifiers.
             </li>
             <li>
-              <strong className="text-white">Log Data:</strong> Server logs that
-              record information such as your IP address, access times, and
-              referring URLs.
+              <strong className="text-white">Log Data:</strong> IP address,
+              access times, and referring URLs recorded in server logs.
             </li>
             <li>
               <strong className="text-white">
                 Cookies and Similar Technologies:
               </strong>{" "}
-              We use cookies, pixels, and similar technologies to collect
-              information about your browsing activities. See Section 7 for more
-              details.
+              Browsing activity data collected via cookies and pixels. See
+              Section 7 for details.
             </li>
           </ul>
 
           <h3 className="text-white font-semibold mt-6 mb-3">
-            2.3 Information from Third Parties
+            2.3 Information from Google Sign-In (OAuth 2.0)
+          </h3>
+          <p>
+            If you choose to register or log in using Google Sign-In, we
+            receive the following information from your Google Account via
+            Google&apos;s OAuth 2.0 service:
+          </p>
+          <ul>
+            <li>Your name</li>
+            <li>Your email address</li>
+            <li>
+              Your Google profile photo (if available and permitted by your
+              Google account settings)
+            </li>
+          </ul>
+          <p>
+            We do not receive or store your Google password. Information
+            received from Google is used solely to create and authenticate your
+            account on the Service. We do not use this data for advertising,
+            profiling, or any purpose beyond providing and improving your
+            account experience.
+          </p>
+          <p>
+            Our use of information received from Google APIs complies with the{" "}
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Google API Services User Data Policy
+            </a>
+            , including the Limited Use requirements. We do not transfer your
+            Google data to third parties except as strictly necessary to provide
+            the Service, and we do not use it for any secondary purposes.
+          </p>
+
+          <h3 className="text-white font-semibold mt-6 mb-3">
+            2.4 Information from Meta (Facebook Login)
+          </h3>
+          <p>
+            If you choose to register or log in using Meta (Facebook) Login, we
+            receive the following information from your Meta account, subject to
+            your Meta privacy settings and the permissions you grant:
+          </p>
+          <ul>
+            <li>Your name</li>
+            <li>Your email address</li>
+            <li>Your Meta profile photo (if permitted)</li>
+            <li>A unique Meta user identifier (User ID)</li>
+          </ul>
+          <p>
+            We do not receive your Meta password. Information received from Meta
+            is used solely to create and authenticate your account on the
+            Service and to provide you with the features you have requested. We
+            do not use this data for advertising, profiling, or any purpose
+            unrelated to operating the Service.
+          </p>
+          <p>
+            Our use of data received via Meta Login complies with{" "}
+            <a
+              href="https://developers.meta.com/horizon/policy/data-use/"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Meta&apos;s Platform Terms and Developer Data Use Policy
+            </a>
+            . We do not sell, transfer, or use Meta user data in any way
+            inconsistent with those policies or this Privacy Policy.
+          </p>
+
+          <h3 className="text-white font-semibold mt-6 mb-3">
+            2.5 Information from Other Third Parties
           </h3>
           <ul>
             <li>
-              <strong className="text-white">Third-Party Services:</strong> If
-              you connect third-party services to your account, we may receive
-              information from those services as permitted by your settings.
+              <strong className="text-white">Third-Party Integrations:</strong>{" "}
+              If you connect other third-party services to your account, we may
+              receive information as permitted by your settings on those
+              platforms.
             </li>
             <li>
-              <strong className="text-white">Business Partners:</strong> We may
-              receive information about you from our business partners, such as
-              clients who add you to their projects.
+              <strong className="text-white">Business Partners:</strong> Clients
+              or partner organizations who add you to their projects within the
+              Service.
             </li>
           </ul>
         </>
@@ -135,27 +212,37 @@ const PrivacyPolicy = () => {
       title: "3. How We Use Your Information",
       content: (
         <>
-          <p>We use the information we collect for the following purposes:</p>
+          <p>
+            We use the information we collect only for the purposes described in
+            this Privacy Policy:
+          </p>
           <ul>
             <li>
-              <strong className="text-white">Provide and Maintain the Service:</strong>{" "}
-              To operate, maintain, and improve the Service, including
-              processing transactions and managing your account.
+              <strong className="text-white">
+                Provide and Maintain the Service:
+              </strong>{" "}
+              To operate, maintain, and improve the Service, process
+              transactions, and manage your account.
             </li>
             <li>
-              <strong className="text-white">Communication:</strong> To send you
+              <strong className="text-white">Authentication:</strong> To verify
+              your identity when you sign in, including via Google Sign-In or
+              Meta Login, and to manage your account access securely.
+            </li>
+            <li>
+              <strong className="text-white">Communication:</strong> To send
               technical notices, updates, security alerts, support messages, and
               administrative communications.
             </li>
             <li>
               <strong className="text-white">Personalization:</strong> To
-              personalize your experience and deliver content and features
-              relevant to your role and preferences.
+              personalize your experience and deliver content relevant to your
+              role and preferences.
             </li>
             <li>
-              <strong className="text-white">Analytics:</strong> To analyze usage
-              patterns, monitor trends, and improve the Service&apos;s
-              functionality and user experience.
+              <strong className="text-white">Analytics:</strong> To analyze
+              usage patterns, monitor trends, and improve the Service&apos;s
+              functionality.
             </li>
             <li>
               <strong className="text-white">Security:</strong> To detect,
@@ -163,15 +250,21 @@ const PrivacyPolicy = () => {
               issues.
             </li>
             <li>
-              <strong className="text-white">Legal Compliance:</strong> To comply
-              with applicable laws, regulations, and legal processes.
+              <strong className="text-white">Legal Compliance:</strong> To
+              comply with applicable laws, regulations, and legal processes.
             </li>
             <li>
               <strong className="text-white">Marketing:</strong> With your
-              consent, to send you promotional communications about our products
-              and services. You can opt out at any time.
+              explicit consent, to send promotional communications. You may opt
+              out at any time.
             </li>
           </ul>
+          <p>
+            Data received from Google Sign-In or Meta Login is used exclusively
+            for authentication and account management. It is never used for
+            marketing, advertising, or any purpose beyond what is necessary to
+            operate your account on the Service.
+          </p>
         </>
       ),
     },
@@ -180,72 +273,95 @@ const PrivacyPolicy = () => {
       content: (
         <>
           <p>
-            We do not sell your personal information. We may share your
-            information in the following circumstances:
+            We do not sell your personal information, including any data
+            obtained through Google Sign-In or Meta Login. We may share your
+            information only in the following limited circumstances:
           </p>
           <ul>
             <li>
-              <strong className="text-white">With Your Consent:</strong> We may
-              share information when you direct us to do so or provide consent.
+              <strong className="text-white">With Your Consent:</strong> When
+              you explicitly direct us to share information or provide consent.
             </li>
             <li>
-              <strong className="text-white">Service Providers:</strong> We share
-              information with third-party vendors, consultants, and service
-              providers who perform services on our behalf, such as hosting,
-              analytics, customer support, and payment processing.
+              <strong className="text-white">Service Providers:</strong> With
+              trusted third-party vendors who perform services on our behalf
+              (hosting, analytics, customer support, payment processing). These
+              providers are contractually required to use your data only as
+              directed by us and consistent with this Privacy Policy.
             </li>
             <li>
               <strong className="text-white">Team Members and Clients:</strong>{" "}
-              Information may be shared with other users within your
-              organization or project as necessary for collaboration through the
-              Service.
+              With other users within your organization or project as necessary
+              for collaboration through the Service.
             </li>
             <li>
-              <strong className="text-white">Business Transfers:</strong> If we
-              are involved in a merger, acquisition, or sale of assets, your
-              information may be transferred as part of that transaction.
+              <strong className="text-white">Business Transfers:</strong> In
+              connection with a merger, acquisition, or sale of assets, subject
+              to the same privacy protections in this Policy.
             </li>
             <li>
-              <strong className="text-white">Legal Requirements:</strong> We may
-              disclose information if required by law, regulation, legal
-              process, or governmental request, or to protect the rights,
-              property, or safety of {companyName}, our users, or others.
+              <strong className="text-white">Legal Requirements:</strong> When
+              required by law, legal process, or government request, or to
+              protect the rights, property, or safety of {companyName}, our
+              users, or others.
             </li>
             <li>
-              <strong className="text-white">Aggregated or De-identified Data:</strong>{" "}
-              We may share aggregated or de-identified information that cannot
-              reasonably be used to identify you.
+              <strong className="text-white">
+                Aggregated or De-identified Data:
+              </strong>{" "}
+              Aggregated or de-identified information that cannot reasonably
+              identify you.
             </li>
           </ul>
+          <p>
+            We do not share Google or Meta user data with third parties for
+            advertising, profiling, or any purpose unrelated to the direct
+            operation of the Service.
+          </p>
         </>
       ),
     },
     {
-      title: "5. Data Retention",
+      title: "5. Data Retention and Deletion",
       content: (
         <>
           <p>
-            We retain your personal information for as long as necessary to
-            fulfill the purposes for which it was collected, including to
-            satisfy legal, accounting, or reporting requirements.
+            We retain your personal information only for as long as necessary to
+            fulfill the purposes described in this Privacy Policy, including
+            legal, accounting, or reporting requirements.
           </p>
           <p>
-            The retention period may vary depending on the context of our
-            relationship with you and the type of information. When determining
-            retention periods, we consider:
+            We will delete or anonymize your personal information in the
+            following circumstances:
           </p>
           <ul>
-            <li>The nature and sensitivity of the information</li>
-            <li>The purposes for which we process the information</li>
-            <li>Applicable legal requirements</li>
             <li>
-              Whether the purpose of processing can be achieved by other means
+              When you request deletion of your account or personal data (see
+              Section 8 for how to submit a request).
+            </li>
+            <li>
+              When your account is terminated, within a reasonable timeframe not
+              to exceed 90 days, except where retention is required by law.
+            </li>
+            <li>
+              When the data is no longer necessary to provide the Service or a
+              specific feature.
+            </li>
+            <li>
+              Upon request by the applicable third-party platform (e.g., Meta or
+              Google) in accordance with their policies.
             </li>
           </ul>
           <p>
-            When your account is terminated, we will delete or anonymize your
-            personal information within a reasonable timeframe, except where we
-            are required to retain it for legal or legitimate business purposes.
+            Data received from Google Sign-In (name and email) and Meta Login
+            (name, email, and User ID) will be deleted or anonymized upon
+            account termination. We do not retain third-party authentication
+            data beyond what is necessary for active account management.
+          </p>
+          <p>
+            When determining retention periods, we consider the nature and
+            sensitivity of the information, applicable legal requirements, and
+            whether the purpose of processing can be achieved with less data.
           </p>
         </>
       ),
@@ -256,22 +372,29 @@ const PrivacyPolicy = () => {
         <>
           <p>
             We implement appropriate technical and organizational security
-            measures designed to protect your personal information against
-            unauthorized access, alteration, disclosure, or destruction. These
-            measures include:
+            measures to protect your personal information against unauthorized
+            access, alteration, disclosure, or destruction, including:
           </p>
           <ul>
-            <li>Encryption of data in transit and at rest</li>
-            <li>Regular security assessments and audits</li>
-            <li>Access controls and authentication mechanisms</li>
+            <li>Encryption of data in transit (TLS/SSL) and at rest</li>
+            <li>Regular security assessments and vulnerability testing</li>
+            <li>
+              Role-based access controls and multi-factor authentication
+            </li>
             <li>Employee training on data protection practices</li>
-            <li>Incident response procedures</li>
+            <li>Incident response and breach notification procedures</li>
           </ul>
           <p>
-            However, no method of transmission over the Internet or electronic
-            storage is 100% secure. While we strive to use commercially
-            acceptable means to protect your personal information, we cannot
-            guarantee its absolute security.
+            In the event of a data breach that affects your personal
+            information, we will notify affected users and relevant authorities
+            as required by applicable law and in accordance with our obligations
+            under any platform policies (including Meta&apos;s Developer Data
+            Use Policy).
+          </p>
+          <p>
+            No method of transmission over the Internet or electronic storage is
+            100% secure. While we use commercially acceptable security measures,
+            we cannot guarantee absolute security.
           </p>
         </>
       ),
@@ -290,22 +413,21 @@ const PrivacyPolicy = () => {
           </h3>
           <ul>
             <li>
-              <strong className="text-white">Essential Cookies:</strong> Required
-              for the Service to function properly, including authentication and
-              security cookies.
+              <strong className="text-white">Essential Cookies:</strong>{" "}
+              Required for the Service to function, including authentication and
+              security.
             </li>
             <li>
               <strong className="text-white">Functional Cookies:</strong> Enable
-              personalized features and remember your preferences.
+              personalized features and remember preferences.
             </li>
             <li>
               <strong className="text-white">Analytics Cookies:</strong> Help us
-              understand how users interact with the Service so we can improve
-              it.
+              understand how users interact with the Service.
             </li>
             <li>
               <strong className="text-white">Marketing Cookies:</strong> Used to
-              deliver relevant advertisements and track campaign effectiveness.
+              deliver relevant content and track campaign effectiveness.
             </li>
           </ul>
 
@@ -314,96 +436,179 @@ const PrivacyPolicy = () => {
           </h3>
           <p>
             Most web browsers allow you to control cookies through their
-            settings. You can set your browser to refuse all or some cookies, or
-            to alert you when cookies are being sent. However, if you disable or
-            refuse cookies, some parts of the Service may become inaccessible or
-            not function properly.
+            settings. Disabling certain cookies may affect Service
+            functionality. You can also manage your preferences through your{" "}
+            <a
+              href="https://myaccount.google.com/permissions"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Google Account settings
+            </a>{" "}
+            or{" "}
+            <a
+              href="https://www.facebook.com/settings?tab=applications"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Meta Account settings
+            </a>{" "}
+            for data associated with those platforms.
           </p>
         </>
       ),
     },
     {
-      title: "8. Your Privacy Rights",
+      title: "8. Your Privacy Rights and Data Deletion Requests",
       content: (
         <>
           <p>
-            Depending on your location, you may have certain rights regarding
-            your personal information:
+            Depending on your location, you may have the following rights
+            regarding your personal information:
           </p>
           <ul>
             <li>
-              <strong className="text-white">Access:</strong> The right to
-              request access to the personal information we hold about you.
+              <strong className="text-white">Access:</strong> Request access to
+              the personal information we hold about you.
             </li>
             <li>
-              <strong className="text-white">Correction:</strong> The right to
-              request correction of inaccurate or incomplete personal
-              information.
+              <strong className="text-white">Correction:</strong> Request
+              correction of inaccurate or incomplete information.
             </li>
             <li>
-              <strong className="text-white">Deletion:</strong> The right to
-              request deletion of your personal information, subject to certain
+              <strong className="text-white">Deletion:</strong> Request deletion
+              of your personal information. To submit a deletion request, email
+              us at{" "}
+              <a
+                href={`mailto:${contactEmail}`}
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                {contactEmail}
+              </a>{" "}
+              with the subject line &quot;Data Deletion Request&quot; and
+              include your account email address. We will process your request
+              within 30 days.
+            </li>
+            <li>
+              <strong className="text-white">Portability:</strong> Receive a
+              copy of your data in a structured, machine-readable format.
+            </li>
+            <li>
+              <strong className="text-white">Opt-Out:</strong> Opt out of
+              marketing communications at any time via the unsubscribe link in
+              any email or by contacting us directly.
+            </li>
+            <li>
+              <strong className="text-white">Restriction:</strong> Request
+              restriction of processing in certain circumstances.
+            </li>
+            <li>
+              <strong className="text-white">Disconnect Google Sign-In:</strong>{" "}
+              Disconnect your Google account at any time by contacting us at{" "}
+              <a
+                href={`mailto:${contactEmail}`}
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                {contactEmail}
+              </a>{" "}
+              or via your Google Account settings at{" "}
+              <a
+                href="https://myaccount.google.com/permissions"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                https://myaccount.google.com/permissions
+              </a>
+              .
+            </li>
+            <li>
+              <strong className="text-white">Disconnect Meta Login:</strong>{" "}
+              Disconnect your Meta account at any time by contacting us at{" "}
+              <a
+                href={`mailto:${contactEmail}`}
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                {contactEmail}
+              </a>{" "}
+              or via your Facebook settings at{" "}
+              <a
+                href="https://www.facebook.com/settings?tab=applications"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                https://www.facebook.com/settings?tab=applications
+              </a>
+              .
+            </li>
+          </ul>
+          <p>
+            We will respond to all privacy rights requests within the timeframe
+            required by applicable law. Some requests may be subject to identity
+            verification before we can fulfill them.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: "9. California and U.S. State Privacy Rights",
+      content: (
+        <>
+          <p>
+            If you are a resident of California, Virginia, Colorado, Utah, or
+            Connecticut, you have additional rights under applicable state
+            privacy laws including the CCPA, CPRA, VCDPA, CPA, UCPA, and CTDPA:
+          </p>
+          <ul>
+            <li>
+              <strong className="text-white">Right to Know:</strong> Request
+              information about the categories and specific pieces of personal
+              information we have collected about you.
+            </li>
+            <li>
+              <strong className="text-white">Right to Delete:</strong> Request
+              deletion of your personal information, subject to certain
               exceptions.
             </li>
             <li>
-              <strong className="text-white">Portability:</strong> The right to
-              receive a copy of your personal information in a structured,
-              commonly used, and machine-readable format.
+              <strong className="text-white">Right to Correct:</strong> Request
+              correction of inaccurate personal information.
             </li>
             <li>
-              <strong className="text-white">Opt-Out:</strong> The right to
-              opt-out of certain processing activities, such as marketing
-              communications.
+              <strong className="text-white">
+                Right to Opt-Out of Sale or Sharing:
+              </strong>{" "}
+              We do not sell personal information and do not share it for
+              cross-context behavioral advertising.
             </li>
             <li>
-              <strong className="text-white">Restriction:</strong> The right to
-              request restriction of processing of your personal information in
-              certain circumstances.
+              <strong className="text-white">
+                Right to Non-Discrimination:
+              </strong>{" "}
+              We will not discriminate against you for exercising any of your
+              privacy rights.
+            </li>
+            <li>
+              <strong className="text-white">
+                Right to Limit Sensitive Data Use:
+              </strong>{" "}
+              Where applicable, you may request we limit our use of sensitive
+              personal information.
             </li>
           </ul>
           <p>
-            To exercise any of these rights, please contact us using the contact
-            information provided below. We will respond to your request within
-            the timeframe required by applicable law.
-          </p>
-        </>
-      ),
-    },
-    {
-      title: "9. California Privacy Rights",
-      content: (
-        <>
-          <p>
-            If you are a California resident, you have additional rights under
-            the California Consumer Privacy Act (CCPA) and the California
-            Privacy Rights Act (CPRA):
-          </p>
-          <ul>
-            <li>
-              <strong className="text-white">Right to Know:</strong> You have the
-              right to request information about the categories and specific
-              pieces of personal information we have collected about you.
-            </li>
-            <li>
-              <strong className="text-white">Right to Delete:</strong> You have
-              the right to request deletion of your personal information,
-              subject to certain exceptions.
-            </li>
-            <li>
-              <strong className="text-white">Right to Opt-Out of Sale:</strong>{" "}
-              We do not sell personal information. However, you have the right
-              to opt-out if we ever do.
-            </li>
-            <li>
-              <strong className="text-white">Right to Non-Discrimination:</strong>{" "}
-              We will not discriminate against you for exercising your privacy
-              rights.
-            </li>
-          </ul>
-          <p>
-            To submit a request, please contact us using the information below.
-            You may designate an authorized agent to make a request on your
-            behalf.
+            To submit a request under any of these laws, please contact us at{" "}
+            <a
+              href={`mailto:${contactEmail}`}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {contactEmail}
+            </a>
+            . You may designate an authorized agent to make a request on your
+            behalf with appropriate written authorization.
           </p>
         </>
       ),
@@ -414,71 +619,167 @@ const PrivacyPolicy = () => {
         <>
           <p>
             Your information may be transferred to and processed in countries
-            other than the country in which you reside. These countries may have
-            data protection laws that are different from the laws of your
-            country.
+            other than your country of residence. These countries may have data
+            protection laws that differ from your jurisdiction.
           </p>
           <p>
             When we transfer personal information outside of your jurisdiction,
-            we implement appropriate safeguards to ensure your information
-            remains protected in accordance with this Privacy Policy and
-            applicable law.
+            we implement appropriate safeguards — such as contractual
+            protections — to ensure your information remains protected
+            consistent with this Privacy Policy and applicable law.
           </p>
         </>
       ),
     },
     {
-      title: "11. Children&apos;s Privacy",
+      title: "11. Children's Privacy",
       content: (
         <p>
           Our Service is not directed to children under the age of 16, and we do
-          not knowingly collect personal information from children under 16. If
-          we learn that we have collected personal information from a child
-          under 16, we will take steps to delete that information as quickly as
-          possible. If you believe we may have collected information from a
-          child under 16, please contact us.
+          not knowingly collect personal information from children under 16. We
+          do not use Google Sign-In, Meta Login, or any third-party
+          authentication service in connection with users we know to be under
+          16. If we learn we have collected personal information from a child
+          under 16, we will delete it promptly. If you believe we may have
+          collected information from a child under 16, please contact us at{" "}
+          <a
+            href={`mailto:${contactEmail}`}
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            {contactEmail}
+          </a>
+          .
         </p>
       ),
     },
     {
-      title: "12. Third-Party Links and Services",
+      title: "12. Third-Party Services and Platform Integrations",
       content: (
-        <p>
-          Our Service may contain links to third-party websites, services, or
-          applications that are not operated by us. This Privacy Policy does not
-          apply to those third-party services, and we are not responsible for
-          their privacy practices. We encourage you to review the privacy
-          policies of any third-party services you access.
-        </p>
+        <>
+          <p>
+            Our Service integrates with and may link to third-party services not
+            operated by us, including:
+          </p>
+          <ul>
+            <li>
+              <strong className="text-white">
+                Google (Sign-In / OAuth 2.0)
+              </strong>{" "}
+              —{" "}
+              <a
+                href="https://policies.google.com/privacy"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Privacy Policy
+              </a>{" "}
+              |{" "}
+              <a
+                href="https://policies.google.com/terms"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Terms
+              </a>
+            </li>
+            <li>
+              <strong className="text-white">Meta / Facebook (Login)</strong> —{" "}
+              <a
+                href="https://www.facebook.com/privacy/policy"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Privacy Policy
+              </a>{" "}
+              |{" "}
+              <a
+                href="https://www.facebook.com/terms"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Terms
+              </a>
+            </li>
+          </ul>
+          <p>
+            This Privacy Policy does not govern the practices of these
+            third-party services. We encourage you to review their policies
+            directly. We are not responsible for the privacy or security
+            practices of any third-party platforms accessed independently
+            through our Service.
+          </p>
+        </>
       ),
     },
     {
-      title: "13. Changes to This Privacy Policy",
+      title: "13. Compliance with Platform Policies",
+      content: (
+        <>
+          <p>
+            Our collection and use of data through third-party integrations is
+            governed by the respective platform policies:
+          </p>
+          <ul>
+            <li>
+              <a
+                href="https://developers.google.com/terms/api-services-user-data-policy"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Google API Services User Data Policy
+              </a>{" "}
+              (including Limited Use requirements)
+            </li>
+            <li>
+              <a
+                href="https://developers.meta.com/horizon/policy/data-use/"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Meta Platform Terms and Developer Data Use Policy
+              </a>
+            </li>
+          </ul>
+          <p>
+            In the event of any conflict between this Privacy Policy and a
+            platform policy with respect to that platform&apos;s user data, the
+            more restrictive or more protective provision will apply.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: "14. Changes to This Privacy Policy",
       content: (
         <>
           <p>
             We may update this Privacy Policy from time to time to reflect
-            changes in our practices or for other operational, legal, or
-            regulatory reasons. We will notify you of any material changes by
-            posting the new Privacy Policy on this page and updating the
-            &quot;Last Updated&quot; date.
+            changes in our practices, legal requirements, or platform
+            integrations. We will notify you of material changes by posting the
+            updated Policy on this page with a new &quot;Last Updated&quot;
+            date. For significant changes, we may also notify you via email or
+            an in-app notice.
           </p>
           <p>
-            We encourage you to review this Privacy Policy periodically to stay
-            informed about how we are protecting your information. Your
-            continued use of the Service after any changes constitutes your
-            acceptance of the updated Privacy Policy.
+            Your continued use of the Service after changes become effective
+            constitutes your acceptance of the updated Privacy Policy.
           </p>
         </>
       ),
     },
     {
-      title: "14. Contact Us",
+      title: "15. Contact Us",
       content: (
         <>
           <p>
-            If you have any questions, concerns, or requests regarding this
-            Privacy Policy or our privacy practices, please contact us at:
+            If you have questions, concerns, or requests regarding this Privacy
+            Policy or our privacy practices, please contact us:
           </p>
           <div className="mt-4 p-6 bg-white/5 border border-white/10 rounded-xl">
             <p className="text-white font-semibold text-lg">{companyName}</p>
@@ -505,8 +806,15 @@ const PrivacyPolicy = () => {
             </p>
           </div>
           <p className="mt-4">
-            We will respond to your inquiry within a reasonable timeframe and in
-            accordance with applicable law.
+            For data deletion requests specifically, email{" "}
+            <a
+              href={`mailto:${contactEmail}`}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {contactEmail}
+            </a>{" "}
+            with the subject line &quot;Data Deletion Request&quot; and your
+            account email address. We will respond within 30 days.
           </p>
         </>
       ),
@@ -515,55 +823,6 @@ const PrivacyPolicy = () => {
 
   return (
     <div className="min-h-screen bg-black text-gray-300">
-      {/* Navigation */}
-      {/* <nav className="border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="text-white font-bold text-xl">
-              E8 Productions
-            </Link>
-            <div className="hidden md:flex items-center space-x-8">
-              <Link
-                href="/services"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Our Services
-              </Link>
-              <Link
-                href="/shows"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Original Shows
-              </Link>
-              <Link
-                href="/work"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Results
-              </Link>
-              <Link
-                href="/about"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                About Us
-              </Link>
-              <Link
-                href="/contact"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Contact
-              </Link>
-              <Link
-                href="/dashboard"
-                className="bg-white text-black px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                Sign In
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav> */}
-
       {/* Header */}
       <header className="border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">

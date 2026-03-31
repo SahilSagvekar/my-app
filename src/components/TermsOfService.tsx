@@ -4,10 +4,10 @@ import React from "react";
 import Link from "next/link";
 
 const TermsOfService = () => {
-  const lastUpdated = "January 16, 2025";
+  const lastUpdated = "March 31, 2026";
   const companyName = "E8 Productions";
   const companyAddress = "Fort Lauderdale, Florida, United States";
-  const contactEmail = "legal@e8productions.com"; // Update this
+  const contactEmail = "legal@e8productions.com";
   const websiteUrl = "https://e8productions.com";
 
   const sections = [
@@ -33,8 +33,10 @@ const TermsOfService = () => {
           <p>
             By accessing or using our Service, whether as an employee,
             contractor, client, or any other user, you agree to be bound by
-            these Terms. If you do not agree to these Terms, you may not access
-            or use the Service.
+            these Terms. This includes users who access the Service through
+            third-party authentication providers such as Google (Google Sign-In)
+            or Meta (Facebook Login). If you do not agree to these Terms, you
+            may not access or use the Service.
           </p>
         </>
       ),
@@ -85,6 +87,127 @@ const TermsOfService = () => {
             We reserve the right to suspend or terminate your account if any
             information provided proves to be inaccurate, false, or in violation
             of these Terms.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: "3a. Google Sign-In Authentication",
+      content: (
+        <>
+          <p>
+            The Service offers the option to authenticate using Google Sign-In
+            (OAuth 2.0), provided by Google LLC. By choosing to sign in with
+            Google, you authorize {companyName} to receive certain basic profile
+            information from your Google Account, including your name and email
+            address, solely for the purpose of account authentication and
+            identification within the Service.
+          </p>
+          <p>
+            Your use of Google Sign-In is subject to Google&apos;s{" "}
+            <a
+              href="https://policies.google.com/terms"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Terms of Service
+            </a>{" "}
+            and Google&apos;s{" "}
+            <a
+              href="https://policies.google.com/privacy"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Privacy Policy
+            </a>
+            . {companyName} does not receive or store your Google password. We
+            will only use data obtained through Google Sign-In as described in
+            our Privacy Policy and will not use it for any purpose beyond
+            authenticating and managing your account.
+          </p>
+          <p>
+            You may disconnect your Google account from the Service at any time
+            by contacting us at{" "}
+            <a
+              href={`mailto:${contactEmail}`}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {contactEmail}
+            </a>{" "}
+            or by managing your connected applications through your Google
+            Account settings at{" "}
+            <a
+              href="https://myaccount.google.com/permissions"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              https://myaccount.google.com/permissions
+            </a>
+            .
+          </p>
+        </>
+      ),
+    },
+    {
+      title: "3b. Meta (Facebook) Login Authentication",
+      content: (
+        <>
+          <p>
+            The Service also offers the option to authenticate using Meta
+            (Facebook) Login. By choosing to sign in with Meta, you authorize{" "}
+            {companyName} to receive certain basic profile information from your
+            Meta account, including your name, email address, profile photo, and
+            a unique Meta User ID, solely for the purpose of account
+            authentication and identification within the Service.
+          </p>
+          <p>
+            Your use of Meta Login is subject to Meta&apos;s{" "}
+            <a
+              href="https://www.facebook.com/terms"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Terms of Service
+            </a>{" "}
+            and Meta&apos;s{" "}
+            <a
+              href="https://www.facebook.com/privacy/policy"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Privacy Policy
+            </a>
+            . {companyName} does not receive or store your Meta password. We
+            will only use data obtained through Meta Login as described in our
+            Privacy Policy and in compliance with Meta&apos;s Platform Terms and
+            Developer Data Use Policy. We do not use Meta user data for
+            advertising, profiling, or any secondary purpose.
+          </p>
+          <p>
+            You may disconnect your Meta account from the Service at any time by
+            contacting us at{" "}
+            <a
+              href={`mailto:${contactEmail}`}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {contactEmail}
+            </a>{" "}
+            or by managing your connected applications through your Facebook
+            settings at{" "}
+            <a
+              href="https://www.facebook.com/settings?tab=applications"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              https://www.facebook.com/settings?tab=applications
+            </a>
+            .
           </p>
         </>
       ),
@@ -161,6 +284,10 @@ const TermsOfService = () => {
               Upload or share content that infringes on intellectual property
               rights of others
             </li>
+            <li>
+              Use data obtained through third-party login integrations (Google,
+              Meta) for any purpose beyond your authorized use of the Service
+            </li>
           </ul>
         </>
       ),
@@ -170,21 +297,17 @@ const TermsOfService = () => {
       content: (
         <>
           <p>
-            The Service and its entire contents, features, and functionality
-            (including but not limited to all information, software, text,
-            displays, images, video, and audio, and the design, selection, and
-            arrangement thereof) are owned by {companyName}, its licensors, or
-            other providers of such material and are protected by United States
-            and international copyright, trademark, patent, trade secret, and
-            other intellectual property or proprietary rights laws.
+            The Service and its entire contents, features, and functionality are
+            owned by {companyName}, its licensors, or other providers and are
+            protected by United States and international intellectual property
+            laws.
           </p>
           <p>
             <strong className="text-white">Client Content:</strong> Clients
-            retain ownership of all content, materials, and intellectual
-            property they upload to or create through the Service. By uploading
-            content, clients grant {companyName} a limited license to use,
-            process, and store such content solely for the purpose of providing
-            the Service.
+            retain ownership of all content and intellectual property they
+            upload to or create through the Service. By uploading content,
+            clients grant {companyName} a limited license to use, process, and
+            store such content solely for the purpose of providing the Service.
           </p>
           <p>
             <strong className="text-white">Work Product:</strong> Unless
@@ -201,10 +324,9 @@ const TermsOfService = () => {
       content: (
         <>
           <p>
-            Users acknowledge that they may have access to confidential
-            information through the Service, including but not limited to
-            production schedules, client information, project details,
-            unreleased content, and business processes. You agree to:
+            Users may have access to confidential information through the
+            Service, including production schedules, client information, project
+            details, unreleased content, and business processes. You agree to:
           </p>
           <ul>
             <li>
@@ -232,34 +354,113 @@ const TermsOfService = () => {
       content: (
         <>
           <p>
-            Your use of the Service is also governed by our Privacy Policy.
-            Please review our Privacy Policy to understand our practices
-            regarding the collection, use, and disclosure of your personal
-            information.
+            Your use of the Service is governed by our Privacy Policy, available
+            at{" "}
+            <a
+              href="https://e8productions.com/privacy-policy"
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              https://e8productions.com/privacy-policy
+            </a>
+            . Please review it to understand how we collect, use, store, and
+            disclose your personal information, including any data obtained
+            through Google Sign-In or Meta Login.
           </p>
           <p>
             By using the Service, you consent to the collection and use of
-            information as described in our Privacy Policy.
+            information as described in our Privacy Policy. Our Privacy Policy
+            complies with Google&apos;s API Services User Data Policy and
+            Meta&apos;s Platform Terms and Developer Data Use Policy.
           </p>
         </>
       ),
     },
     {
-      title: "9. Third-Party Services and Links",
+      title: "9. Data Security and Breach Notification",
       content: (
-        <p>
-          The Service may contain links to third-party websites or services that
-          are not owned or controlled by {companyName}. We have no control over,
-          and assume no responsibility for, the content, privacy policies, or
-          practices of any third-party websites or services. You acknowledge and
-          agree that {companyName} shall not be responsible or liable for any
-          damage or loss caused by or in connection with the use of any such
-          third-party content, goods, or services.
-        </p>
+        <>
+          <p>
+            We implement commercially reasonable technical and organizational
+            security measures to protect your data. In the event of a data
+            security breach that affects your personal information, we will:
+          </p>
+          <ul>
+            <li>Notify affected users as required by applicable law</li>
+            <li>
+              Notify relevant regulatory authorities where required
+            </li>
+            <li>
+              Notify applicable platform providers (including Google and Meta)
+              in accordance with their developer policies
+            </li>
+            <li>
+              Begin remediation immediately upon discovery of the incident
+            </li>
+          </ul>
+          <p>
+            If you discover or suspect any security vulnerability or
+            unauthorized access to your account, you must notify us immediately
+            at{" "}
+            <a
+              href={`mailto:${contactEmail}`}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {contactEmail}
+            </a>
+            .
+          </p>
+        </>
       ),
     },
     {
-      title: "10. Disclaimer of Warranties",
+      title: "10. Third-Party Services and Links",
+      content: (
+        <>
+          <p>
+            The Service integrates with or may contain links to third-party
+            websites or services not owned or controlled by {companyName},
+            including Google (Sign-In) and Meta (Facebook Login). We have no
+            control over, and assume no responsibility for, the content, privacy
+            policies, or practices of any third-party services. Your
+            interactions with these services are governed by their own terms and
+            privacy policies:
+          </p>
+          <ul>
+            <li>
+              Google:{" "}
+              <a
+                href="https://policies.google.com/terms"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                https://policies.google.com/terms
+              </a>
+            </li>
+            <li>
+              Meta / Facebook:{" "}
+              <a
+                href="https://www.facebook.com/terms"
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                https://www.facebook.com/terms
+              </a>
+            </li>
+          </ul>
+          <p>
+            You acknowledge and agree that {companyName} is not responsible or
+            liable for any damage or loss caused by your use of any third-party
+            services.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: "11. Disclaimer of Warranties",
       content: (
         <>
           <p className="uppercase text-sm">
@@ -279,7 +480,7 @@ const TermsOfService = () => {
       ),
     },
     {
-      title: "11. Limitation of Liability",
+      title: "12. Limitation of Liability",
       content: (
         <p className="uppercase text-sm">
           TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT WILL{" "}
@@ -293,45 +494,54 @@ const TermsOfService = () => {
       ),
     },
     {
-      title: "12. Indemnification",
+      title: "13. Indemnification",
       content: (
         <p>
           You agree to defend, indemnify, and hold harmless {companyName}, its
-          affiliates, licensors, and service providers, and its and their
-          respective officers, directors, employees, contractors, agents,
-          licensors, suppliers, successors, and assigns from and against any
-          claims, liabilities, damages, judgments, awards, losses, costs,
-          expenses, or fees (including reasonable attorneys&apos; fees) arising
-          out of or relating to your violation of these Terms or your use of the
-          Service.
+          affiliates, licensors, and service providers, and their respective
+          officers, directors, employees, contractors, agents, successors, and
+          assigns from and against any claims, liabilities, damages, judgments,
+          awards, losses, costs, expenses, or fees (including reasonable
+          attorneys&apos; fees) arising out of or relating to your violation of
+          these Terms or your use of the Service, including any misuse of
+          third-party authentication credentials or platform data.
         </p>
       ),
     },
     {
-      title: "13. Termination",
+      title: "14. Termination",
       content: (
         <>
           <p>
             We may terminate or suspend your account and access to the Service
-            immediately, without prior notice or liability, for any reason
-            whatsoever, including without limitation if you breach these Terms.
+            immediately, without prior notice or liability, for any reason,
+            including if you breach these Terms or violate any applicable
+            third-party platform policy (including Meta&apos;s or Google&apos;s
+            developer policies).
           </p>
           <p>
             Upon termination, your right to use the Service will cease
-            immediately. If you wish to terminate your account, you may contact
-            your administrator or our support team.
+            immediately. We will delete or anonymize your personal data in
+            accordance with our Privacy Policy and applicable platform policies.
+            If you wish to terminate your account, contact us at{" "}
+            <a
+              href={`mailto:${contactEmail}`}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              {contactEmail}
+            </a>
+            .
           </p>
           <p>
             All provisions of these Terms which by their nature should survive
-            termination shall survive termination, including, without
-            limitation, ownership provisions, warranty disclaimers,
-            indemnification, and limitations of liability.
+            termination shall survive, including ownership provisions, warranty
+            disclaimers, indemnification, and limitations of liability.
           </p>
         </>
       ),
     },
     {
-      title: "14. Governing Law and Jurisdiction",
+      title: "15. Governing Law and Jurisdiction",
       content: (
         <>
           <p>
@@ -343,59 +553,49 @@ const TermsOfService = () => {
             Any legal suit, action, or proceeding arising out of or related to
             these Terms or the Service shall be instituted exclusively in the
             federal courts of the United States or the courts of the State of
-            Florida, in each case located in Broward County. You waive any and
-            all objections to the exercise of jurisdiction over you by such
-            courts and to venue in such courts.
+            Florida, in each case located in Broward County. You waive any
+            objections to jurisdiction or venue in such courts.
           </p>
         </>
       ),
     },
     {
-      title: "15. Changes to Terms of Service",
-      content: (
-        <>
-          <p>
-            We reserve the right, at our sole discretion, to modify or replace
-            these Terms at any time. If a revision is material, we will provide
-            at least 30 days&apos; notice prior to any new terms taking effect.
-            What constitutes a material change will be determined at our sole
-            discretion.
-          </p>
-          <p>
-            By continuing to access or use our Service after those revisions
-            become effective, you agree to be bound by the revised terms. If you
-            do not agree to the new terms, please stop using the Service.
-          </p>
-        </>
-      ),
-    },
-    {
-      title: "16. Severability",
+      title: "16. Changes to Terms of Service",
       content: (
         <p>
-          If any provision of these Terms is held to be unenforceable or
-          invalid, such provision will be changed and interpreted to accomplish
-          the objectives of such provision to the greatest extent possible under
-          applicable law, and the remaining provisions will continue in full
-          force and effect.
+          We reserve the right, at our sole discretion, to modify or replace
+          these Terms at any time. If a revision is material, we will provide
+          at least 30 days&apos; notice prior to any new terms taking effect. By
+          continuing to use the Service after revisions become effective, you
+          agree to be bound by the updated terms.
         </p>
       ),
     },
     {
-      title: "17. Entire Agreement",
+      title: "17. Severability",
+      content: (
+        <p>
+          If any provision of these Terms is held to be unenforceable or
+          invalid, it will be modified to accomplish its objectives to the
+          greatest extent possible under applicable law, and the remaining
+          provisions will continue in full force and effect.
+        </p>
+      ),
+    },
+    {
+      title: "18. Entire Agreement",
       content: (
         <p>
           These Terms, together with our Privacy Policy and any other legal
-          notices published by us on the Service, constitute the entire
-          agreement between you and {companyName} concerning your use of the
-          Service and supersede all prior and contemporaneous understandings,
-          agreements, representations, and warranties, both written and oral,
+          notices published on the Service, constitute the entire agreement
+          between you and {companyName} concerning your use of the Service and
+          supersede all prior agreements, representations, and warranties
           regarding the Service.
         </p>
       ),
     },
     {
-      title: "18. Contact Information",
+      title: "19. Contact Information",
       content: (
         <>
           <p>
@@ -433,55 +633,6 @@ const TermsOfService = () => {
 
   return (
     <div className="min-h-screen bg-black text-gray-300">
-      {/* Navigation */}
-      {/* <nav className="border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="text-white font-bold text-xl">
-              E8 Productions
-            </Link>
-            <div className="hidden md:flex items-center space-x-8">
-              <Link
-                href="/services"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Our Services
-              </Link>
-              <Link
-                href="/shows"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Original Shows
-              </Link>
-              <Link
-                href="/work"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Results
-              </Link>
-              <Link
-                href="/about"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                About Us
-              </Link>
-              <Link
-                href="/contact"
-                className="text-gray-400 hover:text-white transition-colors text-sm"
-              >
-                Contact
-              </Link>
-              <Link
-                href="/dashboard"
-                className="bg-white text-black px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                Sign In
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav> */}
-
       {/* Header */}
       <header className="border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
