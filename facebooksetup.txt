@@ -1,0 +1,117 @@
+## Steps for Your Boss to Set Up Meta Developer Account
+
+### Step 1: Create Meta Developer Account
+
+1. Go to [developers.facebook.com](https://developers.facebook.com/)
+2. Click **Get Started**
+3. Log in with a Facebook account (or create one)
+4. Accept the Developer Terms
+5. Verify phone number if prompted
+
+---
+
+### Step 2: Create a New App
+
+1. Click **Create App**
+2. Select **Business** as app type
+3. Fill in:
+   - **App Name:** `E8 Productions` (or your company name)
+   - **Contact Email:** Company email
+   - **Business Account:** Create or select one
+4. Click **Create App**
+
+---
+
+### Step 3: Add Facebook Login Product
+
+1. In the app dashboard, click **Add Product**
+2. Find **Facebook Login** → Click **Set Up**
+3. Select **Web**
+4. Enter your website URL: `https://your-e8-app-domain.com`
+5. Click **Save**
+
+---
+
+### Step 4: Configure OAuth Settings
+
+1. Go to **Facebook Login → Settings**
+2. Add these to **Valid OAuth Redirect URIs**:
+   ```
+   https://your-e8-app-domain.com/api/meta/callback
+   https://your-e8-app-domain.com/api/social/callback/facebook
+   ```
+3. Click **Save Changes**
+
+---
+
+### Step 5: Get App Credentials
+
+1. Go to **App Settings → Basic**
+2. Copy:
+   - **App ID** → Save as `META_APP_ID`
+   - **App Secret** (click Show) → Save as `META_APP_SECRET`
+
+---
+
+### Step 6: Add Required Permissions
+
+1. Go to **App Review → Permissions and Features**
+2. Request these permissions:
+   - `pages_show_list`
+   - `pages_read_engagement`
+   - `pages_read_user_content`
+   - `instagram_basic`
+   - `instagram_manage_insights`
+   - `public_profile`
+
+---
+
+### Step 7: Add Testers (For Now)
+
+Until the app goes Live:
+
+1. Go to **App Roles → Roles**
+2. Click **Add People**
+3. Add each client's Facebook account as **Tester**
+4. They must accept the invite from their Facebook account
+
+---
+
+### Step 8: Give You the Credentials
+
+Send you these securely:
+```
+META_APP_ID=xxxxxxxxxx
+META_APP_SECRET=xxxxxxxxxx
+```
+
+You'll add these to your `.env.local` file.
+
+---
+
+### Step 9: Go Live (Later - For All Clients)
+
+To allow any client to connect:
+
+1. Complete **Data Use Checkup**
+2. Add **Privacy Policy URL** in App Settings
+3. Submit for **App Review**
+4. Once approved, toggle app to **Live** mode
+
+---
+
+## Summary for Your Boss
+
+| Step | What to Do |
+|------|------------|
+| 1 | Create developer account at developers.facebook.com |
+| 2 | Create new Business app |
+| 3 | Add Facebook Login product |
+| 4 | Add your callback URLs |
+| 5 | Copy App ID & App Secret |
+| 6 | Request permissions |
+| 7 | Add testers (clients) until app is Live |
+| 8 | Send credentials to you |
+| 9 | Later: Submit for review to go Live |
+
+Want me to create a document/PDF with these steps that you can send to your boss?

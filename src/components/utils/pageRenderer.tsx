@@ -78,7 +78,8 @@ export function renderPage(
   page: string,
   onPageChange?: (page: string) => void,
   hasPostingServices?: boolean,
-  originalRole?: string // The user's actual role (for admin viewing as other roles)
+  originalRole?: string,
+  linkedClientId?: string
 ): React.ReactElement {
   console.log(`Rendering page for role: ${role}, page: ${page}, originalRole: ${originalRole}`);
 
@@ -323,7 +324,8 @@ export function renderPage(
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "social":
-        return <SocialAnalyticsDashboard clientId="" />;
+        console.log("linkedClientId:", linkedClientId);
+        return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
       case "training":
         return <TrainingPortalPage />;
       case "archive":

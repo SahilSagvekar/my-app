@@ -94,8 +94,9 @@ export const NAVIGATION_ITEMS = {
     { id: 'approvals', label: 'Content Review', icon: CheckSquare },
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'social', label: 'Social Media', icon: Instagram },
     { id: 'logins', label: 'Logins', icon: LogIn },
-    { id: 'contracts', label: 'Contracts & Billing', icon: FileText },
+    { id: 'contracts', label: 'Contracts & Billing', icon: FileText },  
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   videographer: [
