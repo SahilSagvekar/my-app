@@ -298,6 +298,7 @@ model Client {
   slackEnabled            Boolean                  @default(false)
   slackWebhookUrl         String?
   hasPostingServices      Boolean                  @default(true)
+  facebookPages           FacebookPage[]
   stripeCustomer          StripeCustomer?
   brandAssets             BrandAsset[]
   user                    User?                    @relation(fields: [userId], references: [id])
@@ -965,6 +966,53 @@ model MetaSnapshot {
   @@index([metaAccountId])
   @@index([clientId])
   @@index([snapshotDate])
+}
+
+
+model FacebookPage {
+  id              String             @id @default(cuid())
+  clientId        String
+  pageId          String
+  pageName        String
+  pageAccessToken String
+  category        String?
+  profilePicture  String?
+  followerCount   Int                @default(0)
+  likeCount       Int                @default(0)
+  isActive        Boolean            @default(true)
+  lastSyncAt      DateTime?
+  syncStatus      SyncStatus         @default(PENDING)
+  syncError       String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  client          Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  snapshots       FacebookSnapshot[]
+
+  @@unique([clientId, pageId])
+  @@index([clientId])
+  @@index([pageId])
+  @@index([syncStatus])
+}
+
+model FacebookSnapshot {
+  id              String       @id @default(cuid())
+  facebookPageId  String
+  clientId        String
+  date            DateTime     @db.Date
+  followers       Int          @default(0)
+  likes           Int          @default(0)
+  followersGained Int          @default(0)
+  impressions     Int          @default(0)
+  reach           Int          @default(0)
+  engagement      Int          @default(0)
+  views           Int          @default(0)
+  createdAt       DateTime     @default(now())
+  facebookPage    FacebookPage @relation(fields: [facebookPageId], references: [id], onDelete: Cascade)
+
+  @@unique([facebookPageId, date])
+  @@index([facebookPageId])
+  @@index([clientId])
+  @@index([date])
 }
 
 model ClientRevenue {
