@@ -37,6 +37,7 @@ import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
+import { CompressionDashboard } from "@/components/admin/CompressionDashboard";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
 import dynamic from "next/dynamic";
 
@@ -147,6 +148,8 @@ export function renderPage(
         return <PortfolioManagementTab />;
       case "contracts":
         return <ContractsDashboard />;
+      case "compression":
+        return <CompressionDashboard />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "training":

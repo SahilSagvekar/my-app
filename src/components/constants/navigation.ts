@@ -41,6 +41,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'portfolio', label: 'Portfolio', icon: Film },
     { id: 'contracts', label: 'Contracts', icon: PenLine },
+    { id: 'compression', label: 'Video Compression', icon: Camera },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   editor: [
