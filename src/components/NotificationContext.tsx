@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  type Dispatch,
+  type SetStateAction,
   createContext,
   useContext,
   useEffect,
@@ -9,6 +11,7 @@ import {
   ReactNode,
 } from "react";
 import { useAuth } from "./auth/AuthContext";
+import { buildAuthenticatedFetchInit } from "@/lib/client-auth";
 
 interface Notification {
   id: string;
@@ -35,6 +38,91 @@ const NotificationContext = createContext<NotificationContextType | undefined>(
   undefined
 );
 
+function applyNotification(notif: Notification, playSound: () => void, setNotifications: Dispatch<SetStateAction<Notification[]>>) {
+  setNotifications((prev) => {
+    if (prev.some((item) => item.id === notif.id)) {
+      return prev;
+    }
+
+    playSound();
+    return [notif, ...prev];
+  });
+}
+
+function processSseChunk(
+  chunk: string,
+  playSound: () => void,
+  setNotifications: Dispatch<SetStateAction<Notification[]>>,
+) {
+  let eventType = "message";
+  const dataLines: string[] = [];
+
+  for (const line of chunk.split(/\r?\n/)) {
+    if (!line || line.startsWith(":")) {
+      continue;
+    }
+
+    if (line.startsWith("event:")) {
+      eventType = line.slice("event:".length).trim();
+      continue;
+    }
+
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  if (eventType !== "notification" || dataLines.length === 0) {
+    return;
+  }
+
+  try {
+    const notif = JSON.parse(dataLines.join("\n")) as Notification;
+    applyNotification(notif, playSound, setNotifications);
+  } catch (error) {
+    console.error("Failed to parse notification stream event:", error);
+  }
+}
+
+async function consumeNotificationStream(
+  signal: AbortSignal,
+  playSound: () => void,
+  setNotifications: Dispatch<SetStateAction<Notification[]>>,
+) {
+  const response = await fetch(
+    "/api/notifications/stream",
+    buildAuthenticatedFetchInit({
+      cache: "no-store",
+      signal,
+    }),
+  );
+
+  if (!response.ok || !response.body) {
+    throw new Error(`Notification stream request failed with status ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (!signal.aborted) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
+
+    for (const chunk of chunks) {
+      processSseChunk(chunk, playSound, setNotifications);
+    }
+  }
+}
+
 export function useNotifications() {
   const ctx = useContext(NotificationContext);
   if (!ctx)
@@ -44,7 +132,8 @@ export function useNotifications() {
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const esRef = useRef<EventSource | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user } = useAuth();
 
   // ----------------------------
@@ -58,7 +147,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const fetchNotifications = async () => {
       try {
-        const res = await fetch("/api/notifications");
+        const res = await fetch("/api/notifications", buildAuthenticatedFetchInit());
         if (res.ok) {
           const data = await res.json();
           if (data.notifications) {
@@ -85,32 +174,35 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // ----------------------------
     // REALTIME CONNECTION (SSE)
     // ----------------------------
-    const connect = () => {
-      if (esRef.current) esRef.current.close();
+    const connect = async () => {
+      streamAbortRef.current?.abort();
 
-      const es = new EventSource("/api/notifications/stream");
-      esRef.current = es;
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
 
-      es.addEventListener("notification", (e) => {
-        const notif = JSON.parse(e.data);
-
-        setNotifications((prev) => {
-          if (prev.some((item) => item.id === notif.id)) return prev;
-          playSound();
-          return [notif, ...prev];
-        });
-      });
-
-      es.onerror = () => {
-        es.close();
-        setTimeout(connect, 3000); // Wait 3s before reconnecting
-      };
+      try {
+        await consumeNotificationStream(controller.signal, playSound, setNotifications);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("Notification stream disconnected:", error);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          reconnectTimerRef.current = setTimeout(() => {
+            void connect();
+          }, 3000);
+        }
+      }
     };
 
-    connect();
+    void connect();
 
     return () => {
-      esRef.current?.close();
+      streamAbortRef.current?.abort();
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
     };
   }, [user?.id]);
 
@@ -122,7 +214,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const addNotification = async (
     n: Omit<Notification, "id" | "createdAt" | "read">
   ) => {
-    await fetch("/api/notifications/create", {
+    await fetch("/api/notifications/create", buildAuthenticatedFetchInit({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -132,14 +224,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         payload: n.payload,
         channels: ["in-app"],
       }),
-    });
+    }));
   };
 
   // ----------------------------
   // MARK AS READ
   // ----------------------------
   const markAsRead = async (id: string) => {
-    await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+    await fetch(
+      `/api/notifications/${id}/read`,
+      buildAuthenticatedFetchInit({ method: "PATCH" }),
+    );
 
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -147,7 +242,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   };
 
   const markAllAsRead = async () => {
-    await fetch("/api/notifications/mark-all-read", { method: "PATCH" });
+    await fetch(
+      "/api/notifications/mark-all-read",
+      buildAuthenticatedFetchInit({ method: "PATCH" }),
+    );
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 

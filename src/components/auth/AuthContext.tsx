@@ -4,6 +4,11 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { SessionExpiredModal } from "@/components/auth/SessionExpiredModal";
+import {
+  buildAuthenticatedFetchInit,
+  clearStoredAuthToken,
+  persistAuthToken,
+} from "@/lib/client-auth";
 
 interface User {
   id: string;
@@ -33,6 +38,84 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 type WrappedFetch = typeof window.fetch & { __isE8Wrapped?: boolean };
 type FetchArgs = Parameters<typeof window.fetch>;
 
+interface AuthMeResponse {
+  user?: User | null;
+}
+
+interface LoginResponse {
+  token?: string;
+  user?: User | null;
+  message?: string;
+}
+
+function getRequestUrl(input: RequestInfo | URL) {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  if (input instanceof URL) {
+    return input.toString();
+  }
+
+  return input.url;
+}
+
+function isInternalApiRequest(url: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    const resolvedUrl = new URL(url, window.location.origin);
+    return resolvedUrl.origin === window.location.origin && resolvedUrl.pathname.startsWith("/api/");
+  } catch {
+    return url.startsWith("/api/");
+  }
+}
+
+function withAuthenticatedInternalApiRequest(args: FetchArgs): FetchArgs {
+  const [input, init] = args;
+  const url = getRequestUrl(input);
+
+  if (!isInternalApiRequest(url)) {
+    return args;
+  }
+
+  const authenticatedInit = buildAuthenticatedFetchInit(init);
+
+  if (input instanceof Request) {
+    return [new Request(input, authenticatedInit)] as FetchArgs;
+  }
+
+  return [input, authenticatedInit] as FetchArgs;
+}
+
+async function fetchCurrentUser(): Promise<User | null> {
+  const res = await fetch(`/api/auth/me?ts=${Date.now()}`, buildAuthenticatedFetchInit({
+    cache: "no-store",
+  }));
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const data = (await res.json()) as AuthMeResponse;
+  return data.user ?? null;
+}
+
+async function waitForCurrentUser(maxAttempts = 5): Promise<User | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const currentUser = await fetchCurrentUser();
+    if (currentUser) {
+      return currentUser;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+  }
+
+  return null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -50,13 +133,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await fetch("/api/auth/me");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user) {
-            setUser(data.user);
-            setIsAuthenticated(true);
-          }
+        const currentUser = await waitForCurrentUser(2);
+        if (currentUser) {
+          setUser(currentUser);
+          setIsAuthenticated(true);
         }
       } finally {
         setLoading(false);
@@ -81,8 +161,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let response: Response;
 
       try {
+        const requestArgs = withAuthenticatedInternalApiRequest(args);
         // Execute the actual fetch using apply to handle arguments correctly
-        response = await originalFetch(...args);
+        response = await originalFetch(...requestArgs);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           throw error;
@@ -160,22 +241,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string, rememberMe?: boolean) => {
     setLoading(true);
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, rememberMe }),
-    });
 
-    if (!res.ok) {
-      const data = await res.json();
+    try {
+      clearStoredAuthToken();
+
+      const res = await fetch("/api/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, rememberMe }),
+      });
+      const data = (await res.json().catch(() => null)) as LoginResponse | null;
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Login failed");
+      }
+
+      if (data?.token) {
+        persistAuthToken(data.token, Boolean(rememberMe));
+      }
+
+      const currentUser = await waitForCurrentUser();
+
+      if (!currentUser) {
+        throw new Error("Login succeeded but the authenticated session could not be resolved for protected routes");
+      }
+
+      setUser(currentUser);
+      setIsAuthenticated(true);
+      React.startTransition(() => {
+        router.refresh();
+      });
+    } finally {
       setLoading(false);
-      throw new Error(data.message || "Login failed");
     }
-
-    const data = await res.json();
-    setUser(data.user);
-    setIsAuthenticated(true);
-    setLoading(false);
   };
 
   const logout = async () => {
@@ -185,6 +284,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
+      clearStoredAuthToken();
+
       // Clear auth token cookie
       document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
 

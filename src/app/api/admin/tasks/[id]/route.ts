@@ -1,52 +1,39 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+import { NextRequest, NextResponse } from "next/server";
 import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@prisma/client";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
+import { getCurrentUser2 } from '@/lib/auth';
 
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
+async function requireAdminUser(req: NextRequest) {
+    const user = await getCurrentUser2(req);
+    if (!user) return null;
 
-function getTokenFromCookies(req: Request) {
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-    const match = cookieHeader.match(/authToken=([^;]+)/);
-    return match ? match[1] : null;
-}
-
-function verifyAdminAccess(token: string): { userId: number; role: string } | null {
-    try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!["admin", "manager"].includes(decoded.role?.toLowerCase())) {
-            return null;
-        }
-        return { userId: decoded.userId, role: decoded.role };
-    } catch {
+    const normalizedRole = user.role?.toLowerCase();
+    if (normalizedRole !== "admin" && normalizedRole !== "manager") {
         return null;
     }
+
+    return user;
 }
 
 // ─────────────────────────────────────────
 // GET: Fetch single task with full details
 // ─────────────────────────────────────────
 export async function GET(
-    req: Request,
+    req: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
+        const user = await requireAdminUser(req);
+        if (!user) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-        }
-
-        const auth = verifyAdminAccess(token);
-        if (!auth) {
-            return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 
         const { id } = await params;
@@ -114,18 +101,13 @@ export async function GET(
 // PATCH: Update task (status, assignments, etc.)
 // ─────────────────────────────────────────
 export async function PATCH(
-    req: Request,
+    req: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
+        const user = await requireAdminUser(req);
+        if (!user) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-        }
-
-        const auth = verifyAdminAccess(token);
-        if (!auth) {
-            return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 
         const { id } = await params;
@@ -251,7 +233,7 @@ export async function PATCH(
 
         // Create audit log
         await createAuditLog({
-            userId: auth.userId,
+            userId: user.id,
             action: AuditAction.TASK_UPDATED,
             entity: "Task",
             entityId: id,
@@ -278,18 +260,13 @@ export async function PATCH(
 // DELETE: Delete a task (admin only)
 // ─────────────────────────────────────────
 export async function DELETE(
-    req: Request,
+    req: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
+        const user = await requireAdminUser(req);
+        if (!user) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-        }
-
-        const auth = verifyAdminAccess(token);
-        if (!auth) {
-            return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 
         const { id } = await params;
@@ -311,7 +288,7 @@ export async function DELETE(
 
         // Create audit log
         await createAuditLog({
-            userId: auth.userId,
+            userId: user.id,
             action: AuditAction.TASK_DELETED,
             entity: "Task",
             entityId: id,

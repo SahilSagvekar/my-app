@@ -2,32 +2,22 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { NAVIGATION_ITEMS, type NavigationRole } from '@/components/constants/navigation';
-import jwt from 'jsonwebtoken';
+import { getCurrentUser2 } from '@/lib/auth';
 
-function getTokenFromCookies(req: Request) {
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-    const match = cookieHeader.match(/authToken=([^;]+)/);
-    return match ? match[1] : null;
-}
+type NavigationItem = (typeof NAVIGATION_ITEMS)[NavigationRole][number];
 
 // GET /api/user/navigation - Fetch navigation items permitted for the current user's role
 export async function GET(req: NextRequest) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!decoded?.userId || !decoded.role) {
+        const user = await getCurrentUser2(req);
+        if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { searchParams } = new URL(req.url);
         const requestedRole = searchParams.get('role')?.toLowerCase() as NavigationRole | null;
 
-        let role = (decoded.role as string).toLowerCase() as NavigationRole;
+        let role = (user.role as string).toLowerCase() as NavigationRole;
 
         // 🔥 If user is admin or manager, they can request navigation for other roles (for View As feature)
         if ((role === 'admin' || role === 'manager') && requestedRole && NAVIGATION_ITEMS[requestedRole as NavigationRole]) {
@@ -39,19 +29,21 @@ export async function GET(req: NextRequest) {
         }
 
         // Get permissions from DB manually to bypass Prisma client generation issues
-        const permissionsList: any[] = await prisma.$queryRaw`SELECT "navigationItems" FROM "RolePermission" WHERE "role"::text = ${role} LIMIT 1`;
+        const permissionsList = await prisma.$queryRaw<Array<{ navigationItems: string[] | null }>>`
+            SELECT "navigationItems" FROM "RolePermission" WHERE "role"::text = ${role} LIMIT 1
+        `;
         const permissions = permissionsList[0];
         const allItems = NAVIGATION_ITEMS[role];
 
         // 🔥 Additional filtering for client role based on hasPostingServices
         let finalItems = [...allItems];
         if (role === 'client') {
-            const user = await prisma.user.findFirst({
-                where: { id: Number(decoded.userId) },
+            const clientUser = await prisma.user.findFirst({
+                where: { id: Number(user.id) },
                 include: { client: { select: { hasPostingServices: true } } }
             });
 
-            const hasPosting = (user as any)?.client?.hasPostingServices ?? true;
+            const hasPosting = clientUser?.client?.hasPostingServices ?? true;
             if (!hasPosting) {
                 const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
                 finalItems = finalItems.filter(item => !forbiddenIds.includes(item.id));
@@ -62,8 +54,8 @@ export async function GET(req: NextRequest) {
         // but whose role doesn't include it in the default nav config
         const hasLoginsInNav = finalItems.some(item => item.id === 'logins');
         if (!hasLoginsInNav) {
-            const userId = Number(decoded.userId);
-            const userRole = (decoded.role as string).toLowerCase();
+            const userId = Number(user.id);
+            const userRole = (user.role as string).toLowerCase();
             
             const hasLoginAccess = await prisma.socialLogin.findFirst({
                 where: {
@@ -78,11 +70,11 @@ export async function GET(req: NextRequest) {
             if (hasLoginAccess) {
                 // Insert 'logins' before 'feedback' if it exists, otherwise at the end
                 const feedbackIndex = finalItems.findIndex(item => item.id === 'feedback');
-                const loginsItem = { id: 'logins', label: 'Logins', icon: 'LogIn' };
+                const loginsItem = { id: 'logins', label: 'Logins', icon: 'LogIn' } as NavigationItem;
                 if (feedbackIndex !== -1) {
-                    finalItems.splice(feedbackIndex, 0, loginsItem as any);
+                    finalItems.splice(feedbackIndex, 0, loginsItem);
                 } else {
-                    finalItems.push(loginsItem as any);
+                    finalItems.push(loginsItem);
                 }
             }
         }
@@ -98,7 +90,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(finalItems);
         }
 
-        const enabledIds = permissions.navigationItems as string[];
+        const enabledIds = permissions.navigationItems ?? [];
         // Keep dynamically injected items (they were granted via allowedUserIds/allowedRoles)
         const filteredItems = finalItems.filter(item => 
             enabledIds.includes(item.id) || dynamicallyInjectedIds.has(item.id)
@@ -106,7 +98,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json(filteredItems);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error fetching user navigation:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
