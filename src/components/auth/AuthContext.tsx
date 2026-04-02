@@ -30,6 +30,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+type WrappedFetch = typeof window.fetch & { __isE8Wrapped?: boolean };
+type FetchArgs = Parameters<typeof window.fetch>;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -64,21 +67,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Global fetch interceptor for JWT expiration
   useEffect(() => {
+    const currentFetch = window.fetch as WrappedFetch;
+
     // 🛑 Prevent double wrapping if multiple instances are mounted
-    if ((window.fetch as any).__isE8Wrapped) {
+    if (currentFetch.__isE8Wrapped) {
       console.warn('⚠️ Fetch is already wrapped, skipping to prevent recursion');
       return;
     }
 
     const originalFetch = window.fetch;
 
-    const wrappedFetch = async (...args: any[]) => {
+    const wrappedFetch: WrappedFetch = async (...args: FetchArgs) => {
       let response: Response;
 
       try {
         // Execute the actual fetch using apply to handle arguments correctly
-        response = await (originalFetch as any).apply(window, args);
+        response = await originalFetch(...args);
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw error;
+        }
+
         // Normalize low-level network errors (TypeError: Failed to fetch, CORS, offline, etc.)
         console.error('Global fetch error:', error);
         return new Response(
@@ -132,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
         }
-      } catch (e) {
+      } catch {
         // Response is not JSON or already consumed, ignore
       }
 
@@ -140,14 +149,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     // Mark it to prevent double wrapping
-    (wrappedFetch as any).__isE8Wrapped = true;
+    wrappedFetch.__isE8Wrapped = true;
     window.fetch = wrappedFetch;
 
     // Cleanup: restore original fetch
     return () => {
       window.fetch = originalFetch;
     };
-  }, []);
+  }, [showSessionExpired]);
 
   const login = async (email: string, password: string, rememberMe?: boolean) => {
     setLoading(true);

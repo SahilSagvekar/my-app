@@ -32,37 +32,60 @@ interface UploadDB extends DBSchema {
 
 class UploadStateManager {
   private db: IDBPDatabase<UploadDB> | null = null;
+  private indexedDbUnavailable = false;
+  private memoryStore = new Map<string, UploadState>();
 
   async init() {
     if (this.db) return this.db;
+    if (this.indexedDbUnavailable) return null;
 
-    this.db = await openDB<UploadDB>('upload-manager', 1, {
-      upgrade(db) {
-        // Create uploads store
-        const uploadsStore = db.createObjectStore('uploads', { keyPath: 'id' });
-        uploadsStore.createIndex('by-status', 'status');
-        uploadsStore.createIndex('by-task', 'taskId');
-      },
-    });
+    try {
+      this.db = await openDB<UploadDB>('upload-manager', 1, {
+        upgrade(db) {
+          const uploadsStore = db.createObjectStore('uploads', { keyPath: 'id' });
+          uploadsStore.createIndex('by-status', 'status');
+          uploadsStore.createIndex('by-task', 'taskId');
+        },
+      });
+    } catch (error) {
+      this.indexedDbUnavailable = true;
+      console.warn('IndexedDB is unavailable, falling back to in-memory upload state:', error);
+      return null;
+    }
 
     return this.db;
   }
 
   async saveUploadState(state: UploadState) {
     const db = await this.init();
-    await db.put('uploads', {
+    const nextState = {
       ...state,
       lastUpdated: Date.now(),
-    });
+    };
+
+    if (!db) {
+      this.memoryStore.set(state.id, nextState);
+      return;
+    }
+
+    await db.put('uploads', nextState);
   }
 
   async getUploadState(id: string): Promise<UploadState | undefined> {
     const db = await this.init();
+    if (!db) {
+      return this.memoryStore.get(id);
+    }
     return db.get('uploads', id);
   }
 
   async getAllActiveUploads(): Promise<UploadState[]> {
     const db = await this.init();
+    if (!db) {
+      return Array.from(this.memoryStore.values()).filter(
+        (upload) => upload.status === 'uploading' || upload.status === 'paused',
+      );
+    }
     const uploads = await db.getAllFromIndex('uploads', 'by-status', 'uploading');
     const paused = await db.getAllFromIndex('uploads', 'by-status', 'paused');
     return [...uploads, ...paused];
@@ -70,11 +93,18 @@ class UploadStateManager {
 
   async getUploadsByTask(taskId: string): Promise<UploadState[]> {
     const db = await this.init();
+    if (!db) {
+      return Array.from(this.memoryStore.values()).filter((upload) => upload.taskId === taskId);
+    }
     return db.getAllFromIndex('uploads', 'by-task', taskId);
   }
 
   async deleteUploadState(id: string) {
     const db = await this.init();
+    if (!db) {
+      this.memoryStore.delete(id);
+      return;
+    }
     await db.delete('uploads', id);
   }
 

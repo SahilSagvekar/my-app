@@ -27,6 +27,19 @@ interface ViewAsRoleProviderProps {
     userRole: string | null;
 }
 
+function getSafeLocalStorage() {
+    if (typeof window === "undefined") {
+        return null;
+    }
+
+    try {
+        return window.localStorage;
+    } catch (error) {
+        console.warn("localStorage is unavailable for role switching:", error);
+        return null;
+    }
+}
+
 export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRoleProviderProps) {
     const [viewingAsRole, setViewingAsRole] = useState<string | null>(userRole);
     const [isViewingAsOther, setIsViewingAsOther] = useState(false);
@@ -54,7 +67,8 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
     // Load saved preference from localStorage
     useEffect(() => {
         if (canSwitchRole && userEmail) {
-            const saved = localStorage.getItem(`viewingAs_${userEmail}`);
+            const storage = getSafeLocalStorage();
+            const saved = storage?.getItem(`viewingAs_${userEmail}`);
             if (saved && saved !== userRole && switchableRoles.includes(saved)) {
                 setViewingAsRole(saved);
                 setIsViewingAsOther(true);
@@ -73,7 +87,7 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
         if (switchableRoles.includes(targetRole)) {
             setViewingAsRole(targetRole);
             setIsViewingAsOther(true);
-            localStorage.setItem(`viewingAs_${userEmail}`, targetRole);
+            getSafeLocalStorage()?.setItem(`viewingAs_${userEmail}`, targetRole);
         }
     };
 
@@ -81,7 +95,7 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
         setViewingAsRole(userRole);
         setIsViewingAsOther(false);
         if (userEmail) {
-            localStorage.removeItem(`viewingAs_${userEmail}`);
+            getSafeLocalStorage()?.removeItem(`viewingAs_${userEmail}`);
         }
     };
 

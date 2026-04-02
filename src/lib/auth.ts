@@ -1,10 +1,18 @@
 // lib/auth.ts
-import { NextApiRequest, NextApiResponse } from 'next';
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { prisma } from '@/lib/prisma';
+import { auth } from "@/auth";
+
+type DecodedToken = jwt.JwtPayload & {
+  userId?: number | string;
+  id?: number | string;
+  email?: string;
+  role?: string;
+  name?: string;
+};
 
 export const verifyToken = (token: string) => {
   try {
@@ -33,7 +41,7 @@ export async function getUser(req: Request) {
   if (!token)
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-  const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+  const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
   return decoded; // should contain id, email, role
 }
 
@@ -96,22 +104,24 @@ export async function getCurrentUser(req: NextRequest) {
     const token = req.headers.get("Authorization")?.split(" ")[1];
     if (!token) return null;
 
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
     return decoded; // should contain id, email, role
   } catch {
     return null;
   }
 }
 
-type Decoded = { userId: string; email: string; role?: string; name?: string };
-
-import { auth } from "@/auth";
-
 export async function getCurrentUser2(req?: NextRequest) {
   try {
+    const cookieTokenFromHeader = req
+      ? await getTokenFromCookies(req as unknown as Request)
+      : null;
+
     // 1. Try Custom JWT Token (Cookie or Header)
     const cookieToken = req
-      ? req.cookies.get("authToken")?.value
+      ? "cookies" in req && req.cookies
+        ? req.cookies.get("authToken")?.value
+        : cookieTokenFromHeader
       : (await cookies()).get("authToken")?.value;
 
     const headerToken = req?.headers.get("authorization")?.split(" ")[1];
@@ -119,7 +129,7 @@ export async function getCurrentUser2(req?: NextRequest) {
 
     if (token && process.env.JWT_SECRET) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as DecodedToken;
         // Support both custom 'userId' and NextAuth's 'id' field
         const effectiveId = decoded?.userId || decoded?.id;
 
@@ -127,7 +137,7 @@ export async function getCurrentUser2(req?: NextRequest) {
           const user = await prisma.user.findUnique({ where: { id: Number(effectiveId) } });
           if (user) return user;
         }
-      } catch (jwtErr) {
+      } catch {
         // Fall through to NextAuth
       }
     }
@@ -142,8 +152,8 @@ export async function getCurrentUser2(req?: NextRequest) {
     }
 
     return null;
-  } catch (err) {
-    console.error("getCurrentUser error:", err);
+  } catch (error) {
+    console.error("getCurrentUser error:", error);
     return null;
   }
 }
@@ -165,7 +175,7 @@ export function getUserFromRequest(req: Request) {
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     return decoded; // must contain userId inside it
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -184,13 +194,13 @@ export async function requireAdmin(req: NextRequest) {
   if (!token)
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-  const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-  const { role, userId } = decoded;
+  const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
+  const userId = decoded.userId;
 
   // const userId = Number(req.headers.get('x-user-id')); // temporary: client must send this
   // if (!userId) throw { status: 401, message: 'Unauthorized' };
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: Number(userId) } });
   if (!user || (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com'))
     throw { status: 403, message: "Account deactivated" };
 
@@ -239,5 +249,3 @@ export async function resolveClientIdForUser(userId: number): Promise<string | n
 
   return clientByUserId?.id || null;
 }
-
-

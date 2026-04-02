@@ -32,6 +32,7 @@ import {
   Edit
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '../auth/AuthContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -157,6 +158,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─────────────────────────────────────────
 
 export function TaskManagementTab() {
+  const { user } = useAuth();
   // State
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -305,6 +307,12 @@ export function TaskManagementTab() {
   }
 
   const loadTasks = useCallback(async () => {
+    if (!user) {
+      setTasks([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -327,13 +335,24 @@ export function TaskManagementTab() {
       if (filters.dueDateFrom) params.set('dueDateFrom', filters.dueDateFrom.toISOString());
       if (filters.dueDateTo) params.set('dueDateTo', filters.dueDateTo.toISOString());
 
-      const res = await fetch(`/api/admin/tasks?${params.toString()}`);
-
-      if (!res.ok) {
-        throw new Error('Failed to fetch tasks');
-      }
+      const res = await fetch(`/api/admin/tasks?${params.toString()}`, {
+        credentials: 'include',
+      });
 
       const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          console.warn('Task management is unavailable for this session:', data.message);
+          setTasks([]);
+          setTotalPages(1);
+          setTotal(0);
+          setStats(null);
+          return;
+        }
+
+        throw new Error(data.message || 'Failed to fetch tasks');
+      }
 
       setTasks(data.tasks || []);
       setTotalPages(data.pagination?.totalPages || 1);
@@ -364,17 +383,17 @@ export function TaskManagementTab() {
 
       // Clear selection when tasks change
       setSelectedTasks(new Set());
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to load tasks:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load tasks',
+        description: error instanceof Error ? error.message : 'Failed to load tasks',
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  }, [page, filters]);
+  }, [page, filters, user]);
 
   async function handleRefresh() {
     setRefreshing(true);

@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AuthProvider, useAuth } from "../components/auth/AuthContext";
+import { useAuth } from "../components/auth/AuthContext";
 import { ViewAsRoleProvider, useViewAsRole } from "../components/auth/ViewAsRoleContext";
-import { NotificationProvider } from "../components/NotificationContext";
 import { SearchProvider } from "../components/SearchContext";
 import { LoginScreen } from "../components/auth/LoginScreen";
 import { ForgotPasswordScreen } from "../components/auth/ForgotPasswordScreen";
@@ -17,9 +16,13 @@ import { UploadProvider } from "../components/workflow/UploadContext";
 
 type AuthScreen = "login" | "forgot-password" | "reset-password" | "two-factor";
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong";
+}
+
 function AuthenticatedAppInner() {
   const { user, logout, loading } = useAuth();
-  const { viewingAsRole, isViewingAsOther } = useViewAsRole();
+  const { viewingAsRole } = useViewAsRole();
   const [currentPage, setCurrentPage] = useState(() =>
     getDefaultPage(viewingAsRole || user?.role || "admin")
   );
@@ -63,18 +66,16 @@ function AuthenticatedAppInner() {
   const originalRole = user.role?.toLowerCase(); // The user's actual role
 
   return (
-    <NotificationProvider>
-      <SearchProvider>
-        <LayoutShell
-          currentRole={displayRole}
-          currentPage={currentPage}
-          onPageChange={handlePageChange}
-          onLogout={logout}
-        >
-          {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices, originalRole, user.linkedClientId)}
-        </LayoutShell>
-      </SearchProvider>
-    </NotificationProvider>
+    <SearchProvider>
+      <LayoutShell
+        currentRole={displayRole}
+        currentPage={currentPage}
+        onPageChange={handlePageChange}
+        onLogout={logout}
+      >
+        {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices, originalRole, user.linkedClientId)}
+      </LayoutShell>
+    </SearchProvider>
   );
 }
 
@@ -118,12 +119,13 @@ function AuthenticationFlow() {
     try {
       setAuthError(null);
       await login(email, password, rememberMe);
-    } catch (error: any) {
-      if (error.message === "2FA_REQUIRED") {
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      if (message === "2FA_REQUIRED") {
         setPendingTwoFactorEmail(email);
         setCurrentScreen("two-factor");
       } else {
-        setAuthError(error.message);
+        setAuthError(message);
       }
     }
   };
@@ -132,8 +134,8 @@ function AuthenticationFlow() {
     try {
       setAuthError(null);
       await verifyTwoFactor(code);
-    } catch (error: any) {
-      setAuthError(error.message);
+    } catch (error: unknown) {
+      setAuthError(getErrorMessage(error));
     }
   };
 
@@ -141,12 +143,12 @@ function AuthenticationFlow() {
     try {
       setAuthError(null);
       await resendTwoFactorCode();
-    } catch (error: any) {
-      setAuthError(error.message);
+    } catch (error: unknown) {
+      setAuthError(getErrorMessage(error));
     }
   };
 
-  const handleOAuthLogin = (provider: string) => {
+  const handleOAuthLogin = () => {
     setAuthError("OAuth login handled by NextAuth");
   };
 
