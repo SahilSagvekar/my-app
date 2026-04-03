@@ -178,10 +178,15 @@ export async function getQueueStats(): Promise<{
     client.llen(REDIS_KEYS.failed),
   ]);
   
-  const pendingSizeBytes = pendingJobs.reduce((sum, jobStr) => {
-    const job: CompressionJob = JSON.parse(jobStr);
-    return sum + job.sizeBytes;
-  }, 0);
+  // const pendingSizeBytes = pendingJobs.reduce((sum, jobStr) => {
+  //   const job: CompressionJob = JSON.parse(jobStr);
+  //   return sum + job.sizeBytes;
+  // }, 0);
+
+  const pendingSizeBytes = pendingJobs.reduce((sum, jobData) => {
+  const job = typeof jobData === 'string' ? JSON.parse(jobData) : jobData;
+  return sum + (job.sizeBytes || 0);
+}, 0);
   
   return {
     pending: pendingJobs.length,
