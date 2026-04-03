@@ -17,6 +17,16 @@ const getClient = (): Redis => {
 };
 
 /**
+ * Safely parse job data - Upstash auto-parses JSON, so handle both cases
+ */
+function parseJob(data: unknown): CompressionJob {
+  if (typeof data === 'string') {
+    return JSON.parse(data);
+  }
+  return data as CompressionJob;
+}
+
+/**
  * Add a video to the compression queue
  */
 export async function addToQueue(params: {
@@ -56,11 +66,11 @@ export async function getNextJob(): Promise<CompressionJob | null> {
   const client = getClient();
   
   // Upstash doesn't have rpoplpush, so we do it manually
-  const jobStr = await client.rpop(REDIS_KEYS.queue) as string | null;
+  const jobData = await client.rpop(REDIS_KEYS.queue);
   
-  if (!jobStr) return null;
+  if (!jobData) return null;
   
-  const job: CompressionJob = JSON.parse(jobStr);
+  const job = parseJob(jobData);
   job.status = 'processing';
   job.startedAt = new Date().toISOString();
   
@@ -77,10 +87,10 @@ export async function updateJob(jobId: string, updates: Partial<CompressionJob>)
   const client = getClient();
   
   // Check in processing list
-  const processingJobs = await client.lrange(REDIS_KEYS.processing, 0, -1) as string[];
+  const processingJobs = await client.lrange(REDIS_KEYS.processing, 0, -1);
   
   for (let i = 0; i < processingJobs.length; i++) {
-    const job: CompressionJob = JSON.parse(processingJobs[i]);
+    const job = parseJob(processingJobs[i]);
     if (job.id === jobId) {
       const updatedJob = { ...job, ...updates };
       await client.lset(REDIS_KEYS.processing, i, JSON.stringify(updatedJob));
@@ -172,21 +182,16 @@ export async function getQueueStats(): Promise<{
   const client = getClient();
   
   const [pendingJobs, processingCount, completedCount, failedCount] = await Promise.all([
-    client.lrange(REDIS_KEYS.queue, 0, -1) as Promise<string[]>,
+    client.lrange(REDIS_KEYS.queue, 0, -1),
     client.llen(REDIS_KEYS.processing),
     client.llen(REDIS_KEYS.completed),
     client.llen(REDIS_KEYS.failed),
   ]);
   
-  // const pendingSizeBytes = pendingJobs.reduce((sum, jobStr) => {
-  //   const job: CompressionJob = JSON.parse(jobStr);
-  //   return sum + job.sizeBytes;
-  // }, 0);
-
   const pendingSizeBytes = pendingJobs.reduce((sum, jobData) => {
-  const job = typeof jobData === 'string' ? JSON.parse(jobData) : jobData;
-  return sum + (job.sizeBytes || 0);
-}, 0);
+    const job = parseJob(jobData);
+    return sum + (job.sizeBytes || 0);
+  }, 0);
   
   return {
     pending: pendingJobs.length,
@@ -202,8 +207,8 @@ export async function getQueueStats(): Promise<{
  */
 export async function getPendingJobs(): Promise<CompressionJob[]> {
   const client = getClient();
-  const jobs = await client.lrange(REDIS_KEYS.queue, 0, -1) as string[];
-  return jobs.map(j => JSON.parse(j));
+  const jobs = await client.lrange(REDIS_KEYS.queue, 0, -1);
+  return jobs.map(j => parseJob(j));
 }
 
 /**
@@ -211,8 +216,8 @@ export async function getPendingJobs(): Promise<CompressionJob[]> {
  */
 export async function getProcessingJobs(): Promise<CompressionJob[]> {
   const client = getClient();
-  const jobs = await client.lrange(REDIS_KEYS.processing, 0, -1) as string[];
-  return jobs.map(j => JSON.parse(j));
+  const jobs = await client.lrange(REDIS_KEYS.processing, 0, -1);
+  return jobs.map(j => parseJob(j));
 }
 
 /**
@@ -232,12 +237,16 @@ export async function shouldStartSpot(): Promise<boolean> {
 async function removeFromProcessing(jobId: string): Promise<CompressionJob | null> {
   const client = getClient();
   
-  const processingJobs = await client.lrange(REDIS_KEYS.processing, 0, -1) as string[];
+  const processingJobs = await client.lrange(REDIS_KEYS.processing, 0, -1);
   
   for (let i = 0; i < processingJobs.length; i++) {
-    const job: CompressionJob = JSON.parse(processingJobs[i]);
+    const job = parseJob(processingJobs[i]);
     if (job.id === jobId) {
-      await client.lrem(REDIS_KEYS.processing, 1, processingJobs[i]);
+      // Need to stringify for lrem comparison
+      const originalStr = typeof processingJobs[i] === 'string' 
+        ? processingJobs[i] 
+        : JSON.stringify(processingJobs[i]);
+      await client.lrem(REDIS_KEYS.processing, 1, originalStr);
       return job;
     }
   }
@@ -248,10 +257,10 @@ async function removeFromProcessing(jobId: string): Promise<CompressionJob | nul
 async function updateJobInList(listKey: string, job: CompressionJob): Promise<void> {
   const client = getClient();
   
-  const jobs = await client.lrange(listKey, 0, -1) as string[];
+  const jobs = await client.lrange(listKey, 0, -1);
   
   for (let i = 0; i < jobs.length; i++) {
-    const existing: CompressionJob = JSON.parse(jobs[i]);
+    const existing = parseJob(jobs[i]);
     if (existing.id === job.id) {
       await client.lset(listKey, i, JSON.stringify(job));
       return;
