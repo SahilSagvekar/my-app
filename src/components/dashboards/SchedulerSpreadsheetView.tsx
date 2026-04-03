@@ -7,6 +7,13 @@ import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Checkbox } from '../ui/checkbox';
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "../ui/select";
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -44,6 +51,7 @@ import {
     Package,
     Calendar,
     Loader2,
+    Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -81,10 +89,11 @@ interface SchedulerTask {
     files: {
         id: string | number;
         name: string;
-        url: string;
+        url?: string;
         size: number;
         mimeType?: string;
         folderType?: string;
+        s3Key?: string;
     }[];
     createdAt: string;
     clientId: string;
@@ -134,6 +143,18 @@ export function SchedulerSpreadsheetView() {
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'scheduled'>('all');
     const [clientFilter, setClientFilter] = useState<string>('all');
     const [deliverableFilter, setDeliverableFilter] = useState<string>('all');
+    const [dateRange, setDateRange] = useState<string>('30d');
+
+    // Metadata for filters
+    const [allClients, setAllClients] = useState<{ id: string; name: string, companyName?: string }[]>([]);
+    const [allDeliverables, setAllDeliverables] = useState<string[]>([]);
+
+    // Pagination/Load More state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalTasks, setTotalTasks] = useState(0);
+    const [hasMore, setHasMore] = useState(false);
+    const [pageSize, setPageSize] = useState(50);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     // Client deliverables display
     const [clientDeliverables, setClientDeliverables] = useState<ClientDeliverable[]>([]);
@@ -143,6 +164,9 @@ export function SchedulerSpreadsheetView() {
     // Per-task client deliverables cache (for expanded rows)
     const [taskClientDeliverables, setTaskClientDeliverables] = useState<Record<string, ClientDeliverable[]>>({});
     const [loadingTaskDeliverables, setLoadingTaskDeliverables] = useState<Record<string, boolean>>({});
+
+    // Signed URLs cache (fileId -> signedUrl)
+    const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
     // File preview
     const [previewFile, setPreviewFile] = useState<any | null>(null);
@@ -167,17 +191,45 @@ export function SchedulerSpreadsheetView() {
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
     useEffect(() => {
-        loadTasks();
+        fetchMetadata();
     }, []);
 
-    async function loadTasks() {
+    useEffect(() => {
+        // Reset to first page and LOAD when filters change
+        loadTasks(1, false);
+    }, [searchTerm, statusFilter, clientFilter, dateRange, deliverableFilter]);
+
+    async function fetchMetadata() {
+        try {
+            const res = await fetch("/api/schedular/metadata", { cache: "no-store" });
+            const data = await res.json();
+            if (data.clients) setAllClients(data.clients);
+            if (data.deliverableTypes) setAllDeliverables(data.deliverableTypes);
+        } catch (error) {
+            console.error("Error loading metadata:", error);
+        }
+    }
+
+    async function loadTasks(pageNum: number = 1, isLoadMore: boolean = false) {
         try {
             setLoading(true);
-            const res = await fetch("/api/schedular/tasks", { cache: "no-store" });
+            const queryParams = new URLSearchParams({
+                page: pageNum.toString(),
+                limit: pageSize.toString(),
+                search: searchTerm,
+                status: statusFilter,
+                clientId: clientFilter,
+                deliverableType: deliverableFilter,
+                dateRange: dateRange
+            });
+
+            const res = await fetch(`/api/schedular/tasks?${queryParams.toString()}`, { cache: "no-store" });
             const data = await res.json();
 
-            if (!data.tasks || data.tasks.length === 0) {
-                setTasks([]);
+            if (!data.tasks) {
+                if (!isLoadMore) setTasks([]);
+                setTotalTasks(0);
+                setHasMore(false);
                 return;
             }
 
@@ -193,10 +245,11 @@ export function SchedulerSpreadsheetView() {
                     files: (t.files || []).map((file: any) => ({
                         id: file.id,
                         name: file.name,
-                        url: file.url,
+                        url: file.url || '',
                         size: file.size || 0,
                         mimeType: file.mimeType || '',
                         folderType: file.folderType || 'other',
+                        s3Key: file.s3Key || '',
                     })),
                     createdAt: t.createdAt,
                     clientId: t.clientId,
@@ -219,7 +272,16 @@ export function SchedulerSpreadsheetView() {
                 };
             });
 
-            setTasks(mapped);
+            if (isLoadMore) {
+                setTasks(prev => [...prev, ...mapped]);
+            } else {
+                setTasks(mapped);
+            }
+            
+            setTotalTasks(data.total || 0);
+            setHasMore(data.page < data.totalPages);
+            setCurrentPage(data.page || 1);
+            setIsInitialLoad(false);
         } catch (error) {
             console.error("Error loading tasks:", error);
             toast.error('Failed to load tasks');
@@ -447,16 +509,13 @@ export function SchedulerSpreadsheetView() {
         setSelectedRows(new Set());
     }
 
-    // Download file
+    // Download file - always use the download API which signs on demand
     async function downloadFile(file: any) {
         try {
-            const isS3 = file.url?.includes('amazonaws.com') || file.url?.includes('r2.cloudflarestorage.com') || file.url?.includes('r2.dev');
-            if (isS3 && file.id) {
-                // Use the download API — generates presigned S3 URL, browser handles at full speed
+            if (file.id) {
                 window.open(`/api/files/${file.id}/download`, '_blank');
                 toast.success('Download started', { id: 'download' });
-            } else {
-                // Fallback for non-S3 files
+            } else if (file.url) {
                 window.open(file.url, '_blank');
                 toast.success('Download started', { id: 'download' });
             }
@@ -464,6 +523,41 @@ export function SchedulerSpreadsheetView() {
             toast.error('Download failed', { id: 'download' });
         }
     }
+
+    // Fetch signed URLs for a task's files (lazy signing on expand)
+    async function fetchSignedUrls(taskId: string) {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task || task.files.length === 0) return;
+
+        // Only sign files that don't already have a signed URL cached
+        const fileIds = task.files
+            .filter(f => f.id && !signedUrls[String(f.id)])
+            .map(f => String(f.id));
+
+        if (fileIds.length === 0) return;
+
+        try {
+            const res = await fetch('/api/files/batch-presign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileIds }),
+            });
+
+            if (!res.ok) return;
+
+            const data = await res.json();
+            if (data.urls) {
+                setSignedUrls(prev => ({ ...prev, ...data.urls }));
+            }
+        } catch (error) {
+            console.error('Failed to fetch signed URLs:', error);
+        }
+    }
+
+    // Helper to get the viewable URL for a file
+    const getFileUrl = (file: { id: string | number; url?: string }) => {
+        return signedUrls[String(file.id)] || file.url || '';
+    };
 
     // Fetch deliverables for a task's client (for expanded row display)
     async function fetchTaskClientDeliverables(clientId: string) {
@@ -526,6 +620,8 @@ export function SchedulerSpreadsheetView() {
                 if (task?.clientId) {
                     fetchTaskClientDeliverables(task.clientId);
                 }
+                // Lazy-sign file URLs for this task
+                fetchSignedUrls(taskId);
             }
             return newSet;
         });
@@ -541,48 +637,28 @@ export function SchedulerSpreadsheetView() {
         }
     };
 
-    // Filter and sort tasks
-    const filteredTasks = tasks
-        .filter(t => {
-            const matchesSearch = t.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                t.client?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                t.clientId?.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesStatus = statusFilter === 'all' ||
-                (statusFilter === 'pending' && t.status === 'PENDING') ||
-                (statusFilter === 'scheduled' && t.status === 'SCHEDULED');
-            const matchesClient = clientFilter === 'all' || t.clientId === clientFilter;
-            const matchesDeliverable = deliverableFilter === 'all' || t.deliverable?.id === deliverableFilter || t.deliverable?.type === deliverableFilter;
-            return matchesSearch && matchesStatus && matchesClient && matchesDeliverable;
-        })
-        .sort((a, b) => {
-            let aVal: any, bVal: any;
-            switch (sortColumn) {
-                case 'title': aVal = a.title; bVal = b.title; break;
-                case 'client': aVal = a.client?.name || a.clientId; bVal = b.client?.name || b.clientId; break;
-                case 'dueDate': aVal = new Date(a.dueDate || 0); bVal = new Date(b.dueDate || 0); break;
-                case 'status': aVal = a.status; bVal = b.status; break;
-                default: aVal = a.dueDate; bVal = b.dueDate;
-            }
-            if (sortDirection === 'asc') {
-                return aVal > bVal ? 1 : -1;
-            }
-            return aVal < bVal ? 1 : -1;
-        });
+    // Tasks are already filtered and paginated on the server
+    const displayTasks = tasks.sort((a, b) => {
+        let aVal: any, bVal: any;
+        switch (sortColumn) {
+            case 'title': aVal = a.title; bVal = b.title; break;
+            case 'client': aVal = a.client?.name || a.clientId; bVal = b.client?.name || b.clientId; break;
+            case 'dueDate': aVal = new Date(a.dueDate || 0); bVal = new Date(b.dueDate || 0); break;
+            case 'status': aVal = a.status; bVal = b.status; break;
+            default: aVal = a.dueDate; bVal = b.dueDate;
+        }
+        if (sortDirection === 'asc') {
+            return aVal > bVal ? 1 : -1;
+        }
+        return aVal < bVal ? 1 : -1;
+    });
 
     const pendingCount = tasks.filter(t => t.status === 'PENDING').length;
     const scheduledCount = tasks.filter(t => t.status === 'SCHEDULED').length;
 
-    // Get unique clients and deliverables for filter dropdowns
-    const uniqueClients = Array.from(
-        new Map(
-            tasks
-                .map(t => t.client)
-                .filter(Boolean)
-                .map(c => [c.id, c.companyName || c.name])
-        ).entries()
-    ).sort((a, b) => a[1].localeCompare(b[1]));
-
-    const uniqueDeliverables = Array.from(new Set(tasks.map(t => t.deliverable?.type).filter(Boolean))) as string[];
+    // Metadata for dropdowns now comes from separate API
+    const uniqueClients = allClients.map(c => [c.id, c.companyName || c.name] as [string, string]);
+    const uniqueDeliverables = allDeliverables;
 
     // Copy title to clipboard - handle both string and object formats
     const copyTitle = (titleItem: any) => {
@@ -624,71 +700,109 @@ export function SchedulerSpreadsheetView() {
                             Mark Selected ({selectedRows.size})
                         </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={loadTasks}>
+                    <Button variant="outline" size="sm" onClick={() => loadTasks()}>
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Refresh
                     </Button>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex items-center gap-4 bg-white border rounded-lg p-3">
-                <div className="flex-1 relative">
+            {/* Filters Bar */}
+            <div className="flex flex-wrap items-center gap-4 bg-white border rounded-lg p-3 shadow-sm">
+                {/* Search */}
+                <div className="flex-1 min-w-[200px] relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search tasks, clients..."
+                        placeholder="Search by title, client or ID..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9"
+                        className="pl-9 h-9 text-xs"
                     />
                 </div>
-                <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
+                
+                {/* Date Selection */}
+                <div className="flex items-center gap-2 border-l pl-4">
+                    <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Window:
+                    </span>
+                    <Select value={dateRange} onValueChange={setDateRange}>
+                        <SelectTrigger className="h-9 w-[120px] text-xs">
+                            <SelectValue placeholder="Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="7d">Last 7 Days</SelectItem>
+                            <SelectItem value="30d">Last 30 Days</SelectItem>
+                            <SelectItem value="90d">Last 90 Days</SelectItem>
+                            <SelectItem value="all">All Time</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Status Toggle */}
+                <div className="flex items-center gap-1 border-l pl-4">
                     <Button
-                        variant={statusFilter === 'all' ? 'default' : 'outline'}
+                        variant={statusFilter === 'all' ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => setStatusFilter('all')}
+                        className={`h-9 px-3 text-xs ${statusFilter === 'all' ? 'bg-slate-900 text-white' : ''}`}
                     >
-                        All ({tasks.length})
+                        All
                     </Button>
                     <Button
-                        variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                        variant={statusFilter === 'pending' ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => setStatusFilter('pending')}
+                        className={`h-9 px-3 text-xs ${statusFilter === 'pending' ? 'bg-indigo-600 text-white' : ''}`}
                     >
-                        Pending ({pendingCount})
+                        Pending
                     </Button>
                     <Button
-                        variant={statusFilter === 'scheduled' ? 'default' : 'outline'}
+                        variant={statusFilter === 'scheduled' ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => setStatusFilter('scheduled')}
+                        className={`h-9 px-3 text-xs ${statusFilter === 'scheduled' ? 'bg-emerald-600 text-white' : ''}`}
                     >
-                        Scheduled ({scheduledCount})
+                        Scheduled
                     </Button>
                 </div>
 
+                {/* Client Filter */}
                 <div className="flex items-center gap-2 border-l pl-4">
-                    <select
-                        className="text-sm border rounded-md px-2 py-1 bg-white outline-none focus:ring-2 focus:ring-primary/20"
-                        value={clientFilter}
-                        onChange={(e) => handleClientFilterChange(e.target.value)}
-                    >
-                        <option value="all">All Clients</option>
-                        {uniqueClients.map(([id, name]) => (
-                            <option key={id} value={id}>{name}</option>
-                        ))}
-                    </select>
+                    <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5" />
+                        Client:
+                    </span>
+                    <Select value={clientFilter} onValueChange={handleClientFilterChange}>
+                        <SelectTrigger className="h-9 w-[150px] text-xs">
+                            <SelectValue placeholder="All Clients" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                            <SelectItem value="all">All Clients</SelectItem>
+                            {uniqueClients.map(([id, name]) => (
+                                <SelectItem key={id} value={id}>{name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
 
-                    <select
-                        className="text-sm border rounded-md px-2 py-1 bg-white outline-none focus:ring-2 focus:ring-primary/20"
-                        value={deliverableFilter}
-                        onChange={(e) => setDeliverableFilter(e.target.value)}
-                    >
-                        <option value="all">All Deliverables</option>
-                        {uniqueDeliverables.sort().map(type => (
-                            <option key={type} value={type}>{type}</option>
-                        ))}
-                    </select>
+                {/* Deliverable Type Filter */}
+                <div className="flex items-center gap-2 border-l pl-4">
+                    <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                        <Package className="h-3.5 w-3.5" />
+                        Type:
+                    </span>
+                    <Select value={deliverableFilter} onValueChange={setDeliverableFilter}>
+                        <SelectTrigger className="h-9 w-[130px] text-xs">
+                            <SelectValue placeholder="All Types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Types</SelectItem>
+                            {uniqueDeliverables.map((type) => (
+                                <SelectItem key={type} value={type}>{type}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
 
@@ -831,10 +945,10 @@ export function SchedulerSpreadsheetView() {
                             <tr>
                                 <th className="w-10 px-3 py-3 text-left">
                                     <Checkbox
-                                        checked={selectedRows.size === filteredTasks.length && filteredTasks.length > 0}
+                                        checked={selectedRows.size === tasks.length && tasks.length > 0}
                                         onCheckedChange={(checked) => {
                                             if (checked) {
-                                                setSelectedRows(new Set(filteredTasks.map(t => t.id)));
+                                                setSelectedRows(new Set(tasks.map(t => t.id)));
                                             } else {
                                                 setSelectedRows(new Set());
                                             }
@@ -901,7 +1015,7 @@ export function SchedulerSpreadsheetView() {
 
                         {/* Body */}
                         <tbody className="divide-y">
-                            {filteredTasks.length === 0 ? (
+                            {tasks.length === 0 ? (
                                 <tr>
                                     <td colSpan={14} className="px-6 py-12 text-center text-muted-foreground">
                                         <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
@@ -910,7 +1024,7 @@ export function SchedulerSpreadsheetView() {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredTasks.map((task, index) => {
+                                displayTasks.map((task) => {
                                     const isExpanded = expandedRows.has(task.id);
                                     const videoFiles = task.files.filter(f => f.mimeType?.startsWith('video/'));
                                     const imageFiles = task.files.filter(f => f.mimeType?.startsWith('image/'));
@@ -1169,7 +1283,7 @@ export function SchedulerSpreadsheetView() {
                                                                                                         size="sm"
                                                                                                         variant="ghost"
                                                                                                         onClick={() => {
-                                                                                                            setPreviewFile(file);
+                                                                                                            setPreviewFile({ ...file, url: getFileUrl(file) });
                                                                                                             setIsPreviewOpen(true);
                                                                                                         }}
                                                                                                         className="h-7 w-7 p-0"
@@ -1195,7 +1309,7 @@ export function SchedulerSpreadsheetView() {
                                                                 )}
 
                                                                 {/* Inline Video Player */}
-                                                                {playingVideo && task.files.some(f => f.url === playingVideo) && (
+                                                                {playingVideo && task.files.some(f => getFileUrl(f) === playingVideo) && (
                                                                     <div className="mt-4 bg-black rounded-lg overflow-hidden">
                                                                         <video
                                                                             ref={videoRef}
@@ -1497,6 +1611,31 @@ export function SchedulerSpreadsheetView() {
                             )}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Load More Controls */}
+                <div className="mt-6 flex flex-col items-center gap-4 border-t pt-6 px-2">
+                    <div className="text-sm text-muted-foreground">
+                        Showing <span className="font-medium text-foreground">{tasks.length}</span> of <span className="font-medium text-foreground">{totalTasks}</span> tasks
+                    </div>
+                    
+                    {hasMore && (
+                        <Button
+                            variant="outline"
+                            onClick={() => loadTasks(currentPage + 1, true)}
+                            disabled={loading}
+                            className="bg-white hover:bg-indigo-50 border-indigo-100 text-indigo-600 font-medium px-8 h-10 shadow-sm"
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Loading...
+                                </>
+                            ) : (
+                                "Load More History"
+                            )}
+                        </Button>
+                    )}
                 </div>
             </div>
 
