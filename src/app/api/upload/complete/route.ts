@@ -5,6 +5,7 @@ import { CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
 import { getS3, BUCKET, getFileUrl } from '@/lib/s3';
 import { optimizeVideo } from '@/lib/video-optimizer';
+import { queueVideoForCompression } from '@/lib/video-compression/worker';
 
 const s3Client = getS3();
 
@@ -139,17 +140,29 @@ export async function POST(request: NextRequest) {
       console.log("🔗 File URL added to task driveLinks");
 
       // 🔥 TRIGGER BACKGROUND OPTIMIZATION
-      if (fileType.startsWith('video/')) {
-        console.log(`🚀 Triggering background optimization for file: ${fileRecord.id}`);
-        // Set initial status
-        await prisma.file.update({
-          where: { id: fileRecord.id },
-          data: { optimizationStatus: 'PENDING' }
-        });
+      // if (fileType.startsWith('video/')) {
+      //   console.log(`🚀 Triggering background optimization for file: ${fileRecord.id}`);
+      //   // Set initial status
+      //   await prisma.file.update({
+      //     where: { id: fileRecord.id },
+      //     data: { optimizationStatus: 'PENDING' }
+      //   });
         
-        // We don't await this so it doesn't block the response
-        optimizeVideo(fileRecord.id).catch(err => {
-          console.error(`❌ Background optimization failed for ${fileRecord.id}:`, err);
+      //   // We don't await this so it doesn't block the response
+      //   optimizeVideo(fileRecord.id).catch(err => {
+      //     console.error(`❌ Background optimization failed for ${fileRecord.id}:`, err);
+      //   });
+      // }
+
+      if (fileType.startsWith("video/") && fileSize > 100 * 1024 * 1024) {
+        // Queue for spot compression if > 100MB
+        queueVideoForCompression({
+          videoKey: key,
+          sizeBytes: fileSize,
+          clientId: taskId, // or actual clientId if available
+          taskId: taskId,
+        }).catch((err) => {
+          console.error(`❌ Failed to queue compression: ${err}`);
         });
       }
 
