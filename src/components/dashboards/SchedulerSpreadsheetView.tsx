@@ -1238,14 +1238,29 @@ export function SchedulerSpreadsheetView() {
                                                                     <p className="text-muted-foreground text-sm">No files attached</p>
                                                                 ) : (
                                                                     <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                                                                        {Object.entries(
-                                                                            task.files.reduce((acc, file) => {
+                                                                        {(() => {
+                                                                            // Group files by folderType
+                                                                            const grouped = task.files.reduce((acc, file) => {
                                                                                 const folderType = file.folderType || 'Uncategorized';
                                                                                 if (!acc[folderType]) acc[folderType] = [];
                                                                                 acc[folderType].push(file);
                                                                                 return acc;
-                                                                            }, {} as Record<string, typeof task.files>)
-                                                                        ).map(([folderType, folderFiles]) => (
+                                                                            }, {} as Record<string, typeof task.files>);
+
+                                                                            // Sort: main first, thumbnails & music-license last
+                                                                            const folderOrder: Record<string, number> = {
+                                                                                'main': 0,
+                                                                                'covers': 1,
+                                                                                'tiles': 2,
+                                                                                'other': 3,
+                                                                                'Uncategorized': 4,
+                                                                                'thumbnails': 5,
+                                                                                'music-license': 6,
+                                                                            };
+
+                                                                            return Object.entries(grouped)
+                                                                                .sort(([a], [b]) => (folderOrder[a] ?? 3) - (folderOrder[b] ?? 3));
+                                                                        })().map(([folderType, folderFiles]) => (
                                                                             <div key={folderType} className="space-y-2">
                                                                                 <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-gray-100 px-2 py-1 rounded inline-block">
                                                                                     {folderType.replace(/_/g, ' ')}
