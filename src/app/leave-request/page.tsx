@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api-fetch";
 import { useAuth } from "@/components/auth/AuthContext";
 import { LayoutShell } from "@/components/LayoutShell";
-import { NotificationProvider } from "@/components/NotificationContext";
 import { SearchProvider } from "@/components/SearchContext";
 
 export default function LeaveRequestPage() {
