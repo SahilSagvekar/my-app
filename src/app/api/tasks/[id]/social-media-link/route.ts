@@ -30,7 +30,7 @@ export async function POST(
   try {
     const { id } = await params;  // Await params
     const body = await request.json();
-    const { platform, url } = body;
+    const { platform, url, postedAt } = body;
     const user = getUserFromToken(request);
 
     // Get current task
@@ -55,7 +55,7 @@ export async function POST(
     const newLink = {
       platform,
       url,
-      postedAt: new Date().toISOString(),
+      postedAt: postedAt || new Date().toISOString(),
       addedBy: user?.userId || null,
     };
 
@@ -103,7 +103,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { platform, url } = body;
+    const { platform, url, postedAt } = body;
     const user = getUserFromToken(request);
 
     // Get current task
@@ -133,6 +133,7 @@ export async function PATCH(
         return {
           ...link,
           url,
+          ...(postedAt ? { postedAt } : {}),
           updatedAt: new Date().toISOString(),
           updatedBy: user?.userId || null,
         };

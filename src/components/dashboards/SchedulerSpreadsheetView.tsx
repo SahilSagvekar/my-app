@@ -183,8 +183,10 @@ export function SchedulerSpreadsheetView() {
         platform: PlatformKey; 
         mode: 'add' | 'edit';
         existingUrl?: string;
+        existingPostedAt?: string;
     } | null>(null);
     const [linkUrl, setLinkUrl] = useState('');
+    const [linkPostedAt, setLinkPostedAt] = useState('');
     const [submittingLink, setSubmittingLink] = useState(false);
 
     // Selected rows for bulk actions
@@ -364,6 +366,7 @@ export function SchedulerSpreadsheetView() {
             setSubmittingLink(true);
             
             const isEdit = linkDialog.mode === 'edit';
+            const postedAtValue = linkPostedAt ? new Date(linkPostedAt).toISOString() : new Date().toISOString();
             
             const res = await fetch(`/api/tasks/${linkDialog.taskId}/social-media-link`, {
                 method: isEdit ? 'PATCH' : 'POST',
@@ -371,6 +374,7 @@ export function SchedulerSpreadsheetView() {
                 body: JSON.stringify({
                     platform: linkDialog.platform,
                     url: linkUrl,
+                    postedAt: postedAtValue,
                 }),
             });
 
@@ -385,7 +389,7 @@ export function SchedulerSpreadsheetView() {
                             ...t,
                             socialMediaLinks: (t.socialMediaLinks || []).map(link =>
                                 link.platform.toLowerCase() === linkDialog.platform.toLowerCase()
-                                    ? { ...link, url: linkUrl }
+                                    ? { ...link, url: linkUrl, postedAt: postedAtValue }
                                     : link
                             )
                         };
@@ -395,7 +399,7 @@ export function SchedulerSpreadsheetView() {
                             ...t,
                             socialMediaLinks: [
                                 ...(t.socialMediaLinks || []),
-                                { platform: linkDialog.platform, url: linkUrl, postedAt: new Date().toISOString() }
+                                { platform: linkDialog.platform, url: linkUrl, postedAt: postedAtValue }
                             ]
                         };
                     }
@@ -406,6 +410,7 @@ export function SchedulerSpreadsheetView() {
             toast.success(`${PLATFORMS[linkDialog.platform].label} link ${isEdit ? 'updated' : 'added'}!`);
             setLinkDialog(null);
             setLinkUrl('');
+            setLinkPostedAt('');
         } catch (err) {
             toast.error(`Failed to ${linkDialog.mode === 'edit' ? 'update' : 'add'} link`);
         } finally {
@@ -1372,14 +1377,22 @@ export function SchedulerSpreadsheetView() {
                                                                                         <div className={`p-1 rounded ${platform?.bgColor || 'bg-gray-100'}`}>
                                                                                             <Icon className={`h-3.5 w-3.5 ${platform?.color || 'text-gray-600'}`} />
                                                                                         </div>
-                                                                                        <a
-                                                                                            href={link.url}
-                                                                                            target="_blank"
-                                                                                            rel="noopener noreferrer"
-                                                                                            className="flex-1 text-sm text-blue-600 hover:underline truncate"
-                                                                                        >
-                                                                                            {link.url.length > 50 ? link.url.slice(0, 50) + '...' : link.url}
-                                                                                        </a>
+                                                                                        <div className="flex-1 min-w-0">
+                                                                                            <a
+                                                                                                href={link.url}
+                                                                                                target="_blank"
+                                                                                                rel="noopener noreferrer"
+                                                                                                className="text-sm text-blue-600 hover:underline truncate block"
+                                                                                            >
+                                                                                                {link.url.length > 50 ? link.url.slice(0, 50) + '...' : link.url}
+                                                                                            </a>
+                                                                                            {link.postedAt && (
+                                                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                                                                                                    <Clock className="h-2.5 w-2.5" />
+                                                                                                    {new Date(link.postedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
                                                                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                                             <Button
                                                                                                 variant="ghost"
@@ -1388,12 +1401,18 @@ export function SchedulerSpreadsheetView() {
                                                                                                 onClick={(e) => {
                                                                                                     e.stopPropagation();
                                                                                                     setLinkUrl(link.url);
+                                                                                                    if (link.postedAt) {
+                                                                                                        const dt = new Date(link.postedAt);
+                                                                                                        const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                                                                                                        setLinkPostedAt(local);
+                                                                                                    }
                                                                                                     setLinkDialog({
                                                                                                         open: true,
                                                                                                         taskId: task.id,
                                                                                                         platform: platformKey,
                                                                                                         mode: 'edit',
-                                                                                                        existingUrl: link.url
+                                                                                                        existingUrl: link.url,
+                                                                                                        existingPostedAt: link.postedAt
                                                                                                     });
                                                                                                 }}
                                                                                                 title="Edit link"
@@ -1640,6 +1659,7 @@ export function SchedulerSpreadsheetView() {
                 if (!open) {
                     setLinkDialog(null);
                     setLinkUrl('');
+                    setLinkPostedAt('');
                 }
             }}>
                 <DialogContent>
@@ -1667,16 +1687,34 @@ export function SchedulerSpreadsheetView() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                        <Input
-                            placeholder="https://..."
-                            value={linkUrl}
-                            onChange={(e) => setLinkUrl(e.target.value)}
-                            disabled={submittingLink}
-                        />
+                        <div>
+                            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Post URL</label>
+                            <Input
+                                placeholder="https://..."
+                                value={linkUrl}
+                                onChange={(e) => setLinkUrl(e.target.value)}
+                                disabled={submittingLink}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                                <Clock className="h-3 w-3" />
+                                Posted / Scheduled Time
+                            </label>
+                            <Input
+                                type="datetime-local"
+                                value={linkPostedAt}
+                                onChange={(e) => setLinkPostedAt(e.target.value)}
+                                disabled={submittingLink}
+                                className="text-sm"
+                            />
+                            <p className="text-[10px] text-muted-foreground mt-1">Leave empty to use the current time</p>
+                        </div>
                         <div className="flex justify-end gap-2">
                             <Button variant="outline" onClick={() => {
                                 setLinkDialog(null);
                                 setLinkUrl('');
+                                setLinkPostedAt('');
                             }} disabled={submittingLink}>
                                 Cancel
                             </Button>
