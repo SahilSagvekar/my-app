@@ -200,8 +200,8 @@ export async function PATCH(
             userId: task.qc_specialist,
             type: "content_ready",
             title: "Task Ready for QC",
-            body: `Task "${task.title}" is ready for your review.`,
-            payload: { taskId: task.id, clientId: task.clientId },
+            body: `Task "${task.title}" is ready for review by QC specialist.`,
+            payload: { taskId: task.id, clientId: task.clientId, qcId: task.qc_specialist},
           });
         }
       }
