@@ -1006,7 +1006,6 @@ export function SchedulerSpreadsheetView() {
                                 >
                                     Status
                                 </th>
-                                <th className="px-3 py-3 text-center font-semibold">Actions</th>
                             </tr>
                         </thead>
 
@@ -1206,27 +1205,12 @@ export function SchedulerSpreadsheetView() {
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
                                                 </td>
-
-                                                {/* Actions */}
-                                                {/* <td className="px-3 py-3 text-center">
-                                                    {task.status === 'PENDING' && (
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => markAsScheduled(task.id)}
-                                                            disabled={!hasLinks}
-                                                            className="h-7 text-xs"
-                                                        >
-                                                            <Check className="h-3 w-3 mr-1" />
-                                                            Mark
-                                                        </Button>
-                                                    )}
-                                                </td> */}
                                             </tr>
 
                                             {/* Expanded Row - Files & Details */}
                                             {isExpanded && (
                                                 <tr className="bg-gray-50">
-                                                    <td colSpan={14} className="px-6 py-4">
+                                                    <td colSpan={13} className="px-6 py-4">
                                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                             {/* Files Section */}
                                                             <div>
