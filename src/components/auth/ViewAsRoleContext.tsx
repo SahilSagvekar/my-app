@@ -5,10 +5,12 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 // 🔥 Define which roles/emails have the ability to switch views
 // This allows developers or admins to preview the portal as other roles
 const ROLE_SWITCH_MAP: Record<string, string[]> = {
-    // Specific Users - ONLY Eric can switch roles now
-    "eric@e8productions.com": ["qc", "sales"],
-    "sahilsagvekar230@gmail.com": ["qc", "sales"],
+    // Specific Users - ALWAYS allowed to switch to these
+    "eric@e8productions.com": ["qc", "sales", "scheduler"],
+    "sahilsagvekar230@gmail.com": ["qc", "sales", "scheduler"],
 };
+
+const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "scheduler"];
 
 interface ViewAsRoleContextType {
     viewingAsRole: string | null;
@@ -31,15 +33,21 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
     const [viewingAsRole, setViewingAsRole] = useState<string | null>(userRole);
     const [isViewingAsOther, setIsViewingAsOther] = useState(false);
 
-    // Check if this user can switch roles (strictly check email only)
+    // Check if this user can switch roles (strictly check email OR if they are an admin)
     const switchableRoles = React.useMemo(() => {
         const emailKey = userEmail?.toLowerCase() || "";
+        const roleKey = userRole?.toLowerCase() || "";
 
-        // Only allow switching if the email is in our map
-        const permittedRoles = ROLE_SWITCH_MAP[emailKey] || [];
+        // 1. Check if email matches specific high-privilege list
+        let permittedRoles = ROLE_SWITCH_MAP[emailKey] || [];
+
+        // 2. If user is an admin, they can always switch to the default set
+        if (roleKey === "admin") {
+            permittedRoles = Array.from(new Set([...permittedRoles, ...DEFAULT_ADMIN_SWITCH_ROLES]));
+        }
 
         // Remove the user's current original role from the list if present
-        return permittedRoles.filter(role => role !== userRole?.toLowerCase());
+        return permittedRoles.filter(role => role !== roleKey);
     }, [userEmail, userRole]);
 
     const canSwitchRole = switchableRoles.length > 0;

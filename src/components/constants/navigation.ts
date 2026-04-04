@@ -67,7 +67,7 @@ export const NAVIGATION_ITEMS = {
   ],
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
-    { id: 'posted-archive', label: 'Posted Content Archive', icon: Archive },
+    // { id: 'posted-archive', label: 'Posted Content Archive', icon: Archive },
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'reports', label: 'Analytics', icon: FileSpreadsheet },

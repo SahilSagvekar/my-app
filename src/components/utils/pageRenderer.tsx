@@ -16,7 +16,6 @@ import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitli
 import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
 import { SchedulerReportsPage } from "../dashboards/SchedulerReportsPage";
-import { SchedulerPostedArchivePage } from "../dashboards/SchedulerPostedArchivePage";
 import { ManagerDashboard } from "../dashboards/ManagerDashboard";
 import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
@@ -273,8 +272,6 @@ export function renderPage(
         return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
-      case "posted-archive":
-        return <SchedulerPostedArchivePage />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       default:
