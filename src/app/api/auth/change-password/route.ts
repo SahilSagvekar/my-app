@@ -2,11 +2,11 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword, verifyPassword } from '@/lib/password';
-import { getServerSession } from 'next-auth';
+import { auth } from '@/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession();
+    const session = await auth();  // Use auth() instead of getServerSession()
     
     if (!session?.user?.email) {
       return NextResponse.json(
