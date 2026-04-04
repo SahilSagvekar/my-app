@@ -287,29 +287,49 @@ export async function deliverSlackNotification(
   // =========================================================================
 
   // A. TASK REJECTED → Client channel (with editor @mention) + Global
-  if (notificationType === "task_rejected") {
-    console.log(`[Slack Dispatch] Task Rejected → Client channel + tag editor`);
-    
-    // Send to client channel with editor mention
-    if (notification.payload?.clientId) {
-      await sendClientSlackWebhook(notification.payload.clientId, notification);
+if (notificationType === "task_rejected") {
+  console.log(`[Slack Dispatch] Task Rejected → Client channel + tag editor`);
+  
+  // Get editor's Slack ID for @mention
+  let editorMention = "";
+  const editorId = notification.payload?.editorId || notification.userId;
+  if (editorId) {
+    const editor = await prisma.user.findUnique({
+      where: { id: editorId },
+      select: { slackUserId: true, name: true, slackNotifications: true },
+    });
+    if (editor?.slackUserId) {
+      editorMention = `<@${editor.slackUserId}> `;
+      console.log(`[Slack Dispatch] Tagging editor: ${editor.name} (${editor.slackUserId})`);
     }
-    
-    // Also send to global team channel
-    await sendSlackWebhook(notification);
-    
-    // Send DM to the editor if specified
-    if (notification.userId) {
-      const user = await prisma.user.findUnique({
-        where: { id: notification.userId },
-        select: { slackUserId: true, slackNotifications: true },
-      });
-      if (user?.slackUserId && user?.slackNotifications) {
-        await sendSlackDM(user.slackUserId, notification);
-      }
-    }
-    return;
   }
+  
+  // Create modified notification with editor mention
+  const mentionedNotification = {
+    ...notification,
+    body: editorMention + notification.body,
+  };
+  
+  // Send to client channel with editor mention
+  if (notification.payload?.clientId) {
+    await sendClientSlackWebhook(notification.payload.clientId, mentionedNotification);
+  }
+  
+  // Also send to global team channel
+  await sendSlackWebhook(mentionedNotification);
+  
+  // Send DM to the editor if specified
+  if (editorId) {
+    const editor = await prisma.user.findUnique({
+      where: { id: editorId },
+      select: { slackUserId: true, slackNotifications: true },
+    });
+    if (editor?.slackUserId && editor?.slackNotifications) {
+      await sendSlackDM(editor.slackUserId, notification); // DM doesn't need self-mention
+    }
+  }
+  return;
+}
 
   // B. READY FOR QC → QC Channel + Global
   if (notificationType === "qc_ready" || notificationType === "review_queue") {

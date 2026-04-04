@@ -131,6 +131,7 @@ const persistClientResult = async ({
     if (feedback) {
       metaBody.clientNotes = feedback;
       metaBody.rejectionReason = feedback;
+      metaBody.feedback = feedback; // Ensure the API recognizes this as the primary feedback field
     }
   }
 

@@ -201,26 +201,42 @@ export async function PATCH(
             type: "content_ready",
             title: "Task Ready for QC",
             body: `Task "${task.title}" is ready for your review.`,
-            payload: { taskId: task.id, clientId: task.clientId }
+            payload: { taskId: task.id, clientId: task.clientId },
           });
         }
       }
 
+      // else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
+      //   // Notify Editor
+      //   await notifyUser({
+      //     userId: task.assignedTo,
+      //     type: "task_rejected",
+      //     title: "Task Needs Revision",
+      //     body: `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
+      //     payload: { taskId: task.id, clientId: task.clientId }
+      //   });
+      // }
       else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
         // Notify Editor
         await notifyUser({
           userId: task.assignedTo,
           type: "task_rejected",
           title: "Task Needs Revision",
-          body: `Task "${task.title}" has been rejected: ${qcNotes || "Please check QC notes."}`,
-          payload: { taskId: task.id }
+          body: `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
+          payload: {
+            taskId: task.id,
+            clientId: task.clientId,
+            editorId: task.assignedTo,
+          },
         });
-      }
-
-      else if (finalStatus === "CLIENT_REVIEW" && task.status !== "CLIENT_REVIEW") {
+      } else if (
+        finalStatus === "CLIENT_REVIEW" &&
+        task.status !== "CLIENT_REVIEW"
+      ) {
         // Email
         console.log(`\n📧 sending email notification`);
-        const { sendTaskReadyForReviewEmail } = await import("@/lib/email-notifications");
+        const { sendTaskReadyForReviewEmail } =
+          await import("@/lib/email-notifications");
         sendTaskReadyForReviewEmail(id);
 
         // Notify Client User
@@ -230,19 +246,17 @@ export async function PATCH(
             type: "review_queue",
             title: "Content Ready for Review",
             body: `Your content "${task.title}" is ready for review.`,
-            payload: { taskId: task.id, clientId: task.clientId }
+            payload: { taskId: task.id, clientId: task.clientId },
           });
         }
-      }
-
-      else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
+      } else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
         // Notify Editor that it's approved
         await notifyUser({
           userId: task.assignedTo,
           type: "qc_approval",
           title: "Task Approved",
           body: `Your task "${task.title}" has been approved.`,
-          payload: { taskId: task.id }
+          payload: { taskId: task.id, clientId: task.clientId },
         });
 
         // Notify Scheduler
@@ -252,19 +266,17 @@ export async function PATCH(
             type: "approved_content",
             title: "New Content to Schedule",
             body: `Task "${task.title}" is approved and ready for scheduling.`,
-            payload: { taskId: task.id, clientId: task.clientId }
+            payload: { taskId: task.id, clientId: task.clientId },
           });
         }
-      }
-
-      else if (finalStatus === "POSTED" && task.status !== "POSTED") {
+      } else if (finalStatus === "POSTED" && task.status !== "POSTED") {
         // Notify Team that content is Live/Posted
         await notifyUser({
           userId: task.assignedTo,
           type: "task_posted",
           title: "Content Posted! 🚀",
           body: `Content for "${task.title}" has been successfully posted.`,
-          payload: { taskId: task.id, clientId: task.clientId }
+          payload: { taskId: task.id, clientId: task.clientId },
         });
       }
     } catch (notifErr) {

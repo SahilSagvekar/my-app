@@ -186,7 +186,6 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                 ? `${metadata.location.city || ''}, ${metadata.location.region || ''}, ${metadata.location.country || ''}`
                 : log.details || '';
 
-            // 🔥 Exclusion: Filter out Mumbai office/test logs as requested
             if (locationString.includes('Mumbai, Maharashtra, India')) {
                 continue;
             }
@@ -482,6 +481,8 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
         } catch (s3Error) {
             console.error('⚠️ Failed to upload CSV to S3 (email will still be sent without download link):', s3Error);
         }
+
+        console.log("sendEmail" + sendEmail);
 
         // === 7. Send email if requested ===
         if (sendEmail) {
