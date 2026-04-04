@@ -198,10 +198,14 @@ export async function PATCH(
         if (task.qc_specialist) {
           await notifyUser({
             userId: task.qc_specialist,
-            type: "content_ready",
-            title: "Task Ready for QC",
-            body: `Task "${task.title}" is ready for review by QC specialist.`,
-            payload: { taskId: task.id, clientId: task.clientId, qcId: task.qc_specialist},
+            type: "qc_ready",
+            title: "👀 Content Ready for QC Review",
+            body: `Your content "${task.title}" is ready for review.`,
+            payload: {
+              taskId: task.id,
+              clientId: task.clientId,
+              qcId: task.qc_specialist,
+            },
           });
         }
       }
@@ -221,12 +225,13 @@ export async function PATCH(
         await notifyUser({
           userId: task.assignedTo,
           type: "task_rejected",
-          title: "Task Needs Revision",
+          title: "Content Needs Revisions",
           body: `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
           payload: {
             taskId: task.id,
             clientId: task.clientId,
             editorId: task.assignedTo,
+            taskTitle: task.title, // ← add this
           },
         });
       } else if (
