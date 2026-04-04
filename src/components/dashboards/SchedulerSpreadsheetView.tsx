@@ -161,10 +161,6 @@ export function SchedulerSpreadsheetView() {
     const [loadingDeliverables, setLoadingDeliverables] = useState(false);
     const [deliverablesExpanded, setDeliverablesExpanded] = useState(true);
 
-    // Per-task client deliverables cache (for expanded rows)
-    const [taskClientDeliverables, setTaskClientDeliverables] = useState<Record<string, ClientDeliverable[]>>({});
-    const [loadingTaskDeliverables, setLoadingTaskDeliverables] = useState<Record<string, boolean>>({});
-
     // Signed URLs cache (fileId -> signedUrl)
     const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
@@ -564,54 +560,6 @@ export function SchedulerSpreadsheetView() {
         return signedUrls[String(file.id)] || file.url || '';
     };
 
-    // Fetch deliverables for a task's client (for expanded row display)
-    async function fetchTaskClientDeliverables(clientId: string) {
-        if (!clientId || taskClientDeliverables[clientId] || loadingTaskDeliverables[clientId]) return;
-
-        try {
-            setLoadingTaskDeliverables(prev => ({ ...prev, [clientId]: true }));
-
-            const [monthlyRes, oneOffRes] = await Promise.all([
-                fetch(`/api/clients/${clientId}/deliverables`, { cache: "no-store" }),
-                fetch(`/api/clients/${clientId}/one-off-deliverables`, { cache: "no-store" })
-            ]);
-
-            const monthlyData = await monthlyRes.json();
-            const oneOffData = await oneOffRes.json();
-
-            const monthly: ClientDeliverable[] = (monthlyData.deliverables || []).map((d: any) => ({
-                id: d.id,
-                type: d.type,
-                quantity: d.quantity,
-                postingSchedule: d.postingSchedule,
-                postingDays: d.postingDays || [],
-                postingTimes: d.postingTimes || [],
-                platforms: d.platforms || [],
-                description: d.description,
-                isOneOff: false,
-            }));
-
-            const oneOff: ClientDeliverable[] = (oneOffData.deliverables || []).map((d: any) => ({
-                id: d.id,
-                type: d.type,
-                quantity: d.quantity,
-                postingSchedule: d.postingSchedule,
-                postingDays: d.postingDays || [],
-                postingTimes: d.postingTimes || [],
-                platforms: d.platforms || [],
-                description: d.description,
-                isOneOff: true,
-            }));
-
-            setTaskClientDeliverables(prev => ({ ...prev, [clientId]: [...monthly, ...oneOff] }));
-        } catch (error) {
-            console.error("Error loading task client deliverables:", error);
-            setTaskClientDeliverables(prev => ({ ...prev, [clientId]: [] }));
-        } finally {
-            setLoadingTaskDeliverables(prev => ({ ...prev, [clientId]: false }));
-        }
-    }
-
     // Toggle row expansion
     const toggleRow = (taskId: string) => {
         setExpandedRows(prev => {
@@ -620,11 +568,6 @@ export function SchedulerSpreadsheetView() {
                 newSet.delete(taskId);
             } else {
                 newSet.add(taskId);
-                // Fetch deliverables for the task's client when expanding
-                const task = tasks.find(t => t.id === taskId);
-                if (task?.clientId) {
-                    fetchTaskClientDeliverables(task.clientId);
-                }
                 // Lazy-sign file URLs for this task
                 fetchSignedUrls(taskId);
             }
@@ -1441,180 +1384,76 @@ export function SchedulerSpreadsheetView() {
                                                             </div>
                                                         </div>
 
-                                                        {/* Client Deliverables Section */}
-                                                        {task.clientId && (
+                                                        {/* Task Deliverable Info */}
+                                                        {task.clientId && task.deliverable && (
                                                             <div className="mt-4 pt-4 border-t">
                                                                 <h4 className="font-semibold mb-3 flex items-center gap-2">
                                                                     <Package className="h-4 w-4 text-indigo-500" />
-                                                                    Client Deliverables
+                                                                    Deliverable Info
                                                                     <span className="text-xs font-normal text-muted-foreground">
                                                                         — {task.client?.companyName || task.client?.name || 'Client'}
                                                                     </span>
-                                                                    {taskClientDeliverables[task.clientId] && (
-                                                                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
-                                                                            {taskClientDeliverables[task.clientId].length}
-                                                                        </Badge>
-                                                                    )}
                                                                 </h4>
 
-                                                                {/* This task's own deliverable info */}
-                                                                {task.deliverable && (
-                                                                    <div className="mb-3">
-                                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 mb-1.5">This Task&apos;s Deliverable</p>
-                                                                        <div className="p-3 rounded-lg border-2 border-indigo-200 bg-indigo-50">
-                                                                            <div className="flex items-center justify-between mb-2">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <span className="font-semibold text-sm">{task.deliverable.type}</span>
-                                                                                    {task.deliverable.isOneOff && (
-                                                                                        <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-100 text-amber-700 border-amber-300">
-                                                                                            One-Off
-                                                                                        </Badge>
-                                                                                    )}
-                                                                                </div>
-                                                                                {task.deliverable.quantity && (
-                                                                                    <Badge variant="secondary" className="text-xs font-bold">
-                                                                                        ×{task.deliverable.quantity}
-                                                                                    </Badge>
-                                                                                )}
-                                                                            </div>
-                                                                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                                                                {task.deliverable.postingSchedule && (
-                                                                                    <div className="flex items-center gap-1">
-                                                                                        <Calendar className="h-3 w-3" />
-                                                                                        <span className="capitalize">{task.deliverable.postingSchedule}</span>
-                                                                                    </div>
-                                                                                )}
-                                                                                {task.deliverable.postingDays && task.deliverable.postingDays.length > 0 && (
-                                                                                    <span className="text-gray-500">
-                                                                                        {task.deliverable.postingDays.join(', ')}
-                                                                                    </span>
-                                                                                )}
-                                                                                {task.deliverable.postingTimes && task.deliverable.postingTimes.length > 0 && (
-                                                                                    <div className="flex items-center gap-1">
-                                                                                        <Clock className="h-3 w-3" />
-                                                                                        <span>{task.deliverable.postingTimes.join(', ')}</span>
-                                                                                    </div>
-                                                                                )}
-                                                                                {task.deliverable.videosPerDay && (
-                                                                                    <span>{task.deliverable.videosPerDay} video{task.deliverable.videosPerDay > 1 ? 's' : ''}/day</span>
-                                                                                )}
-                                                                            </div>
-                                                                            {task.deliverable.platforms && task.deliverable.platforms.length > 0 && (
-                                                                                <div className="flex items-center gap-1 mt-2 flex-wrap">
-                                                                                    {task.deliverable.platforms.map((p) => {
-                                                                                        const pKey = p.toLowerCase() as PlatformKey;
-                                                                                        const pInfo = PLATFORMS[pKey];
-                                                                                        if (!pInfo) return (
-                                                                                            <Badge key={p} variant="outline" className="text-[10px] h-5 px-1.5">{p}</Badge>
-                                                                                        );
-                                                                                        const PIcon = pInfo.icon;
-                                                                                        return (
-                                                                                            <div key={p} className={`inline-flex items-center justify-center w-6 h-6 rounded ${pInfo.bgColor}`} title={p}>
-                                                                                                <PIcon className={`h-3.5 w-3.5 ${pInfo.color}`} />
-                                                                                            </div>
-                                                                                        );
-                                                                                    })}
-                                                                                </div>
-                                                                            )}
-                                                                            {task.deliverable.description && (
-                                                                                <p className="text-xs text-muted-foreground mt-2">{task.deliverable.description}</p>
+                                                                <div className="p-3 rounded-lg border-2 border-indigo-200 bg-indigo-50">
+                                                                    <div className="flex items-center justify-between mb-2">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-semibold text-sm">{task.deliverable.type}</span>
+                                                                            {task.deliverable.isOneOff && (
+                                                                                <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-100 text-amber-700 border-amber-300">
+                                                                                    One-Off
+                                                                                </Badge>
                                                                             )}
                                                                         </div>
+                                                                        {task.deliverable.quantity && (
+                                                                            <Badge variant="secondary" className="text-xs font-bold">
+                                                                                ×{task.deliverable.quantity}
+                                                                            </Badge>
+                                                                        )}
                                                                     </div>
-                                                                )}
-
-                                                                {/* All client deliverables */}
-                                                                {loadingTaskDeliverables[task.clientId] ? (
-                                                                    <div className="flex items-center gap-2 py-4 justify-center">
-                                                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                                                        <span className="text-sm text-muted-foreground">Loading all deliverables...</span>
+                                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                                                        {task.deliverable.postingSchedule && (
+                                                                            <div className="flex items-center gap-1">
+                                                                                <Calendar className="h-3 w-3" />
+                                                                                <span className="capitalize">{task.deliverable.postingSchedule}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {task.deliverable.postingDays && task.deliverable.postingDays.length > 0 && (
+                                                                            <span className="text-gray-500">
+                                                                                {task.deliverable.postingDays.join(', ')}
+                                                                            </span>
+                                                                        )}
+                                                                        {task.deliverable.postingTimes && task.deliverable.postingTimes.length > 0 && (
+                                                                            <div className="flex items-center gap-1">
+                                                                                <Clock className="h-3 w-3" />
+                                                                                <span>{task.deliverable.postingTimes.join(', ')}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {task.deliverable.videosPerDay && (
+                                                                            <span>{task.deliverable.videosPerDay} video{task.deliverable.videosPerDay > 1 ? 's' : ''}/day</span>
+                                                                        )}
                                                                     </div>
-                                                                ) : taskClientDeliverables[task.clientId] && taskClientDeliverables[task.clientId].length > 0 ? (
-                                                                    <div>
-                                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">All Client Deliverables</p>
-                                                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-                                                                            {taskClientDeliverables[task.clientId].map((del) => {
-                                                                                const isCurrentDeliverable = task.deliverable?.id === del.id;
+                                                                    {task.deliverable.platforms && task.deliverable.platforms.length > 0 && (
+                                                                        <div className="flex items-center gap-1 mt-2 flex-wrap">
+                                                                            {task.deliverable.platforms.map((p) => {
+                                                                                const pKey = p.toLowerCase() as PlatformKey;
+                                                                                const pInfo = PLATFORMS[pKey];
+                                                                                if (!pInfo) return (
+                                                                                    <Badge key={p} variant="outline" className="text-[10px] h-5 px-1.5">{p}</Badge>
+                                                                                );
+                                                                                const PIcon = pInfo.icon;
                                                                                 return (
-                                                                                    <div
-                                                                                        key={del.id}
-                                                                                        className={`p-2.5 rounded-lg border text-xs ${
-                                                                                            isCurrentDeliverable
-                                                                                                ? 'border-indigo-300 bg-indigo-50 ring-1 ring-indigo-200'
-                                                                                                : del.isOneOff
-                                                                                                    ? 'bg-amber-50 border-amber-200'
-                                                                                                    : 'bg-white border-gray-200'
-                                                                                        }`}
-                                                                                    >
-                                                                                        <div className="flex items-center justify-between mb-1">
-                                                                                            <div className="flex items-center gap-1.5">
-                                                                                                <span className="font-semibold">{del.type}</span>
-                                                                                                {isCurrentDeliverable && (
-                                                                                                    <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-indigo-100 text-indigo-700 border-indigo-300">
-                                                                                                        Current
-                                                                                                    </Badge>
-                                                                                                )}
-                                                                                                {del.isOneOff && (
-                                                                                                    <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-amber-100 text-amber-700 border-amber-300">
-                                                                                                        One-Off
-                                                                                                    </Badge>
-                                                                                                )}
-                                                                                            </div>
-                                                                                            <Badge variant="secondary" className="text-[10px] font-bold h-4 px-1">
-                                                                                                ×{del.quantity}
-                                                                                            </Badge>
-                                                                                        </div>
-                                                                                        <div className="flex items-center gap-2 text-muted-foreground">
-                                                                                            <div className="flex items-center gap-1">
-                                                                                                <Calendar className="h-2.5 w-2.5" />
-                                                                                                <span className="capitalize">{del.postingSchedule}</span>
-                                                                                            </div>
-                                                                                            {del.postingDays.length > 0 && (
-                                                                                                <span className="text-gray-400">
-                                                                                                    {del.postingDays.slice(0, 3).join(', ')}
-                                                                                                    {del.postingDays.length > 3 && '...'}
-                                                                                                </span>
-                                                                                            )}
-                                                                                        </div>
-                                                                                        {del.postingTimes.length > 0 && (
-                                                                                            <div className="flex items-center gap-1 text-muted-foreground mt-0.5">
-                                                                                                <Clock className="h-2.5 w-2.5" />
-                                                                                                <span>
-                                                                                                    {del.postingTimes.slice(0, 2).join(', ')}
-                                                                                                    {del.postingTimes.length > 2 && ` +${del.postingTimes.length - 2}`}
-                                                                                                </span>
-                                                                                            </div>
-                                                                                        )}
-                                                                                        {del.platforms.length > 0 && (
-                                                                                            <div className="flex items-center gap-0.5 mt-1.5 flex-wrap">
-                                                                                                {del.platforms.map((p) => {
-                                                                                                    const pKey = p.toLowerCase() as PlatformKey;
-                                                                                                    const pInfo = PLATFORMS[pKey];
-                                                                                                    if (!pInfo) return (
-                                                                                                        <Badge key={p} variant="outline" className="text-[9px] h-4 px-1">{p}</Badge>
-                                                                                                    );
-                                                                                                    const PIcon = pInfo.icon;
-                                                                                                    return (
-                                                                                                        <div key={p} className={`inline-flex items-center justify-center w-5 h-5 rounded ${pInfo.bgColor}`} title={p}>
-                                                                                                            <PIcon className={`h-3 w-3 ${pInfo.color}`} />
-                                                                                                        </div>
-                                                                                                    );
-                                                                                                })}
-                                                                                            </div>
-                                                                                        )}
-                                                                                        {del.description && (
-                                                                                            <p className="text-muted-foreground mt-1 line-clamp-1">{del.description}</p>
-                                                                                        )}
+                                                                                    <div key={p} className={`inline-flex items-center justify-center w-6 h-6 rounded ${pInfo.bgColor}`} title={p}>
+                                                                                        <PIcon className={`h-3.5 w-3.5 ${pInfo.color}`} />
                                                                                     </div>
                                                                                 );
                                                                             })}
                                                                         </div>
-                                                                    </div>
-                                                                ) : taskClientDeliverables[task.clientId] && taskClientDeliverables[task.clientId].length === 0 ? (
-                                                                    <div className="text-center py-3 text-muted-foreground">
-                                                                        <p className="text-xs">No deliverables configured for this client</p>
-                                                                    </div>
-                                                                ) : null}
+                                                                    )}
+                                                                    {task.deliverable.description && (
+                                                                        <p className="text-xs text-muted-foreground mt-2">{task.deliverable.description}</p>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </td>
