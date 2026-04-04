@@ -403,7 +403,7 @@ model File {
   feedback           TaskFeedback[]
 
   @@index([taskId, folderType])
-  @@index([taskId, isActive])
+  @@index([taskId, isActive]) 
 }
 
 model Notification {

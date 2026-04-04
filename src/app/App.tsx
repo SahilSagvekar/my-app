@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "../components/auth/AuthContext";
 import { ViewAsRoleProvider, useViewAsRole } from "../components/auth/ViewAsRoleContext";
-import { NotificationProvider } from "../components/NotificationContext";
+// import { NotificationProvider } from "../components/NotificationContext";
 import { SearchProvider } from "../components/SearchContext";
 import { LoginScreen } from "../components/auth/LoginScreen";
 import { ForgotPasswordScreen } from "../components/auth/ForgotPasswordScreen";
@@ -63,7 +63,7 @@ function AuthenticatedAppInner() {
   const originalRole = user.role?.toLowerCase(); // The user's actual role
 
   return (
-    <NotificationProvider>
+    // <NotificationProvider>
       <SearchProvider>
         <LayoutShell
           currentRole={displayRole}
@@ -74,7 +74,7 @@ function AuthenticatedAppInner() {
           {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices, originalRole, user.linkedClientId)}
         </LayoutShell>
       </SearchProvider>
-    </NotificationProvider>
+    // </NotificationProvider>
   );
 }
 

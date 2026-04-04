@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { SearchInput } from './SearchInput';
-import { Notifications } from './Notifications';
+// import { Notifications } from './Notifications';
 import { Settings } from './Settings';
 import {
   LogOut,
@@ -215,7 +215,7 @@ export function LayoutShell({
             </Button>
 
             {/* Notifications */}
-            <Notifications currentRole={currentRole} />
+            {/* <Notifications currentRole={currentRole} /> */}
 
             {/* 🔥 Role Switch Dropdown - Styled to match the User/Profile dropdown */}
             {canSwitchRole && (

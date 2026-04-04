@@ -1,6 +1,6 @@
 // src/lib/notify.ts
 import { prisma } from "@/lib/prisma";
-import { broadcastNotification } from "@/lib/notifications-bus";
+// import { broadcastNotification } from "@/lib/notifications-bus";
 import { deliverSlackNotification } from "@/lib/slack";
 
 export type NotifyOpts = {
@@ -35,11 +35,11 @@ export async function notifyUser(opts: NotifyOpts) {
   });
 
   // Broadcast to SSE (per-user bus checks userId)
-  try {
-    broadcastNotification(notification);
-  } catch (err) {
-    console.warn("SSE broadcast failed:", err);
-  }
+  // try {
+  //   broadcastNotification(notification);
+  // } catch (err) {
+  //   console.warn("SSE broadcast failed:", err);
+  // }
 
   // Deliver to Slack (webhook + DM) — fire-and-forget
   deliverSlackNotification({

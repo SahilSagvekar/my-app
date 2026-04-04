@@ -4,7 +4,7 @@ import "./globals.css";
 // import "../styles/globals.css";
 import { AuthProvider } from "./../components/auth/AuthContext";
 import { Toaster } from 'sonner';
-import { NotificationProvider } from '@/components/NotificationContext';
+// import { NotificationProvider } from '@/components/NotificationContext';
 import { buildMetadata } from "@/lib/seo";
 
 const inter = Inter({
@@ -37,9 +37,9 @@ export default function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} antialiased`}
       >
          <AuthProvider>
-          <NotificationProvider>
+          {/* <NotificationProvider> */}
           {children}
-          </NotificationProvider>
+          {/* </NotificationProvider> */}
           <Toaster position="bottom-right" />
         </AuthProvider>
       </body>
