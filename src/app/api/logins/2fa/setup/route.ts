@@ -6,6 +6,7 @@ import * as QRCode from "qrcode";
 import jwt from "jsonwebtoken";
 import { encrypt } from "@/lib/encryption";
 import * as crypto from "crypto";
+import { authenticator } from "otplib";
 
 function getTokenFromCookies(req: NextRequest): string | null {
     const cookieHeader = req.headers.get("cookie");
@@ -26,29 +27,6 @@ function verifyToken(token: string): { userId: number; role: string } | null {
         console.error("Token verification failed:", error);
         return null;
     }
-}
-
-// Generate a random secret for TOTP
-function generateSecret(): string {
-    // Generate 20 random bytes and encode as base32
-    const buffer = crypto.randomBytes(20);
-    const base32Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    let secret = "";
-    for (let i = 0; i < buffer.length; i++) {
-        secret += base32Chars[buffer[i] % 32];
-    }
-    return secret;
-}
-
-// Generate otpauth URL for QR code
-function generateOtpauthUrl(
-    account: string,
-    issuer: string,
-    secret: string
-): string {
-    const encodedAccount = encodeURIComponent(account);
-    const encodedIssuer = encodeURIComponent(issuer);
-    return `otpauth://totp/${encodedIssuer}:${encodedAccount}?secret=${secret}&issuer=${encodedIssuer}&algorithm=SHA1&digits=6&period=30`;
 }
 
 // POST - Generate TOTP secret and QR code for setup
@@ -99,16 +77,20 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Generate a new TOTP secret
-        const secret = generateSecret();
+        // Generate a new TOTP secret using otplib
+        const secret = authenticator.generateSecret();
 
         // Create the otpauth URL for the QR code
         const appName = "E8 Productions";
         const accountName = user.email || user.name || `User ${userId}`;
-        const otpauthUrl = generateOtpauthUrl(accountName, appName, secret);
+        const otpauthUrl = authenticator.keyuri(accountName, appName, secret);
 
-        // Generate QR code as data URL
-        const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
+        // Generate QR code as data URL with larger size and better error correction
+        const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl, {
+            width: 300,
+            margin: 2,
+            errorCorrectionLevel: 'M'
+        });
 
         // Generate backup codes (8 codes, 8 characters each)
         const backupCodes: string[] = [];
@@ -127,7 +109,7 @@ export async function POST(req: NextRequest) {
                 userId,
                 totpSecret: encryptedSecret,
                 isEnabled: false,
-                backupCodes: backupCodes.map((code) => encrypt(code)), // Encrypt backup codes
+                backupCodes: backupCodes.map((code) => encrypt(code)),
             },
             update: {
                 totpSecret: encryptedSecret,
