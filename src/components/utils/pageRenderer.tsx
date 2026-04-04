@@ -149,8 +149,8 @@ export function renderPage(
         return <ContractsDashboard />;
       case "compression":
         return <CompressionDashboard />;
-      case "feedback":
-        return <FeedbackSystem currentRole={role} />;
+      // case "feedback":
+      //   return <FeedbackSystem currentRole={role} />;
       case "training":
         return (
           <div className="space-y-6">
@@ -214,8 +214,8 @@ export function renderPage(
         return <EditorGuidelinesPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
-      case "feedback":
-        return <FeedbackSystem currentRole={role} />;
+      // case "feedback":
+      //   return <FeedbackSystem currentRole={role} />;
       case "logins":
         return <SocialLogins />;
       default:
@@ -245,8 +245,8 @@ export function renderPage(
         return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
-      case "feedback":
-        return <FeedbackSystem currentRole={role} />;
+      // case "feedback":
+      //   return <FeedbackSystem currentRole={role} />;
       case "logins":
         return <SocialLogins />;
       default:
@@ -272,8 +272,8 @@ export function renderPage(
         return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
-      case "feedback":
-        return <FeedbackSystem currentRole={role} />;
+      // case "feedback":
+      //   return <FeedbackSystem currentRole={role} />;
       default:
         return <SchedulerDashboard />;
     }
@@ -301,8 +301,8 @@ export function renderPage(
         return <PortfolioManagementTab />;
       case "contracts":
         return <ContractsDashboard />;
-      case "feedback":
-        return <FeedbackSystem currentRole={role} />;
+      // case "feedback":
+      //   return <FeedbackSystem currentRole={role} />;
       case "logins":
         return <SocialLogins />;
       default:
@@ -321,8 +321,8 @@ export function renderPage(
         return <ComingSoonPage title="My Projects" />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
-      case "feedback":
-        return <FeedbackSystem currentRole={role} />;
+      // case "feedback":
+      //   return <FeedbackSystem currentRole={role} />;
       case "social":
         console.log("linkedClientId:", linkedClientId);
         return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
@@ -353,8 +353,8 @@ export function renderPage(
         return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
-      case "feedback":
-        return <FeedbackSystem currentRole={role} />;
+      // case "feedback":
+      //   return <FeedbackSystem currentRole={role} />;
       case "logins":
         return <SocialLogins />;
       default:
@@ -378,8 +378,8 @@ export function renderPage(
         return <TrainingPortalPage />;
       case "employment-info":
         return <EmploymentInfo currentRole={role} />;
-      case "feedback":
-        return <FeedbackSystem currentRole={role} />;
+      // case "feedback":
+      //   return <FeedbackSystem currentRole={role} />;
       case "logins":
         return <SocialLogins />;
       default:

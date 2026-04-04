@@ -53,7 +53,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
+    // { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   qc: [
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
@@ -63,7 +63,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'rejection-patterns', label: 'Rejection Patterns', icon: TrendingUp },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'training', label: 'Training', icon: Layout },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
+    // { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
@@ -73,7 +73,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'reports', label: 'Analytics', icon: FileSpreadsheet },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
+    // { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     // { id: 'scheduling', label: 'Employment Information', icon: Clock },
   ],
   manager: [
@@ -89,7 +89,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'portfolio', label: 'Portfolio', icon: Film },
     { id: 'contracts', label: 'Contracts', icon: PenLine },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
+    // { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   client: [
     { id: 'approvals', label: 'Content Review', icon: CheckSquare },
@@ -98,7 +98,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'social', label: 'Social Media', icon: Instagram },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'contracts', label: 'Contracts & Billing', icon: FileText },  
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
+    // { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   videographer: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -110,7 +110,7 @@ export const NAVIGATION_ITEMS = {
 
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
+    // { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   sales: [
     // { id: 'sales-management', label: 'Sales Management', icon: TrendingUp },
@@ -118,7 +118,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     // { id: 'training', label: 'Training', icon: Layout },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare }
+    // { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ]
 } as const;
 
