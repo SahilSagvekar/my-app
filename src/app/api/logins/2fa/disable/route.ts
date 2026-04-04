@@ -33,9 +33,14 @@ function verifyTotpCode(secret: string, code: string): boolean {
     const digits = 6;
     const currentTime = Math.floor(Date.now() / 1000);
 
-    for (let i = -1; i <= 1; i++) {
+    console.log(`[2FA Debug] Server time: ${new Date().toISOString()}`);
+    console.log(`[2FA Debug] Unix time: ${currentTime}`);
+    console.log(`[2FA Debug] Input code: ${code}`);
+
+    for (let i = -2; i <= 2; i++) {
         const timeStep = Math.floor((currentTime + i * period) / period);
         const generatedCode = generateTotp(secret, timeStep, digits);
+        console.log(`[2FA Debug] Window ${i}: generated=${generatedCode}, match=${generatedCode === code}`);
         if (generatedCode === code) {
             return true;
         }
