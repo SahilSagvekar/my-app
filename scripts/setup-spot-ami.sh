@@ -16,8 +16,8 @@ echo ""
 # Configuration
 REGION="${AWS_REGION:-us-east-1}"
 INSTANCE_TYPE="t3.small"
-BASE_AMI="ami-0c7217cdde317cfec"  # Ubuntu 22.04 LTS
-AMI_NAME="e8-compression-worker-$(date +%Y%m%d)"
+BASE_AMI="ami-04eaa218f1349d88b"  # Ubuntu 22.04 LTS
+AMI_NAME="e8-compression-worker-$(date +%Y%m%d%H%M)"
 KEY_NAME="e8-ami-builder-key"
 KEY_FILE="$HOME/.ssh/${KEY_NAME}.pem"
 SECURITY_GROUP_NAME="e8-ami-builder-sg"

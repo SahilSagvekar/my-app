@@ -28,8 +28,8 @@ export const COMPRESSION_CONFIG = {
 
   // Processing Thresholds
   thresholds: {
-    minJobsToStartSpot: 3, // Start spot if 3+ jobs pending
-    minSizeGBToStartSpot: 5, // Or if 5GB+ pending
+    minJobsToStartSpot: 1, // Start spot if 3+ jobs pending
+    minSizeGBToStartSpot: 0.1, // Or if 5GB+ pending
     idleMinutesToStopSpot: 5, // Stop spot after 5 min idle
   },
 

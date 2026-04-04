@@ -11,7 +11,14 @@ import { Redis } from '@upstash/redis';
 import { COMPRESSION_CONFIG, REDIS_KEYS, SpotStatus } from './config';
 import { getBudgetUsed, addToBudget, isBudgetExhausted } from './queue';
 
-const ec2 = new EC2Client({ region: COMPRESSION_CONFIG.spot.region });
+// const ec2 = new EC2Client({ region: COMPRESSION_CONFIG.spot.region });
+const ec2 = new EC2Client({ 
+  region: COMPRESSION_CONFIG.spot.region,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID_2!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_2!,
+  }
+});
 
 let redis: Redis | null = null;
 
@@ -26,17 +33,27 @@ const getClient = (): Redis => {
 };
 
 /**
+ * Safely parse status data - Upstash auto-parses JSON, so handle both cases
+ */
+function parseStatus(data: unknown): SpotStatus {
+  if (typeof data === 'string') {
+    return JSON.parse(data);
+  }
+  return data as SpotStatus;
+}
+
+/**
  * Get current spot instance status
  */
 export async function getSpotStatus(): Promise<SpotStatus> {
   const client = getClient();
-  const statusStr = await client.get(REDIS_KEYS.spotStatus) as string | null;
+  const statusData = await client.get(REDIS_KEYS.spotStatus);
   
-  if (!statusStr) {
+  if (!statusData) {
     return { status: 'stopped' };
   }
   
-  return JSON.parse(statusStr);
+  return parseStatus(statusData);
 }
 
 /**
