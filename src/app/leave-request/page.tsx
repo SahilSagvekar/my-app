@@ -48,29 +48,27 @@ export default function LeaveRequestPage() {
   }
 
   return (
-    <NotificationProvider currentRole={user.role}>
-      <SearchProvider>
-        <LayoutShell
-          currentRole={user.role}
-          currentPage="leave-request"
-          onPageChange={() => {}}
-          onLogout={logout}
-        >
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-2xl font-semibold">Leave Request</h1>
-              <p className="text-muted-foreground mt-2">
-                Submit a leave request for approval. Select your dates and provide a reason for your absence.
-              </p>
-            </div>
-
-            <LeaveRequestForm
-              employeeId={employee.id}
-              worksOnSaturday={employee.worksOnSaturday}
-            />
+    <SearchProvider>
+      <LayoutShell
+        currentRole={user.role}
+        currentPage="leave-request"
+        onPageChange={() => {}}
+        onLogout={logout}
+      >
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-semibold">Leave Request</h1>
+            <p className="text-muted-foreground mt-2">
+              Submit a leave request for approval. Select your dates and provide a reason for your absence.
+            </p>
           </div>
-        </LayoutShell>
-      </SearchProvider>
-    </NotificationProvider>
+
+          <LeaveRequestForm
+            employeeId={employee.id}
+            worksOnSaturday={employee.worksOnSaturday}
+          />
+        </div>
+      </LayoutShell>
+    </SearchProvider>
   );
 }
