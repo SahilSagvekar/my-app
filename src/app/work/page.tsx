@@ -219,72 +219,70 @@ const videoShowcase = [
 ];
 
 function InfiniteScrollCarousel() {
+  const fullCoverBrands = ["StayFit305", "ContractorPlus", "Turpone"];
+  
+  const renderBrandCard = (brand: typeof brandLogos[0], index: number, keyPrefix: string) => {
+    const IconComponent = brand.fallbackIcon;
+    const isFullCover = fullCoverBrands.includes(brand.name);
+    
+    return (
+      <div
+        key={`${keyPrefix}-${index}`}
+        className={`flex-none w-[160px] sm:w-[200px] lg:w-[220px] h-[100px] sm:h-[120px] lg:h-[140px] ${
+          isFullCover ? "bg-transparent border-0 relative" : "bg-white border border-black/5"
+        } rounded-xl sm:rounded-2xl flex flex-col items-center justify-center ${
+          isFullCover ? "p-0" : "p-3 sm:p-4"
+        } overflow-hidden`}
+      >
+        {brand.logo ? (
+          <div className={`${
+            isFullCover 
+              ? "absolute inset-0 w-full h-full" 
+              : "w-full h-full flex items-center justify-center"
+          }`}>
+            <ImageWithFallback
+              src={brand.logo}
+              alt={brand.name}
+              className={
+                isFullCover 
+                  ? "w-full h-full object-cover rounded-xl sm:rounded-2xl" 
+                  : "max-w-full max-h-full object-contain"
+              }
+            />
+          </div>
+        ) : (
+          <>
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center mb-2 sm:mb-3">
+              <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-black" />
+            </div>
+            <p className="text-black/70 text-xs sm:text-sm font-medium text-center">
+              {brand.name}
+            </p>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Calculate total width for animation
+  // 11 logos × (width + gap) for one complete set
+  const logoCount = brandLogos.length; // 11
+
   return (
     <div className="relative overflow-hidden">
-      <div className="flex animate-scroll gap-4 sm:gap-6">
+      {/* Gradient fade on edges */}
+      <div className="absolute left-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-r from-[#fafafa] to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-12 sm:w-20 bg-gradient-to-l from-[#fafafa] to-transparent z-10 pointer-events-none" />
+      
+      <div className="carousel-track flex gap-4 sm:gap-5">
         {/* First set */}
-        {brandLogos.map((brand, index) => {
-          const IconComponent = brand.fallbackIcon;
-          const isFullCover = brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone";
-          return (
-            <div
-              key={`first-${index}`}
-              className={`shrink-0 w-48 sm:w-56 lg:w-64 h-32 sm:h-36 lg:h-40 ${isFullCover ? "bg-transparent border-0 relative" : "bg-white border border-black/5"} rounded-xl sm:rounded-2xl flex flex-col items-center justify-center ${isFullCover ? "p-0" : "p-4 sm:p-6"} transition-all ${isFullCover ? "" : "hover:border-black/20 hover:shadow-lg"} overflow-hidden`}
-            >
-              {brand.logo ? (
-                <div className={`${brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone" ? "absolute inset-0 w-full h-full" : "w-full h-full flex items-center justify-center mb-2"}`}>
-                  <ImageWithFallback
-                    src={brand.logo}
-                    alt={brand.name}
-                    className={brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone" ? "w-full h-full object-cover rounded-xl sm:rounded-2xl" : "max-w-full max-h-full object-contain"}
-                  />
-                </div>
-              ) : (
-                <>
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4">
-                    <IconComponent className="w-6 h-6 sm:w-7 sm:h-7 text-black" />
-                  </div>
-                  <p className="text-black/70 text-sm sm:text-sm font-medium text-center">
-                    {brand.name}
-                  </p>
-                </>
-              )}
-            </div>
-          );
-        })}
-        {/* Duplicate set for seamless loop */}
-        {brandLogos.map((brand, index) => {
-          const IconComponent = brand.fallbackIcon;
-          const isFullCover = brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone";
-          return (
-            <div
-              key={`second-${index}`}
-              className={`shrink-0 w-48 sm:w-56 lg:w-64 h-32 sm:h-36 lg:h-40 ${isFullCover ? "bg-transparent border-0 relative" : "bg-white border border-black/5"} rounded-xl sm:rounded-2xl flex flex-col items-center justify-center ${isFullCover ? "p-0" : "p-4 sm:p-6"} transition-all ${isFullCover ? "" : "hover:border-black/20 hover:shadow-lg"} overflow-hidden`}
-            >
-              {brand.logo ? (
-                <div className={`${brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone" ? "absolute inset-0 w-full h-full" : "w-full h-full flex items-center justify-center mb-2"}`}>
-                  <ImageWithFallback
-                    src={brand.logo}
-                    alt={brand.name}
-                    className={brand.name === "StayFit305" || brand.name === "ContractorPlus" || brand.name === "Turpone" ? "w-full h-full object-cover rounded-xl sm:rounded-2xl" : "max-w-full max-h-full object-contain"}
-                  />
-                </div>
-              ) : (
-                <>
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4">
-                    <IconComponent className="w-6 h-6 sm:w-7 sm:h-7 text-black" />
-                  </div>
-                  <p className="text-black/70 text-sm sm:text-sm font-medium text-center">
-                    {brand.name}
-                  </p>
-                </>
-              )}
-            </div>
-          );
-        })}
+        {brandLogos.map((brand, index) => renderBrandCard(brand, index, "set1"))}
+        {/* Second set for seamless loop */}
+        {brandLogos.map((brand, index) => renderBrandCard(brand, index, "set2"))}
       </div>
+      
       <style jsx global>{`
-        @keyframes scroll {
+        @keyframes carousel-scroll {
           0% {
             transform: translateX(0);
           }
@@ -292,12 +290,9 @@ function InfiniteScrollCarousel() {
             transform: translateX(-50%);
           }
         }
-        .animate-scroll {
-          animation: scroll 25s linear infinite;
-          will-change: transform;
-        }
-        .animate-scroll:hover {
-          animation-play-state: paused;
+        .carousel-track {
+          animation: carousel-scroll 35s linear infinite;
+          width: fit-content;
         }
       `}</style>
     </div>
