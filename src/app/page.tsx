@@ -205,9 +205,9 @@ export default function LandingPage() {
               </p>
 
               <div className="flex justify-center md:justify-start">
-                <Link
+                 <Link
                   href="/shows"
-                  className="inline-flex items-center gap-2 px-5 py-3 text-sm sm:text-base text-black hover:gap-3 active:scale-95 transition-all group font-medium"
+                  className="inline-flex items-center gap-2 px-6 py-3.5 sm:py-3 text-sm sm:text-base bg-black text-white rounded-full hover:bg-black/90 active:scale-95 transition-all group w-full sm:w-auto justify-center md:justify-start font-medium shadow-lg shadow-black/10"
                 >
                   Explore Our Shows
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
