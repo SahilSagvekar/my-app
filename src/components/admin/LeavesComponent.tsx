@@ -548,7 +548,7 @@ export default function LeavesComponent() {
                 .join("")
               : "U";
 
-          const tasksCount = u.assignedTasks?.length || 0;
+          const tasksCount = u.assignedTasksCount || 0;
 
           return {
             id: u.id,
@@ -568,8 +568,8 @@ export default function LeavesComponent() {
                     ? "terminated"
                     : "active",
             joinDate: u.joinedAt || u.createdAt,
-            lastActive: u.auditLogs?.[0]?.timestamp
-              ? new Date(u.auditLogs[0].timestamp).toLocaleString('en-US', {
+            lastActive: u.lastActive
+              ? new Date(u.lastActive).toLocaleString('en-US', {
                 month: 'short',
                 day: '2-digit',
                 hour: '2-digit',
@@ -1003,24 +1003,59 @@ export default function LeavesComponent() {
     <div className="space-y-6">
       {/* Filters and Search */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Employee Management
-            </CardTitle>
+        <CardContent>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pt-7">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 bg-muted/30 px-3 rounded-md border">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search employees..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-56 border-0 bg-transparent focus-visible:ring-0 h-9"
+                />
+              </div>
+
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-40 h-9">
+                  <SelectValue placeholder="All Roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40 h-9">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status.id} value={status.id}>
+                      {status.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <Dialog
               open={isAddUserDialogOpen}
               onOpenChange={setIsAddUserDialogOpen}
             >
               <DialogTrigger asChild>
-                <Button>
+                <Button className="h-9 shadow-sm">
                   <UserPlus className="h-4 w-4 mr-2" />
                   Add Employee
                 </Button>
               </DialogTrigger>
-              <DialogContent aria-describedby="add-employee-description">
+              <DialogContent className="max-w-2xl" aria-describedby="add-employee-description">
                 <DialogHeader>
                   <DialogTitle id="add-employee-title">
                     Add New Employee
@@ -1030,7 +1065,7 @@ export default function LeavesComponent() {
                     be calculated automatically.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-4 pt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium">First Name</label>
@@ -1060,57 +1095,78 @@ export default function LeavesComponent() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-sm font-medium">Email</label>
-                    <Input
-                      type="email"
-                      value={newUser.email}
-                      onChange={(e) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          email: e.target.value,
-                        }))
-                      }
-                      placeholder="employee@company.com"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Email</label>
+                      <Input
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            email: e.target.value,
+                          }))
+                        }
+                        placeholder="employee@company.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">Phone</label>
+                      <Input
+                        value={newUser.phone}
+                        onChange={(e) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            phone: e.target.value,
+                          }))
+                        }
+                        placeholder="Enter phone number"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="text-sm font-medium">Phone</label>
-                    <Input
-                      value={newUser.phone}
-                      onChange={(e) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          phone: e.target.value,
-                        }))
-                      }
-                      placeholder="Enter phone number"
-                    />
-                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Role</label>
+                      <Select
+                        value={newUser.role}
+                        onValueChange={(value) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            role: value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roles.map((role) => (
+                            <SelectItem key={role.id} value={role.id}>
+                              {role.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div>
-                    <label className="text-sm font-medium">Role</label>
-                    <Select
-                      value={newUser.role}
-                      onValueChange={(value) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          role: value,
-                        }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roles.map((role) => (
-                          <SelectItem key={role.id} value={role.id}>
-                            {role.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div>
+                      <label className="text-sm font-medium">
+                        Hourly Rate ($)
+                      </label>
+                      <Input
+                        type="number"
+                        value={newUser.hourlyRate}
+                        onChange={(e) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            hourlyRate: e.target.value,
+                          }))
+                        }
+                        placeholder="0.00"
+                      />
+                    </div>
                   </div>
 
                   {/* Client Selection - Only shown when role is 'client' */}
@@ -1160,73 +1216,37 @@ export default function LeavesComponent() {
                     </div>
                   )}
 
-                  <div>
-                    <label className="text-sm font-medium">
-                      Hourly Rate ($)
-                    </label>
-                    <Input
-                      type="number"
-                      value={newUser.hourlyRate}
-                      onChange={(e) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          hourlyRate: e.target.value,
-                        }))
-                      }
-                      placeholder="0.00"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">
-                      Hours Per Week
-                    </label>
-                    <Input
-                      type="number"
-                      value={newUser.hoursPerWeek}
-                      onChange={(e) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          hoursPerWeek: e.target.value,
-                        }))
-                      }
-                      placeholder="40"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Typical full-time: 40 hours/week
-                    </p>
-                  </div>
-
-                  {/* Preview calculation */}
-                  {newUser.hourlyRate && newUser.hoursPerWeek && (
-                    <div className="text-sm bg-muted p-3 rounded-md">
-                      <p className="font-medium">Monthly Salary Preview:</p>
-                      <p className="text-lg font-bold text-primary">
-                        {formatCurrency(
-                          parseFloat(newUser.hourlyRate || "0") *
-                          parseFloat(newUser.hoursPerWeek || "0") *
-                          4
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        = ${newUser.hourlyRate}/hr × {newUser.hoursPerWeek}{" "}
-                        hrs/week × 4 weeks
-                      </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">
+                        Hours Per Week
+                      </label>
+                      <Input
+                        type="number"
+                        value={newUser.hoursPerWeek}
+                        onChange={(e) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            hoursPerWeek: e.target.value,
+                          }))
+                        }
+                        placeholder="40"
+                      />
                     </div>
-                  )}
 
-                  <div>
-                    <label className="text-sm font-medium">Hire Date</label>
-                    <SimpleCalendar
-                      selected={newUser.hireDate}
-                      onSelect={(date) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          hireDate: date,
-                        }))
-                      }
-                      placeholder="Select hire date"
-                    />
+                    <div>
+                      <label className="text-sm font-medium">Hire Date</label>
+                      <SimpleCalendar
+                        selected={newUser.hireDate}
+                        onSelect={(date) =>
+                          setNewUser((prev) => ({
+                            ...prev,
+                            hireDate: date,
+                          }))
+                        }
+                        placeholder="Select hire date"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -1249,7 +1269,7 @@ export default function LeavesComponent() {
                     </label>
                   </div>
 
-                  <div className="flex justify-end gap-3">
+                  <div className="flex justify-end gap-3 pt-4 border-t">
                     <Button
                       variant="outline"
                       onClick={() => setIsAddUserDialogOpen(false)}
@@ -1264,53 +1284,12 @@ export default function LeavesComponent() {
               </DialogContent>
             </Dialog>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-4 mb-6">
-            <div className="flex items-center gap-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employees..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-64"
-              />
-            </div>
-
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
-                    {role.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {statusOptions.map((status) => (
-                  <SelectItem key={status.id} value={status.id}>
-                    {status.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-3 px-4">Employee</th>
+                  <th className="text-left py-3 px-4">User</th>
                   <th className="text-left py-3 px-4">Role</th>
                   <th className="text-left py-3 px-4">Status</th>
                   <th className="text-left py-3 px-4">Contact</th>
@@ -1454,7 +1433,7 @@ export default function LeavesComponent() {
 
         <div className="flex flex-wrap gap-2 items-center">
           <Input
-            className="w-48"
+            className="w-48 h-9"
             placeholder="Search by employee/reason"
             value={leaveSearch}
             onChange={(e) => {
@@ -1464,7 +1443,7 @@ export default function LeavesComponent() {
           />
           <Input
             type="date"
-            className="w-36"
+            className="w-36 h-9"
             value={fromDate}
             onChange={(e) => {
               setFromDate(e.target.value);
@@ -1473,7 +1452,7 @@ export default function LeavesComponent() {
           />
           <Input
             type="date"
-            className="w-36"
+            className="w-36 h-9"
             value={toDate}
             onChange={(e) => {
               setToDate(e.target.value);
@@ -1487,11 +1466,11 @@ export default function LeavesComponent() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-36">
+            <SelectTrigger className="w-32 h-9">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="ALL">All Status</SelectItem>
               <SelectItem value="PENDING">Pending</SelectItem>
               <SelectItem value="APPROVED">Approved</SelectItem>
               <SelectItem value="REJECTED">Rejected</SelectItem>
@@ -1975,31 +1954,56 @@ export default function LeavesComponent() {
               </div>
             </div>
 
-            {/* Role */}
-            <div>
-              <label className="text-sm font-medium">Role</label>
-              <Select
-                value={editEmployeeForm.role}
-                onValueChange={(value) =>
-                  setEditEmployeeForm((prev) => ({
-                    ...prev,
-                    role: value,
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="editor">Editor</SelectItem>
-                  <SelectItem value="videographer">Videographer</SelectItem>
-                  <SelectItem value="scheduler">Scheduler</SelectItem>
-                  <SelectItem value="qc">QC</SelectItem>
-                  <SelectItem value="client">Client</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Role and Status in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Role</label>
+                <Select
+                  value={editEmployeeForm.role}
+                  onValueChange={(value) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      role: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="editor">Editor</SelectItem>
+                    <SelectItem value="videographer">Videographer</SelectItem>
+                    <SelectItem value="scheduler">Scheduler</SelectItem>
+                    <SelectItem value="qc">QC Specialist</SelectItem>
+                    <SelectItem value="client">Client</SelectItem>
+                    <SelectItem value="sales">Sales</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Status</label>
+                <Select
+                  value={editEmployeeForm.status}
+                  onValueChange={(value: "active" | "inactive" | "terminated") =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      status: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="terminated">Terminated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Client Selection - Only shown when role is 'client' */}
@@ -2020,7 +2024,7 @@ export default function LeavesComponent() {
                     }))
                   }
                 >
-                  <SelectTrigger className={!editEmployeeForm.clientId ? "border-red-300" : ""}>
+                  <SelectTrigger className={`h-9 ${!editEmployeeForm.clientId ? "border-red-300" : ""}`}>
                     <SelectValue placeholder={loadingClients ? "Loading clients..." : "Select a client"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -2102,7 +2106,6 @@ export default function LeavesComponent() {
               </div>
             )}
 
-            {/* Hire Date and Employment Status in grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Hire Date</label>
@@ -2117,43 +2120,19 @@ export default function LeavesComponent() {
                   placeholder="Select hire date"
                 />
               </div>
-              <div>
-                <label className="text-sm font-medium">Employment Status</label>
-                <Select
-                  value={editEmployeeForm.status}
-                  onValueChange={(
-                    value: "active" | "inactive" | "terminated"
-                  ) =>
-                    setEditEmployeeForm((prev) => ({
-                      ...prev,
-                      status: value,
-                    }))
-                  }
+              <div className="flex flex-col justify-start">
+                <label className="text-sm font-medium mb-2">Security</label>
+                <Button
+                  variant="outline"
+                  className="w-full h-9 text-amber-600 border-amber-200 hover:bg-amber-50"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleReset2FA(editingEmployee);
+                  }}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                        <span>Active - Currently working, on payroll</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="inactive">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
-                        <span>Inactive - Not currently working</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="terminated">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-red-500"></span>
-                        <span>Terminated - Permanently removed</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  <ShieldAlert className="h-4 w-4 mr-2" />
+                  Reset 2FA
+                </Button>
               </div>
             </div>
 
