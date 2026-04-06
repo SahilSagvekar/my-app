@@ -49,7 +49,7 @@ export default function AboutPage() {
                 </div>
                 <div className="mt-6 text-center">
                   <p className="text-black font-medium">Eric Davis</p>
-                  <p className="text-black/60 text-sm mt-1">Founder & CEO, E8 Productions</p>
+                  <p className="text-black/60 text-sm mt-1">Founder & CEO</p>
                   {/* <p className="text-black/60 text-sm mt-1">E8 Productions</p> */}
                 </div>
               </div>

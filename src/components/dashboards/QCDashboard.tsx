@@ -882,26 +882,29 @@ export function QCDashboard() {
                   <div
                     className={`h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold`}
                   >
-                    {thumbnail ? (
+                    {thumbnail && (
                       <img
                         src={thumbnail}
                         alt={task.title}
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 z-10"
+                        onError={(e) => {
+                          // Hide broken image so fallback shows through
+                          (e.target as HTMLImageElement).style.opacity = '0';
+                        }}
                       />
-                    ) : (
-                      /* No thumbnail text fallback */
-                      <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider">
-                        No thumbnail
-                      </div>
                     )}
+                    {/* No thumbnail text fallback - always rendered behind, visible when no image or image fails */}
+                    <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
+                      No thumbnail
+                    </div>
 
                     {/* Darker overlay if thumbnail exists for better icon readability */}
                     {thumbnail && (
-                      <div className="absolute inset-0 bg-black/5" />
+                      <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
                     )}
 
                     {/* Share Button - Top Left */}
-                    <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                       <Button
                         size="icon"
                         variant="secondary"
@@ -913,7 +916,7 @@ export function QCDashboard() {
                     </div>
 
                     {/* File Count - Top Right */}
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm">
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm z-20">
                       <FileText className="h-3 w-3" />
                       {task.files?.length || 0}
                     </div>
