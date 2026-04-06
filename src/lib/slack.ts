@@ -316,7 +316,7 @@ if (notificationType === "task_rejected") {
   // Create modified notification with editor mention
   const mentionedNotification = {
     ...notification,
-    title: `❌ ${editorMention}Content Needs Revisions`,
+    title: ` ${editorMention}Content Needs Revisions`,
     body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${taskLink}`,
   };
 

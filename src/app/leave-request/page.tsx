@@ -6,6 +6,8 @@ import { apiFetch } from "@/lib/api-fetch";
 import { useAuth } from "@/components/auth/AuthContext";
 import { LayoutShell } from "@/components/LayoutShell";
 import { SearchProvider } from "@/components/SearchContext";
+import { ViewAsRoleProvider } from "@/components/auth/ViewAsRoleContext";
+import { UploadProvider } from "@/components/workflow/UploadContext";
 
 export default function LeaveRequestPage() {
   const { user, logout, loading: authLoading } = useAuth();
@@ -48,27 +50,31 @@ export default function LeaveRequestPage() {
   }
 
   return (
-    <SearchProvider>
-      <LayoutShell
-        currentRole={user.role}
-        currentPage="leave-request"
-        onPageChange={() => {}}
-        onLogout={logout}
-      >
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-semibold">Leave Request</h1>
-            <p className="text-muted-foreground mt-2">
-              Submit a leave request for approval. Select your dates and provide a reason for your absence.
-            </p>
-          </div>
+    <UploadProvider>
+      <ViewAsRoleProvider userEmail={user.email} userRole={user.role}>
+        <SearchProvider>
+          <LayoutShell
+            currentRole={user.role}
+            currentPage="leave-request"
+            onPageChange={() => {}}
+            onLogout={logout}
+          >
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-2xl font-semibold">Leave Request</h1>
+                <p className="text-muted-foreground mt-2">
+                  Submit a leave request for approval. Select your dates and provide a reason for your absence.
+                </p>
+              </div>
 
-          <LeaveRequestForm
-            employeeId={employee.id}
-            worksOnSaturday={employee.worksOnSaturday}
-          />
-        </div>
-      </LayoutShell>
-    </SearchProvider>
+              <LeaveRequestForm
+                employeeId={employee.id}
+                worksOnSaturday={employee.worksOnSaturday}
+              />
+            </div>
+          </LayoutShell>
+        </SearchProvider>
+      </ViewAsRoleProvider>
+    </UploadProvider>
   );
 }
