@@ -55,6 +55,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
+import { useDebounce } from '@/hooks/useDebounce';
 
 // Custom TikTok Icon Component
 const TikTokIcon = ({ className }: { className?: string }) => (
@@ -137,6 +138,7 @@ export function SchedulerSpreadsheetView() {
     const [tasks, setTasks] = useState<SchedulerTask[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [sortColumn, setSortColumn] = useState<string>('dueDate');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -195,7 +197,7 @@ export function SchedulerSpreadsheetView() {
     useEffect(() => {
         // Reset to first page and LOAD when filters change
         loadTasks(1, false);
-    }, [searchTerm, statusFilter, clientFilter, dateRange, deliverableFilter]);
+    }, [debouncedSearchTerm, statusFilter, clientFilter, dateRange, deliverableFilter]);
 
     async function fetchMetadata() {
         try {
@@ -214,7 +216,7 @@ export function SchedulerSpreadsheetView() {
             const queryParams = new URLSearchParams({
                 page: pageNum.toString(),
                 limit: pageSize.toString(),
-                search: searchTerm,
+                search: debouncedSearchTerm,
                 status: statusFilter,
                 clientId: clientFilter,
                 deliverableType: deliverableFilter,
@@ -620,7 +622,7 @@ export function SchedulerSpreadsheetView() {
         return typeof titleItem === 'string' ? titleItem : titleItem?.title || '';
     };
 
-    if (loading) {
+    if (loading && isInitialLoad) {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="text-center">
@@ -958,13 +960,22 @@ export function SchedulerSpreadsheetView() {
                         </thead>
 
                         {/* Body */}
-                        <tbody className="divide-y">
+                        <tbody className={`divide-y ${loading && !isInitialLoad ? 'opacity-50 pointer-events-none' : ''}`}>
                             {tasks.length === 0 ? (
                                 <tr>
                                     <td colSpan={14} className="px-6 py-12 text-center text-muted-foreground">
-                                        <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
-                                        <p className="font-medium">No tasks found</p>
-                                        <p className="text-sm mt-1">Adjust your filters or wait for new tasks</p>
+                                        {loading ? (
+                                            <div className="flex flex-col items-center justify-center">
+                                                <RefreshCw className="h-8 w-8 animate-spin mb-4 text-primary" />
+                                                <p>Finding tasks...</p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                                                <p className="font-medium">No tasks found</p>
+                                                <p className="text-sm mt-1">Adjust your filters or wait for new tasks</p>
+                                            </>
+                                        )}
                                     </td>
                                 </tr>
                             ) : (
