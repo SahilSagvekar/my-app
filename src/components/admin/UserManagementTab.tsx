@@ -84,6 +84,7 @@ interface EmployeeApiResponse {
     role: string;
     employeeStatus: string;
     joinedAt: string;
+    lastActive: string | null;
   }>;
 }
 
@@ -91,9 +92,40 @@ function formatDateMDY(value: string | null | undefined): string {
   if (!value) return "N/A";
   const d = new Date(value);
   if (isNaN(d.getTime())) return "N/A";
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yyyy = d.getFullYear();
+  // Use UTC methods
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+}
+
+function formatLastActive(value: string | null | undefined): string {
+  if (!value) return "Never";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "Never";
+  
+  // Use UTC time for comparison
+  const now = new Date();
+  const nowUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 
+                          now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
+  const valueUtc = d.getTime(); // Already in UTC if ISO string
+  
+  const diffMs = nowUtc - valueUtc;
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffMins < 0) return "Active now"; // Future session
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  
+  // For older dates, show the actual date in UTC
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
   return `${mm}-${dd}-${yyyy}`;
 }
 
@@ -133,7 +165,7 @@ export function UserManagementTab() {
                     ? "inactive"
                     : "active",
               joinDate: formatDateMDY(u.joinedAt || null),
-              lastActive: "N/A",
+              lastActive: formatLastActive(u.lastActive),
               tasksCompleted: 0,
               avatar: initials,
             };

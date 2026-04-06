@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 import { VisuallyHidden } from '../ui/visually-hidden';
-import { Users, UserPlus, Search, MoreHorizontal, Mail, Phone, Calendar, Edit, Trash2, UserCheck, UserX, Filter } from 'lucide-react';
+import { Users, UserPlus, Search, MoreHorizontal, Mail, Phone, Calendar, Edit, Trash2, UserCheck, UserX, Filter, Clock } from 'lucide-react';
 
 const roles = [
   { id: 'admin', name: 'Admin', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
@@ -27,107 +27,86 @@ const statusOptions = [
   { id: 'on-leave', name: 'On Leave', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' }
 ];
 
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  status: string;
+  joinDate: string;
+  lastActive: string;
+  tasksCompleted: number;
+  avatar: string;
+}
+
 const formatDateMDY = (value: string | Date | null | undefined) => {
   if (!value) return '-';
   const date = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return '-';
 
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const year = date.getFullYear();
+  // Use UTC methods
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const year = date.getUTCFullYear();
 
-  return `${month} - ${day} - ${year}`;
+  return `${month}-${day}-${year}`;
 };
 
-const mockUsers = [
-  {
-    id: 1,
-    name: 'John Smith',
-    email: 'admin@company.com',
-    phone: '+1 (555) 123-4567',
-    role: 'admin',
-    status: 'active',
-    joinDate: '2023-01-15',
-    lastActive: '2024-08-10 14:30',
-    tasksCompleted: 45,
-    avatar: 'JS'
-  },
-  {
-    id: 2,
-    name: 'Sarah Chen',
-    email: 'editor@company.com',
-    phone: '+1 (555) 234-5678',
-    role: 'editor',
-    status: 'active',
-    joinDate: '2023-03-20',
-    lastActive: '2024-08-10 16:15',
-    tasksCompleted: 87,
-    avatar: 'SC'
-  },
-  {
-    id: 3,
-    name: 'Mike Rodriguez',
-    email: 'qc@company.com',
-    phone: '+1 (555) 345-6789',
-    role: 'qc',
-    status: 'active',
-    joinDate: '2023-05-10',
-    lastActive: '2024-08-10 15:45',
-    tasksCompleted: 63,
-    avatar: 'MR'
-  },
-  {
-    id: 4,
-    name: 'Emily Foster',
-    email: 'scheduler@company.com',
-    phone: '+1 (555) 456-7890',
-    role: 'scheduler',
-    status: 'active',
-    joinDate: '2023-07-22',
-    lastActive: '2024-08-10 13:20',
-    tasksCompleted: 28,
-    avatar: 'EF'
-  },
-  {
-    id: 5,
-    name: 'David Wilson',
-    email: 'manager@company.com',
-    phone: '+1 (555) 567-8901',
-    role: 'manager',
-    status: 'active',
-    joinDate: '2023-09-05',
-    lastActive: '2024-08-07 17:00',
-    tasksCompleted: 34,
-    avatar: 'DW'
-  },
-  {
-    id: 6,
-    name: 'Lisa Johnson',
-    email: 'client@company.com',
-    phone: '+1 (555) 678-9012',
-    role: 'client',
-    status: 'active',
-    joinDate: '2023-11-18',
-    lastActive: '2024-08-10 12:10',
-    tasksCompleted: 19,
-    avatar: 'LJ'
-  },
-  {
-    id: 7,
-    name: 'Alex Thompson',
-    email: 'videographer@company.com',
-    phone: '+1 (555) 789-0123',
-    role: 'videographer',
-    status: 'active',
-    joinDate: '2024-01-08',
-    lastActive: '2024-08-02 09:30',
-    tasksCompleted: 42,
-    avatar: 'AT'
-  }
-];
+const formatLastActive = (value: string | null | undefined): string => {
+  if (!value) return "Never";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "Never";
+  
+  // Use UTC time for comparison
+  const now = new Date();
+  const nowUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 
+                          now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
+  const valueUtc = d.getTime(); // Already in UTC if ISO string
+  
+  const diffMs = nowUtc - valueUtc;
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffMins < 0) return "Active now"; // Future session
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  
+  // For older dates, show the actual date in UTC
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+};
+
+const getLastActiveColor = (value: string | null | undefined): string => {
+  if (!value) return "text-gray-400";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "text-gray-400";
+  
+  // Use UTC time for comparison
+  const now = new Date();
+  const nowUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 
+                          now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
+  const valueUtc = d.getTime();
+  
+  const diffMs = nowUtc - valueUtc;
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffHours < 1) return "text-green-600"; // Active within the hour
+  if (diffHours < 24) return "text-green-500"; // Active today
+  if (diffDays < 7) return "text-yellow-600"; // Active this week
+  return "text-gray-500"; // Inactive for over a week
+};
 
 export function ComprehensiveUserManagement() {
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -139,6 +118,40 @@ export function ComprehensiveUserManagement() {
     role: '',
     status: 'active'
   });
+
+  // Fetch real user data from API
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        setLoading(true);
+        const res = await fetch('/api/employee/list');
+        const data = await res.json();
+        
+        if (data.ok && data.employees) {
+          const formattedUsers: User[] = data.employees.map((emp: any) => ({
+            id: emp.id,
+            name: emp.name || 'No Name',
+            email: emp.email,
+            phone: emp.phone || 'N/A',
+            role: emp.role || 'editor',
+            status: emp.employeeStatus === 'ACTIVE' ? 'active' : 
+                   emp.employeeStatus === 'INACTIVE' ? 'inactive' : 'active',
+            joinDate: emp.joinedAt || emp.createdAt,
+            lastActive: emp.lastActive,
+            tasksCompleted: 0,
+            avatar: emp.name ? emp.name.split(' ').map((n: string) => n[0]).join('').toUpperCase() : 'U'
+          }));
+          setUsers(formattedUsers);
+        }
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchUsers();
+  }, []);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -214,6 +227,13 @@ export function ComprehensiveUserManagement() {
         </div>
       </div>
 
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <span className="ml-3 text-muted-foreground">Loading users...</span>
+        </div>
+      ) : (
+      <>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -470,10 +490,13 @@ export function ComprehensiveUserManagement() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-sm">
-                       {formatDateMDY(user.joinDate)}{new Date(user.joinDate).toLocaleDateString()}
+                       {formatDateMDY(user.joinDate)}
                     </td>
                     <td className="py-3 px-4 text-sm">
-                      {formatDateMDY(user.lastActive)}
+                      <div className={`flex items-center gap-1.5 ${getLastActiveColor(user.lastActive)}`}>
+                        <Clock className="h-3 w-3" />
+                        {formatLastActive(user.lastActive)}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <Badge variant="outline">
@@ -537,6 +560,8 @@ export function ComprehensiveUserManagement() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }
