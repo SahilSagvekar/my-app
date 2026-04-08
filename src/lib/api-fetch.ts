@@ -1,14 +1,15 @@
+import { buildAuthenticatedFetchInit } from "@/lib/client-auth";
+
 export async function apiFetch(path: string, options: RequestInit = {}) {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const authenticatedOptions = buildAuthenticatedFetchInit(options);
+  const headers = new Headers(authenticatedOptions.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
   const res = await fetch(path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    ...authenticatedOptions,
+    headers,
   });
 
   let data = null;

@@ -153,28 +153,7 @@ export async function GET(req: Request) {
             folderType: true,
           },
         },
-        monthlyDeliverable: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-            videosPerDay: true,
-            postingSchedule: true,
-            postingDays: true,
-            postingTimes: true,
-            platforms: true,
-            description: true,
-          },
-        },
-        oneOffDeliverable: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-            platforms: true,
-            description: true,
-          },
-        },
+        monthlyDeliverable: true,
         ...(includeTitling && {
           titlingJob: {
             select: {
@@ -190,44 +169,55 @@ export async function GET(req: Request) {
       },
     });
 
-    // Map payload — no URL signing here, done on-demand via /api/files/[id]/sign
-    const payload = tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      description: t.description,
-      status: t.status,
-      dueDate: t.dueDate,
-      clientId: t.clientId,
-      driveLinks: t.driveLinks || [],
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-      titlingStatus: t.titlingStatus,
-      titlingError: t.titlingError,
-      suggestedTitles: t.suggestedTitles,
-      platform: t.platform,
-      socialMediaLinks: t.socialMediaLinks || [],
-      priority: t.priority,
-      client: t.client,
-      files: t.files.map((f) => ({
-        id: f.id,
-        name: f.name,
-        mimeType: f.mimeType,
-        size: Number(f.size),
-        s3Key: f.s3Key,
-        folderType: f.folderType,
-      })),
-      titlingJob: (t as any).titlingJob || null,
-      monthlyDeliverable: t.monthlyDeliverable || null,
-      oneOffDeliverable: t.oneOffDeliverable || null,
-    }));
+    // Map and add signed URLs
+    const payload = await Promise.all(
+      tasks.map(async (t) => {
+        // Convert BigInt size to number
+        const mappedFiles = t.files.map((f) => ({
+          ...f,
+          size: Number(f.size),
+        }));
 
-    // Return in the format expected by Scheduler Spread Sheet View with pagination info
-    return NextResponse.json({ 
-      tasks: payload,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    }, { status: 200 });
+        const filesWithUrls = await addSignedUrlsToFiles(mappedFiles);
+
+        return {
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          status: t.status,
+          dueDate: t.dueDate,
+          clientId: t.clientId,
+          driveLinks: t.driveLinks || [],
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          titlingStatus: t.titlingStatus,
+          titlingError: t.titlingError,
+          transcript: t.transcript,
+          transcriptSummary: t.transcriptSummary,
+          suggestedTitles: t.suggestedTitles,
+          platform: t.platform,
+          socialMediaLinks: t.socialMediaLinks || [],
+          priority: t.priority,
+          client: t.client,
+          files: filesWithUrls,
+          titlingJob: (t as any).titlingJob || null,
+          monthlyDeliverable: t.monthlyDeliverable ? {
+            id: t.monthlyDeliverable.id,
+            type: t.monthlyDeliverable.type,
+            quantity: t.monthlyDeliverable.quantity,
+            videosPerDay: t.monthlyDeliverable.videosPerDay,
+            postingSchedule: t.monthlyDeliverable.postingSchedule,
+            postingDays: t.monthlyDeliverable.postingDays,
+            postingTimes: t.monthlyDeliverable.postingTimes,
+            platforms: t.monthlyDeliverable.platforms,
+            description: t.monthlyDeliverable.description
+          } : null,
+        };
+      })
+    );
+
+    // Return in the format expected by SchedulerApprovedQueuePage
+    return NextResponse.json({ tasks: payload }, { status: 200 });
 
   } catch (err: any) {
     console.error("GET /api/schedular/tasks error:", err);

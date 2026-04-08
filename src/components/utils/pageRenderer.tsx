@@ -50,9 +50,19 @@ const ClientPortalPage = dynamic(() => import("../Clientportalpage").then(mod =>
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Portal...</div>
 });
 
+const ClientPortalPage = dynamic(() => import("../Clientportalpage").then(mod => mod.ClientPortalPage), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Portal...</div>
+});
+
 const ClientContractsPage = dynamic(() => import("../contracts/ClientContractsPage").then(mod => mod.ClientContractsPage), {
   ssr: false,
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Contracts...</div>
+});
+
+const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(mod => mod.ClientBillingPortal), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Billing...</div>
 });
 
 const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(mod => mod.ClientBillingPortal), {
@@ -80,7 +90,11 @@ export function renderPage(
   hasPostingServices?: boolean,
   originalRole?: string,
   linkedClientId?: string
+  hasPostingServices?: boolean,
+  originalRole?: string,
+  linkedClientId?: string
 ): React.ReactElement {
+  console.log(`Rendering page for role: ${role}, page: ${page}, originalRole: ${originalRole}`);
   console.log(`Rendering page for role: ${role}, page: ${page}, originalRole: ${originalRole}`);
 
   // 🔥 Block unauthorized access for clients without posting services
@@ -111,7 +125,9 @@ export function renderPage(
   }
 
   // Legacy "invoices" page now redirects to billing
+  // Legacy "invoices" page now redirects to billing
   if (page === "invoices") {
+    return <ClientBillingPortal />;
     return <ClientBillingPortal />;
   }
 
@@ -326,11 +342,14 @@ export function renderPage(
       case "social":
         console.log("linkedClientId:", linkedClientId);
         return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
+        console.log("linkedClientId:", linkedClientId);
+        return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
       case "training":
         return <TrainingPortalPage />;
       case "archive":
         return <ComingSoonPage title="Archive" />;
       case "contracts":
+        return <ClientPortalPage />; // Unified page with Info + Contracts + Invoices
         return <ClientPortalPage />; // Unified page with Info + Contracts + Invoices
       default:
         return <ClientMonthlyOverview />;
@@ -366,13 +385,19 @@ export function renderPage(
     // 🔥 If admin is viewing as sales, show the SalesManagementTab instead of SalesDashboard
     const isAdminViewingAsSales = originalRole?.toLowerCase() === 'admin';
     
+    // 🔥 If admin is viewing as sales, show the SalesManagementTab instead of SalesDashboard
+    const isAdminViewingAsSales = originalRole?.toLowerCase() === 'admin';
+    
     switch (page) {
       case "dashboard":
+      case "sales-management":
+        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "sales-management":
         return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "affiliate":
         return <AffiliateSection />;
       case "clients":
+        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
         return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "training":
         return <TrainingPortalPage />;
@@ -383,6 +408,7 @@ export function renderPage(
       case "logins":
         return <SocialLogins />;
       default:
+        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
         return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
     }
   }

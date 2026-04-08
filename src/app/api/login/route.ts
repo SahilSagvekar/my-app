@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
     });
+    console.log("[LOGIN] 8b. Set-Cookie header:", response.headers.get("set-cookie"));
 
     // Add audit log for login (skip if from India)
     if (locationData?.countryCode !== 'IN') {

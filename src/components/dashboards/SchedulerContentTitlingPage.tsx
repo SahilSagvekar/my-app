@@ -35,6 +35,7 @@ interface GeneratedTitle {
   title: string;
   style: string;
   reasoning: string;
+  hashtags?: string[];
 }
 
 interface TaskWithTitles {
@@ -550,9 +551,18 @@ export function SchedulerContentTitlingPage() {
                           <h4 className="font-medium text-lg mb-2">
                             {suggestion.title}
                           </h4>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-muted-foreground mb-3">
                             💡 {suggestion.reasoning}
                           </p>
+                          {suggestion.hashtags && suggestion.hashtags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {suggestion.hashtags.map((tag, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <Button
