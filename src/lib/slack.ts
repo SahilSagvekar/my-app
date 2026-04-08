@@ -29,47 +29,28 @@ export interface SlackNotification {
 
 // ---------------------------------------------------------------------------
 // Channel Configuration (from environment variables)
+// Only 3 channels are used:
+// - QC: For qc_ready notifications
+// - Scheduling: For task_scheduled notifications  
+// - Reports: For daily summary reports
 // ---------------------------------------------------------------------------
 const CHANNEL_CONFIG = {
-  // Global team channel (default)
-  global: () => process.env.SLACK_WEBHOOK_URL,
   // QC/Quality Control channel
   qc: () => process.env.SLACK_QC_CHANNEL_WEBHOOK_URL,
   // Scheduling channel
   scheduling: () => process.env.SLACK_SCHEDULING_CHANNEL_WEBHOOK_URL,
-  // Production channel (ready for review, scheduled, posted)
-  production: () => process.env.SLACK_READY_REVIEW_POSTED_WEBHOOK_URL,
-  // Reports channel
+  // Reports channel (for daily summary)
   reports: () => process.env.SLACK_REPORT_WEBHOOK_URL,
 };
 
 // ---------------------------------------------------------------------------
 // Notification-type → emoji mapping for Slack messages
+// Only 3 notification types are sent to Slack channels
 // ---------------------------------------------------------------------------
 const TYPE_EMOJI: Record<string, string> = {
-  task_assigned: "📋",
-  task_created: "📝",
-  content_ready: "✅",
   task_rejected: "❌",
-  qc_approval: "✅",
   qc_ready: "🔍",
-  review_queue: "👀",
-  approved_content: "🎉",
   task_scheduled: "📅",
-  scheduling_ready: "📅",
-  task_posted: "🚀",
-  deadline_reminder: "⏰",
-  task_deadline: "⏰",
-  client_feedback: "💬",
-  mention: "💬",
-  system: "⚙️",
-  system_alert: "🚨",
-  team_update: "👥",
-  user_management: "👥",
-  security: "🔒",
-  schedule_conflict: "📅",
-  approval_request: "👁️",
-  priority_review: "🔥",
 };
 
 function emojiForType(type: string): string {
@@ -285,68 +266,13 @@ export async function deliverSlackNotification(
   const notificationType = notification.type;
 
   // =========================================================================
-  // ROUTING RULES BY NOTIFICATION TYPE
+  // ROUTING RULES - ONLY 3 NOTIFICATION TYPES ARE SENT TO SLACK
+  // (Daily Summary Report is handled separately via sendDailySummaryToSlack)
   // =========================================================================
 
-  // A. TASK REJECTED → Client channel (with editor @mention) + Global
-if (notificationType === "task_rejected") {
-  console.log(`[Slack Dispatch] Task Rejected → Client channel + tag editor`);
-
-  // Get editor's Slack ID for @mention
-  let editorMention = "";
-  const editorId = notification.payload?.editorId || notification.userId;
-  if (editorId) {
-    const editor = await prisma.user.findUnique({
-      where: { id: editorId },
-      select: { slackUserId: true, name: true, slackNotifications: true },
-    });
-    if (editor?.slackUserId) {
-      editorMention = `<@${editor.slackUserId}> `;
-      console.log(
-        `[Slack Dispatch] Tagging editor: ${editor.name} (${editor.slackUserId})`,
-      );
-    }
-  }
-
-  // Build task link
-  const taskLink = notification.payload?.taskId
-    ? `\n<${process.env.NEXT_PUBLIC_APP_URL}/dashboard/tasks/${notification.payload.taskId}|View Task in Dashboard>`
-    : "";
-
-  // Create modified notification with editor mention
-  const mentionedNotification = {
-    ...notification,
-    title: ` ${editorMention}Content Needs Revisions`,
-    body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${taskLink}`,
-  };
-
-  // Send to client channel with editor mention
-  if (notification.payload?.clientId) {
-    await sendClientSlackWebhook(
-      notification.payload.clientId,
-      mentionedNotification,
-    );
-  }
-
-  // Also send to global team channel
-  await sendSlackWebhook(mentionedNotification);
-
-  // Send DM to the editor
-  if (editorId) {
-    const editor = await prisma.user.findUnique({
-      where: { id: editorId },
-      select: { slackUserId: true, slackNotifications: true },
-    });
-    if (editor?.slackUserId && editor?.slackNotifications) {
-      await sendSlackDM(editor.slackUserId, notification);
-    }
-  }
-  return;
-}
-
-  // B. READY FOR QC → QC Channel + Global
-  if (notificationType === "qc_ready" || notificationType === "review_queue") {
-    console.log(`[Slack Dispatch] Ready for QC → QC channel`);
+  // 1. QC_READY → QC Channel ONLY (with @mention of QC specialist)
+  if (notificationType === "qc_ready") {
+    console.log(`[Slack Dispatch] Ready for QC → QC channel only`);
 
     // Get QC specialist's Slack ID for @mention
     let qcMention = "";
@@ -366,85 +292,91 @@ if (notificationType === "task_rejected") {
 
     // Build task link
     const taskLink = notification.payload?.taskId
-      ? `\n<${process.env.NEXT_PUBLIC_APP_URL}/dashboard/tasks/${notification.payload.taskId}|View Task in Dashboard>`
+      ? `\n<${process.env.NEXT_PUBLIC_APP_URL}/dashboard?task=${notification.payload.taskId}|View Task in Dashboard>`
       : "";
 
     // Create modified notification with QC mention and link
     const mentionedNotification = {
       ...notification,
-      title: `👀 ${qcMention}${notification.title}`,
-      body: `${notification.body}${taskLink}`,
+      title: `👀 ${qcMention}Content Ready for QC Review`,
+      body: `Your content "${notification.payload?.taskTitle || notification.title || "Task"}" is ready for review.${taskLink}`,
     };
 
+    // Send to QC channel ONLY
     await sendToChannel("qc", mentionedNotification);
-    await sendSlackWebhook(mentionedNotification);
     return;
   }
 
-  // C. READY FOR SCHEDULING / SCHEDULED → Scheduling Channel + Global
-  if (
-    notificationType === "scheduling_ready" ||
-    notificationType === "task_scheduled"
-  ) {
-    console.log(`[Slack Dispatch] Scheduling → Scheduling channel`);
-    await sendToChannel("scheduling", notification);
-    await sendSlackWebhook(notification); // Also global
+  // 2. TASK_REJECTED → Client channel ONLY (with @mention of editor)
+  if (notificationType === "task_rejected") {
+    console.log(`[Slack Dispatch] Task Rejected → Client channel only`);
 
-    // If task_scheduled, also notify client channel
-    if (
-      notificationType === "task_scheduled" &&
-      notification.payload?.clientId
-    ) {
-      await sendClientSlackWebhook(notification.payload.clientId, notification);
+    // Only send if there's a clientId
+    if (!notification.payload?.clientId) {
+      console.log(`[Slack Dispatch] No clientId provided, skipping task_rejected notification`);
+      return;
     }
-    return;
-  }
 
-  // D. POSTED → Production channel + Client channel + Global
-  if (
-    notificationType === "task_posted" ||
-    notificationType === "content_ready"
-  ) {
-    console.log(
-      `[Slack Dispatch] Posted/Content Ready → Production + Client channels`,
+    // Get editor's Slack ID for @mention
+    let editorMention = "";
+    const editorId = notification.payload?.editorId || notification.userId;
+    if (editorId) {
+      const editor = await prisma.user.findUnique({
+        where: { id: editorId },
+        select: { slackUserId: true, name: true },
+      });
+      if (editor?.slackUserId) {
+        editorMention = `<@${editor.slackUserId}> `;
+        console.log(
+          `[Slack Dispatch] Tagging editor: ${editor.name} (${editor.slackUserId})`,
+        );
+      }
+    }
+
+    // Build task link
+    const taskLink = notification.payload?.taskId
+      ? `\n<${process.env.NEXT_PUBLIC_APP_URL}/dashboard?task=${notification.payload.taskId}|View Task in Dashboard>`
+      : "";
+
+    // Create modified notification with editor mention
+    const mentionedNotification = {
+      ...notification,
+      title: `❌ ${editorMention}Content Needs Revisions`,
+      body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${taskLink}`,
+    };
+
+    // Send to client channel ONLY
+    await sendClientSlackWebhook(
+      notification.payload.clientId,
+      mentionedNotification,
     );
-    await sendToChannel("production", notification);
-    await sendSlackWebhook(notification); // Global
+    return;
+  }
 
-    if (notification.payload?.clientId) {
-      await sendClientSlackWebhook(notification.payload.clientId, notification);
-    }
+  // 3. TASK_SCHEDULED → Scheduling Channel ONLY
+  if (notificationType === "task_scheduled") {
+    console.log(`[Slack Dispatch] Task Scheduled → Scheduling channel only`);
+
+    // Build task link
+    const taskLink = notification.payload?.taskId
+      ? `\n<${process.env.NEXT_PUBLIC_APP_URL}/dashboard?task=${notification.payload.taskId}|View Task in Dashboard>`
+      : "";
+
+    const scheduledNotification = {
+      ...notification,
+      title: `📅 Content Scheduled/Posted`,
+      body: `Task "${notification.payload?.taskTitle || notification.title || "Task"}" has been marked as scheduled.${taskLink}`,
+    };
+
+    // Send to scheduling channel ONLY
+    await sendToChannel("scheduling", scheduledNotification);
     return;
   }
 
   // =========================================================================
-  // DEFAULT ROUTING (for all other notification types)
+  // ALL OTHER NOTIFICATION TYPES ARE IGNORED (no Slack notification sent)
   // =========================================================================
-
-  // E. Always send to global team channel webhook
-  console.log(`[Slack Dispatch] Default → Global team channel`);
-  await sendSlackWebhook(notification);
-
-  // F. Send to client-specific channel (if clientId in payload)
-  if (notification.payload?.clientId) {
-    console.log(
-      `[Slack Dispatch] → Client channel (clientId=${notification.payload.clientId})`,
-    );
-    await sendClientSlackWebhook(notification.payload.clientId, notification);
-  }
-
-  // G. Send DM to the targeted user (if they have Slack linked + enabled)
-  if (notification.userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: notification.userId },
-      select: { slackUserId: true, slackNotifications: true },
-    });
-
-    if (user?.slackUserId && user?.slackNotifications) {
-      console.log(`[Slack Dispatch] → DM (slackUserId=${user.slackUserId})`);
-      await sendSlackDM(user.slackUserId, notification);
-    }
-  }
+  console.log(`[Slack Dispatch] Notification type "${notificationType}" is not configured for Slack - skipping`);
 }
 
 // ---------------------------------------------------------------------------

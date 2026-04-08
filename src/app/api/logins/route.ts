@@ -169,18 +169,40 @@ export async function GET(req: NextRequest) {
           { platform: "asc" },
         ],
       });
+    } else if (userRole === "scheduler") {
+      // Schedulers see ALL logins (except adminOnly ones)
+      logins = await prisma.socialLogin.findMany({
+        where: {
+          adminOnly: false,
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              companyName: true,
+            },
+          },
+          updatedByUser: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: [
+          { client: { companyName: "asc" } },
+          { platform: "asc" },
+        ],
+      });
     } else {
-      // Non-admin, non-client roles (scheduler, editor, qc, etc.)
-      // They can see logins where:
-      // 1. adminOnly is false AND (standard access for scheduler)
-      // 2. Their role is in allowedRoles OR
-      // 3. Their userId is in allowedUserIds
+      // Other roles (editor, qc, etc.)
+      // They can only see logins where:
+      // 1. adminOnly is false AND
+      // 2. Their role is in allowedRoles OR their userId is in allowedUserIds
       logins = await prisma.socialLogin.findMany({
         where: {
           adminOnly: false,
           OR: [
-            // Standard access for allowed roles (admin, client, scheduler)
-            ...(["scheduler"].includes(userRole!) ? [{}] : []),
             // Role-based access
             { allowedRoles: { has: userRole! } },
             // User-specific access

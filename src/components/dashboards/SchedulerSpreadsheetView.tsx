@@ -80,6 +80,32 @@ const PLATFORMS = {
 
 type PlatformKey = keyof typeof PLATFORMS;
 
+// Helper: format a posting time to ensure AM/PM is displayed
+const formatPostingTime = (timeStr: string): string => {
+    // If already has AM/PM, just return it cleaned up
+    const matchAmPm = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (matchAmPm) {
+        return `${matchAmPm[1]}:${matchAmPm[2]} ${matchAmPm[3].toUpperCase()}`;
+    }
+    // Handle 24h format (e.g., "14:00" -> "2:00 PM")
+    const match24 = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (match24) {
+        let h = parseInt(match24[1], 10);
+        const period = h >= 12 ? "PM" : "AM";
+        if (h === 0) h = 12;
+        else if (h > 12) h -= 12;
+        return `${h}:${match24[2]} ${period}`;
+    }
+    // Fallback: return as-is
+    return timeStr;
+};
+
+// Helper: format array of posting times
+const formatPostingTimes = (times: string[]): string => {
+    if (!times || times.length === 0) return "";
+    return times.map(formatPostingTime).join(", ");
+};
+
 interface SchedulerTask {
     id: string;
     title: string;
@@ -835,7 +861,7 @@ export function SchedulerSpreadsheetView() {
                                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
                                                     <Clock className="h-3 w-3" />
                                                     <span>
-                                                        {deliverable.postingTimes.slice(0, 2).join(', ')}
+                                                        {deliverable.postingTimes.slice(0, 2).map(formatPostingTime).join(', ')}
                                                         {deliverable.postingTimes.length > 2 && ` +${deliverable.postingTimes.length - 2}`}
                                                     </span>
                                                 </div>
@@ -1437,7 +1463,7 @@ export function SchedulerSpreadsheetView() {
                                                                         {task.deliverable.postingTimes && task.deliverable.postingTimes.length > 0 && (
                                                                             <div className="flex items-center gap-1">
                                                                                 <Clock className="h-3 w-3" />
-                                                                                <span>{task.deliverable.postingTimes.join(', ')}</span>
+                                                                                <span>{formatPostingTimes(task.deliverable.postingTimes)}</span>
                                                                             </div>
                                                                         )}
                                                                         {task.deliverable.videosPerDay && (
@@ -1587,4 +1613,4 @@ export function SchedulerSpreadsheetView() {
             />
         </div>
     );
-}
+}   

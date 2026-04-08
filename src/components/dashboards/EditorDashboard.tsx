@@ -1055,15 +1055,24 @@ export function EditorDashboard() {
     loadTasks();
   }, []);
 
-  // 🔥 Polling effect - only check for active optimization jobs
+  // 🔥 Regular polling for new tasks - every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log("🔄 Polling for new tasks...");
+      loadTasks();
+    }, 30000); // Poll every 30 seconds
+    return () => clearInterval(interval);
+  }, [loadTasks]);
+
+  // 🔥 Faster polling when active optimization jobs exist
   useEffect(() => {
     const hasActiveJobs = tasks.some(t => 
       t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
     );
 
     if (hasActiveJobs) {
-      console.log("⏱️ Active optimization detected, starting poll...");
-      const interval = setInterval(loadTasks, 15000); // Poll every 15s
+      console.log("⏱️ Active optimization detected, starting fast poll...");
+      const interval = setInterval(loadTasks, 15000); // Poll every 15s for optimization
       return () => clearInterval(interval);
     }
   }, [tasks.length]); // Only re-evaluate when task count changes

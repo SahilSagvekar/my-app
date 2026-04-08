@@ -537,7 +537,14 @@ export function QCDashboard() {
     const result: { folderType: string; files: TaskFile[]; info: ReturnType<typeof getFolderTypeInfo> }[] = [];
 
     orderedKeys.forEach(key => {
-      if (groups[key] && groups[key].length > 0) {
+      // Always include 'thumbnails' section even if empty (to show "No thumbnails")
+      if (key === 'thumbnails') {
+        result.push({
+          folderType: key,
+          files: groups[key] || [],
+          info: getFolderTypeInfo(key)
+        });
+      } else if (groups[key] && groups[key].length > 0) {
         result.push({
           folderType: key,
           files: groups[key],
@@ -1010,6 +1017,19 @@ export function QCDashboard() {
                         }
                         return null;
                       })()}
+
+                      {/* No Thumbnails Badge */}
+                      {(() => {
+                        const hasThumbnails = task.files?.some(f => f.folderType === 'thumbnails');
+                        if (!hasThumbnails) {
+                          return (
+                            <Badge className="bg-gray-100 text-gray-500 border-gray-200 rounded-full px-2 py-0.5 text-[10px] font-medium">
+                              🖼️ No Thumbnails
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 </Card>
@@ -1077,7 +1097,14 @@ export function QCDashboard() {
 
                         {/* Files in this section */}
                         <div className="divide-y">
-                          {group.files.map((file, index) => (
+                          {group.files.length === 0 ? (
+                            <div className="p-6 text-center text-muted-foreground">
+                              <span className="text-2xl mb-2 block">🖼️</span>
+                              <p className="text-sm font-medium">No {group.info.label.toLowerCase()}</p>
+                              <p className="text-xs mt-1">No files uploaded for this section</p>
+                            </div>
+                          ) : (
+                          group.files.map((file, index) => (
                             <div
                               key={file.id}
                               className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false
@@ -1264,7 +1291,8 @@ export function QCDashboard() {
                                 </div>
                               </div>
                             </div>
-                          ))}
+                          ))
+                          )}
                         </div>
                       </div>
                     ))}

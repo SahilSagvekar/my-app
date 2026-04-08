@@ -214,6 +214,14 @@ export function SchedulerDashboard() {
     }
 
     loadTasks();
+
+    // 🔥 Regular polling for new tasks - every 30 seconds
+    const interval = setInterval(() => {
+      console.log("🔄 Polling for new scheduler tasks...");
+      loadTasks();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const handleScheduleTask = async (task: WorkflowTask) => {
