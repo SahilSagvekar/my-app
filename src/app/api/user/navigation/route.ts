@@ -2,32 +2,20 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { NAVIGATION_ITEMS, type NavigationRole } from '@/components/constants/navigation';
-import jwt from 'jsonwebtoken';
-
-function getTokenFromCookies(req: Request) {
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-    const match = cookieHeader.match(/authToken=([^;]+)/);
-    return match ? match[1] : null;
-}
+import { getCurrentUser2 } from '@/lib/auth';
 
 // GET /api/user/navigation - Fetch navigation items permitted for the current user's role
 export async function GET(req: NextRequest) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!decoded?.userId || !decoded.role) {
+        const user = await getCurrentUser2(req);
+        if (!user?.id || !user.role) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { searchParams } = new URL(req.url);
         const requestedRole = searchParams.get('role')?.toLowerCase() as NavigationRole | null;
 
-        let role = (decoded.role as string).toLowerCase() as NavigationRole;
+        let role = user.role.toLowerCase() as NavigationRole;
 
         // 🔥 If user is admin or manager, they can request navigation for other roles (for View As feature)
         if ((role === 'admin' || role === 'manager') && requestedRole && NAVIGATION_ITEMS[requestedRole as NavigationRole]) {
@@ -46,12 +34,12 @@ export async function GET(req: NextRequest) {
         // 🔥 Additional filtering for client role based on hasPostingServices
         let finalItems = [...allItems];
         if (role === 'client') {
-            const user = await prisma.user.findFirst({
-                where: { id: Number(decoded.userId) },
+            const userWithClient = await prisma.user.findFirst({
+                where: { id: user.id },
                 include: { client: { select: { hasPostingServices: true } } }
             });
 
-            const hasPosting = (user as any)?.client?.hasPostingServices ?? true;
+            const hasPosting = (userWithClient as any)?.client?.hasPostingServices ?? true;
             if (!hasPosting) {
                 const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
                 finalItems = finalItems.filter(item => !forbiddenIds.includes(item.id));
@@ -62,8 +50,8 @@ export async function GET(req: NextRequest) {
         // but whose role doesn't include it in the default nav config
         const hasLoginsInNav = finalItems.some(item => item.id === 'logins');
         if (!hasLoginsInNav) {
-            const userId = Number(decoded.userId);
-            const userRole = (decoded.role as string).toLowerCase();
+            const userId = user.id;
+            const userRole = user.role.toLowerCase();
             
             const hasLoginAccess = await prisma.socialLogin.findFirst({
                 where: {

@@ -122,7 +122,11 @@ export function LayoutShell({
     const fetchNavItems = async () => {
       try {
         setNavLoading(true);
-        const res = await fetch(`/api/user/navigation?role=${currentRole}`, { signal: controller.signal });
+        const res = await fetch(`/api/user/navigation?role=${currentRole}`, {
+          signal: controller.signal,
+          credentials: "include",
+          cache: "no-store",
+        });
         if (!res.ok) { fallback(); return; }
         let data = applyClientFilter(await res.json());
         // Safety: if API returned items that don't belong to this role's nav, fall back to defaults
