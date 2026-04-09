@@ -51,7 +51,13 @@ export async function GET(req: any) {
 
       case "scheduler":
         tasks = await prisma.task.findMany({
-          where: { status: "COMPLETED" },
+          where: { 
+            OR: [
+              { scheduler: userId },
+              { scheduler: null }
+            ],
+            status: { in: ["COMPLETED", "SCHEDULED"] }
+          },
           include: { client: true },
           orderBy: { updatedAt: "desc" },
         });

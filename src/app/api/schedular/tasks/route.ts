@@ -103,9 +103,16 @@ export async function GET(req: Request) {
       where.AND.push({ createdAt: { gte: fromDate } });
     }
 
-    // NOTE: All schedulers can see all tasks - multiple schedulers can be
-    // assigned to the same client's deliverables. They use client/deliverable
-    // filters to focus on their specific assignments.
+    // Scheduler role filter: schedulers see tasks assigned to them OR unassigned tasks
+    // Admin and Manager can see all tasks
+    if (role.toLowerCase() === "scheduler") {
+      where.AND.push({
+        OR: [
+          { scheduler: Number(userId) },  // Tasks assigned to this scheduler
+          { scheduler: null }              // Unassigned tasks they can pick up
+        ]
+      });
+    }
 
     // Get total count for pagination
     const total = await prisma.task.count({ where });
