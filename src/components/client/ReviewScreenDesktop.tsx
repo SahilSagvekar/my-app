@@ -272,7 +272,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         variant="ghost"
                                         size="sm"
                                         onClick={p.onSwitchToMobile}
-                                        className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
+                                        className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
                                     >
                                         <Smartphone className="h-4 w-4" />
                                     </Button>
@@ -307,7 +307,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         </div>
                                     </div>
                                 ) : p.videoSource.type === 'iframe' ? (
-                                    <div className="relative w-full h-full rounded-lg overflow-hidden">
+                                    <div className="relative w-full h-full overflow-hidden">
                                         {!p.iframeLoaded && (
                                             <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
                                                 <div className="text-center">
@@ -331,7 +331,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <>
                                         <video
                                             ref={p.videoRef}
-                                            className="w-full h-full object-contain bg-black rounded-lg"
+                                            className="w-full h-full object-contain bg-black"
                                             src={p.videoSource.src}
                                             onTimeUpdate={p.handleTimeUpdate}
                                             onLoadedMetadata={(e) => {
@@ -378,7 +378,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         <>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.seekBackward} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
+                                                    <Button variant="ghost" size="sm" onClick={p.seekBackward} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
                                                         <SkipBack className="h-5 w-5" />
                                                     </Button>
                                                 </TooltipTrigger>
@@ -394,7 +394,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             </Tooltip>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.seekForward} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
+                                                    <Button variant="ghost" size="sm" onClick={p.seekForward} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
                                                         <SkipForward className="h-5 w-5" />
                                                     </Button>
                                                 </TooltipTrigger>
@@ -402,23 +402,25 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             </Tooltip>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.toggleMute} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
+                                                    <Button variant="ghost" size="sm" onClick={p.toggleMute} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
                                                         {p.isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                                                     </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>Mute (M)</TooltipContent>
                                             </Tooltip>
-                                            <span className="text-sm text-[var(--review-text-muted)] font-mono ml-2">
+                                            <span className="text-sm text-white font-mono ml-2">
                                                 {p.formatTime(p.currentTime)} / {p.formatTime(p.duration)}
                                             </span>
                                             <div className="ml-3">
                                                 <Select value={p.playbackSpeed.toString()} onValueChange={p.handlePlaybackSpeedChange}>
-                                                    <SelectTrigger className="w-16 h-7 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] text-xs">
+                                                    <SelectTrigger className="w-16 h-7 bg-transparent border-[var(--review-border)] text-white text-xs">
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
                                                         {['0.5', '0.75', '1', '1.25', '1.5', '2'].map(s => (
-                                                            <SelectItem key={s} value={s}>{s}×</SelectItem>
+                                                            <SelectItem key={s} value={s} className="text-white">
+                                                                {s}×
+                                                            </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
@@ -430,7 +432,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     {p.onNextAsset && (
                                         <Tooltip>
                                             <TooltipTrigger asChild>
-                                                <Button variant="ghost" size="sm" onClick={p.onNextAsset} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] text-sm">
+                                                <Button variant="ghost" size="sm" onClick={p.onNextAsset} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] text-sm">
                                                     Next Asset <ChevronRight className="h-4 w-4 ml-1" />
                                                 </Button>
                                             </TooltipTrigger>

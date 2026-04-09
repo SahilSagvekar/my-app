@@ -270,7 +270,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                     <div className="min-w-0">
                         <p className="text-sm font-semibold text-white truncate leading-tight">{p.asset.title}</p>
                         {p.currentFileSection && (
-                            <p className="text-[10px] text-[var(--review-text-muted)] capitalize leading-tight">
+                            <p className="text-[10px] text-white capitalize leading-tight">
                                 {p.currentFileSection.folderType} · v{p.currentFileSection.version}
                             </p>
                         )}
@@ -279,11 +279,11 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
 
                 {/* Right icons */}
                 <div className="flex items-center gap-0.5 shrink-0">
-                    <Button variant="ghost" size="sm" onClick={p.handleDownload} className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                    <Button variant="ghost" size="sm" onClick={p.handleDownload} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
                         <Download className="h-4 w-4" />
                     </Button>
                     {p.userRole === 'client' && (
-                        <Button variant="ghost" size="sm" onClick={p.handleGenerateShareLink} disabled={p.generatingLink} className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                        <Button variant="ghost" size="sm" onClick={p.handleGenerateShareLink} disabled={p.generatingLink} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
                             {p.generatingLink
                                 ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                 : <Share className="h-4 w-4" />
@@ -295,7 +295,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                         variant="ghost"
                         size="sm"
                         onClick={p.onSwitchToDesktop}
-                        className="text-[var(--review-accent-purple)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
+                        className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
                         title="Switch to Desktop View"
                     >
                         <Monitor className="h-4 w-4" />
@@ -396,19 +396,19 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                     <div className="flex items-center gap-0.5">
                         {p.videoSource.type === 'video' && (
                             <>
-                                <Button variant="ghost" size="sm" onClick={p.seekBackward} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-10 w-10 p-0">
+                                <Button variant="ghost" size="sm" onClick={p.seekBackward} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-10 w-10 p-0">
                                     <SkipBack className="h-5 w-5" />
                                 </Button>
                                 <Button variant="ghost" size="sm" onClick={p.togglePlay} className="text-white hover:bg-[var(--review-bg-tertiary)] h-11 w-11 p-0">
                                     {p.isPlaying ? <Pause className="h-7 w-7" /> : <Play className="h-7 w-7" />}
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={p.seekForward} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-10 w-10 p-0">
+                                <Button variant="ghost" size="sm" onClick={p.seekForward} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-10 w-10 p-0">
                                     <SkipForward className="h-5 w-5" />
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={p.toggleMute} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-10 w-10 p-0">
+                                <Button variant="ghost" size="sm" onClick={p.toggleMute} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-10 w-10 p-0">
                                     {p.isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                                 </Button>
-                                <span className="text-xs text-[var(--review-text-muted)] font-mono ml-0.5">
+                                <span className="text-xs text-white font-mono ml-0.5">
                                     {p.formatTime(p.currentTime)}<span className="opacity-50"> / {p.formatTime(p.duration)}</span>
                                 </span>
                             </>
@@ -419,7 +419,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => setControlsExpanded(v => !v)}
-                        className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
+                        className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
                     >
                         {controlsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </Button>
@@ -430,14 +430,14 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                     <div className="px-3 pb-3 flex items-center gap-3 flex-wrap border-t border-[var(--review-border)] pt-2 review-animate-fade-in">
                         {p.asset.versions.length > 1 && (
                             <div className="flex items-center gap-2">
-                                <span className="text-xs text-[var(--review-text-muted)]">Version</span>
+                                <span className="text-xs text-white">Version</span>
                                 <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
                                     <SelectTrigger className="h-8 w-32 bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-xs">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
                                         {p.asset.versions.map((v: any) => (
-                                            <SelectItem key={v.id} value={v.id} className="text-[var(--review-text-secondary)] hover:text-white text-xs">v{v.number}</SelectItem>
+                                            <SelectItem key={v.id} value={v.id} className="text-white hover:text-white text-xs">v{v.number}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -445,14 +445,14 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                         )}
                         {p.videoSource.type === 'video' && (
                             <div className="flex items-center gap-2">
-                                <span className="text-xs text-[var(--review-text-muted)]">Speed</span>
+                                <span className="text-xs text-white">Speed</span>
                                 <Select value={p.playbackSpeed.toString()} onValueChange={p.handlePlaybackSpeedChange}>
                                     <SelectTrigger className="h-8 w-20 bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-xs">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
                                         {['0.5', '0.75', '1', '1.25', '1.5', '2'].map(s => (
-                                            <SelectItem key={s} value={s} className="text-[var(--review-text-secondary)] hover:text-white text-xs">{s}×</SelectItem>
+                                            <SelectItem key={s} value={s} className="text-white hover:text-white text-xs">{s}×</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
