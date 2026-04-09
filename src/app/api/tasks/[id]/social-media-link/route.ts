@@ -22,33 +22,13 @@ function getUserFromToken(req: Request): { userId: number; role: string } | null
     return null;
   }
 }
-import jwt from 'jsonwebtoken';
-import { createAuditLog, AuditAction } from '@/lib/audit-logger';
-
-function getTokenFromCookies(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-  if (!cookieHeader) return null;
-  const m = cookieHeader.match(/authToken=([^;]+)/);
-  return m ? m[1] : null;
-}
-
-function getUserFromToken(req: Request): { userId: number; role: string } | null {
-  try {
-    const token = getTokenFromCookies(req);
-    if (!token) return null;
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    return { userId: decoded.userId, role: decoded.role };
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }  // Add Promise here
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;  // Await params
+    const { id } = await params;
     const body = await request.json();
     const { platform, url, postedAt } = body;
     const user = getUserFromToken(request);
@@ -56,8 +36,7 @@ export async function POST(
     // Get current task
     const task = await prisma.task.findUnique({
       where: { id: id },
-      select: { socialMediaLinks: true, title: true, description: true }
-      select: { socialMediaLinks: true, title: true, description: true }
+      select: { socialMediaLinks: true, title: true, description: true },
     });
 
     if (!task) {
@@ -72,7 +51,6 @@ export async function POST(
       ? task.socialMediaLinks 
       : [];
 
-    // Add new link with user info
     // Add new link with user info
     const newLink = {
       platform,
@@ -89,25 +67,6 @@ export async function POST(
       },
     });
 
-    // 📝 Audit log
-    if (user) {
-      await createAuditLog({
-        userId: user.userId,
-        action: 'SOCIAL_LINK_ADDED',
-        entity: 'Task',
-        entityId: id,
-        details: `Added ${platform} link to task`,
-        metadata: {
-          taskId: id,
-          taskTitle: task.title || task.description,
-          platform,
-          url,
-          role: user.role,
-        },
-      });
-    }
-
-    // 📝 Audit log
     if (user) {
       await createAuditLog({
         userId: user.userId,

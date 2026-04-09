@@ -95,57 +95,13 @@ export async function GET(req: NextRequest) {
       if (!hasAnyAccess) {
         return NextResponse.json({ message: "Access denied" }, { status: 403 });
       }
-    // Roles with built-in full access (no per-login permission needed)
-    const fullAccessRoles = ["admin", "client", "scheduler"];
-    
-    // For other roles, check if the user has been granted access to ANY login
-    if (!fullAccessRoles.includes(userRole)) {
-      const hasAnyAccess = await prisma.socialLogin.findFirst({
-        where: {
-          OR: [
-            { allowedRoles: { has: userRole } },
-            { allowedUserIds: { has: userId } },
-          ],
-        },
-        select: { id: true },
-      });
-
-      if (!hasAnyAccess) {
-        return NextResponse.json({ message: "Access denied" }, { status: 403 });
-      }
     }
 
     // For client role, only show their own logins
     // For non-admin roles, also hide admin-only logins
     // NEW: Also check allowedRoles and allowedUserIds for granular access
-    // NEW: Also check allowedRoles and allowedUserIds for granular access
     const isAdmin = userRole === "admin";
 
-    let logins;
-
-    if (isAdmin) {
-      // Admins see everything
-      logins = await prisma.socialLogin.findMany({
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              companyName: true,
-            },
-          },
-          updatedByUser: {
-            select: {
-              name: true,
-            },
-          },
-        },
-        orderBy: [
-          { client: { companyName: "asc" } },
-          { platform: "asc" },
-        ],
-      });
-    } else if (userRole === "client") {
     let logins;
 
     if (isAdmin) {
@@ -277,7 +233,6 @@ export async function GET(req: NextRequest) {
     // Decrypt passwords before sending
     // Hide client data for admin-only logins
     // Include allowedRoles and allowedUserIds for admin to manage
-    // Include allowedRoles and allowedUserIds for admin to manage
     const decryptedLogins = logins.map((login) => ({
       id: login.id,
       // Only include client info if NOT adminOnly
@@ -294,8 +249,6 @@ export async function GET(req: NextRequest) {
       notes: login.notes,
       backupCodesLocation: login.backupCodesLocation,
       adminOnly: login.adminOnly,
-      allowedRoles: login.allowedRoles || [],
-      allowedUserIds: login.allowedUserIds || [],
       allowedRoles: login.allowedRoles || [],
       allowedUserIds: login.allowedUserIds || [],
       passwordChangedAt: login.passwordChangedAt?.toISOString() || login.createdAt.toISOString(),
@@ -364,7 +317,6 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly, allowedRoles, allowedUserIds } = body;
-    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly, allowedRoles, allowedUserIds } = body;
 
     const isAdminOnlyLogin = adminOnly === true;
 
@@ -388,14 +340,6 @@ export async function POST(req: NextRequest) {
     if (isAdminOnlyLogin && userRole !== "admin") {
       return NextResponse.json(
         { message: "Only admins can create admin-only logins" },
-        { status: 403 }
-      );
-    }
-
-    // Only admins can set allowedRoles and allowedUserIds
-    if ((allowedRoles?.length > 0 || allowedUserIds?.length > 0) && userRole !== "admin") {
-      return NextResponse.json(
-        { message: "Only admins can set access permissions" },
         { status: 403 }
       );
     }
@@ -464,8 +408,6 @@ export async function POST(req: NextRequest) {
         adminOnly: isAdminOnlyLogin,
         allowedRoles: allowedRoles || [],
         allowedUserIds: allowedUserIds || [],
-        allowedRoles: allowedRoles || [],
-        allowedUserIds: allowedUserIds || [],
         updatedById: userId,
       },
     });
@@ -476,7 +418,6 @@ export async function POST(req: NextRequest) {
         action: "create",
         loginId: login.id,
         userId: userId,
-        details: JSON.stringify(isAdminOnlyLogin ? { platform } : { platform, clientId, allowedRoles, allowedUserIds }),
         details: JSON.stringify(isAdminOnlyLogin ? { platform } : { platform, clientId, allowedRoles, allowedUserIds }),
       },
     });
@@ -498,8 +439,6 @@ export async function POST(req: NextRequest) {
         notes: login.notes,
         backupCodesLocation: login.backupCodesLocation,
         adminOnly: login.adminOnly,
-        allowedRoles: login.allowedRoles,
-        allowedUserIds: login.allowedUserIds,
         allowedRoles: login.allowedRoles,
         allowedUserIds: login.allowedUserIds,
         passwordChangedAt: login.createdAt.toISOString(), // New login, password just set
