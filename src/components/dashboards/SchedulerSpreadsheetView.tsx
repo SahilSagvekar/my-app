@@ -1155,7 +1155,7 @@ export function SchedulerSpreadsheetView() {
 
                                                 {/* Status */}
                                                 <td className="px-3 py-3 text-center">
-                                                    <DropdownMenu>
+                                                    <DropdownMenu modal={false}>
                                                         <DropdownMenuTrigger asChild>
                                                             {task.status === 'SCHEDULED' ? (
                                                                 <Button variant="ghost" className="h-7 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1 px-2">
@@ -1169,7 +1169,11 @@ export function SchedulerSpreadsheetView() {
                                                                 </Button>
                                                             )}
                                                         </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
+                                                        <DropdownMenuContent 
+                                                            align="end" 
+                                                            sideOffset={4}
+                                                            onCloseAutoFocus={(e) => e.preventDefault()}
+                                                        >
                                                             {task.status !== 'SCHEDULED' ? (
                                                                 <DropdownMenuItem
                                                                     onClick={() => markAsScheduled(task.id)}
@@ -1613,4 +1617,4 @@ export function SchedulerSpreadsheetView() {
             />
         </div>
     );
-}   
+}
