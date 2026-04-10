@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
+import { addSignedUrlsToFiles } from "@/lib/s3";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -25,123 +26,26 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const includeTitling = url.searchParams.get("includeTitling") === "true";
-    const page = parseInt(url.searchParams.get("page") || "1");
-    const limit = parseInt(url.searchParams.get("limit") || "50");
-    const search = url.searchParams.get("search") || "";
-    const status = url.searchParams.get("status") || "all";
-    const clientId = url.searchParams.get("clientId") || "all";
-    const deliverableType = url.searchParams.get("deliverableType") || "all";
-    const dateRange = url.searchParams.get("dateRange") || "30d";
-
-    const skip = (page - 1) * limit;
-
-    // Filter by date
-    let fromDate: Date | null = null;
-    if (dateRange !== "all") {
-      fromDate = new Date();
-      const days = parseInt(dateRange);
-      if (!isNaN(days)) {
-        fromDate.setDate(fromDate.getDate() - days);
-      } else if (dateRange === "7d") {
-        fromDate.setDate(fromDate.getDate() - 7);
-      } else if (dateRange === "30d") {
-        fromDate.setDate(fromDate.getDate() - 30);
-      } else if (dateRange === "90d") {
-        fromDate.setDate(fromDate.getDate() - 90);
-      }
-    }
 
     // Build filter
     const where: any = {
-      AND: [
-        {
-          OR: [
-            { status: "COMPLETED" },
-            { status: "SCHEDULED" },
-          ],
-        }
-      ]
+      OR: [
+        { status: "COMPLETED" },
+        // { status: "CLIENT_REVIEW" },
+        { status: "SCHEDULED" },
+      ],
     };
 
-    // Search filter (on title or client name)
-    if (search) {
-      where.AND.push({
-        OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { client: { name: { contains: search, mode: 'insensitive' } } },
-          { client: { companyName: { contains: search, mode: 'insensitive' } } },
-        ]
-      });
+    // If role is scheduler, only show tasks assigned to them
+    if (role === "scheduler") {
+      where.scheduler = userId;
     }
-
-    // Status filter
-    if (status !== "all") {
-      if (status === "pending") {
-        where.AND.push({ status: "COMPLETED" });
-      } else if (status === "scheduled") {
-        where.AND.push({ status: "SCHEDULED" });
-      }
-    }
-
-    // Client filter
-    if (clientId !== "all") {
-      where.AND.push({ clientId });
-    }
-
-    // Deliverable Type filter
-    if (deliverableType !== "all") {
-      where.AND.push({
-        OR: [
-          { monthlyDeliverable: { type: { contains: deliverableType, mode: 'insensitive' } } },
-          { oneOffDeliverable: { type: { contains: deliverableType, mode: 'insensitive' } } },
-        ]
-      });
-    }
-
-    // Date filter
-    if (fromDate) {
-      where.AND.push({ createdAt: { gte: fromDate } });
-    }
-
-    // Scheduler role filter: schedulers see tasks assigned to them OR unassigned tasks
-    // Admin and Manager can see all tasks
-    if (role.toLowerCase() === "scheduler") {
-      where.AND.push({
-        OR: [
-          { scheduler: Number(userId) },  // Tasks assigned to this scheduler
-          { scheduler: null }              // Unassigned tasks they can pick up
-        ]
-      });
-    }
-
-    // Get total count for pagination
-    const total = await prisma.task.count({ where });
 
     // Fetch tasks that are ready for scheduler (QC approved or in scheduler status)
-    // Only select fields needed for the spreadsheet view
     const tasks = await prisma.task.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        status: true,
-        dueDate: true,
-        clientId: true,
-        driveLinks: true,
-        createdAt: true,
-        updatedAt: true,
-        titlingStatus: true,
-        titlingError: true,
-        suggestedTitles: true,
-        platform: true,
-        socialMediaLinks: true,
-        priority: true,
-        monthlyDeliverableId: true,
-        oneOffDeliverableId: true,
+      include: {
         client: {
           select: {
             id: true,
@@ -154,34 +58,14 @@ export async function GET(req: Request) {
           select: {
             id: true,
             name: true,
+            url: true,
             mimeType: true,
             size: true,
             s3Key: true,
             folderType: true,
           },
         },
-        monthlyDeliverable: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-            videosPerDay: true,
-            postingSchedule: true,
-            postingDays: true,
-            postingTimes: true,
-            platforms: true,
-            description: true,
-          },
-        },
-        oneOffDeliverable: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-            platforms: true,
-            description: true,
-          },
-        },
+        monthlyDeliverable: true,
         ...(includeTitling && {
           titlingJob: {
             select: {
@@ -197,44 +81,55 @@ export async function GET(req: Request) {
       },
     });
 
-    // Map payload — no URL signing here, done on-demand via /api/files/[id]/sign
-    const payload = tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      description: t.description,
-      status: t.status,
-      dueDate: t.dueDate,
-      clientId: t.clientId,
-      driveLinks: t.driveLinks || [],
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-      titlingStatus: t.titlingStatus,
-      titlingError: t.titlingError,
-      suggestedTitles: t.suggestedTitles,
-      platform: t.platform,
-      socialMediaLinks: t.socialMediaLinks || [],
-      priority: t.priority,
-      client: t.client,
-      files: t.files.map((f) => ({
-        id: f.id,
-        name: f.name,
-        mimeType: f.mimeType,
-        size: Number(f.size),
-        s3Key: f.s3Key,
-        folderType: f.folderType,
-      })),
-      titlingJob: (t as any).titlingJob || null,
-      monthlyDeliverable: t.monthlyDeliverable || null,
-      oneOffDeliverable: t.oneOffDeliverable || null,
-    }));
+    // Map and add signed URLs
+    const payload = await Promise.all(
+      tasks.map(async (t) => {
+        // Convert BigInt size to number
+        const mappedFiles = t.files.map((f) => ({
+          ...f,
+          size: Number(f.size),
+        }));
 
-    // Return in the format expected by Scheduler Spread Sheet View with pagination info
-    return NextResponse.json({ 
-      tasks: payload,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    }, { status: 200 });
+        const filesWithUrls = await addSignedUrlsToFiles(mappedFiles);
+
+        return {
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          status: t.status,
+          dueDate: t.dueDate,
+          clientId: t.clientId,
+          driveLinks: t.driveLinks || [],
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          titlingStatus: t.titlingStatus,
+          titlingError: t.titlingError,
+          transcript: t.transcript,
+          transcriptSummary: t.transcriptSummary,
+          suggestedTitles: t.suggestedTitles,
+          platform: t.platform,
+          socialMediaLinks: t.socialMediaLinks || [],
+          priority: t.priority,
+          client: t.client,
+          files: filesWithUrls,
+          titlingJob: (t as any).titlingJob || null,
+          monthlyDeliverable: t.monthlyDeliverable ? {
+            id: t.monthlyDeliverable.id,
+            type: t.monthlyDeliverable.type,
+            quantity: t.monthlyDeliverable.quantity,
+            videosPerDay: t.monthlyDeliverable.videosPerDay,
+            postingSchedule: t.monthlyDeliverable.postingSchedule,
+            postingDays: t.monthlyDeliverable.postingDays,
+            postingTimes: t.monthlyDeliverable.postingTimes,
+            platforms: t.monthlyDeliverable.platforms,
+            description: t.monthlyDeliverable.description
+          } : null,
+        };
+      })
+    );
+
+    // Return in the format expected by SchedulerApprovedQueuePage
+    return NextResponse.json({ tasks: payload }, { status: 200 });
 
   } catch (err: any) {
     console.error("GET /api/schedular/tasks error:", err);
