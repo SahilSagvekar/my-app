@@ -22,6 +22,7 @@ import {
     Plus,
     ChevronDown,
     ChevronRight,
+    ChevronUp,
     ExternalLink,
     Sparkles,
     FileText,
@@ -36,17 +37,33 @@ import {
     Facebook,
     Linkedin,
     Twitter,
-    Music,
-    Clock
+    Clock,
+    Pencil,
+    Trash2,
+    Calendar,
+    Layers,
+    Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
+
+// Custom TikTok Icon SVG
+const TikTokIcon = ({ className }: { className?: string }) => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        className={className}
+    >
+        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.87a8.16 8.16 0 0 0 4.76 1.52v-3.4a4.85 4.85 0 0 1-1-.3z" />
+    </svg>
+);
 
 // Platform icons and colors
 const PLATFORMS = {
     instagram: { label: 'IG', icon: Instagram, color: 'text-pink-600', bgColor: 'bg-pink-50' },
     youtube: { label: 'YT', icon: Youtube, color: 'text-red-600', bgColor: 'bg-red-50' },
-    tiktok: { label: 'TT', icon: Music, color: 'text-black', bgColor: 'bg-gray-100' },
+    tiktok: { label: 'TT', icon: TikTokIcon, color: 'text-black', bgColor: 'bg-gray-100' },
     facebook: { label: 'FB', icon: Facebook, color: 'text-blue-600', bgColor: 'bg-blue-50' },
     linkedin: { label: 'LI', icon: Linkedin, color: 'text-blue-700', bgColor: 'bg-blue-50' },
     twitter: { label: 'X', icon: Twitter, color: 'text-gray-900', bgColor: 'bg-gray-100' },
@@ -75,7 +92,17 @@ interface SchedulerTask {
         name: string;
         companyName?: string;
     };
-    deliverable?: any;
+    deliverable?: {
+        id: string;
+        type: string;
+        quantity: number;
+        videosPerDay: number;
+        postingSchedule: string;
+        postingDays: string[];
+        postingTimes: string[];
+        platforms: string[];
+        description?: string;
+    };
     socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
     // AI Titling fields
     suggestedTitles?: Array<{ style?: string; title: string; reasoning?: string }> | string[];
@@ -101,10 +128,17 @@ export function SchedulerSpreadsheetView() {
     const [playingVideo, setPlayingVideo] = useState<string | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    // Social link dialog
+    // Social link dialog (add)
     const [linkDialog, setLinkDialog] = useState<{ open: boolean; taskId: string; platform: PlatformKey } | null>(null);
     const [linkUrl, setLinkUrl] = useState('');
     const [submittingLink, setSubmittingLink] = useState(false);
+
+    // Social link edit dialog
+    const [editLinkDialog, setEditLinkDialog] = useState<{ open: boolean; taskId: string; platform: PlatformKey; currentUrl: string } | null>(null);
+    const [editLinkUrl, setEditLinkUrl] = useState('');
+
+    // Client deliverables panel
+    const [deliverablesOpen, setDeliverablesOpen] = useState(true);
 
     // Selected rows for bulk actions
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -201,6 +235,78 @@ export function SchedulerSpreadsheetView() {
             toast.error('Failed to add link');
         } finally {
             setSubmittingLink(false);
+        }
+    }
+
+    // Edit social media link
+    async function editSocialLink() {
+        if (!editLinkDialog || !editLinkUrl) return;
+
+        try {
+            setSubmittingLink(true);
+            const res = await fetch(`/api/tasks/${editLinkDialog.taskId}/social-media-link`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    platform: editLinkDialog.platform,
+                    url: editLinkUrl,
+                }),
+            });
+
+            if (!res.ok) throw new Error('Failed to update link');
+
+            // Update local state
+            setTasks(prev => prev.map(t => {
+                if (t.id === editLinkDialog.taskId) {
+                    return {
+                        ...t,
+                        socialMediaLinks: (t.socialMediaLinks || []).map(l =>
+                            l.platform.toLowerCase() === editLinkDialog.platform
+                                ? { ...l, url: editLinkUrl }
+                                : l
+                        )
+                    };
+                }
+                return t;
+            }));
+
+            toast.success(`${PLATFORMS[editLinkDialog.platform].label} link updated!`);
+            setEditLinkDialog(null);
+            setEditLinkUrl('');
+        } catch (err) {
+            toast.error('Failed to update link');
+        } finally {
+            setSubmittingLink(false);
+        }
+    }
+
+    // Delete social media link
+    async function deleteSocialLink(taskId: string, platform: PlatformKey) {
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/social-media-link`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platform }),
+            });
+
+            if (!res.ok) throw new Error('Failed to delete link');
+
+            // Update local state
+            setTasks(prev => prev.map(t => {
+                if (t.id === taskId) {
+                    return {
+                        ...t,
+                        socialMediaLinks: (t.socialMediaLinks || []).filter(
+                            l => l.platform.toLowerCase() !== platform
+                        )
+                    };
+                }
+                return t;
+            }));
+
+            toast.success(`${PLATFORMS[platform].label} link removed`);
+        } catch (err) {
+            toast.error('Failed to delete link');
         }
     }
 
@@ -352,6 +458,44 @@ export function SchedulerSpreadsheetView() {
 
     const uniqueDeliverables = Array.from(new Set(tasks.map(t => t.deliverable?.type).filter(Boolean))) as string[];
 
+    // Group tasks by client for the deliverables panel
+    interface ClientDelEntry {
+        clientName: string;
+        deliverables: Map<string, { type: string; total: number; scheduled: number; platforms: string[] }>;
+    }
+
+    const clientDeliverablesSummary = Array.from(
+        tasks.reduce((map, t) => {
+            const clientName = t.client?.companyName || t.client?.name || t.clientId;
+            if (!map.has(clientName)) {
+                map.set(clientName, {
+                    clientName,
+                    deliverables: new Map<string, { type: string; total: number; scheduled: number; platforms: string[] }>(),
+                });
+            }
+            const entry = map.get(clientName)!;
+            if (t.deliverable) {
+                const delKey = t.deliverable.type;
+                if (!entry.deliverables.has(delKey)) {
+                    entry.deliverables.set(delKey, {
+                        type: delKey,
+                        total: 0,
+                        scheduled: 0,
+                        platforms: t.deliverable.platforms || [],
+                    });
+                }
+                const d = entry.deliverables.get(delKey)!;
+                d.total++;
+                if (t.status === 'SCHEDULED') d.scheduled++;
+            }
+            return map;
+        }, new Map<string, ClientDelEntry>())
+    .values()
+    ).map((entry: ClientDelEntry) => ({
+        clientName: entry.clientName,
+        deliverables: Array.from(entry.deliverables.values()),
+    })).sort((a, b) => a.clientName.localeCompare(b.clientName));
+
     // Copy title to clipboard - handle both string and object formats
     const copyTitle = (titleItem: any) => {
         const titleText = typeof titleItem === 'string' ? titleItem : titleItem?.title || '';
@@ -456,6 +600,82 @@ export function SchedulerSpreadsheetView() {
                     </select>
                 </div>
             </div>
+
+            {/* Collapsible Client Deliverables Panel */}
+            {/* <div className="bg-white border rounded-lg overflow-hidden">
+                <button
+                    onClick={() => setDeliverablesOpen(prev => !prev)}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                    <div className="flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-primary" />
+                        <span className="font-semibold text-sm">Client Deliverables</span>
+                        <Badge variant="outline" className="text-xs ml-1">
+                            {clientDeliverablesSummary.length} clients
+                        </Badge>
+                    </div>
+                    {deliverablesOpen ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                </button>
+                {deliverablesOpen && (
+                    <div className="border-t px-4 py-3">
+                        {clientDeliverablesSummary.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-2">No deliverables found</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                {clientDeliverablesSummary.map((client) => (
+                                    <div key={client.clientName} className="border rounded-lg p-3 hover:border-primary/30 transition-colors">
+                                        <h4 className="font-semibold text-sm truncate mb-2" title={client.clientName}>
+                                            {client.clientName}
+                                        </h4>
+                                        {client.deliverables.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground">No deliverables</p>
+                                        ) : (
+                                            <div className="space-y-1.5">
+                                                {client.deliverables.map((del: any) => (
+                                                    <div key={del.type} className="flex items-center justify-between text-xs">
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <span className="font-medium truncate">{del.type}</span>
+                                                           
+                                                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                                                                {Object.entries(PLATFORMS).map(([key, platform]) => {
+                                                                    const isIncluded = del.platforms.some(
+                                                                        (p: string) => p.toLowerCase() === key.toLowerCase()
+                                                                    );
+                                                                    const Icon = platform.icon;
+                                                                    return (
+                                                                        <span key={key} title={isIncluded ? `${key} included` : `${key} not included`}>
+                                                                            {isIncluded ? (
+                                                                                <Icon className={`h-3 w-3 ${platform.color}`} />
+                                                                            ) : (
+                                                                                <span className="relative inline-flex items-center justify-center">
+                                                                                    <Icon className="h-3 w-3 text-gray-200" />
+                                                                                    <X className="h-2.5 w-2.5 text-red-400 absolute" />
+                                                                                </span>
+                                                                            )}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-muted-foreground flex-shrink-0 ml-2">
+                                                            <span className="text-green-600 font-medium">{del.scheduled}</span>
+                                                            /{del.total}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div> */}
 
             {/* Spreadsheet Table */}
             <div className="bg-white border rounded-lg overflow-hidden">
@@ -658,16 +878,50 @@ export function SchedulerSpreadsheetView() {
                                                 {Object.entries(PLATFORMS).map(([key, platform]) => {
                                                     const linkUrl = hasPlatformLink(task, key as PlatformKey);
                                                     const Icon = platform.icon;
+                                                    const deliverablePlatforms = task.deliverable?.platforms || [];
+                                                    const isInDeliverable = deliverablePlatforms.some(
+                                                        (p: string) => p.toLowerCase() === key.toLowerCase()
+                                                    );
                                                     return (
                                                         <td key={key} className="px-2 py-3 text-center">
                                                             {linkUrl ? (
-                                                                <button
-                                                                    onClick={() => window.open(linkUrl, '_blank')}
-                                                                    className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${platform.bgColor} ${platform.color} border border-current opacity-80 hover:opacity-100 transition-opacity`}
-                                                                    title={`View ${key} post`}
+                                                                <DropdownMenu>
+                                                                    <DropdownMenuTrigger asChild>
+                                                                        <button
+                                                                            className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${platform.bgColor} ${platform.color} border border-current opacity-80 hover:opacity-100 transition-opacity`}
+                                                                            title={`${key} — click for options`}
+                                                                        >
+                                                                            <Icon className="h-4 w-4" />
+                                                                        </button>
+                                                                    </DropdownMenuTrigger>
+                                                                    <DropdownMenuContent align="center" className="w-36">
+                                                                        <DropdownMenuItem onClick={() => window.open(linkUrl, '_blank')}>
+                                                                            <ExternalLink className="h-3.5 w-3.5 mr-2" />
+                                                                            View Post
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem onClick={() => {
+                                                                            setEditLinkDialog({ open: true, taskId: task.id, platform: key as PlatformKey, currentUrl: linkUrl });
+                                                                            setEditLinkUrl(linkUrl);
+                                                                        }}>
+                                                                            <Pencil className="h-3.5 w-3.5 mr-2" />
+                                                                            Edit Link
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            onClick={() => deleteSocialLink(task.id, key as PlatformKey)}
+                                                                            className="text-red-600 focus:text-red-600"
+                                                                        >
+                                                                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                                                            Delete Link
+                                                                        </DropdownMenuItem>
+                                                                    </DropdownMenuContent>
+                                                                </DropdownMenu>
+                                                            ) : !isInDeliverable && deliverablePlatforms.length > 0 ? (
+                                                                <span
+                                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 text-gray-300"
+                                                                    title={`${key} not in deliverable`}
                                                                 >
-                                                                    <Icon className="h-4 w-4" />
-                                                                </button>
+                                                                    <X className="h-3.5 w-3.5 text-gray-300" />
+                                                                </span>
                                                             ) : (
                                                                 <button
                                                                     onClick={() => setLinkDialog({ open: true, taskId: task.id, platform: key as PlatformKey })}
@@ -867,23 +1121,110 @@ export function SchedulerSpreadsheetView() {
                                                                     </div>
                                                                 )}
 
-                                                                {/* Social Links Summary */}
+                                                                {/* Social Links Summary with Edit/Delete */}
                                                                 {task.socialMediaLinks && task.socialMediaLinks.length > 0 && (
                                                                     <div className="mt-4">
                                                                         <h4 className="font-semibold mb-2 text-sm">Posted Links</h4>
-                                                                        <div className="space-y-1">
-                                                                            {task.socialMediaLinks.map((link, i) => (
-                                                                                <a
-                                                                                    key={i}
-                                                                                    href={link.url}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                                                                                >
-                                                                                    <ExternalLink className="h-3 w-3" />
-                                                                                    {link.platform}: {link.url.slice(0, 40)}...
-                                                                                </a>
-                                                                            ))}
+                                                                        <div className="space-y-1.5">
+                                                                            {task.socialMediaLinks.map((link, i) => {
+                                                                                const platformKey = link.platform.toLowerCase() as PlatformKey;
+                                                                                const platformInfo = PLATFORMS[platformKey];
+                                                                                const Icon = platformInfo?.icon;
+                                                                                return (
+                                                                                    <div
+                                                                                        key={i}
+                                                                                        className="flex items-center justify-between p-2 bg-white rounded-lg border group"
+                                                                                    >
+                                                                                        <a
+                                                                                            href={link.url}
+                                                                                            target="_blank"
+                                                                                            rel="noopener noreferrer"
+                                                                                            className="flex items-center gap-2 text-sm text-blue-600 hover:underline min-w-0 flex-1"
+                                                                                        >
+                                                                                            {Icon && <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${platformInfo.color}`} />}
+                                                                                            <span className="truncate">{link.url}</span>
+                                                                                        </a>
+                                                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0">
+                                                                                            <Button
+                                                                                                size="sm"
+                                                                                                variant="ghost"
+                                                                                                className="h-6 w-6 p-0"
+                                                                                                onClick={() => {
+                                                                                                    setEditLinkDialog({ open: true, taskId: task.id, platform: platformKey, currentUrl: link.url });
+                                                                                                    setEditLinkUrl(link.url);
+                                                                                                }}
+                                                                                            >
+                                                                                                <Pencil className="h-3 w-3" />
+                                                                                            </Button>
+                                                                                            <Button
+                                                                                                size="sm"
+                                                                                                variant="ghost"
+                                                                                                className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                                                                                onClick={() => deleteSocialLink(task.id, platformKey)}
+                                                                                            >
+                                                                                                <Trash2 className="h-3 w-3" />
+                                                                                            </Button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Deliverable Info Section */}
+                                                                {task.deliverable && (
+                                                                    <div className="mt-4">
+                                                                        <h4 className="font-semibold mb-2 text-sm flex items-center gap-2">
+                                                                            <Info className="h-4 w-4 text-blue-500" />
+                                                                            Deliverable Info
+                                                                        </h4>
+                                                                        <div className="p-3 bg-white rounded-lg border space-y-2 text-sm">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-muted-foreground">Type</span>
+                                                                                <Badge variant="outline">{task.deliverable.type}</Badge>
+                                                                            </div>
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-muted-foreground">Quantity</span>
+                                                                                <span className="font-medium">{task.deliverable.quantity}/mo</span>
+                                                                            </div>
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-muted-foreground">Schedule</span>
+                                                                                <span className="font-medium">{task.deliverable.postingSchedule}</span>
+                                                                            </div>
+                                                                            {task.deliverable.postingDays?.length > 0 && (
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <span className="text-muted-foreground">Days</span>
+                                                                                    <span className="font-medium text-xs">{task.deliverable.postingDays.join(', ')}</span>
+                                                                                </div>
+                                                                            )}
+                                                                            {task.deliverable.postingTimes?.length > 0 && (
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <span className="text-muted-foreground">Times</span>
+                                                                                    <span className="font-medium text-xs">{task.deliverable.postingTimes.join(', ')}</span>
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-muted-foreground">Platforms</span>
+                                                                                <div className="flex items-center gap-1">
+                                                                                    {task.deliverable.platforms.map((p: string) => {
+                                                                                        const pKey = p.toLowerCase() as PlatformKey;
+                                                                                        const pInfo = PLATFORMS[pKey];
+                                                                                        if (!pInfo) return <Badge key={p} variant="outline" className="text-xs">{p}</Badge>;
+                                                                                        const PIcon = pInfo.icon;
+                                                                                        return (
+                                                                                            <span key={p} className={`inline-flex items-center justify-center w-6 h-6 rounded-full ${pInfo.bgColor}`} title={p}>
+                                                                                                <PIcon className={`h-3.5 w-3.5 ${pInfo.color}`} />
+                                                                                            </span>
+                                                                                        );
+                                                                                    })}
+                                                                                </div>
+                                                                            </div>
+                                                                            {task.deliverable.description && (
+                                                                                <div className="pt-1 border-t">
+                                                                                    <p className="text-xs text-muted-foreground">{task.deliverable.description}</p>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                 )}
@@ -936,6 +1277,47 @@ export function SchedulerSpreadsheetView() {
                             </Button>
                             <Button onClick={submitSocialLink} disabled={!linkUrl || submittingLink}>
                                 {submittingLink ? 'Adding...' : 'Add Link'}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Link Dialog */}
+            <Dialog open={editLinkDialog?.open || false} onOpenChange={(open) => !open && setEditLinkDialog(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            {editLinkDialog && (() => {
+                                const platform = PLATFORMS[editLinkDialog.platform];
+                                const Icon = platform.icon;
+                                return (
+                                    <>
+                                        <div className={`p-1.5 rounded-md ${platform.bgColor}`}>
+                                            <Icon className={`h-5 w-5 ${platform.color}`} />
+                                        </div>
+                                        Edit {editLinkDialog.platform.charAt(0).toUpperCase() + editLinkDialog.platform.slice(1)} Link
+                                    </>
+                                );
+                            })()}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Update the URL of the published post
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <Input
+                            placeholder="https://..."
+                            value={editLinkUrl}
+                            onChange={(e) => setEditLinkUrl(e.target.value)}
+                            disabled={submittingLink}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <Button variant="outline" onClick={() => setEditLinkDialog(null)} disabled={submittingLink}>
+                                Cancel
+                            </Button>
+                            <Button onClick={editSocialLink} disabled={!editLinkUrl || submittingLink}>
+                                {submittingLink ? 'Updating...' : 'Update Link'}
                             </Button>
                         </div>
                     </div>
