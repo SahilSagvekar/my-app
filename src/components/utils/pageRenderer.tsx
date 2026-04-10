@@ -327,14 +327,11 @@ export function renderPage(
       case "social":
         console.log("linkedClientId:", linkedClientId);
         return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
-        console.log("linkedClientId:", linkedClientId);
-        return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
       case "training":
         return <TrainingPortalPage />;
       case "archive":
         return <ComingSoonPage title="Archive" />;
       case "contracts":
-        return <ClientPortalPage />; // Unified page with Info + Contracts + Invoices
         return <ClientPortalPage />; // Unified page with Info + Contracts + Invoices
       default:
         return <ClientMonthlyOverview />;

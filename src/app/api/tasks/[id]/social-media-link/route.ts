@@ -5,23 +5,23 @@ import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 
-function getTokenFromCookies(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-  if (!cookieHeader) return null;
-  const m = cookieHeader.match(/authToken=([^;]+)/);
-  return m ? m[1] : null;
-}
+// function getTokenFromCookies(req: Request) {
+//   const cookieHeader = req.headers.get("cookie");
+//   if (!cookieHeader) return null;
+//   const m = cookieHeader.match(/authToken=([^;]+)/);
+//   return m ? m[1] : null;
+// }
 
-function getUserFromToken(req: Request): { userId: number; role: string } | null {
-  try {
-    const token = getTokenFromCookies(req);
-    if (!token) return null;
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    return { userId: decoded.userId, role: decoded.role };
-  } catch {
-    return null;
-  }
-}
+// function getUserFromToken(req: Request): { userId: number; role: string } | null {
+//   try {
+//     const token = getTokenFromCookies(req);
+//     if (!token) return null;
+//     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+//     return { userId: decoded.userId, role: decoded.role };
+//   } catch {
+//     return null;
+//   }
+// }
 
 export async function POST(
   request: NextRequest,
