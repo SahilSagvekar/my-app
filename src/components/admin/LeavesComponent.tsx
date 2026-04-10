@@ -559,6 +559,8 @@ export default function LeavesComponent() {
             hourlyRate: u.hourlyRate,
             monthlyRate: u.monthlyRate,
             hoursPerWeek: u.hoursPerWeek,
+            linkedClientId: u.linkedClientId || "", // 🔥 ADD THIS
+            linkedClientName: u.linkedClientName || "", // 🔥 ADD THIS for display
             status:
               u.employeeStatus === "ACTIVE"
                 ? "active"
