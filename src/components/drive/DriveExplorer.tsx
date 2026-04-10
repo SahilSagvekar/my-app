@@ -783,8 +783,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* 🔥 Storage Banner - Always show for clients in raw-footage */}
-        {role === 'client' && user?.linkedClientId && isClientInRawFootage && (
+        {/* 🔥 Storage Banner - Always show for clients */}
+        {role === 'client' && user?.linkedClientId && (
           <div className="px-3 sm:px-4 pt-3">
             <StorageLimitBanner 
               clientId={user.linkedClientId} 

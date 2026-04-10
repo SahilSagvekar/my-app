@@ -25,16 +25,22 @@ export interface StorageInfo {
 }
 
 /**
- * Format bytes to human readable string
+ * Format bytes to human readable string (GB/TB focused)
  */
 export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return '0 GB';
   
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const gb = bytes / (k * k * k);
+  const tb = bytes / (k * k * k * k);
   
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  // Show in TB if >= 1 TB
+  if (tb >= 1) {
+    return tb.toFixed(2) + ' TB';
+  }
+  
+  // Show in GB otherwise
+  return gb.toFixed(2) + ' GB';
 }
 
 /**
@@ -84,32 +90,38 @@ export async function calculateClientRawFootageStorage(clientId: string): Promis
 }
 
 /**
- * Get storage info for a client
+ * Get storage info for a client - always calculates from S3
  */
 export async function getClientStorageInfo(clientId: string): Promise<StorageInfo> {
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: {
-      rawFootageStorageUsed: true,
-      rawFootageStorageLimit: true,
-      storageLastCalculated: true,
-    }
-  });
+  try {
+    // Always calculate actual storage from S3
+    const actualUsed = await calculateClientRawFootageStorage(clientId);
+    const limit = DEFAULT_STORAGE_LIMIT;
+    const percentage = limit > 0 ? (actualUsed / limit) * 100 : 0;
 
-  const used = Number(client?.rawFootageStorageUsed || 0);
-  const limit = Number(client?.rawFootageStorageLimit || DEFAULT_STORAGE_LIMIT);
-  const percentage = limit > 0 ? (used / limit) * 100 : 0;
-
-  return {
-    used,
-    limit,
-    usedFormatted: formatBytes(used),
-    limitFormatted: formatBytes(limit),
-    percentage: Math.min(percentage, 100),
-    isAtLimit: percentage >= 100,
-    isNearLimit: percentage >= 90,
-    isCritical: percentage >= 95,
-  };
+    return {
+      used: actualUsed,
+      limit,
+      usedFormatted: formatBytes(actualUsed),
+      limitFormatted: formatBytes(limit),
+      percentage: Math.min(percentage, 100),
+      isAtLimit: percentage >= 100,
+      isNearLimit: percentage >= 90,
+      isCritical: percentage >= 95,
+    };
+  } catch (error: unknown) {
+    console.error('Storage info fetch error:', error);
+    return {
+      used: 0,
+      limit: DEFAULT_STORAGE_LIMIT,
+      usedFormatted: '0 GB',
+      limitFormatted: formatBytes(DEFAULT_STORAGE_LIMIT),
+      percentage: 0,
+      isAtLimit: false,
+      isNearLimit: false,
+      isCritical: false,
+    };
+  }
 }
 
 /**
@@ -141,7 +153,7 @@ export async function updateClientStorageAfterUpload(
       storageInfo: {
         used: 0,
         limit: DEFAULT_STORAGE_LIMIT,
-        usedFormatted: '0 B',
+        usedFormatted: '0 GB',
         limitFormatted: formatBytes(DEFAULT_STORAGE_LIMIT),
         percentage: 0,
         isAtLimit: false,
@@ -269,34 +281,67 @@ export async function updateClientStorageAfterDelete(
  * Recalculate storage from S3 (for sync/correction)
  */
 export async function recalculateClientStorage(clientId: string): Promise<StorageInfo> {
-  const actualUsed = await calculateClientRawFootageStorage(clientId);
-  
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: { rawFootageStorageLimit: true }
-  });
-  
-  const limit = Number(client?.rawFootageStorageLimit || DEFAULT_STORAGE_LIMIT);
-  const percentage = (actualUsed / limit) * 100;
-
-  await prisma.client.update({
-    where: { id: clientId },
-    data: {
-      rawFootageStorageUsed: actualUsed,
-      storageLastCalculated: new Date(),
-      storageAlert90Sent: percentage >= 90,
-      storageAlert95Sent: percentage >= 95,
+  try {
+    const actualUsed = await calculateClientRawFootageStorage(clientId);
+    
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { id: true }
+    });
+    
+    if (!client) {
+      return {
+        used: 0,
+        limit: DEFAULT_STORAGE_LIMIT,
+        usedFormatted: '0 GB',
+        limitFormatted: formatBytes(DEFAULT_STORAGE_LIMIT),
+        percentage: 0,
+        isAtLimit: false,
+        isNearLimit: false,
+        isCritical: false,
+      };
     }
-  });
 
-  return {
-    used: actualUsed,
-    limit,
-    usedFormatted: formatBytes(actualUsed),
-    limitFormatted: formatBytes(limit),
-    percentage: Math.min(percentage, 100),
-    isAtLimit: percentage >= 100,
-    isNearLimit: percentage >= 90,
-    isCritical: percentage >= 95,
-  };
+    const limit = DEFAULT_STORAGE_LIMIT;
+    const percentage = (actualUsed / limit) * 100;
+
+    // Try to update storage fields if they exist
+    try {
+      await prisma.client.update({
+        where: { id: clientId },
+        data: {
+          rawFootageStorageUsed: actualUsed,
+          storageLastCalculated: new Date(),
+          storageAlert90Sent: percentage >= 90,
+          storageAlert95Sent: percentage >= 95,
+        }
+      });
+    } catch {
+      // Fields don't exist yet - that's okay, just return the calculated values
+      console.warn('Could not update storage fields (they may not exist yet)');
+    }
+
+    return {
+      used: actualUsed,
+      limit,
+      usedFormatted: formatBytes(actualUsed),
+      limitFormatted: formatBytes(limit),
+      percentage: Math.min(percentage, 100),
+      isAtLimit: percentage >= 100,
+      isNearLimit: percentage >= 90,
+      isCritical: percentage >= 95,
+    };
+  } catch (error) {
+    console.error('Error recalculating storage:', error);
+    return {
+      used: 0,
+      limit: DEFAULT_STORAGE_LIMIT,
+      usedFormatted: '0 GB',
+      limitFormatted: formatBytes(DEFAULT_STORAGE_LIMIT),
+      percentage: 0,
+      isAtLimit: false,
+      isNearLimit: false,
+      isCritical: false,
+    };
+  }
 }
