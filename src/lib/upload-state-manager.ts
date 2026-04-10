@@ -32,24 +32,24 @@ interface UploadDB extends DBSchema {
 
 class UploadStateManager {
   private db: IDBPDatabase<UploadDB> | null = null;
-  private indexedDbUnavailable = false;
-  private memoryStore = new Map<string, UploadState>();
+  private disabled = false;
 
   async init() {
+    if (this.disabled) return null;
     if (this.db) return this.db;
-    if (this.indexedDbUnavailable) return null;
 
     try {
       this.db = await openDB<UploadDB>('upload-manager', 1, {
         upgrade(db) {
+          // Create uploads store
           const uploadsStore = db.createObjectStore('uploads', { keyPath: 'id' });
           uploadsStore.createIndex('by-status', 'status');
           uploadsStore.createIndex('by-task', 'taskId');
         },
       });
     } catch (error) {
-      this.indexedDbUnavailable = true;
-      console.warn('IndexedDB is unavailable, falling back to in-memory upload state:', error);
+      this.disabled = true;
+      console.warn('⚠️ Upload state persistence disabled because IndexedDB is unavailable:', error);
       return null;
     }
 
@@ -58,34 +58,22 @@ class UploadStateManager {
 
   async saveUploadState(state: UploadState) {
     const db = await this.init();
-    const nextState = {
+    if (!db) return;
+    await db.put('uploads', {
       ...state,
       lastUpdated: Date.now(),
-    };
-
-    if (!db) {
-      this.memoryStore.set(state.id, nextState);
-      return;
-    }
-
-    await db.put('uploads', nextState);
+    });
   }
 
   async getUploadState(id: string): Promise<UploadState | undefined> {
     const db = await this.init();
-    if (!db) {
-      return this.memoryStore.get(id);
-    }
+    if (!db) return undefined;
     return db.get('uploads', id);
   }
 
   async getAllActiveUploads(): Promise<UploadState[]> {
     const db = await this.init();
-    if (!db) {
-      return Array.from(this.memoryStore.values()).filter(
-        (upload) => upload.status === 'uploading' || upload.status === 'paused',
-      );
-    }
+    if (!db) return [];
     const uploads = await db.getAllFromIndex('uploads', 'by-status', 'uploading');
     const paused = await db.getAllFromIndex('uploads', 'by-status', 'paused');
     return [...uploads, ...paused];
@@ -93,18 +81,13 @@ class UploadStateManager {
 
   async getUploadsByTask(taskId: string): Promise<UploadState[]> {
     const db = await this.init();
-    if (!db) {
-      return Array.from(this.memoryStore.values()).filter((upload) => upload.taskId === taskId);
-    }
+    if (!db) return [];
     return db.getAllFromIndex('uploads', 'by-task', taskId);
   }
 
   async deleteUploadState(id: string) {
     const db = await this.init();
-    if (!db) {
-      this.memoryStore.delete(id);
-      return;
-    }
+    if (!db) return;
     await db.delete('uploads', id);
   }
 
@@ -115,6 +98,7 @@ class UploadStateManager {
     uploadedParts: Array<{ ETag: string; PartNumber: number }>
   ) {
     const db = await this.init();
+    if (!db) return;
     const state = await this.getUploadState(id);
     if (state) {
       state.uploadedBytes = uploadedBytes;
@@ -127,6 +111,7 @@ class UploadStateManager {
 
   async markAsCompleted(id: string) {
     const db = await this.init();
+    if (!db) return;
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'completed';
@@ -140,6 +125,7 @@ class UploadStateManager {
 
   async markAsFailed(id: string, error: string) {
     const db = await this.init();
+    if (!db) return;
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'failed';
@@ -151,6 +137,7 @@ class UploadStateManager {
 
   async pauseUpload(id: string) {
     const db = await this.init();
+    if (!db) return;
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'paused';
@@ -161,6 +148,7 @@ class UploadStateManager {
 
   async resumeUpload(id: string) {
     const db = await this.init();
+    if (!db) return undefined;
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'uploading';

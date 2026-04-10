@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { Button } from '../ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentType } from "react";
 import {
   TrendingUp,
   Users,
@@ -33,16 +34,62 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { RecentTasksCard } from '../tasks/RecentTasksCard';
 import { QuickAddClientDialog } from '../client/QuickAddClientDialog';
 
+type MonthOption = {
+  value: string;
+  label: string;
+};
+
+function getSafeSessionStorage() {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  try {
+    return window.sessionStorage;
+  } catch (error) {
+    console.warn("⚠️ Unable to access sessionStorage in AdminDashboard:", error);
+    return undefined;
+  }
+}
+
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1));
+}
+
+function buildRecentMonthOptions(count = 18): MonthOption[] {
+  const baseDate = new Date();
+  baseDate.setDate(1);
+
+  return Array.from({ length: count }, (_, index) => {
+    const monthDate = new Date(baseDate.getFullYear(), baseDate.getMonth() - index, 1);
+    const value = getMonthKey(monthDate);
+
+    return {
+      value,
+      label: formatMonthLabel(value),
+    };
+  });
+}
+
 // ============================================
 // ROBUST DYNAMIC IMPORT WRAPPER
 // ============================================
-const safeDynamic = (importFn: () => Promise<any>, componentName: string) => {
+const safeDynamic = (importFn: () => Promise<{ default: ComponentType }>, componentName: string) => {
   return dynamic(
     () => importFn().catch((error) => {
       console.error(`❌ [DYNAMIC IMPORT ERROR] ${componentName}:`, error);
@@ -55,11 +102,12 @@ const safeDynamic = (importFn: () => Promise<any>, componentName: string) => {
         console.warn(`🔄 Attempting to recover from ChunkLoadError for ${componentName}...`);
 
         // Prevents infinite reload loops
-        const lastReload = sessionStorage.getItem('last_chunk_error_reload');
+        const sessionStorage = getSafeSessionStorage();
+        const lastReload = sessionStorage?.getItem('last_chunk_error_reload');
         const now = Date.now();
 
         if (!lastReload || now - parseInt(lastReload) > 10000) { // 10 second cooldown
-          sessionStorage.setItem('last_chunk_error_reload', now.toString());
+          sessionStorage?.setItem('last_chunk_error_reload', now.toString());
           window.location.reload();
           return new Promise(() => { }); // Stop execution
         }
@@ -183,12 +231,137 @@ interface SystemStatusData {
   };
 }
 
+interface DeliverableProgress {
+  id: string;
+  type: string;
+  platforms: string[];
+  targetQuantity: number;
+  qcCleared: number;
+  clientApproved: number;
+  clientApprovalApplicable: boolean;
+  scheduledOrPosted: number;
+  behindScheduleCount: number;
+  matchedTaskCount: number;
+}
+
+interface ClientProgress {
+  clientId: string;
+  clientName: string;
+  clientApprovalApplicable: boolean;
+  targetQuantity: number;
+  qcCleared: number;
+  clientApproved: number;
+  scheduledOrPosted: number;
+  behindScheduleCount: number;
+  deliverables: DeliverableProgress[];
+}
+
+interface DeliverablesMonthInfo {
+  key: string;
+  label: string;
+}
+
+function getProgressValue(count: number, total: number) {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return Math.min(Math.round((count / total) * 100), 100);
+}
+
+function MilestoneSummaryCard({
+  label,
+  count,
+  total,
+  color,
+  notApplicable = false,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  color: string;
+  notApplicable?: boolean;
+}) {
+  const progress = getProgressValue(count, total);
+
+  return (
+    <div className="rounded-xl border bg-gray-50/70 p-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-gray-600">{label}</p>
+          {notApplicable ? (
+            <p className="text-lg font-semibold text-gray-500">N/A</p>
+          ) : (
+            <p className="text-lg font-semibold text-gray-900">
+              {count}
+              <span className="text-sm font-medium text-gray-500">/{total}</span>
+            </p>
+          )}
+        </div>
+        {!notApplicable && (
+          <span className="text-xs font-semibold text-gray-500">{progress}%</span>
+        )}
+      </div>
+      {notApplicable ? (
+        <div className="h-2 rounded-full bg-gray-200" />
+      ) : (
+        <Progress
+          value={progress}
+          className="h-2 bg-gray-200"
+          indicatorColor={color}
+        />
+      )}
+    </div>
+  );
+}
+
+function DeliverableMilestoneRow({
+  label,
+  count,
+  total,
+  color,
+  notApplicable = false,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  color: string;
+  notApplicable?: boolean;
+}) {
+  const progress = getProgressValue(count, total);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium text-gray-700">{label}</span>
+        {notApplicable ? (
+          <span className="font-medium text-gray-400">N/A</span>
+        ) : (
+          <span className="font-medium text-gray-500">
+            {count}/{total} ({progress}%)
+          </span>
+        )}
+      </div>
+      {notApplicable ? (
+        <div className="h-1.5 rounded-full bg-gray-200" />
+      ) : (
+        <Progress
+          value={progress}
+          className="h-1.5 bg-gray-200"
+          indicatorColor={color}
+        />
+      )}
+    </div>
+  );
+}
+
 interface AdminDashboardProps {
   currentPage?: string;
   onPageChange?: (page: string) => void;
 }
 
 export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: AdminDashboardProps) {
+  const currentDeliverablesMonth = getMonthKey(new Date());
   const [tasks, setTasks] = useState([]);
   const [recentTasks, setRecentTasks] = useState([]);
 
@@ -200,34 +373,24 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
   const [systemStatus, setSystemStatus] = useState<SystemStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [clientProgress, setClientProgress] = useState<any[]>([]);
+  const [clientProgress, setClientProgress] = useState<ClientProgress[]>([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [selectedDeliverablesMonth, setSelectedDeliverablesMonth] = useState(currentDeliverablesMonth);
+  const [deliverablesMonthInfo, setDeliverablesMonthInfo] = useState<DeliverablesMonthInfo>({
+    key: currentDeliverablesMonth,
+    label: formatMonthLabel(currentDeliverablesMonth),
+  });
 
-  const handleTaskCreated = (task: any) => {
-    console.log('New task created:', task);
-    loadTasks();
-    loadDashboardData();
-  };
+  const deliverablesMonthOptions = buildRecentMonthOptions();
 
-  useEffect(() => {
-    console.log(`📄 [ADMIN DASHBOARD] Mounted - Current Page: ${currentPage}`);
-    loadTasks();
-    if (currentPage === 'dashboard') {
-      loadDashboardData();
-    }
-    return () => {
-      console.log(`📄 [ADMIN DASHBOARD] Unmounted`);
-    };
-  }, [currentPage]);
-
-  async function loadTasks() {
+  const loadTasks = useCallback(async () => {
     try {
       console.log('🔄 [ADMIN] Fetching tasks...');
-      const res = await fetch("/api/tasks", { cache: "no-store" });
-      const data = await res.json();
+      const res = await fetch("/api/tasks", { cache: "no-store", credentials: "include" });
+      const data = await res.json() as { tasks?: Array<{ createdAt: string }> };
 
       const sorted = (data.tasks || [])
-        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 10);
 
       setRecentTasks(sorted);
@@ -235,13 +398,17 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
     } catch (err) {
       console.error("❌ [ADMIN] Failed to fetch tasks:", err);
     }
-  }
+  }, []);
 
-  async function loadDashboardData() {
+  const loadDashboardData = useCallback(async (deliverablesMonth = selectedDeliverablesMonth) => {
     try {
       console.log('🔄 [ADMIN] Fetching dashboard overview...');
       setLoading(true);
-      const res = await fetch("/api/admin/dashboard/overview", { cache: "no-store" });
+      const params = new URLSearchParams({ deliverablesMonth });
+      const res = await fetch(`/api/admin/dashboard/overview?${params.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
       const data = await res.json();
 
       if (data.ok) {
@@ -251,6 +418,10 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         setRecentActivity(data.recentActivity);
         setSystemStatus(data.systemStatus);
         setClientProgress(data.clientDeliverablesProgress || []);
+        setDeliverablesMonthInfo(data.deliverablesMonth || {
+          key: deliverablesMonth,
+          label: formatMonthLabel(deliverablesMonth),
+        });
         console.log('✅ [ADMIN] Dashboard data loaded successfully');
       } else {
         console.error("❌ [ADMIN] Failed to fetch dashboard data:", data.message);
@@ -260,12 +431,42 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
     } finally {
       setLoading(false);
     }
-  }
+  }, [selectedDeliverablesMonth]);
+
+  const handleTaskCreated = useCallback(() => {
+    console.log('New task created');
+    loadTasks();
+    loadDashboardData(selectedDeliverablesMonth);
+  }, [loadDashboardData, loadTasks, selectedDeliverablesMonth]);
+
+  useEffect(() => {
+    console.log(`📄 [ADMIN DASHBOARD] Mounted - Current Page: ${currentPage}`);
+    loadTasks();
+    return () => {
+      console.log(`📄 [ADMIN DASHBOARD] Unmounted`);
+    };
+  }, [currentPage, loadTasks]);
+
+  useEffect(() => {
+    if (currentPage === 'dashboard') {
+      loadDashboardData(selectedDeliverablesMonth);
+    }
+  }, [currentPage, loadDashboardData, selectedDeliverablesMonth]);
+
+  useEffect(() => {
+    setCarouselIndex((prev) => {
+      if (clientProgress.length === 0) {
+        return 0;
+      }
+
+      return Math.min(prev, clientProgress.length - 1);
+    });
+  }, [clientProgress.length]);
 
   async function handleRefresh() {
     console.log('🔄 [ADMIN] Refreshing dashboard...');
     setRefreshing(true);
-    await loadDashboardData();
+    await loadDashboardData(selectedDeliverablesMonth);
     await loadTasks();
     setRefreshing(false);
     console.log('✅ [ADMIN] Dashboard refreshed');
@@ -273,6 +474,8 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
 
   // Main dashboard overview content
   const DashboardOverview = () => {
+    const [revenueVisible, setRevenueVisible] = useState(false);
+
     if (loading) {
       return <DashboardLoadingFallback componentName="Dashboard Overview" />;
     }
@@ -311,8 +514,6 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         color: 'text-orange-600'
       }
     ];
-
-    const [revenueVisible, setRevenueVisible] = useState(false);
 
     return (
       <div className="space-y-6">
@@ -358,33 +559,59 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         {/* Client Deliverables Progress Carousel — full width */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Monthly Deliverables Progress
-            </CardTitle>
-            {clientProgress.length > 1 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-700">
-                  {carouselIndex + 1} / {clientProgress.length}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 sm:h-8 sm:w-8"
-                  onClick={() => setCarouselIndex((prev) => (prev - 1 + clientProgress.length) % clientProgress.length)}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 sm:h-8 sm:w-8"
-                  onClick={() => setCarouselIndex((prev) => (prev + 1) % clientProgress.length)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Monthly Deliverables Progress
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Viewing {deliverablesMonthInfo.label}
+              </p>
+            </div>
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <Select
+                value={selectedDeliverablesMonth}
+                onValueChange={(value) => {
+                  setCarouselIndex(0);
+                  setSelectedDeliverablesMonth(value);
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[190px]">
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent>
+                  {deliverablesMonthOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {clientProgress.length > 1 && (
+                <div className="flex items-center justify-end gap-2">
+                  <span className="text-sm font-semibold text-gray-700">
+                    {carouselIndex + 1} / {clientProgress.length}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 sm:h-8 sm:w-8"
+                    onClick={() => setCarouselIndex((prev) => (prev - 1 + clientProgress.length) % clientProgress.length)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 sm:h-8 sm:w-8"
+                    onClick={() => setCarouselIndex((prev) => (prev + 1) % clientProgress.length)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {clientProgress.length > 0 ? (() => {
@@ -397,40 +624,64 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
                     <div className="min-w-0">
                       <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{client.clientName}</h3>
                       <p className="text-xs sm:text-sm text-muted-foreground">
-                        {client.totalCompleted} of {client.totalExpected} completed
+                        {client.targetQuantity} deliverables targeted for {deliverablesMonthInfo.label}
                       </p>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className={`text-xl sm:text-2xl font-bold ${client.overallProgress >= 100 ? 'text-emerald-600' : 'text-gray-900'}`}>
-                        {client.overallProgress}%
-                      </div>
-                      <p className="text-xs text-muted-foreground">Overall</p>
+                    <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0">
+                      {client.behindScheduleCount > 0 ? (
+                        <Badge className="bg-red-100 text-red-800 border-red-200 hover:bg-red-100">
+                          <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                          {client.behindScheduleCount} behind schedule
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
+                          On track
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
-                  {/* Overall progress bar */}
-                  <Progress
-                    value={client.overallProgress}
-                    className="h-2"
-                    indicatorColor={client.overallProgress >= 100 ? '#10b981' : '#3b82f6'}
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <MilestoneSummaryCard
+                      label="QC Cleared"
+                      count={client.qcCleared}
+                      total={client.targetQuantity}
+                      color="#2563eb"
+                    />
+                    <MilestoneSummaryCard
+                      label="Client Approved"
+                      count={client.clientApproved}
+                      total={client.targetQuantity}
+                      color="#7c3aed"
+                      notApplicable={!client.clientApprovalApplicable}
+                    />
+                    <MilestoneSummaryCard
+                      label="Scheduled / Posted"
+                      count={client.scheduledOrPosted}
+                      total={client.targetQuantity}
+                      color="#059669"
+                    />
+                  </div>
 
                   {/* Individual deliverables */}
                   <div className="space-y-2">
-                    {client.deliverables.map((d: any) => {
-                      const progress = Math.min(d.progress, 100);
-                      const isComplete = progress >= 100;
+                    {client.deliverables.map((d) => {
                       return (
-                        <div key={d.id} className="p-3 rounded-lg border bg-gray-50/50">
+                        <div key={d.id} className="p-3 rounded-lg border bg-gray-50/50 space-y-3">
                           {/* Top: type + count left, badges right — stacks on very small screens */}
                           <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="font-medium text-sm text-gray-900 truncate">{d.type}</span>
                               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                ({d.completedTasks}/{d.quantity || d.totalTasks})
+                                ({d.targetQuantity} planned)
                               </span>
                             </div>
                             <div className="flex flex-wrap items-center gap-1">
+                              {d.behindScheduleCount > 0 && (
+                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-red-200 text-red-700 bg-red-50">
+                                  {d.behindScheduleCount} behind
+                                </Badge>
+                              )}
                               {(d.platforms || []).slice(0, 2).map((p: string) => (
                                 <Badge key={p} variant="outline" className="text-[10px] h-5 px-1.5">
                                   {p}
@@ -441,16 +692,25 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Progress
-                              value={progress}
-                              className="h-1.5 flex-1"
-                              indicatorColor={isComplete ? '#10b981' : '#3b82f6'}
-                            />
-                            <span className={`text-xs font-medium w-9 text-right whitespace-nowrap ${isComplete ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                              {progress}%
-                            </span>
-                          </div>
+                          <DeliverableMilestoneRow
+                            label="QC Cleared"
+                            count={d.qcCleared}
+                            total={d.targetQuantity}
+                            color="#2563eb"
+                          />
+                          <DeliverableMilestoneRow
+                            label="Client Approved"
+                            count={d.clientApproved}
+                            total={d.targetQuantity}
+                            color="#7c3aed"
+                            notApplicable={!d.clientApprovalApplicable}
+                          />
+                          <DeliverableMilestoneRow
+                            label="Scheduled / Posted"
+                            count={d.scheduledOrPosted}
+                            total={d.targetQuantity}
+                            color="#059669"
+                          />
                         </div>
                       );
                     })}
@@ -459,9 +719,9 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
                   {/* Dots indicator */}
                   {clientProgress.length > 1 && (
                     <div className="flex items-center justify-center gap-1.5 pt-2">
-                      {clientProgress.map((_: any, i: number) => (
+                      {clientProgress.map((clientItem, i: number) => (
                         <button
-                          key={i}
+                          key={clientItem.clientId}
                           onClick={() => setCarouselIndex(i)}
                           className={`h-1.5 rounded-full transition-all ${
                             i === carouselIndex ? 'w-6 bg-primary' : 'w-1.5 bg-gray-300 hover:bg-gray-400'
@@ -474,7 +734,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
               );
             })() : (
               <div className="h-48 flex items-center justify-center text-muted-foreground">
-                No active client deliverables this month
+                No active client deliverables for {deliverablesMonthInfo.label}
               </div>
             )}
           </CardContent>

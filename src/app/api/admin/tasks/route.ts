@@ -2,27 +2,11 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@prisma/client";
-import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { getCurrentUser2 } from '@/lib/auth';
-
-// ─────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────
-async function requireAdminUser(req: NextRequest) {
-    const user = await getCurrentUser2(req);
-    if (!user) return null;
-
-    const normalizedRole = user.role?.toLowerCase();
-    if (normalizedRole !== "admin" && normalizedRole !== "manager") {
-        return null;
-    }
-
-    return user;
-}
 
 // ─────────────────────────────────────────
 // GET: Fetch all tasks with advanced filtering
@@ -233,11 +217,15 @@ async function requireAdminUser(req: NextRequest) {
 // }
 
 
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
     try {
-        const user = await requireAdminUser(req);
+        const user = await getCurrentUser2(req);
         if (!user) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        }
+
+        if (!["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
+            return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 
         const { searchParams } = new URL(req.url);

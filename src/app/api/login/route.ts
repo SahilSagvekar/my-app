@@ -64,9 +64,36 @@ export async function POST(req: NextRequest) {
     );
     console.log("[LOGIN] 8. Token signed");
 
+    const userWithClient = await prisma.user.findFirst({
+      where: { id: user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        image: true,
+        linkedClientId: true,
+        client: {
+          select: { id: true, hasPostingServices: true }
+        }
+      }
+    });
+
+    const responseUser = userWithClient
+      ? {
+          id: userWithClient.id,
+          email: userWithClient.email,
+          role: userWithClient.role,
+          name: userWithClient.name,
+          image: userWithClient.image,
+          linkedClientId: userWithClient.linkedClientId || (userWithClient.client?.id ?? null),
+          hasPostingServices: userWithClient.client?.hasPostingServices ?? true,
+        }
+      : { id: user.id, email: user.email, role: user.role, name: user.name };
+
     const response = NextResponse.json({
       token,
-      user: { id: user.id, email: user.email, role: user.role, name: user.name }
+      user: responseUser
     });
 
     response.cookies.set("authToken", token, {
@@ -76,7 +103,6 @@ export async function POST(req: NextRequest) {
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
     });
-    console.log("[LOGIN] 8b. Set-Cookie header:", response.headers.get("set-cookie"));
 
     // Add audit log for login (skip if from India)
     if (locationData?.countryCode !== 'IN') {

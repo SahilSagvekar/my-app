@@ -11,7 +11,7 @@ import { TrainingManagementTab } from "../admin/TrainingManagementTab";
 import { TrainingPortalPage } from "../training/TrainingPortalPage";
 import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
-import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
+import { SchedulerApprovedQueuePage } from "../dashboards/SchedulerApprovedQueuePage";
 import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
 import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
@@ -83,7 +83,6 @@ export function renderPage(
   linkedClientId?: string
 ): React.ReactElement {
   console.log(`Rendering page for role: ${role}, page: ${page}, originalRole: ${originalRole}`);
-  console.log(`Rendering page for role: ${role}, page: ${page}, originalRole: ${originalRole}`);
 
   // 🔥 Block unauthorized access for clients without posting services
   if (role.toLowerCase() === 'client' && hasPostingServices === false) {
@@ -113,9 +112,7 @@ export function renderPage(
   }
 
   // Legacy "invoices" page now redirects to billing
-  // Legacy "invoices" page now redirects to billing
   if (page === "invoices") {
-    return <ClientBillingPortal />;
     return <ClientBillingPortal />;
   }
 
@@ -263,7 +260,7 @@ export function renderPage(
       case "calendar":
         return <SchedulerDashboard />;
       case "approved-queue":
-        return <SchedulerSpreadsheetView />;
+        return <SchedulerApprovedQueuePage />;
       case "scheduling":
         return <SchedulerSchedulingPage />;
       case "content-titling":
@@ -377,14 +374,10 @@ export function renderPage(
     switch (page) {
       case "dashboard":
       case "sales-management":
-        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
-      case "sales-management":
+      case "clients":
         return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "affiliate":
         return <AffiliateSection />;
-      case "clients":
-        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
-        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "training":
         return <TrainingPortalPage />;
       case "employment-info":
@@ -394,7 +387,6 @@ export function renderPage(
       case "logins":
         return <SocialLogins />;
       default:
-        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
         return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
     }
   }

@@ -4,13 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { decrypt } from "@/lib/encryption";
-import { authenticator } from "otplib";
-
-// Configure otplib with wider time window for clock drift tolerance
-// Window of 2 means ±2 time steps = ±60 seconds tolerance
-authenticator.options = {
-    window: 2,
-};
+import { verify } from "otplib";
 
 function getTokenFromCookies(req: NextRequest): string | null {
     const cookieHeader = req.headers.get("cookie");
@@ -85,7 +79,12 @@ export async function POST(req: NextRequest) {
         const cleanCode = code.replace(/\s/g, "");
 
         // Verify the TOTP code using otplib
-        const isValid = authenticator.verify({ token: cleanCode, secret });
+        const verificationResult = await verify({
+            token: cleanCode,
+            secret,
+            epochTolerance: 60,
+        });
+        const isValid = verificationResult.valid;
 
         if (!isValid) {
             // Check if it's a backup code

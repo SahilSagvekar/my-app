@@ -1,6 +1,5 @@
 // Video Compression Queue Management
 import { Redis } from '@upstash/redis';
-import { v4 as uuidv4 } from 'uuid';
 import { REDIS_KEYS, CompressionJob, JobStatus, COMPRESSION_CONFIG } from './config';
 
 // Get Redis client
@@ -38,7 +37,7 @@ export async function addToQueue(params: {
   const client = getClient();
   
   const job: CompressionJob = {
-    id: uuidv4(),
+    id: crypto.randomUUID(),
     videoKey: params.videoKey,
     outputKey: params.videoKey.replace(/^uploads\//, COMPRESSION_CONFIG.r2.compressedPrefix),
     sizeBytes: params.sizeBytes,
