@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { getS3, BUCKET, getFileUrl } from '@/lib/s3';
 import { optimizeVideo } from '@/lib/video-optimizer';
 import { queueVideoForCompression } from '@/lib/video-compression/worker';
+import { updateClientStorageAfterUpload } from '@/lib/storage-service';
 
 const s3Client = getS3();
 
@@ -53,6 +54,30 @@ export async function POST(request: NextRequest) {
       const fileUrl = getFileUrl(key);
 
       console.log("✅ S3 upload completed:", fileUrl);
+
+      // 🔥 Track storage for raw-footage uploads
+      const isRawFootageUpload = key.includes('raw-footage');
+      if (isRawFootageUpload && fileSize) {
+        // Extract client ID from the S3 key path (CompanyName/raw-footage/...)
+        const pathParts = key.split('/');
+        const companyName = pathParts[0];
+        
+        // Find client by company name
+        const client = await prisma.client.findFirst({
+          where: {
+            OR: [
+              { companyName: companyName },
+              { name: companyName }
+            ]
+          },
+          select: { id: true }
+        });
+        
+        if (client) {
+          const storageResult = await updateClientStorageAfterUpload(client.id, fileSize);
+          console.log(`📊 Storage updated for ${companyName}: ${storageResult.storageInfo.usedFormatted} / ${storageResult.storageInfo.limitFormatted} (${storageResult.storageInfo.percentage.toFixed(1)}%)`);
+        }
+      }
 
       if (taskId === "drive-upload") {
         console.log("📂 Drive upload completed, skipping DB updates");

@@ -1612,3 +1612,117 @@ export async function sendPaymentNotificationEmail(data: PaymentNotificationData
     console.error(`❌ Failed to send payment notification:`, error);
   }
 }
+
+// ==========================================
+// STORAGE ALERT EMAILS
+// ==========================================
+
+export async function sendStorageAlertEmail(data: {
+  to: string[];
+  clientName: string;
+  percentage: number;
+  used: string;
+  limit: string;
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log(`📧 [DEV] Storage alert: ${data.percentage}% for ${data.clientName}`);
+    return;
+  }
+
+  const isCritical = data.percentage >= 95;
+  const color = isCritical ? '#ef4444' : '#f59e0b';
+  const emoji = isCritical ? '🚨' : '⚠️';
+  const urgency = isCritical ? 'Critical' : 'Warning';
+
+  const mailOptions = {
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: data.to.join(', '),
+    subject: `${emoji} Storage ${urgency}: ${data.percentage}% capacity reached - ${data.clientName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f1f5f9; }
+            .container { max-width: 600px; margin: 0 auto; padding: 30px 20px; }
+            .header { background: ${color}; color: white; padding: 30px; text-align: center; border-radius: 16px 16px 0 0; }
+            .content { background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px; }
+            .progress-container { background: #e5e7eb; border-radius: 999px; height: 24px; overflow: hidden; margin: 20px 0; }
+            .progress-bar { background: ${color}; height: 100%; border-radius: 999px; transition: width 0.3s; }
+            .stats { display: flex; justify-content: space-between; margin: 20px 0; padding: 16px; background: #f9fafb; border-radius: 8px; }
+            .stat { text-align: center; }
+            .stat-value { font-size: 20px; font-weight: bold; color: #111827; }
+            .stat-label { font-size: 12px; color: #6b7280; }
+            .alert-box { background: ${isCritical ? '#fef2f2' : '#fffbeb'}; border-left: 4px solid ${color}; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+            .btn { display: inline-block; padding: 14px 32px; background: ${color}; color: white; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="margin: 0; font-size: 24px;">${emoji} Storage ${urgency}</h1>
+              <p style="margin: 10px 0 0 0; opacity: 0.9;">Your raw footage storage is ${data.percentage >= 100 ? 'full' : 'almost full'}</p>
+            </div>
+            <div class="content">
+              <p>Hi ${data.clientName},</p>
+              
+              <p>Your raw footage storage has reached <strong>${data.percentage}%</strong> capacity.</p>
+              
+              <div class="progress-container">
+                <div class="progress-bar" style="width: ${Math.min(data.percentage, 100)}%;"></div>
+              </div>
+              
+              <div class="stats">
+                <div class="stat">
+                  <div class="stat-value">${data.used}</div>
+                  <div class="stat-label">Used</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-value">${data.limit}</div>
+                  <div class="stat-label">Total Limit</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-value">${data.percentage}%</div>
+                  <div class="stat-label">Capacity</div>
+                </div>
+              </div>
+              
+              <div class="alert-box">
+                ${isCritical ? `
+                  <strong>🚨 Critical:</strong> You are very close to your storage limit. 
+                  Uploads will be blocked once you reach 100% capacity.
+                ` : `
+                  <strong>⚠️ Warning:</strong> You are approaching your storage limit. 
+                  Consider upgrading your plan or managing your files.
+                `}
+              </div>
+              
+              <p>To continue uploading without interruption, please upgrade your storage plan.</p>
+              
+              <div style="text-align: center; margin: 28px 0;">
+                <a href="${process.env.BASE_URL || 'https://e8-app.vercel.app'}/settings/billing" class="btn">
+                  Upgrade Storage Plan
+                </a>
+              </div>
+              
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+              
+              <p style="font-size: 12px; color: #94a3b8; text-align: center;">
+                Need help? Contact us at support@e8productions.com<br/>
+                © ${new Date().getFullYear()} E8 Productions
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Storage alert (${data.percentage}%) sent to ${data.to.join(', ')}`);
+  } catch (error) {
+    console.error(`❌ Failed to send storage alert:`, error);
+  }
+}

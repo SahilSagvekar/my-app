@@ -92,34 +92,63 @@ export async function POST(request: NextRequest) {
 
     // 🔥 Check if uploading to raw-footage folder
     if (folderPath.includes('raw-footage')) {
-      // Get current month folder
-      const currentMonth = getCurrentMonthFolder(); // "December-2024"
+      // Check if path already includes a month folder (from RawFootageUploadDialog)
+      // Pattern: CompanyName/raw-footage/Month-Year/DeliverableType/...
+      const pathAfterRawFootage = folderPath.split('raw-footage/')[1] || '';
+      const hasMonthFolder = /^[A-Z][a-z]+-\d{4}\//.test(pathAfterRawFootage);
+      
+      if (hasMonthFolder) {
+        // Path already structured (from RawFootageUploadDialog), use as-is
+        // Ensure all intermediate folders exist
+        const folderParts = folderPath.split('/').filter(Boolean);
+        let currentPath = '';
+        
+        for (const part of folderParts) {
+          currentPath += `${part}/`;
+          try {
+            await s3Client.send(
+              new PutObjectCommand({
+                Bucket: BUCKET,
+                Key: currentPath,
+                ContentType: "application/x-directory",
+              })
+            );
+          } catch (error) {
+            // Folder might already exist, that's ok
+          }
+        }
+        
+        s3Key = `${folderPath}${file.name}`;
+        console.log('📁 Uploading to structured path:', s3Key);
+        
+      } else {
+        // Legacy behavior: auto-add current month folder
+        const currentMonth = getCurrentMonthFolder(); // "December-2024"
 
-      // 🔥 FIX: Build path correctly
-      // Remove company name from folderPath if it exists, and rebuild
-      const folderPathWithoutCompany = folderPath.replace(basePath, '');
+        // Remove company name from folderPath if it exists, and rebuild
+        const folderPathWithoutCompany = folderPath.replace(basePath, '');
 
-      // Build path with month folder: companyName/raw-footage/December-2024/
-      const monthFolderPath = `${basePath}raw-footage/${currentMonth}/`;
+        // Build path with month folder: companyName/raw-footage/December-2024/
+        const monthFolderPath = `${basePath}raw-footage/${currentMonth}/`;
 
-      // 🔥 Create the month folder (if it doesn't exist)
-      try {
-        await s3Client.send(
-          new PutObjectCommand({
-            Bucket: BUCKET,
-            Key: monthFolderPath,
-            ContentType: "application/x-directory",
-          })
-        );
-        console.log('✅ Month folder ensured:', monthFolderPath);
-      } catch (error) {
-        console.log('⚠️ Folder might already exist (ok):', error);
+        // Create the month folder (if it doesn't exist)
+        try {
+          await s3Client.send(
+            new PutObjectCommand({
+              Bucket: BUCKET,
+              Key: monthFolderPath,
+              ContentType: "application/x-directory",
+            })
+          );
+          console.log('✅ Month folder ensured:', monthFolderPath);
+        } catch (error) {
+          console.log('⚠️ Folder might already exist (ok):', error);
+        }
+
+        // Upload file inside the month folder
+        s3Key = `${monthFolderPath}${file.name}`;
+        console.log('📁 Uploading to monthly folder:', s3Key);
       }
-
-      // 🔥 Upload file inside the month folder
-      s3Key = `${monthFolderPath}${file.name}`;
-
-      console.log('📁 Uploading to monthly folder:', s3Key);
 
     } else {
       // For other folders (elements, outputs, etc.), use folderPath as-is

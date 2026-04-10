@@ -199,7 +199,7 @@ export async function PATCH(
           await notifyUser({
             userId: task.qc_specialist,
             type: "qc_ready",
-            title: "👀 Content Ready for QC Review",
+            title: "Content Ready for QC Review",
             body: `Your content "${task.title}" is ready for review.`,
             payload: {
               taskId: task.id,

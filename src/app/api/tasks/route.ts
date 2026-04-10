@@ -532,10 +532,15 @@ const buildRoleWhereQuery = async (role: string | null, userId: number): Promise
       };
 
     case "scheduler":
-      // All schedulers see all COMPLETED/SCHEDULED tasks — multiple schedulers
-      // can work on the same client's deliverables
+      // Schedulers see tasks assigned to them OR unassigned tasks (scheduler: null)
       return {
         AND: [
+          {
+            OR: [
+              { scheduler: userId },
+              { scheduler: null }
+            ]
+          },
           {
             status: {
               in: ["COMPLETED", "SCHEDULED"],
