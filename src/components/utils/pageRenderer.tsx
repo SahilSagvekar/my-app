@@ -50,11 +50,6 @@ const ClientPortalPage = dynamic(() => import("../Clientportalpage").then(mod =>
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Portal...</div>
 });
 
-const ClientPortalPage = dynamic(() => import("../Clientportalpage").then(mod => mod.ClientPortalPage), {
-  ssr: false,
-  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Portal...</div>
-});
-
 const ClientContractsPage = dynamic(() => import("../contracts/ClientContractsPage").then(mod => mod.ClientContractsPage), {
   ssr: false,
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Contracts...</div>
@@ -65,10 +60,6 @@ const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Billing...</div>
 });
 
-const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(mod => mod.ClientBillingPortal), {
-  ssr: false,
-  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Billing...</div>
-});
 import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
@@ -87,9 +78,6 @@ export function renderPage(
   role: string,
   page: string,
   onPageChange?: (page: string) => void,
-  hasPostingServices?: boolean,
-  originalRole?: string,
-  linkedClientId?: string
   hasPostingServices?: boolean,
   originalRole?: string,
   linkedClientId?: string
@@ -384,9 +372,7 @@ export function renderPage(
   if (role === "sales") {
     // 🔥 If admin is viewing as sales, show the SalesManagementTab instead of SalesDashboard
     const isAdminViewingAsSales = originalRole?.toLowerCase() === 'admin';
-    
-    // 🔥 If admin is viewing as sales, show the SalesManagementTab instead of SalesDashboard
-    const isAdminViewingAsSales = originalRole?.toLowerCase() === 'admin';
+  
     
     switch (page) {
       case "dashboard":
