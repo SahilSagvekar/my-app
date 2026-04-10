@@ -381,9 +381,6 @@ export function SchedulerSpreadsheetView() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold">Scheduling Queue</h1>
-                    <p className="text-muted-foreground text-sm">
-                        Spreadsheet view • {pendingCount} pending, {scheduledCount} scheduled
-                    </p>
                 </div>
                 <div className="flex items-center gap-2">
                     {selectedRows.size > 0 && (
