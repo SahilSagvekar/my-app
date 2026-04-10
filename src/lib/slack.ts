@@ -290,16 +290,12 @@ export async function deliverSlackNotification(
       }
     }
 
-    // Build task link
-    const taskLink = notification.payload?.taskId
-      ? `\n<${process.env.NEXT_PUBLIC_APP_URL}/dashboard?task=${notification.payload.taskId}|View Task in Dashboard>`
-      : "";
-
-    // Create modified notification with QC mention and link
+    // Create modified notification with QC mention
+    // Note: View Task link is added by buildSlackBlocks automatically
     const mentionedNotification = {
       ...notification,
       title: `👀 ${qcMention}Content Ready for QC Review`,
-      body: `Your content "${notification.payload?.taskTitle || notification.title || "Task"}" is ready for review.${taskLink}`,
+      body: `Your content "${notification.payload?.taskTitle || notification.title || "Task"}" is ready for review.`,
     };
 
     // Send to QC channel ONLY
@@ -333,16 +329,12 @@ export async function deliverSlackNotification(
       }
     }
 
-    // Build task link
-    const taskLink = notification.payload?.taskId
-      ? `\n<${process.env.NEXT_PUBLIC_APP_URL}/dashboard?task=${notification.payload.taskId}|View Task in Dashboard>`
-      : "";
-
     // Create modified notification with editor mention
+    // Note: View Task link is added by buildSlackBlocks automatically
     const mentionedNotification = {
       ...notification,
-      title: `❌ ${editorMention}Content Needs Revisions`,
-      body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${taskLink}`,
+      title: `${editorMention}Content Needs Revisions`,
+      body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.`,
     };
 
     // Send to client channel ONLY
@@ -357,15 +349,11 @@ export async function deliverSlackNotification(
   if (notificationType === "task_scheduled") {
     console.log(`[Slack Dispatch] Task Scheduled → Scheduling channel only`);
 
-    // Build task link
-    const taskLink = notification.payload?.taskId
-      ? `\n<${process.env.NEXT_PUBLIC_APP_URL}/dashboard?task=${notification.payload.taskId}|View Task in Dashboard>`
-      : "";
-
+    // Create notification - View Task link is added by buildSlackBlocks automatically
     const scheduledNotification = {
       ...notification,
-      title: `📅 Content Scheduled/Posted`,
-      body: `Task "${notification.payload?.taskTitle || notification.title || "Task"}" has been marked as scheduled.${taskLink}`,
+      title: `Content Scheduled/Posted`,
+      body: `Task "${notification.payload?.taskTitle || notification.title || "Task"}" has been marked as scheduled.`,
     };
 
     // Send to scheduling channel ONLY

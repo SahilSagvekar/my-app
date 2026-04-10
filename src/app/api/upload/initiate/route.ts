@@ -5,24 +5,35 @@ import getServerSession from "next-auth";
 // import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getS3, BUCKET } from "@/lib/s3";
+import { getClientStorageInfo, DEFAULT_STORAGE_LIMIT } from "@/lib/storage-service";
 
 const s3Client = getS3();
 
-// 🔥 Helper: Ensure folder exists in S3
+// 🔥 Helper: Ensure folder exists in S3 (creates all intermediate folders)
 async function ensureS3FolderExists(folderPath: string) {
   if (!folderPath || folderPath === "" || folderPath === "/") return;
-  try {
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: BUCKET,
-        Key: folderPath.endsWith("/") ? folderPath : `${folderPath}/`,
-        ContentType: "application/x-directory",
-      })
-    );
-    console.log(`✅ Folder created/verified: ${folderPath}`);
-  } catch (error) {
-    console.error(`❌ Failed to create folder: ${folderPath}`, error);
-    throw error;
+  
+  // Normalize path - remove leading/trailing slashes and split
+  const normalizedPath = folderPath.replace(/^\/+|\/+$/g, '');
+  const parts = normalizedPath.split('/').filter(Boolean);
+  
+  // Create each folder level progressively
+  let currentPath = '';
+  for (const part of parts) {
+    currentPath += `${part}/`;
+    try {
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: BUCKET,
+          Key: currentPath,
+          ContentType: "application/x-directory",
+        })
+      );
+      console.log(`✅ Folder created/verified: ${currentPath}`);
+    } catch (error) {
+      // Folder might already exist, that's ok - continue
+      console.log(`⚠️ Folder might exist (continuing): ${currentPath}`);
+    }
   }
 }
 
@@ -71,6 +82,7 @@ export async function POST(req: NextRequest) {
     const {
       fileName,
       fileType,
+      fileSize, // 🔥 For storage limit checking
       taskId,
       clientId,
       folderType,
@@ -80,6 +92,7 @@ export async function POST(req: NextRequest) {
 
     console.log("📤 Upload initiate request:", {
       fileName,
+      fileSize,
       taskId,
       clientId,
       folderType,
@@ -92,6 +105,47 @@ export async function POST(req: NextRequest) {
         { message: "Missing required fields" },
         { status: 400 }
       );
+    }
+
+    // 🔥 Check storage limit for raw-footage uploads
+    const isRawFootageUpload = folderType === "rawFootage" || 
+      (folderType === "drive" && subfolder?.includes("raw-footage"));
+    
+    if (isRawFootageUpload && clientId) {
+      const storageInfo = await getClientStorageInfo(clientId);
+      
+      // Check if upload would exceed limit
+      const projectedUsage = storageInfo.used + (fileSize || 0);
+      if (projectedUsage > storageInfo.limit) {
+        return NextResponse.json(
+          { 
+            message: "Storage limit exceeded",
+            error: "STORAGE_LIMIT_EXCEEDED",
+            storageInfo: {
+              used: storageInfo.usedFormatted,
+              limit: storageInfo.limitFormatted,
+              percentage: storageInfo.percentage,
+            }
+          },
+          { status: 403 }
+        );
+      }
+      
+      // Warn if near limit
+      if (storageInfo.isAtLimit) {
+        return NextResponse.json(
+          { 
+            message: "Storage limit reached. Please upgrade your plan.",
+            error: "STORAGE_LIMIT_REACHED",
+            storageInfo: {
+              used: storageInfo.usedFormatted,
+              limit: storageInfo.limitFormatted,
+              percentage: storageInfo.percentage,
+            }
+          },
+          { status: 403 }
+        );
+      }
     }
 
     let companyName = "";

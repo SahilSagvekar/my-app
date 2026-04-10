@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   Folder,
+  FolderPlus,
   File as FileIcon,
   ChevronRight,
   Download,
@@ -27,10 +28,14 @@ import {
   Loader2,
   AlertTriangle,
   Link as LinkIcon,
-  Share2
+  Share2,
+  Pencil
 } from "lucide-react";
 import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
+import { RawFootageUploadDialog } from "./RawFootageUploadDialog";
+import { StorageLimitBanner } from "@/components/StorageLimitBanner";
+import { StorageLimitModal } from "@/components/StorageLimitModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,6 +108,46 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // 🔥 NEW: Folder creation states
+  const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+
+  // 🔥 NEW: Folder rename states
+  const [itemToRename, setItemToRename] = useState<DriveItem | null>(null);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  // 🔥 NEW: Storage limit states
+  const [showStorageLimitModal, setShowStorageLimitModal] = useState(false);
+  const [storageInfo, setStorageInfo] = useState<{
+    used: number;
+    limit: number;
+    usedFormatted: string;
+    limitFormatted: string;
+    percentage: number;
+    isAtLimit: boolean;
+    isNearLimit: boolean;
+    isCritical: boolean;
+  } | null>(null);
+
+  // Fetch storage info for clients
+  useEffect(() => {
+    if (role === 'client' && user?.linkedClientId) {
+      fetch(`/api/clients/${user.linkedClientId}/storage`)
+        .then(res => res.json())
+        .then(data => {
+          setStorageInfo(data);
+          // Auto-show modal if at limit
+          if (data.isAtLimit) {
+            setShowStorageLimitModal(true);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [role, user?.linkedClientId]);
 
   useEffect(() => {
     if (user) {
@@ -190,6 +235,58 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return pathParts.join("/") + "/";
   };
 
+  // 🔥 Check if we're at a level where RawFootageUploadDialog should show
+  // Show it only at: raw-footage/, raw-footage/Month/, raw-footage/Month/DeliverableType/
+  // NOT inside custom subfolders created by the client
+  const currentPath = getCurrentFolderS3Path();
+  const pathParts = currentPath.split('/').filter(Boolean);
+  const rawFootageIndex = pathParts.findIndex(p => p === 'raw-footage');
+  
+  // Calculate depth from raw-footage folder
+  // raw-footage = depth 0, raw-footage/April-2026 = depth 1, raw-footage/April-2026/LF = depth 2, raw-footage/April-2026/LF/custom = depth 3
+  const depthFromRawFootage = rawFootageIndex >= 0 ? pathParts.length - rawFootageIndex - 1 : -1;
+  
+  // Check if client is inside raw-footage folder (any depth) - used for upload permissions
+  const isClientInRawFootage = role === 'client' && currentPath.includes('raw-footage');
+  
+  // Show RawFootageUploadDialog only at depth 0, 1, or 2 (raw-footage, month, or deliverable type level)
+  // At depth 3+ (inside custom folders), show regular FileUploadDialog for direct uploads
+  const shouldShowRawFootageDialog = role === 'client' && 
+    !!user?.linkedClientId && 
+    currentPath.includes('raw-footage') && 
+    depthFromRawFootage >= 0 && 
+    depthFromRawFootage <= 2;
+  
+  // Check if client is inside a deliverable folder (depth 2+) - used for folder management permissions
+  // depth 2 = inside deliverable type folder (e.g., raw-footage/April-2026/LF/)
+  // depth 3+ = inside custom subfolders
+  // Clients can create/rename/delete folders only at depth 2+ (inside deliverable folders)
+  const isClientInDeliverableFolder = role === 'client' && 
+    currentPath.includes('raw-footage') && 
+    depthFromRawFootage >= 2;
+  
+  // Client can upload: only inside raw-footage folder
+  // Non-clients can upload anywhere
+  const canUpload = role !== 'client' || isClientInRawFootage;
+  
+  useEffect(() => {
+    if (role === 'client') {
+      console.log('📁 DriveExplorer Debug:', {
+        role,
+        linkedClientId: user?.linkedClientId,
+        currentPath,
+        pathParts,
+        rawFootageIndex,
+        depthFromRawFootage,
+        isClientInRawFootage,
+        shouldShowRawFootageDialog,
+        isClientInDeliverableFolder,
+        canUpload,
+        companyName: breadcrumb[0]?.name
+      });
+    }
+  }, [role, user?.linkedClientId, currentPath, shouldShowRawFootageDialog, breadcrumb]);
+
   const closeUploadDialog = () => { };
 
   // 🔥 NEW: Get S3 Key for item
@@ -275,6 +372,101 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const cancelDelete = () => {
     setShowDeleteDialog(false);
     setItemToDelete(null);
+  };
+
+  // 🔥 NEW: Create Folder
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) {
+      toast.error('Please enter a folder name');
+      return;
+    }
+
+    setIsCreatingFolder(true);
+
+    try {
+      const response = await fetch('/api/drive/folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderPath: getCurrentFolderS3Path(),
+          folderName: newFolderName.trim(),
+          userId: user?.id?.toString(),
+          role,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create folder');
+      }
+
+      toast.success(`Folder "${newFolderName}" created`);
+      setShowCreateFolderDialog(false);
+      setNewFolderName('');
+      
+      // Reload drive structure
+      setTimeout(loadDriveStructure, 500);
+    } catch (error: any) {
+      console.error('Create folder error:', error);
+      toast.error(error.message || 'Failed to create folder');
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  };
+
+  // 🔥 NEW: Handle Rename Click
+  const handleRenameClick = (item: DriveItem) => {
+    setItemToRename(item);
+    setRenameValue(item.name);
+    setShowRenameDialog(true);
+  };
+
+  // 🔥 NEW: Confirm Rename
+  const confirmRename = async () => {
+    if (!itemToRename || !renameValue.trim()) {
+      toast.error('Please enter a new name');
+      return;
+    }
+
+    if (renameValue.trim() === itemToRename.name) {
+      setShowRenameDialog(false);
+      return;
+    }
+
+    setIsRenaming(true);
+
+    try {
+      const s3Key = getS3Key(itemToRename);
+
+      const response = await fetch('/api/drive/folder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldPath: s3Key,
+          newName: renameValue.trim(),
+          userId: user?.id?.toString(),
+          role,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to rename');
+      }
+
+      toast.success(`Renamed to "${renameValue}"`);
+      setShowRenameDialog(false);
+      setItemToRename(null);
+      setRenameValue('');
+      
+      // Reload drive structure
+      setTimeout(loadDriveStructure, 500);
+    } catch (error: any) {
+      console.error('Rename error:', error);
+      toast.error(error.message || 'Failed to rename');
+    } finally {
+      setIsRenaming(false);
+    }
   };
 
   // 🔥 NEW: Handle Share Link
@@ -477,25 +669,196 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         copied={copied}
       />
 
+      {/* 🔥 NEW: Create Folder Dialog */}
+      <Dialog open={showCreateFolderDialog} onOpenChange={setShowCreateFolderDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Folder className="h-5 w-5" />
+              Create New Folder
+            </DialogTitle>
+            <DialogDescription>
+              Create a new folder in the current directory
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Folder Name</label>
+              <Input
+                placeholder="e.g., beach-shoot, product-photos"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isCreatingFolder) {
+                    handleCreateFolder();
+                  }
+                }}
+                disabled={isCreatingFolder}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateFolderDialog(false);
+                setNewFolderName('');
+              }}
+              disabled={isCreatingFolder}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFolder} disabled={isCreatingFolder || !newFolderName.trim()}>
+              {isCreatingFolder ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Folder'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🔥 NEW: Rename Dialog */}
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename {itemToRename?.type === 'folder' ? 'Folder' : 'File'}</DialogTitle>
+            <DialogDescription>
+              Enter a new name for "{itemToRename?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">New Name</label>
+              <Input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isRenaming) {
+                    confirmRename();
+                  }
+                }}
+                disabled={isRenaming}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRenameDialog(false);
+                setItemToRename(null);
+                setRenameValue('');
+              }}
+              disabled={isRenaming}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmRename} disabled={isRenaming || !renameValue.trim()}>
+              {isRenaming ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Renaming...
+                </>
+              ) : (
+                'Rename'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🔥 Storage Limit Modal */}
+      {storageInfo && storageInfo.percentage !== undefined && (
+        <StorageLimitModal
+          open={showStorageLimitModal}
+          onOpenChange={setShowStorageLimitModal}
+          storageInfo={storageInfo}
+        />
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* 🔥 Storage Banner - Always show for clients in raw-footage */}
+        {role === 'client' && user?.linkedClientId && isClientInRawFootage && (
+          <div className="px-3 sm:px-4 pt-3">
+            <StorageLimitBanner 
+              clientId={user.linkedClientId} 
+              onUpgradeClick={() => setShowStorageLimitModal(true)}
+            />
+          </div>
+        )}
+
         {/* Top Toolbar */}
         <div className="border-b bg-card">
           <div className="flex items-center gap-4 p-3 sm:p-4">
-            {/* Left: Upload Button - Resumable */}
-            <FileUploadDialog
-              folderType="drive"
-              subfolder={getCurrentFolderS3Path()}
-              onUploadComplete={() => {
-                setTimeout(loadDriveStructure, 1000);
-              }}
-              trigger={
-                <Button className="gap-2 shrink-0 h-10 px-4">
-                  <Upload className="h-4 w-4" />
-                  <span className="hidden sm:inline font-medium">Upload</span>
-                </Button>
-              }
-            />
+            {/* Left: Upload Button - Only show if user can upload and not at storage limit */}
+            {canUpload && !(role === 'client' && storageInfo?.isAtLimit) && (
+              shouldShowRawFootageDialog ? (
+                <RawFootageUploadDialog
+                  clientId={user!.linkedClientId!}
+                  companyName={breadcrumb[0]?.name || ''}
+                  onUploadComplete={() => {
+                    setTimeout(loadDriveStructure, 1000);
+                    // Refresh storage info after upload
+                    if (user?.linkedClientId) {
+                      fetch(`/api/clients/${user.linkedClientId}/storage`)
+                        .then(res => res.json())
+                        .then(setStorageInfo)
+                        .catch(console.error);
+                    }
+                  }}
+                  trigger={
+                    <Button className="gap-2 shrink-0 h-10 px-4">
+                      <Upload className="h-4 w-4" />
+                      <span className="hidden sm:inline font-medium">Upload Raw Footage</span>
+                    </Button>
+                  }
+                />
+              ) : (
+                <FileUploadDialog
+                  folderType="drive"
+                  subfolder={getCurrentFolderS3Path()}
+                  onUploadComplete={() => {
+                    setTimeout(loadDriveStructure, 1000);
+                  }}
+                  trigger={
+                    <Button className="gap-2 shrink-0 h-10 px-4">
+                      <Upload className="h-4 w-4" />
+                      <span className="hidden sm:inline font-medium">Upload</span>
+                    </Button>
+                  }
+                />
+              )
+            )}
+            
+            {/* Show "Storage Full" button when at limit */}
+            {role === 'client' && storageInfo?.isAtLimit && isClientInRawFootage && (
+              <Button 
+                className="gap-2 shrink-0 h-10 px-4" 
+                variant="destructive"
+                onClick={() => setShowStorageLimitModal(true)}
+              >
+                <AlertTriangle className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Storage Full - Upgrade</span>
+              </Button>
+            )}
+
+            {/* New Folder Button - Show for clients in raw-footage */}
+            {isClientInDeliverableFolder && (
+              <Button 
+                variant="outline" 
+                className="gap-2 shrink-0 h-10 px-4"
+                onClick={() => setShowCreateFolderDialog(true)}
+              >
+                <Folder className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">New Folder</span>
+              </Button>
+            )}
 
             {/* Middle: Search bar */}
             <div className="flex-1 max-w-2xl mx-auto">
@@ -696,6 +1059,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             Copy shareable link
                           </DropdownMenuItem>
                         )}
+                        {/* 🔥 NEW: Rename Option - for clients in raw-footage */}
+                        {isClientInDeliverableFolder && item.type === "folder" && (
+                          <DropdownMenuItem
+                            onClick={() => handleRenameClick(item)}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                        )}
                         {/* 🔥 NEW: Delete Option */}
                         <DropdownMenuItem
                           onClick={() => handleDeleteClick(item)}
@@ -818,6 +1190,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                     <Share2 className="h-4 w-4 mr-2" />
                                   )}
                                   Copy shareable link
+                                </DropdownMenuItem>
+                              )}
+                              {/* 🔥 NEW: Rename Option - for clients in raw-footage */}
+                              {isClientInDeliverableFolder && item.type === "folder" && (
+                                <DropdownMenuItem
+                                  onClick={() => handleRenameClick(item)}
+                                >
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Rename
                                 </DropdownMenuItem>
                               )}
                               {/* 🔥 NEW: Delete Option */}
