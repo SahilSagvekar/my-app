@@ -1,7 +1,7 @@
 // src/lib/social/sync.ts
 
 import { prisma } from '@/lib/prisma';
-import { decrypt } from '@/lib/encryption';
+import { decrypt, encrypt } from '@/lib/encryption';
 import { YouTubeService } from './youtube';
 import { InstagramService } from './instagram';
 import { TikTokService } from './tiktok';
@@ -140,4 +140,42 @@ export async function syncSocialAccount(accountId: string) {
   }
 
   return { success: true, postssynced: posts.length };
+}
+
+export async function syncClientAccounts(clientId: string) {
+  const accounts = await prisma.socialAccount.findMany({
+    where: {
+      clientId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const results = await Promise.all(
+    accounts.map(async ({ id }) => {
+      try {
+        const result = await syncSocialAccount(id);
+        return { accountId: id, ...result };
+      } catch (error: any) {
+        return {
+          accountId: id,
+          success: false,
+          error: error.message,
+        };
+      }
+    })
+  );
+
+  const synced = results.filter((result) => result.success).length;
+  const failed = results.length - synced;
+
+  return {
+    success: failed === 0,
+    total: results.length,
+    synced,
+    failed,
+    results,
+  };
 }

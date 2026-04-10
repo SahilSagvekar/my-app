@@ -1,10 +1,17 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { sendScreenshotAlertEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
+        const rawBody = await req.text();
+        let body: { email?: string } = {};
+        if (rawBody) {
+            try {
+                body = JSON.parse(rawBody) as { email?: string };
+            } catch {
+                body = {};
+            }
+        }
         const { email } = body;
 
         const userAgent = req.headers.get('user-agent') || 'Unknown';

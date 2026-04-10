@@ -11,7 +11,7 @@ import { TrainingManagementTab } from "../admin/TrainingManagementTab";
 import { TrainingPortalPage } from "../training/TrainingPortalPage";
 import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
-import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
+import { SchedulerApprovedQueuePage } from "../dashboards/SchedulerApprovedQueuePage";
 import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
 import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
@@ -55,10 +55,6 @@ const ClientContractsPage = dynamic(() => import("../contracts/ClientContractsPa
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Your Contracts...</div>
 });
 
-const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(mod => mod.ClientBillingPortal), {
-  ssr: false,
-  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Billing...</div>
-});
 import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
@@ -259,7 +255,7 @@ export function renderPage(
       case "calendar":
         return <SchedulerDashboard />;
       case "approved-queue":
-        return <SchedulerSpreadsheetView />;
+        return <SchedulerApprovedQueuePage />;
       case "scheduling":
         return <SchedulerSchedulingPage />;
       case "content-titling":
@@ -366,13 +362,19 @@ export function renderPage(
     // 🔥 If admin is viewing as sales, show the SalesManagementTab instead of SalesDashboard
     const isAdminViewingAsSales = originalRole?.toLowerCase() === 'admin';
     
+    // 🔥 If admin is viewing as sales, show the SalesManagementTab instead of SalesDashboard
+    const isAdminViewingAsSales = originalRole?.toLowerCase() === 'admin';
+    
     switch (page) {
       case "dashboard":
+      case "sales-management":
+        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "sales-management":
         return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "affiliate":
         return <AffiliateSection />;
       case "clients":
+        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
         return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "training":
         return <TrainingPortalPage />;

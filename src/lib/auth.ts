@@ -4,15 +4,6 @@ import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import { prisma } from '@/lib/prisma';
-import { auth } from "@/auth";
-
-type DecodedToken = jwt.JwtPayload & {
-  userId?: number | string;
-  id?: number | string;
-  email?: string;
-  role?: string;
-  name?: string;
-};
 
 export const verifyToken = (token: string) => {
   try {
@@ -28,93 +19,29 @@ export const verifyToken = (token: string) => {
   }
 };
 
-function normalizeTokenValue(token: string | null | undefined) {
-  if (!token) return null;
-
-  try {
-    return decodeURIComponent(token);
-  } catch {
-    return token;
-  }
-}
-
-function readTokenFromCookieHeader(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-  if (!cookieHeader) return null;
-
-  const authTokenPair = cookieHeader
-    .split(";")
-    .map((segment) => segment.trim())
-    .reverse()
-    .find((segment) => segment.startsWith("authToken="));
-
-  if (!authTokenPair) return null;
-
-  return normalizeTokenValue(authTokenPair.slice("authToken=".length));
-}
-
-function getAuthTokenCandidatesFromCookieHeader(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-  if (!cookieHeader) return [];
-
-  return cookieHeader
-    .split(";")
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.startsWith("authToken="))
-    .map((segment) => normalizeTokenValue(segment.slice("authToken=".length)))
-    .filter((token): token is string => Boolean(token))
-    .reverse();
-}
-
-export function getAuthTokenCandidatesFromRequest(req: Request | NextRequest) {
-  const candidates: string[] = [];
-
-  if ("cookies" in req && req.cookies) {
-    const nextCookieCandidates = req.cookies
-      .getAll("authToken")
-      .map((cookie) => normalizeTokenValue(cookie.value))
-      .filter((token): token is string => Boolean(token));
-
-    candidates.push(...nextCookieCandidates);
-  }
-
-  candidates.push(...getAuthTokenCandidatesFromCookieHeader(req));
-
-  const headerToken = normalizeTokenValue(
-    req.headers.get("authorization")?.split(" ")[1],
-  );
-
-  if (headerToken) {
-    candidates.push(headerToken);
-  }
-
-  return [...new Set(candidates)];
-}
-
-export function getAuthTokenFromRequest(req: Request | NextRequest) {
-  return getAuthTokenCandidatesFromRequest(req)[0] ?? null;
-}
-
 // Async version if cookies() returns a Promise
 export async function getUser(req: Request) {
-  const tokens = getAuthTokenCandidatesFromRequest(req);
-  if (tokens.length === 0)
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-
-  for (const token of tokens) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
-      return decoded; // should contain id, email, role
-    } catch {
-      continue;
-    }
+  function getTokenFromCookies(req: Request) {
+    const cookieHeader = req.headers.get("cookie");
+    if (!cookieHeader) return null;
+    const match = cookieHeader.match(/authToken=([^;]+)/);
+    return match ? match[1] : null;
   }
 
-  return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  const token = getTokenFromCookies(req);
+  if (!token)
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+  const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+  return decoded; // should contain id, email, role
 }
 
 export async function getTokenFromCookies(req: Request) {
-  return readTokenFromCookieHeader(req);
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
+
+  const match = cookieHeader.match(/authToken=([^;]+)/);
+  return match ? match[1] : null;
 }
 
 // export async function requireAdmin(req: NextRequest) {
@@ -168,44 +95,78 @@ export async function getCurrentUser(req: NextRequest) {
     const token = req.headers.get("Authorization")?.split(" ")[1];
     if (!token) return null;
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     return decoded; // should contain id, email, role
   } catch {
     return null;
   }
 }
 
-export async function getCurrentUser2(req?: NextRequest) {
-  try {
-    const tokens = req
-      ? getAuthTokenCandidatesFromRequest(req)
-      : [normalizeTokenValue((await cookies()).get("authToken")?.value)].filter(
-          (token): token is string => Boolean(token),
-        );
+import { auth } from "@/auth";
 
-    if (req) {
-      console.log("[AUTH] cookie header present:", Boolean(req.headers.get("cookie")));
-      console.log("[AUTH] authToken candidates:", tokens.length);
+function readBearerToken(value: string | null) {
+  if (!value) return null;
+  const [scheme, token] = value.split(" ");
+  if (!token) return scheme || null;
+  return scheme.toLowerCase() === "bearer" ? token : value;
+}
+
+function readAuthTokenFromRequest(req: NextRequest | Request) {
+  const nextRequest = req as NextRequest & { cookies?: { get: (name: string) => { value: string } | undefined } };
+  const cookieToken = nextRequest.cookies?.get?.("authToken")?.value;
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  const cookieHeader = req.headers.get("cookie");
+  if (cookieHeader) {
+    const match = cookieHeader.match(/authToken=([^;]+)/);
+    if (match) {
+      return match[1];
     }
+  }
 
-    if (tokens.length > 0 && process.env.JWT_SECRET) {
-      for (const token of tokens) {
-        try {
-          const decoded = jwt.verify(token, process.env.JWT_SECRET) as DecodedToken;
-          // Support both custom 'userId' and NextAuth's 'id' field
-          const effectiveId = decoded?.userId || decoded?.id;
+  return readBearerToken(req.headers.get("authorization"));
+}
 
-          if (effectiveId) {
-            const user = await prisma.user.findUnique({ where: { id: Number(effectiveId) } });
-            if (user && (user.employeeStatus === 'ACTIVE' || user.email === 'sahilsagvekar230@gmail.com')) {
-              console.log("[AUTH] authenticated user via JWT:", user.email, user.role);
-              return user;
-            }
+export async function getAuthToken(req?: NextRequest | Request) {
+  const requestToken = req ? readAuthTokenFromRequest(req) : null;
+  if (requestToken) {
+    return requestToken;
+  }
+
+  try {
+    const cookieStore = await cookies();
+    const cookieToken = cookieStore.get("authToken")?.value;
+    if (cookieToken) {
+      return cookieToken;
+    }
+  } catch {
+    // cookies() is not always available outside a request context.
+  }
+
+  return null;
+}
+
+export async function getCurrentUser2(req?: NextRequest | Request) {
+  try {
+    // 1. Try Custom JWT Token (Cookie or Header)
+    const token = await getAuthToken(req);
+
+    if (token && process.env.JWT_SECRET) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as Record<string, unknown>;
+        // Support custom JWTs and any legacy token shape we already issued.
+        const effectiveId = decoded?.userId || decoded?.id || decoded?.sub;
+
+        if (effectiveId) {
+          const user = await prisma.user.findUnique({ where: { id: Number(effectiveId) } });
+          if (user && (user.employeeStatus === 'ACTIVE' || user.email === 'sahilsagvekar230@gmail.com')) {
+            return user;
           }
-        } catch {
-          console.log("[AUTH] JWT candidate verification failed");
-          continue;
         }
+      } catch {
+        // Fall through to NextAuth
       }
     }
 
@@ -215,71 +176,65 @@ export async function getCurrentUser2(req?: NextRequest) {
       const user = await prisma.user.findFirst({
         where: { email: session.user.email }
       });
-      if (user && (user.employeeStatus === 'ACTIVE' || user.email === 'sahilsagvekar230@gmail.com')) {
-        console.log("[AUTH] authenticated user via NextAuth session:", user.email, user.role);
-        return user;
-      }
-    }
-
-    if (req) {
-      console.log("[AUTH] no authenticated user resolved");
+      if (user && (user.employeeStatus === 'ACTIVE' || user.email === 'sahilsagvekar230@gmail.com')) return user;
     }
 
     return null;
-  } catch (error) {
-    console.error("getCurrentUser error:", error);
+  } catch (err) {
+    console.error("getCurrentUser error:", err);
     return null;
   }
 }
 
 export function getUserFromRequest(req: Request) {
-  const tokens = getAuthTokenCandidatesFromRequest(req);
-  if (tokens.length === 0) return null;
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
 
-  for (const token of tokens) {
-    try {
-      if (!process.env.JWT_SECRET) {
-        throw new Error("JWT_SECRET not configured");
-      }
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      return decoded; // must contain userId inside it
-    } catch {
-      continue;
+  const match = cookieHeader.match(/authToken=([^;]+)/);
+  if (!match) return null;
+
+  const token = match[1];
+
+  try {
+    // const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret");
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET not configured");
     }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded; // must contain userId inside it
+  } catch (e) {
+    return null;
   }
-
-  return null;
 }
 
 export async function requireAdmin(req: NextRequest) {
-  const tokens = getAuthTokenCandidatesFromRequest(req);
-  if (tokens.length === 0)
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-
-  for (const token of tokens) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
-      const userId = decoded.userId;
-
-      const user = await prisma.user.findUnique({ where: { id: Number(userId) } });
-      if (!user || (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com')) {
-        continue;
-      }
-
-      if (user.role !== "admin" && user.role !== "manager") {
-        throw { status: 403, message: "Admin required" };
-      }
-
-      return user;
-    } catch (error) {
-      if (typeof error === "object" && error && "status" in error) {
-        throw error;
-      }
-      continue;
-    }
+  // stub: replace with your real session lookup
+  // e.g., getToken(req) or getServerSession()
+  function getTokenFromCookies(req: Request) {
+    const cookieHeader = req.headers.get("cookie");
+    if (!cookieHeader) return null;
+    const match = cookieHeader.match(/authToken=([^;]+)/);
+    return match ? match[1] : null;
   }
 
-  return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  const token = getTokenFromCookies(req);
+  if (!token)
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+  const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+  const { role, userId } = decoded;
+
+  // const userId = Number(req.headers.get('x-user-id')); // temporary: client must send this
+  // if (!userId) throw { status: 401, message: 'Unauthorized' };
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com'))
+    throw { status: 403, message: "Account deactivated" };
+
+  if (user.role !== "admin" && user.role !== "manager")
+    throw { status: 403, message: "Admin required" };
+  return user;
 }
 
 export async function getRequestingUser(req: NextRequest) {
