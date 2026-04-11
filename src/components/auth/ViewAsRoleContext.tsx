@@ -29,6 +29,37 @@ interface ViewAsRoleProviderProps {
     userRole: string | null;
 }
 
+function safeLocalStorageGet(key: string): string | null {
+    if (typeof window === "undefined") return null;
+
+    try {
+        return window.localStorage.getItem(key);
+    } catch (error) {
+        console.warn("⚠️ Unable to read localStorage in ViewAsRoleProvider:", error);
+        return null;
+    }
+}
+
+function safeLocalStorageSet(key: string, value: string) {
+    if (typeof window === "undefined") return;
+
+    try {
+        window.localStorage.setItem(key, value);
+    } catch (error) {
+        console.warn("⚠️ Unable to write localStorage in ViewAsRoleProvider:", error);
+    }
+}
+
+function safeLocalStorageRemove(key: string) {
+    if (typeof window === "undefined") return;
+
+    try {
+        window.localStorage.removeItem(key);
+    } catch (error) {
+        console.warn("⚠️ Unable to clear localStorage in ViewAsRoleProvider:", error);
+    }
+}
+
 export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRoleProviderProps) {
     const [viewingAsRole, setViewingAsRole] = useState<string | null>(userRole);
     const [isViewingAsOther, setIsViewingAsOther] = useState(false);
@@ -62,7 +93,7 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
     // Load saved preference from localStorage
     useEffect(() => {
         if (canSwitchRole && userEmail) {
-            const saved = localStorage.getItem(`viewingAs_${userEmail}`);
+            const saved = safeLocalStorageGet(`viewingAs_${userEmail}`);
             if (saved && saved !== userRole && switchableRoles.includes(saved)) {
                 setViewingAsRole(saved);
                 setIsViewingAsOther(true);
@@ -81,7 +112,7 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
         if (switchableRoles.includes(targetRole)) {
             setViewingAsRole(targetRole);
             setIsViewingAsOther(true);
-            localStorage.setItem(`viewingAs_${userEmail}`, targetRole);
+            safeLocalStorageSet(`viewingAs_${userEmail}`, targetRole);
         }
     };
 
@@ -89,7 +120,7 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
         setViewingAsRole(userRole);
         setIsViewingAsOther(false);
         if (userEmail) {
-            localStorage.removeItem(`viewingAs_${userEmail}`);
+            safeLocalStorageRemove(`viewingAs_${userEmail}`);
         }
     };
 

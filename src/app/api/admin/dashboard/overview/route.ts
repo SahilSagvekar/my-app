@@ -3,6 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TaskStatus } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import {
+  buildCurrentMonthClientDeliverablesProgress,
+  formatMonthLabel,
+  getMonthKey,
+  getMonthDateRange,
+  isValidMonthKey,
+} from '@/lib/monthly-deliverables-progress';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -19,7 +26,10 @@ export function getUserFromToken(req: NextRequest): JWTUser | null {
   try {
     const token = req.cookies.get('authToken')?.value;
     if (!token) return null;
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTUser & {
+      user?: JWTUser;
+      currentUser?: JWTUser;
+    };
     return decoded.user || decoded.currentUser || decoded;
   } catch (error) {
     console.error('Token verification failed:', error);
@@ -37,7 +47,7 @@ export function requireAdmin(user: JWTUser | null) {
 
 import { getCurrentUser2 } from '@/lib/auth';
 
-export async function GET(req: any) {
+export async function GET(req: Request) {
   const startTime = Date.now();
 
   try {
@@ -49,6 +59,12 @@ export async function GET(req: any) {
     if (user.role?.toLowerCase() !== 'admin') {
       return NextResponse.json({ ok: false, message: 'Access denied. Admin only.' }, { status: 403 });
     }
+
+    const { searchParams } = new URL(req.url);
+    const requestedDeliverablesMonth = searchParams.get('deliverablesMonth');
+    const selectedDeliverablesMonth = isValidMonthKey(requestedDeliverablesMonth)
+      ? requestedDeliverablesMonth
+      : getMonthKey(new Date());
 
     const [
       kpiData,
@@ -63,7 +79,7 @@ export async function GET(req: any) {
       getProjectHealthData(),
       getRecentActivity(),
       getSystemStatus(),
-      getClientDeliverablesProgress()
+      getClientDeliverablesProgress(selectedDeliverablesMonth)
     ]);
 
     const duration = Date.now() - startTime;
@@ -76,6 +92,10 @@ export async function GET(req: any) {
       recentActivity: recentActivity,
       systemStatus: systemStatus,
       clientDeliverablesProgress,
+      deliverablesMonth: {
+        key: selectedDeliverablesMonth,
+        label: formatMonthLabel(selectedDeliverablesMonth),
+      },
       _debug: {
         responseTime: duration
       }
@@ -333,7 +353,10 @@ async function getSystemStatus() {
   let avgResponseTime = 125;
   if (recentLogs.length > 0) {
     const responseTimes = recentLogs
-      .map(log => (log.metadata as any)?.responseTime || 0)
+      .map((log) => {
+        const metadata = log.metadata as { responseTime?: number } | null;
+        return metadata?.responseTime || 0;
+      })
       .filter(time => time > 0);
 
     if (responseTimes.length > 0) {
@@ -399,75 +422,68 @@ function formatUptime(seconds: number): string {
   return `${minutes}m`;
 }
 
-async function getClientDeliverablesProgress() {
+async function getClientDeliverablesProgress(monthKey: string) {
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  const monthStart = new Date(currentYear, currentMonth, 1);
-  const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+  const { start: monthStart, end: monthEnd } = getMonthDateRange(monthKey);
 
-  // Get active clients with their monthly deliverables
   const clients = await prisma.client.findMany({
-    where: { status: 'active' },
+    where: {
+      status: 'active',
+      monthlyDeliverables: { some: {} },
+    },
     select: {
       id: true,
+      name: true,
       companyName: true,
+      requiresClientReview: true,
       monthlyDeliverables: {
         select: {
           id: true,
           type: true,
           quantity: true,
           platforms: true,
-        }
-      },
-      tasks: {
-        where: {
-          dueDate: { gte: monthStart, lte: monthEnd },
         },
-        select: {
-          id: true,
-          status: true,
-          monthlyDeliverableId: true,
-        }
-      }
+        orderBy: { createdAt: 'asc' },
+      },
     },
-    orderBy: { companyName: 'asc' },
+    orderBy: [{ companyName: 'asc' }, { name: 'asc' }],
   });
 
-  return clients
-    .filter(c => c.monthlyDeliverables.length > 0)
-    .map(client => {
-      const deliverables = client.monthlyDeliverables.map(d => {
-        const tasks = client.tasks.filter(t => t.monthlyDeliverableId === d.id);
-        const completedTasks = tasks.filter(t => t.status === 'COMPLETED' || t.status === 'POSTED').length;
-        const totalTasks = tasks.length;
-        const expectedQuantity = d.quantity || 0;
+  const clientIds = clients.map((client) => client.id);
+  if (clientIds.length === 0) {
+    return [];
+  }
 
-        return {
-          id: d.id,
-          type: d.type,
-          quantity: expectedQuantity,
-          platforms: d.platforms,
-          completedTasks,
-          totalTasks,
-          progress: expectedQuantity > 0
-            ? Math.round((completedTasks / expectedQuantity) * 100)
-            : totalTasks > 0
-              ? Math.round((completedTasks / totalTasks) * 100)
-              : 0,
-        };
-      });
+  const tasks = await prisma.task.findMany({
+    where: {
+      clientId: { in: clientIds },
+      OR: [
+        { recurringMonth: monthKey },
+        {
+          recurringMonth: null,
+          dueDate: { gte: monthStart, lte: monthEnd },
+        },
+      ],
+    },
+    select: {
+      id: true,
+      title: true,
+      clientId: true,
+      monthlyDeliverableId: true,
+      oneOffDeliverableId: true,
+      deliverableType: true,
+      taskType: true,
+      status: true,
+      dueDate: true,
+      recurringMonth: true,
+    },
+  });
 
-      const totalExpected = deliverables.reduce((sum, d) => sum + (d.quantity || d.totalTasks), 0);
-      const totalCompleted = deliverables.reduce((sum, d) => sum + d.completedTasks, 0);
-
-      return {
-        clientId: client.id,
-        clientName: client.companyName,
-        deliverables,
-        totalExpected,
-        totalCompleted,
-        overallProgress: totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0,
-      };
-    });
+  return buildCurrentMonthClientDeliverablesProgress({
+    clients,
+    tasks,
+    now,
+    monthKey,
+    logPrefix: '[ADMIN DASHBOARD]',
+  });
 }

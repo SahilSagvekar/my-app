@@ -4,6 +4,11 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendBidAcceptedEmail } from '@/lib/email';
 
+function hasAdminJobAccess(role: string | null | undefined) {
+    const normalizedRole = role?.toLowerCase();
+    return normalizedRole === 'admin' || normalizedRole === 'manager';
+}
+
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
     const params = await props.params;
     try {
@@ -12,7 +17,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (user.role !== 'admin' && user.role !== 'manager') {
+        if (!hasAdminJobAccess(user.role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

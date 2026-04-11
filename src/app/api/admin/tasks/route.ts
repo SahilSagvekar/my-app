@@ -3,34 +3,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@prisma/client";
-import { createAuditLog, AuditAction } from '@/lib/audit-logger';
-
-// ─────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────
-
-function getTokenFromCookies(req: Request) {
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-    const match = cookieHeader.match(/authToken=([^;]+)/);
-    return match ? match[1] : null;
-}
-
-function verifyAdminAccess(token: string): { userId: number; role: string } | null {
-    try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!["admin", "manager"].includes(decoded.role?.toLowerCase())) {
-            return null;
-        }
-        return { userId: decoded.userId, role: decoded.role };
-    } catch {
-        return null;
-    }
-}
+import { getCurrentUser2 } from '@/lib/auth';
 
 // ─────────────────────────────────────────
 // GET: Fetch all tasks with advanced filtering
@@ -243,13 +219,12 @@ function verifyAdminAccess(token: string): { userId: number; role: string } | nu
 
 export async function GET(req: Request) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
+        const user = await getCurrentUser2(req);
+        if (!user) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
         }
 
-        const auth = verifyAdminAccess(token);
-        if (!auth) {
+        if (!["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
             return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 

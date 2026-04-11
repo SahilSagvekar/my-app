@@ -25,10 +25,10 @@ function getUserFromToken(req: Request): { userId: number; role: string } | null
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }  // Add Promise here
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;  // Await params
+    const { id } = await params;
     const body = await request.json();
     const { platform, url, postedAt } = body;
     const user = getUserFromToken(request);
@@ -36,7 +36,7 @@ export async function POST(
     // Get current task
     const task = await prisma.task.findUnique({
       where: { id: id },
-      select: { socialMediaLinks: true, title: true, description: true }
+      select: { socialMediaLinks: true, title: true, description: true },
     });
 
     if (!task) {
@@ -67,7 +67,6 @@ export async function POST(
       },
     });
 
-    // 📝 Audit log
     if (user) {
       await createAuditLog({
         userId: user.userId,

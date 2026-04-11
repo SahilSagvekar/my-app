@@ -32,24 +32,33 @@ interface UploadDB extends DBSchema {
 
 class UploadStateManager {
   private db: IDBPDatabase<UploadDB> | null = null;
+  private disabled = false;
 
   async init() {
+    if (this.disabled) return null;
     if (this.db) return this.db;
 
-    this.db = await openDB<UploadDB>('upload-manager', 1, {
-      upgrade(db) {
-        // Create uploads store
-        const uploadsStore = db.createObjectStore('uploads', { keyPath: 'id' });
-        uploadsStore.createIndex('by-status', 'status');
-        uploadsStore.createIndex('by-task', 'taskId');
-      },
-    });
+    try {
+      this.db = await openDB<UploadDB>('upload-manager', 1, {
+        upgrade(db) {
+          // Create uploads store
+          const uploadsStore = db.createObjectStore('uploads', { keyPath: 'id' });
+          uploadsStore.createIndex('by-status', 'status');
+          uploadsStore.createIndex('by-task', 'taskId');
+        },
+      });
+    } catch (error) {
+      this.disabled = true;
+      console.warn('⚠️ Upload state persistence disabled because IndexedDB is unavailable:', error);
+      return null;
+    }
 
     return this.db;
   }
 
   async saveUploadState(state: UploadState) {
     const db = await this.init();
+    if (!db) return;
     await db.put('uploads', {
       ...state,
       lastUpdated: Date.now(),
@@ -58,11 +67,13 @@ class UploadStateManager {
 
   async getUploadState(id: string): Promise<UploadState | undefined> {
     const db = await this.init();
+    if (!db) return undefined;
     return db.get('uploads', id);
   }
 
   async getAllActiveUploads(): Promise<UploadState[]> {
     const db = await this.init();
+    if (!db) return [];
     const uploads = await db.getAllFromIndex('uploads', 'by-status', 'uploading');
     const paused = await db.getAllFromIndex('uploads', 'by-status', 'paused');
     return [...uploads, ...paused];
@@ -70,11 +81,13 @@ class UploadStateManager {
 
   async getUploadsByTask(taskId: string): Promise<UploadState[]> {
     const db = await this.init();
+    if (!db) return [];
     return db.getAllFromIndex('uploads', 'by-task', taskId);
   }
 
   async deleteUploadState(id: string) {
     const db = await this.init();
+    if (!db) return;
     await db.delete('uploads', id);
   }
 
@@ -85,6 +98,7 @@ class UploadStateManager {
     uploadedParts: Array<{ ETag: string; PartNumber: number }>
   ) {
     const db = await this.init();
+    if (!db) return;
     const state = await this.getUploadState(id);
     if (state) {
       state.uploadedBytes = uploadedBytes;
@@ -97,6 +111,7 @@ class UploadStateManager {
 
   async markAsCompleted(id: string) {
     const db = await this.init();
+    if (!db) return;
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'completed';
@@ -110,6 +125,7 @@ class UploadStateManager {
 
   async markAsFailed(id: string, error: string) {
     const db = await this.init();
+    if (!db) return;
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'failed';
@@ -121,6 +137,7 @@ class UploadStateManager {
 
   async pauseUpload(id: string) {
     const db = await this.init();
+    if (!db) return;
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'paused';
@@ -131,6 +148,7 @@ class UploadStateManager {
 
   async resumeUpload(id: string) {
     const db = await this.init();
+    if (!db) return undefined;
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'uploading';

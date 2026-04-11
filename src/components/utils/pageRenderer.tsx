@@ -11,7 +11,7 @@ import { TrainingManagementTab } from "../admin/TrainingManagementTab";
 import { TrainingPortalPage } from "../training/TrainingPortalPage";
 import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
-import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
+import { SchedulerApprovedQueuePage } from "../dashboards/SchedulerApprovedQueuePage";
 import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
 import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";
@@ -59,6 +59,7 @@ const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(
   ssr: false,
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Billing...</div>
 });
+
 import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
@@ -259,7 +260,7 @@ export function renderPage(
       case "calendar":
         return <SchedulerDashboard />;
       case "approved-queue":
-        return <SchedulerSpreadsheetView />;
+        return <SchedulerApprovedQueuePage />;
       case "scheduling":
         return <SchedulerSchedulingPage />;
       case "content-titling":
@@ -326,11 +327,14 @@ export function renderPage(
       case "social":
         console.log("linkedClientId:", linkedClientId);
         return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
+        console.log("linkedClientId:", linkedClientId);
+        return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
       case "training":
         return <TrainingPortalPage />;
       case "archive":
         return <ComingSoonPage title="Archive" />;
       case "contracts":
+        return <ClientPortalPage />; // Unified page with Info + Contracts + Invoices
         return <ClientPortalPage />; // Unified page with Info + Contracts + Invoices
       default:
         return <ClientMonthlyOverview />;
@@ -365,15 +369,15 @@ export function renderPage(
   if (role === "sales") {
     // 🔥 If admin is viewing as sales, show the SalesManagementTab instead of SalesDashboard
     const isAdminViewingAsSales = originalRole?.toLowerCase() === 'admin';
+  
     
     switch (page) {
       case "dashboard":
       case "sales-management":
+      case "clients":
         return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "affiliate":
         return <AffiliateSection />;
-      case "clients":
-        return isAdminViewingAsSales ? <SalesManagementTab /> : <SalesDashboard />;
       case "training":
         return <TrainingPortalPage />;
       case "employment-info":

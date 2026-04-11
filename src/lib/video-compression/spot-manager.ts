@@ -1,24 +1,55 @@
 // Spot Instance Manager - Start/Stop c6i.xlarge for compression
-import {
-  EC2Client,
-  RunInstancesCommand,
-  TerminateInstancesCommand,
-  DescribeInstancesCommand,
-  DescribeSpotPriceHistoryCommand,
-  CreateTagsCommand,
-} from '@aws-sdk/client-ec2';
 import { Redis } from '@upstash/redis';
 import { COMPRESSION_CONFIG, REDIS_KEYS, SpotStatus } from './config';
 import { getBudgetUsed, addToBudget, isBudgetExhausted } from './queue';
 
-// const ec2 = new EC2Client({ region: COMPRESSION_CONFIG.spot.region });
-const ec2 = new EC2Client({ 
-  region: COMPRESSION_CONFIG.spot.region,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID_2!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_2!,
+type Ec2ClientLike = {
+  send(command: unknown): Promise<any>;
+};
+
+type Ec2SdkModule = {
+  EC2Client: new (config: {
+    region: string;
+    credentials: {
+      accessKeyId: string;
+      secretAccessKey: string;
+    };
+  }) => Ec2ClientLike;
+  RunInstancesCommand: new (input: unknown) => unknown;
+  TerminateInstancesCommand: new (input: unknown) => unknown;
+  DescribeInstancesCommand: new (input: unknown) => unknown;
+  DescribeSpotPriceHistoryCommand: new (input: unknown) => unknown;
+};
+
+let ec2SdkPromise: Promise<Ec2SdkModule> | null = null;
+let ec2: Ec2ClientLike | null = null;
+
+async function loadEc2Sdk(): Promise<Ec2SdkModule> {
+  if (!ec2SdkPromise) {
+    const modulePath = "@aws-sdk" + "/client-ec2";
+    ec2SdkPromise = new Function(
+      "modulePath",
+      "return import(modulePath);"
+    )(modulePath) as Promise<Ec2SdkModule>;
   }
-});
+
+  return ec2SdkPromise;
+}
+
+async function getEc2Client(): Promise<Ec2ClientLike> {
+  if (!ec2) {
+    const { EC2Client } = await loadEc2Sdk();
+    ec2 = new EC2Client({
+      region: COMPRESSION_CONFIG.spot.region,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID_2!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_2!,
+      },
+    });
+  }
+
+  return ec2;
+}
 
 let redis: Redis | null = null;
 
@@ -69,7 +100,9 @@ async function setSpotStatus(status: SpotStatus): Promise<void> {
  */
 export async function getCurrentSpotPrice(): Promise<number> {
   try {
-    const response = await ec2.send(new DescribeSpotPriceHistoryCommand({
+    const ec2Client = await getEc2Client();
+    const { DescribeSpotPriceHistoryCommand } = await loadEc2Sdk();
+    const response = await ec2Client.send(new DescribeSpotPriceHistoryCommand({
       InstanceTypes: [COMPRESSION_CONFIG.spot.instanceType],
       ProductDescriptions: ['Linux/UNIX'],
       MaxResults: 1,
@@ -168,7 +201,9 @@ node worker.js
 `;
 
     // Launch spot instance
-    const response = await ec2.send(new RunInstancesCommand({
+    const ec2Client = await getEc2Client();
+    const { RunInstancesCommand } = await loadEc2Sdk();
+    const response = await ec2Client.send(new RunInstancesCommand({
       ImageId: COMPRESSION_CONFIG.spot.amiId,
       InstanceType: COMPRESSION_CONFIG.spot.instanceType,
       MinCount: 1,
@@ -241,7 +276,9 @@ export async function stopSpotInstance(): Promise<void> {
     
     console.log(`[SpotManager] Terminating spot instance: ${status.instanceId}`);
     
-    await ec2.send(new TerminateInstancesCommand({
+    const ec2Client = await getEc2Client();
+    const { TerminateInstancesCommand } = await loadEc2Sdk();
+    await ec2Client.send(new TerminateInstancesCommand({
       InstanceIds: [status.instanceId],
     }));
     
@@ -265,7 +302,9 @@ export async function verifySpotInstance(): Promise<boolean> {
     
     if (!status.instanceId) return false;
     
-    const response = await ec2.send(new DescribeInstancesCommand({
+    const ec2Client = await getEc2Client();
+    const { DescribeInstancesCommand } = await loadEc2Sdk();
+    const response = await ec2Client.send(new DescribeInstancesCommand({
       InstanceIds: [status.instanceId],
     }));
     

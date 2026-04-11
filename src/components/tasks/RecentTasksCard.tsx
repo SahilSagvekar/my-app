@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Avatar, AvatarFallback } from "../ui/avatar";
+import { Avatar } from "../ui/avatar";
 import { Clock, User, Share2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { ShareDialog } from "../review/ShareDialog";
 import { toast } from "sonner";
+import { useAuth } from "../auth/AuthContext";
 
 interface Task {
   id: string;
@@ -21,7 +22,21 @@ interface Task {
   oneOffDeliverableId?: string | null;
 }
 
-export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = false }) {
+interface TasksResponse {
+  tasks?: Task[];
+  data?: Task[];
+}
+
+interface RecentTasksCardProps {
+  title?: string;
+  showCreateButton?: boolean;
+  reloadKey?: number;
+}
+
+export function RecentTasksCard({
+  title = "Recent Tasks",
+  reloadKey = 0,
+}: RecentTasksCardProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
@@ -29,40 +44,57 @@ export function RecentTasksCard({ title = "Recent Tasks", showCreateButton = fal
   // 🔥 Share states
   const [shareLink, setShareLink] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
+  const [, setIsSharing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { user } = useAuth();
 
   const safeTasks = Array.isArray(tasks) ? tasks : [];
 
   useEffect(() => {
-    loadTasks();
-  }, []);
+    if (!user) {
+      setTasks([]);
+      setLoading(false);
+      return;
+    }
+
+    void loadTasks();
+  }, [reloadKey, user?.id]);
 
   async function loadTasks() {
     try {
-      const res = await fetch("/api/tasks");
-      const text = await res.text(); // read raw text (debug friendly)
+      const res = await fetch("/api/tasks", {
+        credentials: "include",
+      });
+      const text = await res.text();
+      const data = JSON.parse(text) as Task[] | TasksResponse;
 
-      let data: any = {};
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("❌ Invalid JSON from /api/tasks:", text);
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          console.warn("Recent tasks are unavailable for this session.");
+        } else {
+          console.error("Failed to load tasks:", data);
+        }
         setTasks([]);
         return;
       }
 
-      let list = [];
-
-      if (Array.isArray(data)) list = data;
-      else if (Array.isArray(data.tasks)) list = data.tasks;
-      else if (Array.isArray(data.data)) list = data.data;
-      else {
-        console.warn("⚠ No tasks array in response:", data);
-        list = [];
+      if (Array.isArray(data)) {
+        setTasks(data);
+        return;
       }
 
-      setTasks(list);
+      if (Array.isArray(data.tasks)) {
+        setTasks(data.tasks);
+        return;
+      }
+
+      if (Array.isArray(data.data)) {
+        setTasks(data.data);
+        return;
+      }
+
+      console.warn("No tasks array in response:", data);
+      setTasks([]);
     } catch (err) {
       console.error("❌ Failed to load tasks:", err);
       setTasks([]);

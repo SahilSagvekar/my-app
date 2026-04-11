@@ -4,6 +4,11 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendNewJobNotificationEmail } from '@/lib/email';
 
+function hasAdminJobAccess(role: string | null | undefined) {
+    const normalizedRole = role?.toLowerCase();
+    return normalizedRole === 'admin' || normalizedRole === 'manager';
+}
+
 export async function POST(req: NextRequest) {
     try {
         const user = await getCurrentUser2(req);
@@ -12,7 +17,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Only Admin or Manager can create jobs
-        if (user.role !== 'admin' && user.role !== 'manager') {
+        if (!hasAdminJobAccess(user.role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
@@ -112,6 +117,7 @@ export async function GET(req: NextRequest) {
 
         const whereClause: any = {};
         if (status) whereClause.status = status;
+        const normalizedRole = user.role?.toLowerCase();
 
         const jobs = await (prisma as any).job.findMany({
             where: whereClause,
@@ -122,9 +128,9 @@ export async function GET(req: NextRequest) {
                 client: {
                     select: { id: true, name: true, companyName: true }
                 },
-                bids: user.role === 'admin' || user.role === 'manager'
+                bids: hasAdminJobAccess(user.role)
                     ? { include: { videographer: { select: { name: true, email: true, image: true } } } }
-                    : (user.role === 'videographer')
+                    : (normalizedRole === 'videographer')
                         ? { where: { userId: user.id } }
                         : false
             },

@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { SessionExpiredModal } from "@/components/auth/SessionExpiredModal";
 
+const AUTH_TOKEN_STORAGE_KEY = "e8_auth_token";
+const AUTH_TOKEN_REMEMBERED_KEY = "e8_auth_token_remembered";
+
 interface User {
-  id: string;
+  id: string | number;
   email: string;
   name?: string;
   image?: string;
@@ -30,12 +33,97 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function safeStorageRead(storage: Storage | undefined, key: string) {
+  if (!storage) return null;
+
+  try {
+    return storage.getItem(key);
+  } catch (error) {
+    console.warn("⚠️ Unable to read auth storage:", error);
+    return null;
+  }
+}
+
+function safeStorageWrite(storage: Storage | undefined, key: string, value: string) {
+  if (!storage) return;
+
+  try {
+    storage.setItem(key, value);
+  } catch (error) {
+    console.warn("⚠️ Unable to write auth storage:", error);
+  }
+}
+
+function safeStorageRemove(storage: Storage | undefined, key: string) {
+  if (!storage) return;
+
+  try {
+    storage.removeItem(key);
+  } catch (error) {
+    console.warn("⚠️ Unable to clear auth storage:", error);
+  }
+}
+
+function getSafeStorage(type: "local" | "session") {
+  if (typeof window === "undefined") return undefined;
+
+  try {
+    return type === "local" ? window.localStorage : window.sessionStorage;
+  } catch (error) {
+    console.warn(`⚠️ Unable to access ${type}Storage:`, error);
+    return undefined;
+  }
+}
+
+function getPersistentStorage(rememberMe: boolean) {
+  return getSafeStorage(rememberMe ? "local" : "session");
+}
+
+function readStoredAuthToken() {
+  return (
+    safeStorageRead(getSafeStorage("session"), AUTH_TOKEN_STORAGE_KEY) ||
+    safeStorageRead(getSafeStorage("local"), AUTH_TOKEN_STORAGE_KEY)
+  );
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSessionExpired, setShowSessionExpired] = useState(false);
   const router = useRouter();
+  const authTokenRef = React.useRef<string | null>(null);
+
+  const persistAuthToken = React.useCallback((token: string, rememberMe: boolean) => {
+    authTokenRef.current = token;
+
+    if (typeof window === "undefined") return;
+
+    safeStorageWrite(getPersistentStorage(rememberMe), AUTH_TOKEN_STORAGE_KEY, token);
+    safeStorageWrite(getSafeStorage("local"), AUTH_TOKEN_REMEMBERED_KEY, rememberMe ? "true" : "false");
+
+    const alternateStorage = getPersistentStorage(!rememberMe);
+    safeStorageRemove(alternateStorage, AUTH_TOKEN_STORAGE_KEY);
+  }, []);
+
+  const clearStoredAuthToken = React.useCallback(() => {
+    authTokenRef.current = null;
+
+    safeStorageRemove(getSafeStorage("session"), AUTH_TOKEN_STORAGE_KEY);
+    safeStorageRemove(getSafeStorage("local"), AUTH_TOKEN_STORAGE_KEY);
+    safeStorageRemove(getSafeStorage("local"), AUTH_TOKEN_REMEMBERED_KEY);
+  }, []);
+
+  const getAuthHeaders = React.useCallback((headers?: HeadersInit) => {
+    const mergedHeaders = new Headers(headers);
+    const token = authTokenRef.current || readStoredAuthToken();
+
+    if (token && !mergedHeaders.has("Authorization")) {
+      mergedHeaders.set("Authorization", `Bearer ${token}`);
+    }
+
+    return mergedHeaders;
+  }, []);
 
   // Track auth state in a ref for the fetch interceptor
   const authStateRef = React.useRef({ isAuthenticated, user });
@@ -47,12 +135,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await fetch("/api/auth/me");
+        authTokenRef.current = readStoredAuthToken();
+
+        const res = await fetch("/api/auth/me", {
+          cache: "no-store",
+          credentials: "include",
+          headers: getAuthHeaders(),
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
             setUser(data.user);
             setIsAuthenticated(true);
+          } else if (authTokenRef.current) {
+            clearStoredAuthToken();
           }
         }
       } finally {
@@ -60,7 +156,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
     checkAuth();
-  }, []);
+  }, [clearStoredAuthToken, getAuthHeaders]);
+
+  const fetchAuthenticatedUser = async (attempts = 6, delayMs = 150): Promise<User | null> => {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        credentials: "include",
+        headers: getAuthHeaders(),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          return data.user as User;
+        }
+      }
+
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+      }
+    }
+
+    return null;
+  };
 
   // Global fetch interceptor for JWT expiration
   useEffect(() => {
@@ -74,11 +193,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const wrappedFetch = async (...args: any[]) => {
       let response: Response;
+      const requestInput = args[0];
+      const requestUrl =
+        typeof requestInput === 'string'
+          ? requestInput
+          : requestInput instanceof URL
+            ? requestInput.toString()
+            : (requestInput as Request)?.url || '';
+      const isInternalApiRequest =
+        requestUrl.startsWith('/api/') ||
+        requestUrl.startsWith(`${window.location.origin}/api/`);
+
+      if (isInternalApiRequest) {
+        const init = (args[1] ?? {}) as RequestInit;
+        args[1] = {
+          ...init,
+          credentials: init.credentials ?? "include",
+          headers: getAuthHeaders(init.headers),
+        };
+      }
 
       try {
         // Execute the actual fetch using apply to handle arguments correctly
         response = await (originalFetch as any).apply(window, args);
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw error;
+        }
+
         // Normalize low-level network errors (TypeError: Failed to fetch, CORS, offline, etc.)
         console.error('Global fetch error:', error);
         return new Response(
@@ -147,12 +289,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.fetch = originalFetch;
     };
-  }, []);
+  }, [getAuthHeaders, showSessionExpired]);
 
   const login = async (email: string, password: string, rememberMe?: boolean) => {
     setLoading(true);
     const res = await fetch("/api/login", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, rememberMe }),
     });
@@ -163,10 +306,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.message || "Login failed");
     }
 
-    const data = await res.json();
-    setUser(data.user);
+    const data = await res.json() as { token?: string; user?: User };
+
+    if (data.token) {
+      persistAuthToken(data.token, Boolean(rememberMe));
+    }
+
+    const nextUser = await fetchAuthenticatedUser(3, 100) || data.user || null;
+    if (!nextUser) {
+      setLoading(false);
+      throw new Error("Session initialization failed. Please try logging in again.");
+    }
+
+    setUser(nextUser);
     setIsAuthenticated(true);
     setLoading(false);
+
+    if (window.location.pathname !== "/dashboard") {
+      window.location.replace("/dashboard");
+    }
   };
 
   const logout = async () => {
@@ -178,6 +336,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       // Clear auth token cookie
       document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+      clearStoredAuthToken();
 
       setUser(null);
       setIsAuthenticated(false);

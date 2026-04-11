@@ -21,27 +21,40 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreateJobDialog } from './CreateJobDialog';
+import { useAuth } from '../auth/AuthContext';
 
 export function JobManagementSection() {
     const [jobs, setJobs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
     const [processingBid, setProcessingBid] = useState<string | null>(null);
+    const { user } = useAuth();
 
     const fetchJobs = async () => {
+      if (!user) {
+        setJobs([]);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
-        const res = await fetch("/api/jobs");
+        const res = await fetch("/api/jobs", {
+          credentials: "include",
+        });
         const data = await res.json();
         if (!res.ok) {
-          toast.error(data.error || "Failed to load jobs");
-          setJobs([]); // ✅ Always an array
+          if (res.status === 401 || res.status === 403) {
+            console.warn("Job management is unavailable for this session:", data.error);
+          } else {
+            toast.error(data.error || "Failed to load jobs");
+          }
+          setJobs([]);
           return;
         }
 
-        // Handle both array and wrapped responses
         const jobsArray = Array.isArray(data) ? data : data.jobs || [];
-        setJobs(jobsArray); // ✅ Always an array
+        setJobs(jobsArray);
       } catch (error) {
         console.error("Failed to fetch jobs:", error);
         toast.error("Failed to load jobs");
@@ -51,8 +64,8 @@ export function JobManagementSection() {
     };
 
     useEffect(() => {
-        fetchJobs();
-    }, []);
+        void fetchJobs();
+    }, [user?.id]);
 
     const handleSelectVideographer = async (jobId: string, bidId: string) => {
         if (!confirm('Are you sure you want to award this job to this videographer? This will notify them and reject all other bids.')) return;
@@ -62,6 +75,7 @@ export function JobManagementSection() {
             const res = await fetch(`/api/jobs/${jobId}/select`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: "include",
                 body: JSON.stringify({ bidId }),
             });
 
