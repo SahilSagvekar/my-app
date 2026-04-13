@@ -126,6 +126,18 @@ export class TaskService {
     return { company: title.toLowerCase(), date: '', prefix: '', number: 0 };
   }
 
+  static getRecentMonthFolders(): string[] {
+    const folders: string[] = [];
+    const now = new Date();
+    for (let i = 0; i < 2; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const month = d.toLocaleDateString('en-US', { month: 'long' });
+      const year = d.getFullYear();
+      folders.push(`${month}-${year}`);
+    }
+    return folders;
+  }
+
   static async getTasks(
     role: string | null, 
     userId: number, 
@@ -147,9 +159,15 @@ export class TaskService {
       else where.clientId = filters.clientId;
     }
 
-    if (filters.month) {
+    if (filters.month === "all" || filters.month === "history") {
+      // Fetch everything
+    } else if (filters.month) {
       if (where.AND) where.AND.push({ monthFolder: filters.month });
       else where.monthFolder = filters.month;
+    } else {
+      const recent = this.getRecentMonthFolders();
+      if (where.AND) where.AND.push({ monthFolder: { in: recent } });
+      else where.monthFolder = { in: recent };
     }
 
     try {

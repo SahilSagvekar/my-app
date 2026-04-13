@@ -74,12 +74,8 @@ export function TaskUploadSections({
   onUploadComplete,
 }: TaskUploadSectionsProps) {
   const [sections, setSections] = useState<UploadSection[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<
-    Record<string, FileRecord[]>
-  >({});
-  const [sectionFeedback, setSectionFeedback] = useState<
-    Record<string, FeedbackRecord[]>
-  >({});
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, FileRecord[]>>({});
+  const [sectionFeedback, setSectionFeedback] = useState<Record<string, FeedbackRecord[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [showHistory, setShowHistory] = useState<Record<string, boolean>>({});
@@ -221,6 +217,41 @@ export function TaskUploadSections({
       ...prev,
       [folderType]: !prev[folderType],
     }));
+  };
+
+  // Delete file handler
+  const handleDeleteFile = async (fileId: string, folderType: string) => {
+    if (!confirm("Delete this file? This cannot be undone.")) return;
+    
+    try {
+      const res = await fetch(`/api/files/${fileId}`, {
+        method: "DELETE",
+      });
+      
+      if (!res.ok) {
+        throw new Error("Failed to delete file");
+      }
+      
+      // Remove from local state
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [folderType]: prev[folderType]?.filter((f) => f.id !== fileId) || [],
+      }));
+      
+      // Update section uploaded status
+      setSections((prev) =>
+        prev.map((section) =>
+          section.folderType === folderType
+            ? { ...section, uploaded: (uploadedFiles[folderType]?.length || 0) > 1 }
+            : section
+        )
+      );
+      
+      onUploadComplete([]);
+    } catch (error) {
+      console.error("Delete failed:", error);
+      alert("Failed to delete file. Try again.");
+    }
   };
 
   // Submit to QC handler
@@ -391,15 +422,28 @@ export function TaskUploadSections({
                               ({(file.size / 1024).toFixed(0)} KB)
                             </span>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(file.url, "_blank");
-                            }}
-                            className="p-1 hover:bg-gray-200 rounded ml-2"
-                          >
-                            <Eye className="h-3 w-3 text-gray-600" />
-                          </button>
+                          <div className="flex items-center gap-1 ml-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(file.url, "_blank");
+                              }}
+                              className="p-1 hover:bg-gray-200 rounded"
+                              title="View file"
+                            >
+                              <Eye className="h-3 w-3 text-gray-600" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteFile(file.id, section.folderType);
+                              }}
+                              className="p-1 hover:bg-red-100 rounded"
+                              title="Delete file"
+                            >
+                              <Trash2 className="h-3 w-3 text-red-500" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

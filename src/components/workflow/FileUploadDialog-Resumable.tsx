@@ -96,6 +96,55 @@ export function FileUploadDialog({
     return labels[f] || f;
   };
 
+  // File type validation per folder type
+  const getAcceptedTypes = (folder: string): string => {
+    switch (folder) {
+      case "main":
+        return ".mp4,.mov,video/mp4,video/quicktime";
+      case "thumbnails":
+      case "tiles":
+      case "covers":
+        return ".png,.jpg,.jpeg,image/png,image/jpeg";
+      case "music-license":
+        return ".pdf,application/pdf";
+      default:
+        return "*";
+    }
+  };
+
+  const getAcceptedTypesLabel = (folder: string): string => {
+    switch (folder) {
+      case "main":
+        return "MP4 or MOV files only";
+      case "thumbnails":
+      case "tiles":
+      case "covers":
+        return "PNG, JPG or JPEG files only";
+      case "music-license":
+        return "PDF files only";
+      default:
+        return "Any file type";
+    }
+  };
+
+  const isValidFileType = (file: File, folder: string): boolean => {
+    const ext = file.name.toLowerCase().split('.').pop() || '';
+    const mime = file.type.toLowerCase();
+    
+    switch (folder) {
+      case "main":
+        return ['mp4', 'mov'].includes(ext) || ['video/mp4', 'video/quicktime'].includes(mime);
+      case "thumbnails":
+      case "tiles":
+      case "covers":
+        return ['png', 'jpg', 'jpeg'].includes(ext) || ['image/png', 'image/jpeg'].includes(mime);
+      case "music-license":
+        return ext === 'pdf' || mime === 'application/pdf';
+      default:
+        return true;
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -114,16 +163,34 @@ export function FileUploadDialog({
     setIsDragging(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const newFiles = Array.from(e.dataTransfer.files);
-      setSelectedFiles(prev => [...prev, ...newFiles]);
+      const newFiles = Array.from(e.dataTransfer.files).filter(file => {
+        if (!isValidFileType(file, subfolder)) {
+          alert(`"${file.name}" rejected. ${getAcceptedTypesLabel(subfolder)}`);
+          return false;
+        }
+        return true;
+      });
+      if (newFiles.length > 0) {
+        setSelectedFiles(prev => [...prev, ...newFiles]);
+      }
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...newFiles]);
+      const newFiles = Array.from(e.target.files).filter(file => {
+        if (!isValidFileType(file, subfolder)) {
+          alert(`"${file.name}" rejected. ${getAcceptedTypesLabel(subfolder)}`);
+          return false;
+        }
+        return true;
+      });
+      if (newFiles.length > 0) {
+        setSelectedFiles(prev => [...prev, ...newFiles]);
+      }
     }
+    // Reset input so same file can be selected again
+    if (e.target) e.target.value = '';
   };
 
   const removeFile = (index: number) => {
@@ -248,13 +315,14 @@ export function FileUploadDialog({
                   <p className="text-sm font-bold text-gray-700">
                     {isDragging ? "Drop files now" : "Click to upload or drag & drop"}
                   </p>
-                  <p className="text-xs text-slate-400">Multiple videos, images or documents</p>
+                  <p className="text-xs text-slate-400">{getAcceptedTypesLabel(subfolder)}</p>
                 </div>
                 <input
                   type="file"
                   className="hidden"
                   id="file-input"
                   multiple
+                  accept={getAcceptedTypes(subfolder)}
                   onChange={handleFileSelect}
                 />
               </div>

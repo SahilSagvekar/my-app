@@ -241,6 +241,18 @@ function verifyAdminAccess(token: string): { userId: number; role: string } | nu
 // }
 
 
+function getRecentMonthFolders(): string[] {
+    const folders: string[] = [];
+    const now = new Date();
+    for (let i = 0; i < 2; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const month = d.toLocaleDateString('en-US', { month: 'long' });
+        const year = d.getFullYear();
+        folders.push(`${month}-${year}`);
+    }
+    return folders;
+}
+
 export async function GET(req: Request) {
     try {
         const token = getTokenFromCookies(req);
@@ -277,7 +289,7 @@ export async function GET(req: Request) {
         const dueDateTo = searchParams.get("dueDateTo");
         const createdFrom = searchParams.get("createdFrom");
         const createdTo = searchParams.get("createdTo");
-        const month = searchParams.get("month");
+        const monthFilter = searchParams.get("month");
 
         // Build where clause with AND logic
         const where: any = {};
@@ -297,9 +309,16 @@ export async function GET(req: Request) {
             };
         }
 
-        // Month filter
-        if (month && month !== 'all') {
-            where.monthFolder = month;
+        // 🔥 MONTH FILTER LOGIC
+        if (monthFilter === "all" || monthFilter === "history") {
+            // Rare case: No month folder restriction
+        } else if (monthFilter) {
+            // Specific month selected
+            where.monthFolder = monthFilter;
+        } else {
+            // DEFAULT: Current month + Previous month
+            const recentMonths = getRecentMonthFolders();
+            where.monthFolder = { in: recentMonths };
         }
 
         // Text search on title and description

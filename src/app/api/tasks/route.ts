@@ -614,6 +614,18 @@ const WEEKDAY_MAP: Record<string, number> = {
 
 
 
+function getRecentMonthFolders(): string[] {
+  const folders: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < 2; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = d.toLocaleDateString('en-US', { month: 'long' });
+    const year = d.getFullYear();
+    folders.push(`${month}-${year}`);
+  }
+  return folders;
+}
+
 export async function GET(req: any) {
   try {
     const user = await getCurrentUser2(req);
@@ -678,16 +690,23 @@ export async function GET(req: any) {
       }
     }
 
-    // 🔥 ADD MONTH FILTER - Filter by monthFolder (e.g., "March-2026")
-    if (monthFilter && monthFilter !== "all") {
+    // 🔥 ADD MONTH FILTER - Default to current + previous month
+    if (monthFilter === "all" || monthFilter === "history") {
+      // Rare case: No month folder restriction
+    } else if (monthFilter) {
+      // Specific month selected
       if (where.AND) {
         where.AND.push({ monthFolder: monthFilter });
-      } else if (Object.keys(where).length > 0) {
-        where = {
-          AND: [where, { monthFolder: monthFilter }],
-        };
       } else {
-        where = { monthFolder: monthFilter };
+        where = { AND: [where, { monthFolder: monthFilter }] };
+      }
+    } else {
+      // DEFAULT: Current month + Previous month
+      const recentMonths = getRecentMonthFolders();
+      if (where.AND) {
+        where.AND.push({ monthFolder: { in: recentMonths } });
+      } else {
+        where = { AND: [where, { monthFolder: { in: recentMonths } }] };
       }
     }
 

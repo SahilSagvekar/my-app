@@ -152,6 +152,18 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function getRecentMonthFolders(): string[] {
+  const folders: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < 2; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = d.toLocaleDateString('en-US', { month: 'long' });
+    const year = d.getFullYear();
+    folders.push(`${month}-${year}`);
+  }
+  return folders;
+}
+
 // ─────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────
@@ -174,7 +186,7 @@ export function TaskManagementTab() {
     client: 'all',
     status: 'all',
     deliverableType: 'all',
-    month: 'all',
+    month: '', // Empty triggers the 2-month backend default
     search: '',
     dueDateFrom: undefined,
     dueDateTo: undefined,
@@ -1067,11 +1079,12 @@ export function TaskManagementTab() {
                   }}
                 >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All Months" />
+                    <SelectValue placeholder="Recent (2 Mo)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Months</SelectItem>
-                    {availableMonths.map((m) => (
+                    <SelectItem value="">Recent (2 Mo)</SelectItem>
+                    <SelectItem value="all">All History</SelectItem>
+                    {availableMonths.filter(m => !getRecentMonthFolders().includes(m)).map((m) => (
                       <SelectItem key={m} value={m}>
                         {m}
                       </SelectItem>
