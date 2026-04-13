@@ -3,34 +3,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@prisma/client";
-import { createAuditLog, AuditAction } from '@/lib/audit-logger';
-
-// ─────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────
-
-function getTokenFromCookies(req: Request) {
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-    const match = cookieHeader.match(/authToken=([^;]+)/);
-    return match ? match[1] : null;
-}
-
-function verifyAdminAccess(token: string): { userId: number; role: string } | null {
-    try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!["admin", "manager"].includes(decoded.role?.toLowerCase())) {
-            return null;
-        }
-        return { userId: decoded.userId, role: decoded.role };
-    } catch {
-        return null;
-    }
-}
+import { getCurrentUser2 } from '@/lib/auth';
 
 // ─────────────────────────────────────────
 // GET: Fetch all tasks with advanced filtering
@@ -241,27 +217,14 @@ function verifyAdminAccess(token: string): { userId: number; role: string } | nu
 // }
 
 
-function getRecentMonthFolders(): string[] {
-    const folders: string[] = [];
-    const now = new Date();
-    for (let i = 0; i < 2; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const month = d.toLocaleDateString('en-US', { month: 'long' });
-        const year = d.getFullYear();
-        folders.push(`${month}-${year}`);
-    }
-    return folders;
-}
-
 export async function GET(req: Request) {
     try {
-        const token = getTokenFromCookies(req);
-        if (!token) {
+        const user = await getCurrentUser2(req);
+        if (!user) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
         }
 
-        const auth = verifyAdminAccess(token);
-        if (!auth) {
+        if (!["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
             return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 
@@ -289,7 +252,7 @@ export async function GET(req: Request) {
         const dueDateTo = searchParams.get("dueDateTo");
         const createdFrom = searchParams.get("createdFrom");
         const createdTo = searchParams.get("createdTo");
-        const monthFilter = searchParams.get("month");
+        const month = searchParams.get("month");
 
         // Build where clause with AND logic
         const where: any = {};
@@ -309,16 +272,9 @@ export async function GET(req: Request) {
             };
         }
 
-        // 🔥 MONTH FILTER LOGIC
-        if (monthFilter === "all" || monthFilter === "history") {
-            // Rare case: No month folder restriction
-        } else if (monthFilter) {
-            // Specific month selected
-            where.monthFolder = monthFilter;
-        } else {
-            // DEFAULT: Current month + Previous month
-            const recentMonths = getRecentMonthFolders();
-            where.monthFolder = { in: recentMonths };
+        // Month filter
+        if (month && month !== 'all') {
+            where.monthFolder = month;
         }
 
         // Text search on title and description
