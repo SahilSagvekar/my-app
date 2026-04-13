@@ -156,6 +156,7 @@ model Task {
   recurringMonth       String?
   billedAt             DateTime?
   invoiceId            String?
+  isTrial              Boolean             @default(false)
   invoice              Invoice?  @relation(fields: [invoiceId], references: [id])
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")

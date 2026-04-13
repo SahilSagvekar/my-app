@@ -11,7 +11,7 @@ import { TrainingManagementTab } from "../admin/TrainingManagementTab";
 import { TrainingPortalPage } from "../training/TrainingPortalPage";
 import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
-import { SchedulerSpreadsheetView } from "../dashboards/SchedulerSpreadsheetView";
+import { SchedulerSpreadsheetView } from "../dashboards/scheduler";
 import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
 import { SchedulerSchedulingPage } from "../dashboards/SchedulerSchedulingPage";
 import { SchedulerResourcesPage } from "../dashboards/SchedulerResourcesPage";

@@ -33,7 +33,7 @@ export async function GET(req: Request) {
         { status: "COMPLETED" },
         // { status: "CLIENT_REVIEW" },
         { status: "SCHEDULED" },
-      ],
+      ]
     };
 
     // If role is scheduler, only show tasks assigned to them
@@ -44,6 +44,9 @@ export async function GET(req: Request) {
     // Fetch tasks that are ready for scheduler (QC approved or in scheduler status)
     const tasks = await prisma.task.findMany({
       where,
+      // select: {
+      //   assignedTo: true
+      // },
       orderBy: { createdAt: "desc" },
       include: {
         client: {
@@ -53,6 +56,7 @@ export async function GET(req: Request) {
             companyName: true,
           },
         },
+        user: true,
         files: {
           where: { isActive: true },
           select: {
@@ -97,6 +101,8 @@ export async function GET(req: Request) {
           title: t.title,
           description: t.description,
           status: t.status,
+          isTrial: t.isTrial,
+          editor: t.user ? { name: t.user.name } : null,
           dueDate: t.dueDate,
           clientId: t.clientId,
           driveLinks: t.driveLinks || [],
