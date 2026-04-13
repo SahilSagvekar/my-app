@@ -38,6 +38,17 @@ export function useScheduler() {
 
     const debouncedSearch = useDebounce(searchTerm, 500);
 
+    const fetchMetadata = useCallback(async () => {
+        try {
+            const res = await fetch("/api/schedular/metadata", { cache: "no-store" });
+            const data = await res.json();
+            if (data.clients) setAllClients(data.clients);
+            if (data.deliverableTypes) setUniqueDeliverables(data.deliverableTypes);
+        } catch (error) {
+            console.error("Error loading metadata:", error);
+        }
+    }, []);
+
     const loadTasks = useCallback(async (page = 1, append = false) => {
         setLoading(true);
         try {
@@ -65,10 +76,6 @@ export function useScheduler() {
             setHasMore(data.hasMore);
             setTotalTasks(data.total);
             setCurrentPage(page);
-            
-            // Populate filters if initial
-            if (data.uniqueClients) setAllClients(data.uniqueClients);
-            if (data.uniqueDeliverables) setUniqueDeliverables(data.uniqueDeliverables);
 
         } catch (err) {
             toast.error("Failed to fetch tasks");
@@ -76,6 +83,10 @@ export function useScheduler() {
             setLoading(false);
         }
     }, [debouncedSearch, dateRange, statusFilter, clientFilter, deliverableFilter]);
+
+    useEffect(() => {
+        fetchMetadata();
+    }, [fetchMetadata]);
 
     useEffect(() => {
         loadTasks();
@@ -228,8 +239,13 @@ export function useScheduler() {
 
     return {
         tasks, loading, isInitialLoad, searchTerm, setSearchTerm, dateRange, setDateRange,
-        statusFilter, setStatusFilter, clientFilter, setClientFilter, handleClientFilterChange: (v: string) => { setClientFilter(v); setCurrentPage(1); },
-        deliverableFilter, setDeliverableFilter, uniqueClients: uniqueClientsFormatted, uniqueDeliverables,
+        dateRange, setDateRange: (v: string) => { setDateRange(v); setCurrentPage(1); },
+        statusFilter, setStatusFilter: (v: string) => { setStatusFilter(v); setCurrentPage(1); }, 
+        clientFilter, setClientFilter, 
+        handleClientFilterChange: (v: string) => { setClientFilter(v); setCurrentPage(1); },
+        deliverableFilter, setDeliverableFilter,
+        handleDeliverableFilterChange: (v: string) => { setDeliverableFilter(v); setCurrentPage(1); },
+        uniqueClients: uniqueClientsFormatted, uniqueDeliverables,
         hasMore, totalTasks, currentPage, expandedRows, selectedRows, setSelectedRows,
         isPreviewOpen, setIsPreviewOpen, previewFile, setPreviewFile, linkDialog, setLinkDialog,
         linkUrl, setLinkUrl, linkPostedAt, setLinkPostedAt, submittingLink,

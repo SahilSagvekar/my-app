@@ -25,65 +25,129 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
+    const search = url.searchParams.get("search");
+    const status = url.searchParams.get("status");
+    const clientId = url.searchParams.get("clientId");
+    const deliverableType = url.searchParams.get("deliverableType");
+    const dateRange = url.searchParams.get("dateRange");
     const includeTitling = url.searchParams.get("includeTitling") === "true";
 
     // Build filter
     const where: any = {
       OR: [
         { status: "COMPLETED" },
-        // { status: "CLIENT_REVIEW" },
         { status: "SCHEDULED" },
       ]
     };
+
+    if (clientId && clientId !== "all") {
+      where.clientId = clientId;
+    }
+
+    if (status && status !== "all") {
+      where.status = status.toUpperCase();
+    }
+
+    if (search) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { title: { contains: search, mode: "insensitive" } },
+            { client: { name: { contains: search, mode: "insensitive" } } },
+            { client: { companyName: { contains: search, mode: "insensitive" } } },
+          ]
+        }
+      ];
+    }
+
+    if (deliverableType && deliverableType !== "all") {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { monthlyDeliverable: { type: deliverableType } },
+            { oneOffDeliverable: { type: deliverableType } },
+          ]
+        }
+      ];
+    }
+
+    if (dateRange && dateRange !== "all") {
+      const now = new Date();
+      let startDate = new Date();
+      if (dateRange === "7d") startDate.setDate(now.getDate() - 7);
+      else if (dateRange === "30d") startDate.setDate(now.getDate() - 30);
+      else if (dateRange === "90d") startDate.setDate(now.getDate() - 90);
+      
+      where.createdAt = { gte: startDate };
+    }
 
     // If role is scheduler, only show tasks assigned to them
     if (role === "scheduler") {
       where.scheduler = userId;
     }
 
+    const page = parseInt(url.searchParams.get("page") || "1");
+    const limit = parseInt(url.searchParams.get("limit") || "50");
+    const skip = (page - 1) * limit;
+
     // Fetch tasks that are ready for scheduler (QC approved or in scheduler status)
-    const tasks = await prisma.task.findMany({
-      where,
-      // select: {
-      //   assignedTo: true
-      // },
-      orderBy: { createdAt: "desc" },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            companyName: true,
-          },
-        },
-        user: true,
-        files: {
-          where: { isActive: true },
-          select: {
-            id: true,
-            name: true,
-            url: true,
-            mimeType: true,
-            size: true,
-            s3Key: true,
-            folderType: true,
-          },
-        },
-        monthlyDeliverable: true,
-        ...(includeTitling && {
-          titlingJob: {
+    const [tasks, total] = await Promise.all([
+      prisma.task.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: {
+          client: {
             select: {
               id: true,
-              status: true,
-              videoDuration: true,
-              completedAt: true,
-              error: true,
-              attempts: true,
+              name: true,
+              companyName: true,
             },
           },
-        }),
-      },
+          user: true,
+          files: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              name: true,
+              url: true,
+              mimeType: true,
+              size: true,
+              s3Key: true,
+              folderType: true,
+            },
+          },
+          monthlyDeliverable: true,
+          oneOffDeliverable: true,
+          ...(includeTitling && {
+            titlingJob: {
+              select: {
+                id: true,
+                status: true,
+                videoDuration: true,
+                completedAt: true,
+                error: true,
+                attempts: true,
+              },
+            },
+          }),
+        },
+      }),
+      prisma.task.count({ where })
+    ]);
+
+    const uniqueClients = Array.from(new Set(tasks.map(t => t.client?.id).filter(Boolean))).map(id => {
+      const client = tasks.find(t => t.client?.id === id)?.client;
+      return { id, name: client?.name, companyName: client?.companyName };
     });
+
+    const uniqueDeliverables = Array.from(new Set(tasks.map(t => {
+      const d = t.monthlyDeliverable || t.oneOffDeliverable;
+      return d?.type;
+    }).filter(Boolean)));
 
     // Map and add signed URLs
     const payload = await Promise.all(
@@ -95,6 +159,7 @@ export async function GET(req: Request) {
         }));
 
         const filesWithUrls = await addSignedUrlsToFiles(mappedFiles);
+        const rawDeliverable = t.monthlyDeliverable || t.oneOffDeliverable;
 
         return {
           id: t.id,
@@ -119,23 +184,30 @@ export async function GET(req: Request) {
           client: t.client,
           files: filesWithUrls,
           titlingJob: (t as any).titlingJob || null,
-          monthlyDeliverable: t.monthlyDeliverable ? {
-            id: t.monthlyDeliverable.id,
-            type: t.monthlyDeliverable.type,
-            quantity: t.monthlyDeliverable.quantity,
-            videosPerDay: t.monthlyDeliverable.videosPerDay,
-            postingSchedule: t.monthlyDeliverable.postingSchedule,
-            postingDays: t.monthlyDeliverable.postingDays,
-            postingTimes: t.monthlyDeliverable.postingTimes,
-            platforms: t.monthlyDeliverable.platforms,
-            description: t.monthlyDeliverable.description
+          deliverable: rawDeliverable ? {
+            id: rawDeliverable.id,
+            type: rawDeliverable.type,
+            quantity: (rawDeliverable as any).quantity,
+            videosPerDay: (rawDeliverable as any).videosPerDay,
+            postingSchedule: (rawDeliverable as any).postingSchedule,
+            postingDays: (rawDeliverable as any).postingDays || [],
+            postingTimes: (rawDeliverable as any).postingTimes || [],
+            platforms: (rawDeliverable as any).platforms || [],
+            description: rawDeliverable.description,
+            isOneOff: !!t.oneOffDeliverable,
           } : null,
         };
       })
     );
 
     // Return in the format expected by SchedulerApprovedQueuePage
-    return NextResponse.json({ tasks: payload }, { status: 200 });
+    return NextResponse.json({ 
+      tasks: payload, 
+      uniqueClients, 
+      uniqueDeliverables,
+      total,
+      hasMore: skip + payload.length < total
+    }, { status: 200 });
 
   } catch (err: any) {
     console.error("GET /api/schedular/tasks error:", err);

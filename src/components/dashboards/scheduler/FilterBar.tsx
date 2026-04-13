@@ -22,7 +22,7 @@ interface FilterBarProps {
     clientFilter: string;
     handleClientFilterChange: (val: string) => void;
     deliverableFilter: string;
-    setDeliverableFilter: (val: string) => void;
+    handleDeliverableFilterChange: (val: string) => void;
     uniqueClients: [string, string][];
     uniqueDeliverables: string[];
 }
@@ -37,7 +37,7 @@ export function FilterBar({
     clientFilter,
     handleClientFilterChange,
     deliverableFilter,
-    setDeliverableFilter,
+    handleDeliverableFilterChange,
     uniqueClients,
     uniqueDeliverables,
 }: FilterBarProps) {
@@ -126,7 +126,7 @@ export function FilterBar({
                     <Package className="h-3.5 w-3.5" />
                     Type:
                 </span>
-                <Select value={deliverableFilter} onValueChange={setDeliverableFilter}>
+                <Select value={deliverableFilter} onValueChange={handleDeliverableFilterChange}>
                     <SelectTrigger className="h-9 w-[130px] text-xs">
                         <SelectValue placeholder="All Types" />
                     </SelectTrigger>

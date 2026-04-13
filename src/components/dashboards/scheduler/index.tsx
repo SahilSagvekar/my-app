@@ -41,6 +41,7 @@ export function SchedulerSpreadsheetView() {
         clientFilter,
         handleClientFilterChange,
         deliverableFilter,
+        handleDeliverableFilterChange,
         setDeliverableFilter,
         uniqueClients,
         uniqueDeliverables,
@@ -120,7 +121,7 @@ export function SchedulerSpreadsheetView() {
                 clientFilter={clientFilter}
                 handleClientFilterChange={handleClientFilterChange}
                 deliverableFilter={deliverableFilter}
-                setDeliverableFilter={setDeliverableFilter}
+                handleDeliverableFilterChange={handleDeliverableFilterChange}
                 uniqueClients={uniqueClients}
                 uniqueDeliverables={uniqueDeliverables}
             />
