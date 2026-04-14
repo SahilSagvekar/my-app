@@ -186,7 +186,7 @@ export function useScheduler() {
         if (!linkDialog || !linkUrl) return;
         setSubmittingLink(true);
         try {
-            const res = await fetch(`/api/tasks/${linkDialog.taskId}/social-links`, {
+            const res = await fetch(`/api/tasks/${linkDialog.taskId}/social-media-link`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ platform: linkDialog.platform, url: linkUrl, postedAt: linkPostedAt || undefined }),
