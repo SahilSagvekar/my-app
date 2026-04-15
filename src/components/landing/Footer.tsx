@@ -58,22 +58,22 @@ export function Footer() {
             <h3 className="font-bold text-white mb-3 sm:mb-4 text-sm sm:text-base">Services</h3>
             <ul className="space-y-2 sm:space-y-3">
               <li>
-                <Link href="/services" className="text-white/60 hover:text-white transition-colors">
+                <Link href="/services/video-production" className="text-white/60 hover:text-white transition-colors">
                   Video Production
                 </Link>
               </li>
               <li>
-                <Link href="/services" className="text-white/60 hover:text-white transition-colors">
+                <Link href="/services/social-media-management" className="text-white/60 hover:text-white transition-colors">
                   Social Media Management
                 </Link>
               </li>
               <li>
-                <Link href="/services" className="text-white/60 hover:text-white transition-colors">
+                <Link href="/services/content-strategy" className="text-white/60 hover:text-white transition-colors">
                   Content Strategy
                 </Link>
               </li>
               <li>
-                <Link href="/services" className="text-white/60 hover:text-white transition-colors">
+                <Link href="/services/original-show-production" className="text-white/60 hover:text-white transition-colors">
                   Original Shows
                 </Link>
               </li>

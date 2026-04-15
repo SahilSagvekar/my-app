@@ -1,17 +1,25 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 // app/api/upload/complete/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/prisma';
-import { getS3, BUCKET, getFileUrl } from '@/lib/s3';
-import { optimizeVideo } from '@/lib/video-optimizer';
-import { queueVideoForCompression } from '@/lib/video-compression/worker';
-import { updateClientStorageAfterUpload } from '@/lib/storage-service';
+import { NextRequest, NextResponse } from "next/server";
+import { CompleteMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { prisma } from "@/lib/prisma";
+import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
+import { optimizeVideo } from "@/lib/video-optimizer";
+import { queueVideoForCompression } from "@/lib/video-compression/worker";
+import { updateClientStorageAfterUpload } from "@/lib/storage-service";
+import { sendUploadNotification } from "@/lib/upload-notifications";
+import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 const s3Client = getS3();
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser2(request);
+    if (!user)
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+    const userId = user.id;
+
     const {
       key,
       uploadId,
@@ -20,23 +28,23 @@ export async function POST(request: NextRequest) {
       fileSize,
       fileType,
       taskId,
-      userId,
       subfolder,
-      codec
+      codec,
     } = await request.json();
 
-    console.log("📥 Complete upload request:", {
+    console.log("📥 Complete request:", {
       fileName,
       taskId,
       subfolder: subfolder || "main",
       uploadId,
       partsCount: parts?.length,
+      userId,
     });
 
     if (!key || !uploadId || !parts || !taskId) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
+        { error: "Missing required fields" },
+        { status: 400 },
       );
     }
 
@@ -56,31 +64,64 @@ export async function POST(request: NextRequest) {
       console.log("✅ S3 upload completed:", fileUrl);
 
       // 🔥 Track storage for raw-footage uploads
-      const isRawFootageUpload = key.includes('raw-footage');
+      const isRawFootageUpload = key.includes("raw-footage");
       if (isRawFootageUpload && fileSize) {
         // Extract client ID from the S3 key path (CompanyName/raw-footage/...)
-        const pathParts = key.split('/');
+        const pathParts = key.split("/");
         const companyName = pathParts[0];
-        
+
         // Find client by company name
         const client = await prisma.client.findFirst({
           where: {
-            OR: [
-              { companyName: companyName },
-              { name: companyName }
-            ]
+            OR: [{ companyName: companyName }, { name: companyName }],
           },
-          select: { id: true }
+          select: { id: true },
         });
-        
+
         if (client) {
-          const storageResult = await updateClientStorageAfterUpload(client.id, fileSize);
-          console.log(`📊 Storage updated for ${companyName}: ${storageResult.storageInfo.usedFormatted} / ${storageResult.storageInfo.limitFormatted} (${storageResult.storageInfo.percentage.toFixed(1)}%)`);
+          const storageResult = await updateClientStorageAfterUpload(
+            client.id,
+            fileSize,
+          );
+          console.log(
+            `📊 Storage updated for ${companyName}: ${storageResult.storageInfo.usedFormatted} / ${storageResult.storageInfo.limitFormatted} (${storageResult.storageInfo.percentage.toFixed(1)}%)`,
+          );
         }
       }
 
       if (taskId === "drive-upload") {
         console.log("📂 Drive upload completed, skipping DB updates");
+        console.log("🔍 S3 Response:", userId);
+        // 🔥 SEND SLACK NOTIFICATION for drive uploads
+
+        if (userId) {
+          const pathParts = key.split("/").filter(Boolean);
+          const companyName = pathParts[0];
+
+          // Find client by company name
+          let clientIdForNotification: string | undefined;
+          if (companyName) {
+            const client = await prisma.client.findFirst({
+              where: {
+                OR: [{ companyName: companyName }, { name: companyName }],
+              },
+              select: { id: true },
+            });
+            clientIdForNotification = client?.id;
+          }
+
+          sendUploadNotification({
+            fileName,
+            fileSize: fileSize || 0,
+            uploadedBy: userId,
+            clientId: clientIdForNotification,
+            folderType: "drive",
+            s3Key: key,
+          }).catch((err) => {
+            console.error(`[DriveUpload] Slack notification failed:`, err);
+          });
+        }
+
         return NextResponse.json({
           success: true,
           fileUrl,
@@ -91,7 +132,8 @@ export async function POST(request: NextRequest) {
       }
 
       // 🔥 Determine folderType based on subfolder
-      const folderType = !subfolder || subfolder === "main" ? "main" : subfolder;
+      const folderType =
+        !subfolder || subfolder === "main" ? "main" : subfolder;
 
       // 1. Find the current active file for this task + folderType
       const existingActiveFile = await prisma.file.findFirst({
@@ -101,7 +143,7 @@ export async function POST(request: NextRequest) {
           isActive: true,
         },
         orderBy: {
-          version: 'desc', // Get highest version
+          version: "desc", // Get highest version
         },
       });
 
@@ -110,7 +152,9 @@ export async function POST(request: NextRequest) {
       // 2. If active file exists, mark it as inactive
       if (existingActiveFile) {
         newVersion = existingActiveFile.version + 1;
-        console.log(`📦 Found existing v${existingActiveFile.version}, creating v${newVersion}`);
+        console.log(
+          `📦 Found existing v${existingActiveFile.version}, creating v${newVersion}`,
+        );
       }
 
       // 3. Create new file record with version
@@ -127,7 +171,9 @@ export async function POST(request: NextRequest) {
           version: newVersion,
           isActive: true,
           codec: codec,
-          proxyUrl: fileType.startsWith('video/') ? `/api/files/NEW_ID_PLACEHOLDER/stream` : null,
+          proxyUrl: fileType.startsWith("video/")
+            ? `/api/files/NEW_ID_PLACEHOLDER/stream`
+            : null,
         },
       });
 
@@ -135,7 +181,7 @@ export async function POST(request: NextRequest) {
       if (fileRecord.proxyUrl === `/api/files/NEW_ID_PLACEHOLDER/stream`) {
         await prisma.file.update({
           where: { id: fileRecord.id },
-          data: { proxyUrl: `/api/files/${fileRecord.id}/stream` }
+          data: { proxyUrl: `/api/files/${fileRecord.id}/stream` },
         });
       }
 
@@ -151,7 +197,9 @@ export async function POST(request: NextRequest) {
             replacedBy: fileRecord.id,
           },
         });
-        console.log(`📁 v${existingActiveFile.version} marked inactive, replaced by v${newVersion}`);
+        console.log(
+          `📁 v${existingActiveFile.version} marked inactive, replaced by v${newVersion}`,
+        );
       }
 
       // Add file URL to task.driveLinks (only if not already there)
@@ -163,21 +211,6 @@ export async function POST(request: NextRequest) {
       });
 
       console.log("🔗 File URL added to task driveLinks");
-
-      // 🔥 TRIGGER BACKGROUND OPTIMIZATION
-      // if (fileType.startsWith('video/')) {
-      //   console.log(`🚀 Triggering background optimization for file: ${fileRecord.id}`);
-      //   // Set initial status
-      //   await prisma.file.update({
-      //     where: { id: fileRecord.id },
-      //     data: { optimizationStatus: 'PENDING' }
-      //   });
-        
-      //   // We don't await this so it doesn't block the response
-      //   optimizeVideo(fileRecord.id).catch(err => {
-      //     console.error(`❌ Background optimization failed for ${fileRecord.id}:`, err);
-      //   });
-      // }
 
       if (fileType.startsWith("video/") && fileSize > 100 * 1024 * 1024) {
         // Queue for spot compression if > 100MB
@@ -192,11 +225,12 @@ export async function POST(request: NextRequest) {
       }
 
       // 🔥 LOG ACTIVITY
-      const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+      const { createAuditLog, AuditAction } =
+        await import("@/lib/audit-logger");
       await createAuditLog({
         userId: userId,
         action: AuditAction.FILE_UPLOADED,
-        entity: 'File',
+        entity: "File",
         entityId: fileRecord.id,
         details: `Uploaded file: ${fileName} (v${newVersion}) to folder: ${folderType}`,
         metadata: {
@@ -204,24 +238,44 @@ export async function POST(request: NextRequest) {
           fileName,
           fileSize,
           version: newVersion,
-          folderType
-        }
+          folderType,
+        },
       });
+
+      // 🔥 SEND SLACK NOTIFICATION
+      // Get the task to find clientId
+      const taskForNotification = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { clientId: true },
+      });
+
+      if (userId) {
+        sendUploadNotification({
+          fileName,
+          fileSize: fileSize || 0,
+          uploadedBy: userId,
+          clientId: taskForNotification?.clientId || undefined,
+          taskId,
+          folderType,
+          s3Key: key,
+        }).catch((err) => {
+          console.error(`[UploadComplete] Slack notification failed:`, err);
+        });
+      }
 
       return NextResponse.json({
         success: true,
         fileUrl,
         fileId: fileRecord.id,
         fileName: fileRecord.name,
-        version: newVersion, // 🔥 Return version info
+        version: newVersion,
         previousVersion: existingActiveFile ? existingActiveFile.version : null,
         etag: s3Response.ETag,
         location: s3Response.Location,
       });
-
     } catch (s3Error: any) {
       // Handle NoSuchUpload error specifically
-      if (s3Error.Code === 'NoSuchUpload' || s3Error.name === 'NoSuchUpload') {
+      if (s3Error.Code === "NoSuchUpload" || s3Error.name === "NoSuchUpload") {
         console.error("❌ Upload session expired or aborted:", {
           uploadId,
           key,
@@ -231,20 +285,21 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(
           {
-            error: 'Upload session expired',
-            message: 'The upload session has expired or was aborted. Please restart the upload.',
-            code: 'UPLOAD_EXPIRED',
+            error: "Upload session expired",
+            message:
+              "The upload session has expired or was aborted. Please restart the upload.",
+            code: "UPLOAD_EXPIRED",
             details: {
               uploadId,
               fileName,
               reason: s3Error.message,
-            }
+            },
           },
-          { status: 410 }
+          { status: 410 },
         );
       }
 
-      if (s3Error.Code === 'InvalidPart' || s3Error.name === 'InvalidPart') {
+      if (s3Error.Code === "InvalidPart" || s3Error.name === "InvalidPart") {
         console.error("❌ Invalid part error:", {
           uploadId,
           key,
@@ -253,19 +308,19 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(
           {
-            error: 'Invalid upload part',
-            message: 'One or more upload parts are invalid. Please restart the upload.',
-            code: 'INVALID_PART',
+            error: "Invalid upload part",
+            message:
+              "One or more upload parts are invalid. Please restart the upload.",
+            code: "INVALID_PART",
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
       throw s3Error;
     }
-
   } catch (error: any) {
-    console.error('❌ Error completing upload:', {
+    console.error("❌ Error completing upload:", {
       error: error.message,
       code: error.Code || error.name,
       stack: error.stack,
@@ -273,11 +328,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        error: 'Failed to complete upload',
-        message: error.message || 'An unexpected error occurred',
-        code: error.Code || error.name || 'UNKNOWN_ERROR',
+        error: "Failed to complete upload",
+        message: error.message || "An unexpected error occurred",
+        code: error.Code || error.name || "UNKNOWN_ERROR",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

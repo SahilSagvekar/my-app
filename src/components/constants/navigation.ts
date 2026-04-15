@@ -38,7 +38,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
-    { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
+    // { id: 'audit', label: 'Audit Log', icon: ShieldCheck },
     { id: 'portfolio', label: 'Portfolio', icon: Film },
     { id: 'contracts', label: 'Contracts', icon: PenLine },
     { id: 'compression', label: 'Video Compression', icon: Camera },

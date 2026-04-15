@@ -77,11 +77,11 @@ const AnalyticsTab = safeDynamic(() => import('../admin/AnalyticsTab').then(mod 
 const UserManagementTab = safeDynamic(() => import('../admin/UserManagementTab').then(mod => ({ default: mod.UserManagementTab })), "User Management");
 const LeavesComponent = safeDynamic(() => import('../admin/LeavesComponent'), "Leaves");
 const ReportsTab = safeDynamic(() => import('../admin/ReportsTab').then(mod => ({ default: mod.ReportsTab })), "Reports");
-const AuditLogTab = safeDynamic(() => import('../admin/AuditLogTab').then(mod => ({ default: mod.AuditLogTab })), "Audit Log");
+// const AuditLogTab = safeDynamic(() => import('../admin/AuditLogTab').then(mod => ({ default: mod.AuditLogTab })), "Audit Log");
 const FinanceTab = safeDynamic(() => import('../admin/FinanceTab').then(mod => ({ default: mod.FinanceTab })), "Finance");
 const TaskManagementTab = safeDynamic(() => import('../admin/TaskManagementTab').then(mod => ({ default: mod.TaskManagementTab })), "Task Management");
 const ClientManagement = safeDynamic(() => import('../management/ClientManagement').then(mod => ({ default: mod.ClientManagement })), "Client Management");
-const ActivityLogReportTab = safeDynamic(() => import('../admin/ActivityLogReportTab').then(mod => ({ default: mod.ActivityLogReportTab })), "Activity Logs");
+// const ActivityLogReportTab = safeDynamic(() => import('../admin/ActivityLogReportTab').then(mod => ({ default: mod.ActivityLogReportTab })), "Activity Logs");
 const PermissionsTab = safeDynamic(() => import('../admin/PermissionsTab').then(mod => ({ default: mod.PermissionsTab })), "Permissions");
 const JobManagementSection = safeDynamic(() => import('../jobs/JobManagementSection').then(mod => ({ default: mod.JobManagementSection })), "Job Management");
 const GuidelinesManagementTab = safeDynamic(() => import('../admin/GuidelinesManagementTab').then(mod => ({ default: mod.GuidelinesManagementTab })), "Guidelines Management");
@@ -651,13 +651,13 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           System & Compliance
         </div>
 
-        <DropdownMenuItem
+        {/* <DropdownMenuItem
           onClick={() => onPageChange?.('activity_logs')}
           className="gap-2 cursor-pointer"
         >
           <FileText className="h-4 w-4" />
           Daily Activity Reports
-        </DropdownMenuItem>
+        </DropdownMenuItem> */}
 
         <DropdownMenuItem
           onClick={() => onPageChange?.('guidelines')}
@@ -675,13 +675,13 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           Role Permissions
         </DropdownMenuItem>
 
-        <DropdownMenuItem
+        {/* <DropdownMenuItem
           onClick={() => onPageChange?.('audit')}
           className="gap-2 cursor-pointer"
         >
           <ShieldCheck className="h-4 w-4" />
           System Audit Log
-        </DropdownMenuItem>
+        </DropdownMenuItem> */}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -780,27 +780,27 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           </div>
         );
 
-      case 'audit':
-        return (
-          <div className="space-y-6">
-            <AdminPageHeader
-              title="System Audit Log"
-              description="Complete audit trail of all admin actions and system events"
-            />
-            <AuditLogTab />
-          </div>
-        );
+      // case 'audit':
+      //   return (
+      //     <div className="space-y-6">
+      //       <AdminPageHeader
+      //         title="System Audit Log"
+      //         description="Complete audit trail of all admin actions and system events"
+      //       />
+      //       <AuditLogTab />
+      //     </div>
+      //   );
 
-      case 'activity_logs':
-        return (
-          <div className="space-y-6">
-            <AdminPageHeader
-              title="Activity Reports"
-              description="Access and download daily employee activity reports (generated at 7 PM EST)"
-            />
-            <ActivityLogReportTab />
-          </div>
-        );
+      // case 'activity_logs':
+      //   return (
+      //     <div className="space-y-6">
+      //       <AdminPageHeader
+      //         title="Activity Reports"
+      //         description="Access and download daily employee activity reports (generated at 7 PM EST)"
+      //       />
+      //       <ActivityLogReportTab />
+      //     </div>
+      //   );
 
       case 'finance':
         return (

@@ -32,7 +32,7 @@ import { DriveExplorer } from "../drive/DriveExplorer";
 import { EmploymentInfo } from "../EmploymentInfo";
 import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
-import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
+// import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
@@ -123,9 +123,9 @@ export function renderPage(
     return <PostedContentSidebar />;
   }
 
-  if (page === "activity_logs") {
-    return <ActivityLogReportTab />;
-  }
+  // if (page === "activity_logs") {
+  //   return <ActivityLogReportTab />;
+  // }
 
   if (role === "admin") {
     switch (page) {
@@ -193,8 +193,8 @@ export function renderPage(
             <DriveExplorer role={role} />
           </div>
         );
-      case "activity_logs":
-        return <ActivityLogReportTab />;
+      // case "activity_logs":
+      //   return <ActivityLogReportTab />;
       default:
         return <AdminDashboard currentPage="dashboard" onPageChange={onPageChange} />;
     }

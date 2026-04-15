@@ -29,10 +29,6 @@ export interface SlackNotification {
 
 // ---------------------------------------------------------------------------
 // Channel Configuration (from environment variables)
-// Only 3 channels are used:
-// - QC: For qc_ready notifications
-// - Scheduling: For task_scheduled notifications  
-// - Reports: For daily summary reports
 // ---------------------------------------------------------------------------
 const CHANNEL_CONFIG = {
   // QC/Quality Control channel
@@ -41,16 +37,18 @@ const CHANNEL_CONFIG = {
   scheduling: () => process.env.SLACK_SCHEDULING_CHANNEL_WEBHOOK_URL,
   // Reports channel (for daily summary)
   reports: () => process.env.SLACK_REPORT_WEBHOOK_URL,
+  // E8 App channel (for internal team notifications)
+  e8app: () => process.env.SLACK_E8_APP_CHANNEL_WEBHOOK_URL,
 };
 
 // ---------------------------------------------------------------------------
 // Notification-type → emoji mapping for Slack messages
-// Only 3 notification types are sent to Slack channels
 // ---------------------------------------------------------------------------
 const TYPE_EMOJI: Record<string, string> = {
   task_rejected: "❌",
   qc_ready: "🔍",
   task_scheduled: "📅",
+  file_uploaded: "📤",
 };
 
 function emojiForType(type: string): string {
@@ -198,9 +196,9 @@ async function sendClientSlackWebhook(
 }
 
 // ---------------------------------------------------------------------------
-// 2b. CHANNEL-SPECIFIC WEBHOOK — Post to QC, Scheduling, etc.
+// 2b. CHANNEL-SPECIFIC WEBHOOK — Post to QC, Scheduling, E8 App, etc.
 // ---------------------------------------------------------------------------
-async function sendToChannel(
+export async function sendToChannel(
   channel: keyof typeof CHANNEL_CONFIG,
   notification: SlackNotification
 ): Promise<void> {
@@ -266,8 +264,7 @@ export async function deliverSlackNotification(
   const notificationType = notification.type;
 
   // =========================================================================
-  // ROUTING RULES - ONLY 3 NOTIFICATION TYPES ARE SENT TO SLACK
-  // (Daily Summary Report is handled separately via sendDailySummaryToSlack)
+  // ROUTING RULES
   // =========================================================================
 
   // 1. QC_READY → QC Channel ONLY (with @mention of QC specialist)
@@ -291,7 +288,6 @@ export async function deliverSlackNotification(
     }
 
     // Create modified notification with QC mention
-    // Note: View Task link is added by buildSlackBlocks automatically
     const mentionedNotification = {
       ...notification,
       title: `👀 ${qcMention}Content Ready for QC Review`,
@@ -303,7 +299,7 @@ export async function deliverSlackNotification(
     return;
   }
 
-  // 2. TASK_REJECTED → Client channel ONLY (with @mention of editor)
+  // 2. TASK_REJECTED → Client channel ONLY (with @mention of editor + revision comments)
   if (notificationType === "task_rejected") {
     console.log(`[Slack Dispatch] Task Rejected → Client channel only`);
 
@@ -329,12 +325,61 @@ export async function deliverSlackNotification(
       }
     }
 
-    // Create modified notification with editor mention
-    // Note: View Task link is added by buildSlackBlocks automatically
+    // Fetch recent revision comments (added during this rejection)
+    let revisionComments = "";
+    const taskId = notification.payload?.taskId;
+    if (taskId) {
+      try {
+        // Get feedback added in the last 5 minutes (likely from this rejection)
+        const recentFeedback = await prisma.taskFeedback.findMany({
+          where: {
+            taskId: taskId,
+            status: "needs_revision",
+            createdAt: {
+              gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
+            },
+          },
+          select: {
+            feedback: true,
+            folderType: true,
+            timestamp: true,
+            user: {
+              select: { name: true },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+          take: 10, // Limit to 10 comments to avoid message overflow
+        });
+
+        if (recentFeedback.length > 0) {
+          revisionComments = "\n\n*Revision Notes:*\n";
+          revisionComments += recentFeedback
+            .map((fb) => {
+              let comment = `• ${fb.feedback}`;
+              if (fb.timestamp) {
+                comment += ` _(at ${fb.timestamp})_`;
+              }
+              if (fb.folderType && fb.folderType !== "main") {
+                comment += ` [${fb.folderType}]`;
+              }
+              return comment;
+            })
+            .join("\n");
+          
+          console.log(
+            `[Slack Dispatch] Including ${recentFeedback.length} revision comments`
+          );
+        }
+      } catch (err) {
+        console.error("[Slack Dispatch] Failed to fetch revision comments:", err);
+      }
+    }
+
+    // Create modified notification with editor mention and revision comments
     const mentionedNotification = {
       ...notification,
       title: `${editorMention}Content Needs Revisions`,
-      body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.`,
+      body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${revisionComments}`,
     };
 
     // Send to client channel ONLY
@@ -349,7 +394,6 @@ export async function deliverSlackNotification(
   if (notificationType === "task_scheduled") {
     console.log(`[Slack Dispatch] Task Scheduled → Scheduling channel only`);
 
-    // Create notification - View Task link is added by buildSlackBlocks automatically
     const scheduledNotification = {
       ...notification,
       title: `Content Scheduled/Posted`,
@@ -362,7 +406,7 @@ export async function deliverSlackNotification(
   }
 
   // =========================================================================
-  // ALL OTHER NOTIFICATION TYPES ARE IGNORED (no Slack notification sent)
+  // ALL OTHER NOTIFICATION TYPES ARE IGNORED
   // =========================================================================
   console.log(`[Slack Dispatch] Notification type "${notificationType}" is not configured for Slack - skipping`);
 }

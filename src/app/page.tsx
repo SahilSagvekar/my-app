@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { Hero } from '@/components/landing/Hero';
 import { Footer } from '@/components/landing/Footer';
 import Link from "next/link";
-import { ArrowRight, Tv, TrendingUp, Users, Video, Target, Scissors, Send, DollarSign, Camera } from 'lucide-react';
+import { ArrowRight, Tv, TrendingUp, Users, Video, Target, Scissors, Send, DollarSign, Camera, Lightbulb, Share2, Cpu } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import showsImage from '../../public/assets/c6ec00e7c877a01cc4af52907abc860d47df5b5d.png';
 import Image2 from '../../public/assets/landing/photo.jpg';
@@ -48,52 +48,52 @@ export default function LandingPage() {
               <div className="aspect-[4/3] sm:aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl bg-white p-4 sm:p-6">
                 <div className="grid grid-cols-3 gap-2 sm:gap-3 h-full auto-rows-fr">
                   {/* Content Strategy */}
-                  <div className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
-                    <Target className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5" />
+                  <Link href="/services/content-strategy" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
+                    <Lightbulb className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">Content Strategy</span>
-                  </div>
+                  </Link>
 
                   {/* Video Production */}
-                  <div className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
-                    <Video className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5" />
+                  <Link href="/services/video-production" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
+                    <Video className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">Video Production</span>
-                  </div>
+                  </Link>
 
                   {/* Video Editing */}
-                  <div className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
-                    <Scissors className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5" />
+                  <Link href="/services/video-editing" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
+                    <Scissors className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">Video Editing</span>
-                  </div>
+                  </Link>
 
                   {/* Social Media Management */}
-                  <div className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
-                    <Users className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5" />
+                  <Link href="/services/social-media-management" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
+                    <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">Social Media</span>
-                  </div>
+                  </Link>
 
                   {/* Posting & Distribution */}
-                  <div className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
-                    <Send className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5" />
+                  <Link href="/services/posting-distribution" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
+                    <Cpu className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">Distribution</span>
-                  </div>
+                  </Link>
 
                   {/* Monetized Accounts */}
-                  <div className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
-                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5" />
+                  <Link href="/services/monetized-accounts" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
+                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">Monetization</span>
-                  </div>
+                  </Link>
 
                   {/* Original Show Production */}
-                  <div className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
-                    <Tv className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5" />
+                  <Link href="/services/original-show-production" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
+                    <Tv className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">Show Production</span>
-                  </div>
+                  </Link>
 
                   {/* UGC Content */}
-                  <div className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all">
-                    <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5" />
+                  <Link href="/services/ugc-content" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
+                    <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">UGC Content</span>
-                  </div>
+                  </Link>
 
                   {/* Blank Tile */}
                   <div className="bg-black/[0.02] rounded-xl sm:rounded-xl"></div>
