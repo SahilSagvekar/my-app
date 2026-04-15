@@ -185,8 +185,26 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
-    const { platform } = body;
+    
+    // Handle body safely - might be empty or in URL params
+    let platform: string | null = null;
+    
+    try {
+      const body = await request.json();
+      platform = body.platform;
+    } catch {
+      // Body empty, check URL search params
+      const url = new URL(request.url);
+      platform = url.searchParams.get('platform');
+    }
+    
+    if (!platform) {
+      return NextResponse.json(
+        { error: "Platform is required" },
+        { status: 400 }
+      );
+    }
+    
     const user = getUserFromToken(request);
 
     // Get current task
@@ -209,12 +227,12 @@ export async function DELETE(
 
     // Find the link being deleted for audit log
     const deletedLink = existingLinks.find(
-      (link) => link.platform.toLowerCase() === platform.toLowerCase()
+      (link) => link.platform.toLowerCase() === platform!.toLowerCase()
     );
 
     // Filter out the link for the specified platform
     const filteredLinks = existingLinks.filter(
-      (link) => link.platform.toLowerCase() !== platform.toLowerCase()
+      (link) => link.platform.toLowerCase() !== platform!.toLowerCase()
     );
 
     // Update task with filtered links
