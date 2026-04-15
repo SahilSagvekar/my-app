@@ -203,7 +203,7 @@ export function useScheduler() {
 
     const deleteSocialLink = async (taskId: string, platform: string) => {
         try {
-            const res = await fetch(`/api/tasks/${taskId}/social-links?platform=${platform}`, { method: "DELETE" });
+            const res = await fetch(`/api/tasks/${taskId}/social-media-link?platform=${platform}`, { method: "DELETE" });
             if (res.ok) {
                 const refreshed = await res.json();
                 setTasks(prev => prev.map(t => t.id === taskId ? { ...t, socialMediaLinks: refreshed.socialMediaLinks } : t));
