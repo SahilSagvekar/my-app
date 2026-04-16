@@ -32,6 +32,7 @@ import { DriveExplorer } from "../drive/DriveExplorer";
 import { EmploymentInfo } from "../EmploymentInfo";
 import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
+import { ClientPostedContentView } from "../dashboards/ClientPostedContentView"
 // import { ActivityLogReportTab } from "../admin/ActivityLogReportTab";
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
@@ -59,6 +60,12 @@ const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(
   ssr: false,
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Billing...</div>
 });
+
+const SchedulerDailyTargetsPage = dynamic(() => import("../dashboards/SchedulerDailyTargetsPage").then(mod => mod.SchedulerDailyTargetsPage), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Daily Targets...</div>
+});
+
 import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
@@ -120,7 +127,7 @@ export function renderPage(
   }
 
   if (page === "posted") {
-    return <PostedContentSidebar />;
+    return <ClientPostedContentView clientId={linkedClientId} />;
   }
 
   // if (page === "activity_logs") {
@@ -260,6 +267,8 @@ export function renderPage(
         return <SchedulerDashboard />;
       case "approved-queue":
         return <SchedulerSpreadsheetView />;
+      case "daily-targets":
+        return <SchedulerDailyTargetsPage />;
       case "scheduling":
         return <SchedulerSchedulingPage />;
       case "content-titling":

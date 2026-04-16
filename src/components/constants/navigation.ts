@@ -24,7 +24,8 @@ import {
   LogIn,
   Instagram,
   Film,
-  PenLine
+  PenLine,
+  Target
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -67,6 +68,7 @@ export const NAVIGATION_ITEMS = {
   ],
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
+    { id: 'daily-targets', label: 'Daily Targets', icon: Target },
     // { id: 'posted-archive', label: 'Posted Content Archive', icon: Archive },
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
     { id: 'logins', label: 'Logins', icon: LogIn },

@@ -1,6 +1,6 @@
 // src/lib/s3.ts
 
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import type { S3ClientConfig } from "@aws-sdk/client-s3";
 import fs from "fs";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -400,4 +400,25 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
       }
     })
   );
+}
+
+/**
+ * Check if a file exists in S3/R2
+ * Used to verify original file exists before falling back to optimized
+ */
+export async function checkFileExists(key: string): Promise<boolean> {
+  try {
+    await s3.send(new HeadObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+    }));
+    return true;
+  } catch (error: any) {
+    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      return false;
+    }
+    // Log other errors but return false to be safe
+    console.error(`Error checking file existence for ${key}:`, error.message);
+    return false;
+  }
 }
