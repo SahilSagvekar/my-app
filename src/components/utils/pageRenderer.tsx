@@ -61,7 +61,7 @@ const ClientBillingPortal = dynamic(() => import("../ClientBillingPortal").then(
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Billing...</div>
 });
 
-const SchedulerDailyTargetsPage = dynamic(() => import("../dashboards/Schedulerdailytargetspagea").then(mod => mod.SchedulerDailyTargetsPage), {
+const SchedulerDailyTargetsPage = dynamic(() => import("../dashboards/Schedulerdailytargetspage").then(mod => mod.SchedulerDailyTargetsPage), {
   ssr: false,
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Daily Targets...</div>
 });

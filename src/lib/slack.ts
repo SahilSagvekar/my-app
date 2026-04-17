@@ -290,7 +290,8 @@ export async function deliverSlackNotification(
     // Create modified notification with QC mention
     const mentionedNotification = {
       ...notification,
-      title: `👀 ${qcMention}Content Ready for QC Review`,
+      title: `👀 @Eric Davis Content Ready for QC Review`,
+      // title: `👀 ${qcMention}Content Ready for QC Review`,
       body: `Your content "${notification.payload?.taskTitle || notification.title || "Task"}" is ready for review.`,
     };
 

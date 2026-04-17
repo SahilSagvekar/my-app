@@ -87,6 +87,7 @@ interface PostedTask {
     createdAt: string;
     deliverableType?: string;
     socialMediaLinks: SocialMediaLink[];
+    suggestedTitles?: string[];
     files: {
         id: string | number;
         name: string;
@@ -835,6 +836,26 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                                                     </div>
                                                                                 )}
                                                                             </div>
+
+                                                                            {/* Titles Section */}
+                                                                            {task.suggestedTitles && task.suggestedTitles.length > 0 && (
+                                                                                <div className="mt-4">
+                                                                                    <h4 className="font-semibold text-sm text-gray-700 mb-2 flex items-center gap-2">
+                                                                                        <FileText className="h-4 w-4 text-yellow-500" />
+                                                                                        Title
+                                                                                    </h4>
+                                                                                    <div className="space-y-1">
+                                                                                        {task.suggestedTitles.map((title, i) => (
+                                                                                            <div 
+                                                                                                key={i}
+                                                                                                className="p-2 bg-white rounded-lg border text-sm"
+                                                                                            >
+                                                                                                {typeof title === 'string' ? title : (title as any)?.title || String(title)}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                 </td>

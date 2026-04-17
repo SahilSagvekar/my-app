@@ -33,19 +33,28 @@ export async function GET(req: Request) {
     const includeTitling = url.searchParams.get("includeTitling") === "true";
 
     // Build filter
-    const where: any = {
-      OR: [
-        { status: "COMPLETED" },
-        { status: "SCHEDULED" },
-      ]
-    };
+    const where: any = {};
 
     if (clientId && clientId !== "all") {
       where.clientId = clientId;
     }
 
+    // Status filter logic
+    // Valid TaskStatus values: PENDING, IN_PROGRESS, READY_FOR_QC, QC_IN_PROGRESS, COMPLETED, SCHEDULED, ON_HOLD, REJECTED, CLIENT_REVIEW, VIDEOGRAPHER_ASSIGNED, POSTED
     if (status && status !== "all") {
-      where.status = status.toUpperCase();
+      const upperStatus = status.toUpperCase();
+      if (upperStatus === "PENDING") {
+        // Pending = COMPLETED (QC approved, waiting to be scheduled)
+        where.status = "COMPLETED";
+      } else if (upperStatus === "SCHEDULED") {
+        // Scheduled includes SCHEDULED and POSTED
+        where.status = { in: ["SCHEDULED", "POSTED"] };
+      } else {
+        where.status = upperStatus;
+      }
+    } else {
+      // Default: show COMPLETED + SCHEDULED + POSTED (scheduler-relevant tasks)
+      where.status = { in: ["COMPLETED", "SCHEDULED", "POSTED"] };
     }
 
     if (search) {
