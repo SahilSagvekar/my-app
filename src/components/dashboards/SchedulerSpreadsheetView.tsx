@@ -1265,8 +1265,8 @@ export function SchedulerSpreadsheetView() {
                               task.deliverable?.platforms?.map((p: string) =>
                                 p.toLowerCase(),
                               ) || [];
+                            // Only allow adding links to platforms defined in the deliverable
                             const isPlatformInDeliverable =
-                              deliverablePlatforms.length === 0 ||
                               deliverablePlatforms.includes(key.toLowerCase());
 
                             return (
