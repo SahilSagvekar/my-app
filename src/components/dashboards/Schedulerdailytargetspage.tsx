@@ -76,7 +76,7 @@ const STATIC_POSTING_DATA: ClientData[] = [
         clientName: 'The Dating Blind Show',
         platforms: [
             { name: 'IG (Trials)', sf: 4, bsf: 1 },
-            { name: 'FB TV', note: 'FB (TV page)' },
+            { name: 'FB TV', sf: 4, sqf: 2, bsf: 1, lf: 1, lfPer: 'week', note: 'every Sunday' },
             { name: 'YT', sf: 4, bsf: 1 },
             { name: 'TT', sf: 4, bsf: 1 },
             { name: 'Snapchat', sep: 3, sepPer: 'week', tiles: true },
@@ -113,8 +113,8 @@ const STATIC_POSTING_DATA: ClientData[] = [
         platforms: [
             { name: 'IG (Trials)', sf: 6 },
             { name: 'TT', sf: 6 },
-            { name: 'FB TV', sf: 6, sqf: 1, lf: 1, lfPer: 'week' },
-            { name: 'YT', sf: 6, lf: 1, lfPer: 'week' },
+            { name: 'FB TV', sf: 6, sqf: 1, lf: 1, lfPer: 'week', note: 'every sunday' },
+            { name: 'YT', sf: 6, lf: 1, lfPer: 'week', note: 'every sunday' },
         ]
     },
     {
@@ -128,8 +128,8 @@ const STATIC_POSTING_DATA: ClientData[] = [
     {
         clientName: 'William Coleman',
         platforms: [
-            { name: 'FB TV', sf: 1, lf: 1, lfPer: 'week' },
-            { name: 'YT', sf: 1, lf: 1, lfPer: 'week' },
+            { name: 'FB TV', sf: 1, lf: 1, lfPer: 'week', note: 'every sunday' },
+            { name: 'YT', sf: 1, lf: 1, lfPer: 'week', note: 'every sunday' },
             { name: 'TT', sf: 1 },
             { name: 'IG (Trials)', sf: 1 },
         ]
