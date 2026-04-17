@@ -267,32 +267,18 @@ export async function deliverSlackNotification(
   // ROUTING RULES
   // =========================================================================
 
-  // 1. QC_READY → QC Channel ONLY (with @mention of QC specialist)
+  // 1. QC_READY → QC Channel ONLY (with @mention of admin Eric)
   if (notificationType === "qc_ready") {
     console.log(`[Slack Dispatch] Ready for QC → QC channel only`);
 
-    // Get QC specialist's Slack ID for @mention
-    let qcMention = "";
-    const qcId = notification.payload?.qcId || notification.userId;
-    if (qcId) {
-      const qcUser = await prisma.user.findUnique({
-        where: { id: qcId },
-        select: { slackUserId: true, name: true },
-      });
-      if (qcUser?.slackUserId) {
-        qcMention = `<@${qcUser.slackUserId}> `;
-        console.log(
-          `[Slack Dispatch] Tagging QC: ${qcUser.name} (${qcUser.slackUserId})`,
-        );
-      }
-    }
+    // Hardcoded Eric's Slack ID
+    const adminMention = `<@U047GKLSCBD> `;
 
-    // Create modified notification with QC mention
+    // Create modified notification with admin mention
     const mentionedNotification = {
       ...notification,
-      title: `👀 @Eric Davis Content Ready for QC Review`,
-      // title: `👀 ${qcMention}Content Ready for QC Review`,
-      body: `Your content "${notification.payload?.taskTitle || notification.title || "Task"}" is ready for review.`,
+      title: `👀 ${adminMention}Content Ready for QC Review`,
+      body: `Content "${notification.payload?.taskTitle || notification.title || "Task"}" is ready for review.`,
     };
 
     // Send to QC channel ONLY
