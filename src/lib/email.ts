@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 
-// 🔥 Global BCC - All emails will be copied to this address for monitoring
-const GLOBAL_BCC_EMAIL = 'sahilsagvekar230@gmail.com';
+// 🔥 Global BCC - All emails will be copied to these addresses for monitoring
+const GLOBAL_BCC_EMAILS = ['sahilsagvekar230@gmail.com', 'eric@e8productions.com'];
 
 // Check if email is configured
 const isEmailConfigured = () => {
@@ -30,10 +30,10 @@ const addGlobalBcc = (mailOptions: any) => {
   // Add BCC - if there's already a BCC, append to it
   if (mailOptions.bcc) {
     mailOptions.bcc = Array.isArray(mailOptions.bcc)
-      ? [...mailOptions.bcc, GLOBAL_BCC_EMAIL]
-      : [mailOptions.bcc, GLOBAL_BCC_EMAIL];
+      ? [...mailOptions.bcc, ...GLOBAL_BCC_EMAILS]
+      : [mailOptions.bcc, ...GLOBAL_BCC_EMAILS];
   } else {
-    mailOptions.bcc = GLOBAL_BCC_EMAIL;
+    mailOptions.bcc = GLOBAL_BCC_EMAILS;
   }
   return mailOptions;
 };

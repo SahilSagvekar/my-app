@@ -320,7 +320,7 @@ html {
 }
 
 .review-status-dropdown[data-status="needs_review"] {
-  background: var(--review-bg-tertiary);
+  background: #939597;
   color: var(--review-text-secondary);
   border: 1px solid var(--review-border);
 }
@@ -367,7 +367,7 @@ html {
 .review-timeline {
   position: relative;
   height: 48px;
-  background: var(--review-bg-tertiary);
+  background: #9d9d9e;
   border-radius: 8px;
   overflow: visible;
 }
@@ -379,7 +379,7 @@ html {
   right: 0;
   height: 4px;
   transform: translateY(-50%);
-  background: var(--review-timeline-bg);
+  background: rgba(0, 4, 11, 0.12);
   border-radius: 2px;
   cursor: pointer;
 }
@@ -389,7 +389,7 @@ html {
   top: 0;
   left: 0;
   height: 100%;
-  background: var(--review-timeline-progress);
+  background: #111827;
   border-radius: 2px;
   /* Use hardware acceleration */
   will-change: transform;
@@ -402,7 +402,7 @@ html {
   top: 50%;
   width: 14px;
   height: 14px;
-  background: white;
+  background: #111827;
   border-radius: 50%;
   /* Use transform instead of left for performance */
   left: 0;
@@ -438,7 +438,7 @@ html {
 }
 
 .review-timeline-marker.active {
-  background: white;
+  background: #111827;
   box-shadow: 0 0 0 3px var(--review-accent-purple);
 }
 

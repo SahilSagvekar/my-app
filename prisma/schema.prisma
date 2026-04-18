@@ -30,7 +30,6 @@ model User {
   emailNotifications      Boolean                  @default(true)
   slackNotifications      Boolean                  @default(false)
   slackUserId             String?
-  invoicesCreated         Invoice[]                @relation("InvoiceCreator")
   accounts                Account[]
   affiliateCommissions    AffiliateCommission[]
   auditLogs               AuditLog[]
@@ -42,6 +41,7 @@ model User {
   editorClientPermissions EditorClientPermission[] @relation("EditorPermissions")
   feedbackSent            Feedback[]               @relation("FeedbackSender")
   feedbackResponses       FeedbackResponse[]       @relation("FeedbackResponseSender")
+  invoicesCreated         Invoice[]                @relation("InvoiceCreator")
   assignedJobs            Job[]                    @relation("JobAssignee")
   createdJobs             Job[]                    @relation("JobCreator")
   leaves                  Leave[]
@@ -321,6 +321,7 @@ model Client {
   SocialAccount           SocialAccount[]
   socialLogins            SocialLogin[]
   tasks                   Task[]
+  postedContents          PostedContent[]
   linkedUsers             User[]                   @relation("LinkedClientUsers")
   youtubeChannel          YouTubeChannel?
   youtubeSnapshots        YouTubeSnapshot[]
@@ -1649,4 +1650,23 @@ enum SignerStatus {
   VIEWED
   SIGNED
   DECLINED
+}
+
+// Lightweight table for storing posted content links (independent of Task lifecycle)
+model PostedContent {
+  id              String   @id @default(cuid())
+  clientId        String
+  title           String?
+  platform        String
+  url             String
+  postedAt        DateTime
+  deliverableType String?
+  taskId          String?  // Optional reference to original task (for tracking)
+  createdAt       DateTime @default(now())
+  
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  @@index([clientId])
+  @@index([postedAt])
+  @@index([platform])
 }

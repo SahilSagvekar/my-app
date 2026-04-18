@@ -20,25 +20,67 @@ function getSlackClient(): WebClient | null {
 // ---------------------------------------------------------------------------
 export interface SlackNotification {
   type: string;
-  title: string;
+  title?: string;
   body?: string | null;
+  message?: string | null; // Raw mrkdwn text when exact formatting matters
   payload?: Record<string, any> | null;
   userId?: number | null;
   mentionUserIds?: number[]; // User IDs to @mention in the message
 }
 
+export type SlackChannel =
+  | "qc"
+  | "scheduling"
+  | "reports"
+  | "e8app"
+  | "attendance"
+  | "editors";
+
 // ---------------------------------------------------------------------------
 // Channel Configuration (from environment variables)
 // ---------------------------------------------------------------------------
-const CHANNEL_CONFIG = {
+function parseWebhookList(value?: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function getWebhookGroup(...envKeys: string[]): string[] {
+  const urls = envKeys.flatMap((key) => parseWebhookList(process.env[key]));
+  return [...new Set(urls)];
+}
+
+const CHANNEL_CONFIG: Record<SlackChannel, () => string[]> = {
   // QC/Quality Control channel
-  qc: () => process.env.SLACK_QC_CHANNEL_WEBHOOK_URL,
+  qc: () => getWebhookGroup("SLACK_QC_CHANNEL_WEBHOOK_URL"),
   // Scheduling channel
-  scheduling: () => process.env.SLACK_SCHEDULING_CHANNEL_WEBHOOK_URL,
+  scheduling: () => getWebhookGroup("SLACK_SCHEDULING_CHANNEL_WEBHOOK_URL"),
   // Reports channel (for daily summary)
-  reports: () => process.env.SLACK_REPORT_WEBHOOK_URL,
+  reports: () => getWebhookGroup("SLACK_REPORT_WEBHOOK_URL"),
   // E8 App channel (for internal team notifications)
-  e8app: () => process.env.SLACK_E8_APP_CHANNEL_WEBHOOK_URL,
+  e8app: () => getWebhookGroup("SLACK_E8_APP_CHANNEL_WEBHOOK_URL"),
+  // Attendance reminder channels
+  attendance: () =>
+    getWebhookGroup(
+      "SLACK_ATTENDANCE_CHANNEL_WEBHOOK_URLS",
+      "SLACK_ATTENDANCE_CHANNEL_WEBHOOK_URL",
+      "SLACK_ATTENDANCE_WEBHOOK_URLS",
+      "SLACK_ATTENDANCE_WEBHOOK_URL",
+    ),
+  // Editor reminder channels
+  editors: () =>
+    getWebhookGroup(
+      "SLACK_EDITORS_CHANNEL_WEBHOOK_URLS",
+      "SLACK_EDITORS_CHANNEL_WEBHOOK_URL",
+      "SLACK_EDITOR_CHANNEL_WEBHOOK_URLS",
+      "SLACK_EDITOR_CHANNEL_WEBHOOK_URL",
+      "SLACK_EDITORS_WEBHOOK_URLS",
+      "SLACK_EDITORS_WEBHOOK_URL",
+      "SLACK_EDITOR_WEBHOOK_URLS",
+      "SLACK_EDITOR_WEBHOOK_URL",
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -92,12 +134,16 @@ async function buildSlackBlocks(notification: SlackNotification): Promise<any[]>
     if (mentionPrefix) mentionPrefix += " ";
   }
 
+  const baseText = notification.message
+    ? `${mentionPrefix}${notification.message}`
+    : `${mentionPrefix}${emoji} *${notification.title || "Notification"}*${notification.body ? `\n${notification.body}` : ""}`;
+
   const blocks: any[] = [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `${mentionPrefix}${emoji} *${notification.title}*${notification.body ? `\n${notification.body}` : ""}`,
+        text: baseText,
       },
     },
   ];
@@ -124,7 +170,7 @@ async function buildSlackBlocks(notification: SlackNotification): Promise<any[]>
 export async function sendSlackWebhook(
   notification: SlackNotification,
   overrideUrl?: string
-): Promise<void> {
+): Promise<boolean> {
   try {
     let webhookUrl = overrideUrl;
 
@@ -138,7 +184,7 @@ export async function sendSlackWebhook(
 
     if (!webhookUrl) {
       console.log(`[Slack Webhook] Skipped — no webhook URL configured (override=${!!overrideUrl})`);
-      return;
+      return false;
     }
 
     const blocks = await buildSlackBlocks(notification);
@@ -152,11 +198,16 @@ export async function sendSlackWebhook(
     if (!res.ok) {
       const errorText = await res.text().catch(() => 'unknown');
       console.error(`[Slack Webhook] Failed with status ${res.status}: ${errorText} (url=${webhookUrl.substring(0, 60)}...)`);
+      return false;
     } else {
-      console.log(`[Slack Webhook] ✅ Sent notification: "${notification.title}" (type=${notification.type})`);
+      console.log(
+        `[Slack Webhook] ✅ Sent notification: "${notification.title || notification.message || notification.type}" (type=${notification.type})`,
+      );
+      return true;
     }
   } catch (err) {
     console.error("[Slack Webhook] Failed:", err);
+    return false;
   }
 }
 
@@ -166,7 +217,7 @@ export async function sendSlackWebhook(
 async function sendClientSlackWebhook(
   clientId: string,
   notification: SlackNotification
-): Promise<void> {
+): Promise<boolean> {
   try {
     const client = await prisma.client.findUnique({
       where: { id: clientId },
@@ -175,40 +226,77 @@ async function sendClientSlackWebhook(
 
     if (!client) {
       console.log(`[Slack Client] Client ${clientId} not found in DB`);
-      return;
+      return false;
     }
 
     if (!client.slackEnabled) {
       console.log(`[Slack Client] Slack disabled for client "${client.name}" (slackEnabled=false)`);
-      return;
+      return false;
     }
 
     if (!client.slackWebhookUrl) {
       console.log(`[Slack Client] No webhook URL for client "${client.name}" (slackEnabled=true but no URL)`);
-      return;
+      return false;
     }
 
     console.log(`[Slack Client] Sending to client "${client.name}" channel...`);
-    await sendSlackWebhook(notification, client.slackWebhookUrl);
+    return sendSlackWebhook(notification, client.slackWebhookUrl);
   } catch (err) {
     console.error("[Slack Client Webhook] Failed:", err);
+    return false;
   }
 }
 
 // ---------------------------------------------------------------------------
 // 2b. CHANNEL-SPECIFIC WEBHOOK — Post to QC, Scheduling, E8 App, etc.
 // ---------------------------------------------------------------------------
+export interface SlackChannelSendResult {
+  channel: SlackChannel;
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  missing: boolean;
+}
+
 export async function sendToChannel(
-  channel: keyof typeof CHANNEL_CONFIG,
+  channel: SlackChannel,
   notification: SlackNotification
-): Promise<void> {
-  const webhookUrl = CHANNEL_CONFIG[channel]();
-  if (!webhookUrl) {
+): Promise<SlackChannelSendResult> {
+  const webhookUrls = CHANNEL_CONFIG[channel]();
+  if (webhookUrls.length === 0) {
     console.log(`[Slack ${channel}] No webhook URL configured for ${channel} channel`);
-    return;
+    return {
+      channel,
+      attempted: 0,
+      succeeded: 0,
+      failed: 0,
+      missing: true,
+    };
   }
-  console.log(`[Slack ${channel}] Sending notification to ${channel} channel...`);
-  await sendSlackWebhook(notification, webhookUrl);
+
+  console.log(
+    `[Slack ${channel}] Sending notification to ${channel} group (${webhookUrls.length} webhook${webhookUrls.length === 1 ? "" : "s"})...`,
+  );
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const webhookUrl of webhookUrls) {
+    const ok = await sendSlackWebhook(notification, webhookUrl);
+    if (ok) {
+      succeeded++;
+    } else {
+      failed++;
+    }
+  }
+
+  return {
+    channel,
+    attempted: webhookUrls.length,
+    succeeded,
+    failed,
+    missing: false,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -235,8 +323,8 @@ export async function sendSlackDM(
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const emoji = emojiForType(notification.type);
 
-    let text = `${emoji} *${notification.title}*`;
-    if (notification.body) text += `\n${notification.body}`;
+    let text = notification.message || `${emoji} *${notification.title || "Notification"}*`;
+    if (!notification.message && notification.body) text += `\n${notification.body}`;
     if (notification.payload?.taskId) {
       text += `\n<${appUrl}/dashboard?task=${notification.payload.taskId}|View Task>`;
     }
@@ -258,7 +346,7 @@ export async function deliverSlackNotification(
   notification: SlackNotification,
 ): Promise<void> {
   console.log(
-    `[Slack Dispatch] Delivering notification: type=${notification.type}, title="${notification.title}", clientId=${notification.payload?.clientId || "none"}, userId=${notification.userId || "none"}`,
+    `[Slack Dispatch] Delivering notification: type=${notification.type}, title="${notification.title || notification.message || notification.type}", clientId=${notification.payload?.clientId || "none"}, userId=${notification.userId || "none"}`,
   );
 
   const notificationType = notification.type;

@@ -4,6 +4,11 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'url';
+import {
+    getEnabledSlackScheduledJobs,
+    runSlackScheduledJob,
+    SLACK_SCHEDULED_TIMEZONE,
+} from "@/lib/slack-scheduled-jobs";
 
 // Load environment variables
 dotenv.config();
@@ -46,6 +51,7 @@ function logToJobFile(jobName: string, message: string, isError: boolean = false
 
 console.log('🚀 [Cron Master] Starting centralized cron service...');
 console.log(`🔗 Target API: ${BASE_URL}`);
+registerScheduledSlackReminderJobs();
 
 /**
  * Utility to trigger a local API endpoint
@@ -88,6 +94,54 @@ async function triggerJob(name: string, endpoint: string, method: 'GET' | 'POST'
             logToJobFile(name, `Got 502 Bad Gateway. This usually means the Next.js app is down or restarting.`, true);
         }
         return null;
+    }
+}
+
+function registerScheduledSlackReminderJobs() {
+    const slackJobs = getEnabledSlackScheduledJobs();
+
+    if (slackJobs.length === 0) {
+        console.log('⚪ [Cron Master] No scheduled Slack reminder jobs are enabled.');
+        return;
+    }
+
+    console.log(`💬 [Cron Master] Registering ${slackJobs.length} scheduled Slack reminder jobs...`);
+
+    for (const job of slackJobs) {
+        cron.schedule(job.schedule, async () => {
+            logToJobFile(job.name, `Starting scheduled Slack reminder for "${job.channel}" group`);
+
+            try {
+                const result = await runSlackScheduledJob(job.key);
+
+                if (result.skipped) {
+                    logToJobFile(job.name, `Skipped: ${result.reason || 'job disabled'}`);
+                    return;
+                }
+
+                const delivery = result.delivery;
+                if (!delivery || delivery.missing || delivery.attempted === 0) {
+                    logToJobFile(
+                        job.name,
+                        `Completed with no delivery targets. Channel group "${job.channel}" has no configured webhooks.`,
+                    );
+                    return;
+                }
+
+                const summary = `Delivered to ${delivery.succeeded}/${delivery.attempted} webhook(s) for "${job.channel}"`;
+                if (delivery.failed > 0) {
+                    logToJobFile(job.name, `${summary}; ${delivery.failed} failed`, true);
+                } else {
+                    logToJobFile(job.name, summary);
+                }
+            } catch (error: any) {
+                logToJobFile(
+                    job.name,
+                    `Failed to run scheduled Slack reminder: ${error?.message || error}`,
+                    true,
+                );
+            }
+        }, { timezone: SLACK_SCHEDULED_TIMEZONE });
     }
 }
 
@@ -240,6 +294,7 @@ cron.schedule('0 * * * *', () => {
 
 // Log initialized jobs
 console.log('📦 Jobs Scheduled:');
+console.log(' - Slack Reminders: Daily in America/New_York');
 console.log(' - Monthly Tasks: Daily at 1 AM');
 console.log(' - Meta Sync: Daily at 2 AM');
 console.log(' - YouTube Sync: Daily at 3 AM');
