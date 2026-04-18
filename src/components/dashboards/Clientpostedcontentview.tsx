@@ -124,6 +124,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+    const [statusFilter, setStatusFilter] = useState<'all' | 'posted' | 'scheduled'>('all');
     const [platformFilter, setPlatformFilter] = useState<string[]>([]);
     const [deliverableFilter, setDeliverableFilter] = useState<string>('all');
     const [dateRange, setDateRange] = useState<string>('30d');
@@ -140,58 +141,53 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
     const [availableDeliverables, setAvailableDeliverables] = useState<string[]>([]);
 
     useEffect(() => {
-        fetchPostedTasks();
+        fetchPostedContent();
     }, [clientId]);
 
-    async function fetchPostedTasks() {
+    async function fetchPostedContent() {
         try {
             setLoading(true);
+            
+            // Fetch from PostedContent API
             const url = clientId
-                ? `/api/tasks?clientId=${clientId}&status=SCHEDULED,POSTED`
-                : `/api/tasks?status=SCHEDULED,POSTED`;
+                ? `/api/tasks?clientId=${clientId}&limit=1000`
+                : `/api/tasks?limit=1000`;
             
             const res = await fetch(url, { cache: "no-store" });
-            if (!res.ok) throw new Error("Failed to fetch tasks");
+            if (!res.ok) throw new Error("Failed to fetch posted content");
             
             const data = await res.json();
+            const contents = data.contents || [];
             
-            const postedTasks: PostedTask[] = (data.tasks || [])
-                .filter((task: any) => {
-                    const status = (task.status || "").toUpperCase();
-                    const isValidStatus = status === "SCHEDULED" || status === "POSTED";
-                    let links = task.socialMediaLinks;
-                    if (typeof links === "string") {
-                        try { links = JSON.parse(links); } catch { links = []; }
-                    }
-                    return isValidStatus && Array.isArray(links) && links.length > 0;
-                })
-                .map((task: any) => {
-                    let smLinks = task.socialMediaLinks;
-                    if (typeof smLinks === "string") {
-                        try { smLinks = JSON.parse(smLinks); } catch { smLinks = []; }
-                    }
-                    return {
-                        id: task.id,
-                        title: task.title,
-                        description: task.description,
-                        status: task.status,
-                        dueDate: task.dueDate,
-                        createdAt: task.createdAt,
-                        deliverableType: task.deliverableType || task.monthlyDeliverable?.type,
-                        socialMediaLinks: smLinks || [],
-                        files: (task.files || []).map((f: any) => ({
-                            id: f.id,
-                            name: f.name,
-                            url: f.url || '',
-                            size: f.size || 0,
-                            mimeType: f.mimeType || '',
-                            folderType: f.folderType || 'other',
-                            s3Key: f.s3Key || '',
-                        })),
-                        deliverable: task.monthlyDeliverable || task.oneOffDeliverable,
-                    };
+            // Transform PostedContent records into the format expected by the UI
+            // Group by taskId to create task-like objects
+            const taskMap = new Map<string, PostedTask>();
+            
+            contents.forEach((content: any) => {
+                const taskId = content.taskId || content.id; // Use content.id if no taskId
+                
+                if (!taskMap.has(taskId)) {
+                    taskMap.set(taskId, {
+                        id: taskId,
+                        title: content.title || 'Untitled',
+                        description: '',
+                        status: 'POSTED',
+                        createdAt: content.createdAt,
+                        deliverableType: content.deliverableType,
+                        socialMediaLinks: [],
+                        files: [],
+                    });
+                }
+                
+                const task = taskMap.get(taskId)!;
+                task.socialMediaLinks.push({
+                    platform: content.platform,
+                    url: content.url,
+                    postedAt: content.postedAt,
                 });
-
+            });
+            
+            const postedTasks = Array.from(taskMap.values());
             setTasks(postedTasks);
 
             // Extract unique deliverable types
@@ -212,7 +208,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
             setExpandedDates(allDates);
 
         } catch (err) {
-            console.error("Error fetching tasks:", err);
+            console.error("Error fetching posted content:", err);
             toast.error("Failed to load posted content");
         } finally {
             setLoading(false);
@@ -237,6 +233,11 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                 // Deliverable filter
                 const matchesDeliverable = deliverableFilter === 'all' || 
                     task.deliverableType === deliverableFilter;
+                
+                // Status filter
+                const matchesStatus = statusFilter === 'all' ||
+                    (statusFilter === 'posted' && task.status?.toUpperCase() === 'POSTED') ||
+                    (statusFilter === 'scheduled' && task.status?.toUpperCase() === 'SCHEDULED');
 
                 // Date range filter
                 let matchesDateRange = true;
@@ -248,7 +249,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                     else if (dateRange === '90d') matchesDateRange = daysAgo <= 90;
                 }
 
-                if (matchesSearch && matchesPlatform && matchesDeliverable && matchesDateRange) {
+                if (matchesSearch && matchesPlatform && matchesDeliverable && matchesStatus && matchesDateRange) {
                     items.push({ task, link });
                 }
             });
@@ -256,7 +257,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
 
         // Sort by posted date descending
         return items.sort((a, b) => new Date(b.link.postedAt).getTime() - new Date(a.link.postedAt).getTime());
-    }, [tasks, debouncedSearchTerm, platformFilter, deliverableFilter, dateRange]);
+    }, [tasks, debouncedSearchTerm, platformFilter, deliverableFilter, statusFilter, dateRange]);
 
     // Group by date
     const groupedByDate = useMemo((): DateGroup[] => {
@@ -350,7 +351,10 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
         }
     };
 
-    const hasActiveFilters = debouncedSearchTerm || platformFilter.length > 0 || deliverableFilter !== 'all';
+    // Stats
+    const postedCount = filteredItems.filter(i => i.task.status?.toUpperCase() === 'POSTED').length;
+    const scheduledCount = filteredItems.filter(i => i.task.status?.toUpperCase() === 'SCHEDULED').length;
+    const hasActiveFilters = debouncedSearchTerm || platformFilter.length > 0 || deliverableFilter !== 'all' || statusFilter !== 'all';
 
     if (loading) {
         return (
@@ -380,6 +384,18 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    {/* Stats badges */}
+                    <div className="hidden sm:flex items-center gap-2">
+                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            {postedCount} Posted
+                        </Badge>
+                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {scheduledCount} Scheduled
+                        </Badge>
+                    </div>
+                    
                     {/* View mode toggle */}
                     <div className="flex items-center border rounded-lg p-1 bg-zinc-100">
                         <button
@@ -404,7 +420,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                         </button>
                     </div>
 
-                    <Button variant="outline" size="sm" onClick={fetchPostedTasks}>
+                    <Button variant="outline" size="sm" onClick={fetchPostedContent}>
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Refresh
                     </Button>
@@ -441,6 +457,34 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                             <SelectItem value="all">All Time</SelectItem>
                         </SelectContent>
                     </Select>
+                </div>
+
+                {/* Status Toggle */}
+                <div className="flex items-center gap-1 border-l pl-4">
+                    <Button
+                        variant={statusFilter === "all" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setStatusFilter("all")}
+                        className={cn("h-9 px-3 text-xs", statusFilter === "all" && "bg-slate-900 text-white")}
+                    >
+                        All
+                    </Button>
+                    <Button
+                        variant={statusFilter === "posted" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setStatusFilter("posted")}
+                        className={cn("h-9 px-3 text-xs", statusFilter === "posted" && "bg-emerald-600 text-white")}
+                    >
+                        Posted
+                    </Button>
+                    <Button
+                        variant={statusFilter === "scheduled" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setStatusFilter("scheduled")}
+                        className={cn("h-9 px-3 text-xs", statusFilter === "scheduled" && "bg-blue-600 text-white")}
+                    >
+                        Scheduled
+                    </Button>
                 </div>
 
                 {/* Platform Filter */}
@@ -514,6 +558,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                             setSearchTerm('');
                             setPlatformFilter([]);
                             setDeliverableFilter('all');
+                            setStatusFilter('all');
                         }}
                         className="h-9 text-xs text-muted-foreground hover:text-foreground"
                     >
@@ -540,6 +585,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                 setSearchTerm('');
                                 setPlatformFilter([]);
                                 setDeliverableFilter('all');
+                                setStatusFilter('all');
                             }}
                             className="mt-4"
                         >
@@ -689,109 +735,57 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                             <tr className="bg-gray-50">
                                                                 <td colSpan={7} className="px-6 py-4">
                                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                                        {/* Files - Grouped by Category */}
+                                                                        {/* Files */}
                                                                         <div>
                                                                             <h4 className="font-semibold text-sm text-gray-700 mb-3 flex items-center gap-2">
                                                                                 <FileText className="h-4 w-4 text-indigo-500" />
                                                                                 Files ({task.files.length})
                                                                             </h4>
                                                                             {task.files.length > 0 ? (
-                                                                                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                                                                                    {(() => {
-                                                                                        // Group files by folderType
-                                                                                        const grouped = task.files.reduce((acc, file) => {
-                                                                                            const folderType = file.folderType || 'other';
-                                                                                            if (!acc[folderType]) acc[folderType] = [];
-                                                                                            acc[folderType].push(file);
-                                                                                            return acc;
-                                                                                        }, {} as Record<string, typeof task.files>);
-
-                                                                                        // Define sort order for folder types
-                                                                                        const folderOrder: Record<string, number> = {
-                                                                                            'main': 0,
-                                                                                            'covers': 1,
-                                                                                            'tiles': 2,
-                                                                                            'thumbnails': 3,
-                                                                                            'music-license': 4,
-                                                                                            'other': 5,
-                                                                                        };
-
-                                                                                        // Folder type display names
-                                                                                        const folderLabels: Record<string, string> = {
-                                                                                            'main': 'Main Video',
-                                                                                            'covers': 'Covers',
-                                                                                            'tiles': 'Tiles',
-                                                                                            'thumbnails': 'Thumbnails',
-                                                                                            'music-license': 'Music License',
-                                                                                            'other': 'Other Files',
-                                                                                        };
-
-                                                                                        return Object.entries(grouped)
-                                                                                            .sort(([a], [b]) => (folderOrder[a] ?? 5) - (folderOrder[b] ?? 5));
-                                                                                    })().map(([folderType, folderFiles]) => {
-                                                                                        const folderLabels: Record<string, string> = {
-                                                                                            'main': 'Main Video',
-                                                                                            'covers': 'Covers',
-                                                                                            'tiles': 'Tiles',
-                                                                                            'thumbnails': 'Thumbnails',
-                                                                                            'music-license': 'Music License',
-                                                                                            'other': 'Other Files',
-                                                                                        };
+                                                                                <div className="space-y-2">
+                                                                                    {task.files.slice(0, 5).map((file) => {
+                                                                                        const isVideo = file.mimeType?.startsWith('video/');
+                                                                                        const isImage = file.mimeType?.startsWith('image/');
+                                                                                        const FileIcon = isVideo ? Video : isImage ? ImageIcon : FileText;
 
                                                                                         return (
-                                                                                            <div key={folderType} className="space-y-2">
-                                                                                                <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-gray-100 px-2 py-1 rounded inline-block">
-                                                                                                    {folderLabels[folderType] || folderType.replace(/[-_]/g, ' ')}
-                                                                                                </h5>
-                                                                                                <div className="space-y-2">
-                                                                                                    {folderFiles.map((file) => {
-                                                                                                        const isVideo = file.mimeType?.startsWith('video/');
-                                                                                                        const isImage = file.mimeType?.startsWith('image/');
-                                                                                                        const FileIcon = isVideo ? Video : isImage ? ImageIcon : FileText;
-                                                                                                        const iconColor = isVideo ? 'text-blue-500' : isImage ? 'text-emerald-500' : 'text-gray-400';
-
-                                                                                                        return (
-                                                                                                            <div
-                                                                                                                key={file.id}
-                                                                                                                className="flex items-center justify-between p-2 bg-white rounded-lg border hover:border-indigo-200 transition-colors group"
-                                                                                                            >
-                                                                                                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                                                                                                    <FileIcon className={cn("h-4 w-4 shrink-0", iconColor)} />
-                                                                                                                    <div className="min-w-0">
-                                                                                                                        <p className="font-medium text-[13px] truncate">{file.name}</p>
-                                                                                                                        <p className="text-[10px] text-muted-foreground">
-                                                                                                                            {(Number(file.size) / 1024 / 1024).toFixed(2)} MB
-                                                                                                                        </p>
-                                                                                                                    </div>
-                                                                                                                </div>
-                                                                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                                                                    <Button
-                                                                                                                        variant="ghost"
-                                                                                                                        size="sm"
-                                                                                                                        className="h-7 w-7 p-0"
-                                                                                                                        onClick={() => {
-                                                                                                                            setPreviewFile({ ...file, url: getFileUrl(file) });
-                                                                                                                            setIsPreviewOpen(true);
-                                                                                                                        }}
-                                                                                                                    >
-                                                                                                                        <Eye className="h-3.5 w-3.5" />
-                                                                                                                    </Button>
-                                                                                                                    <Button
-                                                                                                                        variant="ghost"
-                                                                                                                        size="sm"
-                                                                                                                        className="h-7 w-7 p-0"
-                                                                                                                        onClick={() => downloadFile(file)}
-                                                                                                                    >
-                                                                                                                        <Download className="h-3.5 w-3.5" />
-                                                                                                                    </Button>
-                                                                                                                </div>
-                                                                                                            </div>
-                                                                                                        );
-                                                                                                    })}
+                                                                                            <div
+                                                                                                key={file.id}
+                                                                                                className="flex items-center justify-between p-2 bg-white rounded-lg border group"
+                                                                                            >
+                                                                                                <div className="flex items-center gap-2 min-w-0">
+                                                                                                    <FileIcon className="h-4 w-4 text-gray-400 shrink-0" />
+                                                                                                    <span className="text-xs truncate">{file.name}</span>
+                                                                                                </div>
+                                                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                                    <Button
+                                                                                                        variant="ghost"
+                                                                                                        size="sm"
+                                                                                                        className="h-7 w-7 p-0"
+                                                                                                        onClick={() => {
+                                                                                                            setPreviewFile({ ...file, url: getFileUrl(file) });
+                                                                                                            setIsPreviewOpen(true);
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <Eye className="h-3.5 w-3.5" />
+                                                                                                    </Button>
+                                                                                                    <Button
+                                                                                                        variant="ghost"
+                                                                                                        size="sm"
+                                                                                                        className="h-7 w-7 p-0"
+                                                                                                        onClick={() => downloadFile(file)}
+                                                                                                    >
+                                                                                                        <Download className="h-3.5 w-3.5" />
+                                                                                                    </Button>
                                                                                                 </div>
                                                                                             </div>
                                                                                         );
                                                                                     })}
+                                                                                    {task.files.length > 5 && (
+                                                                                        <p className="text-xs text-muted-foreground">
+                                                                                            +{task.files.length - 5} more files
+                                                                                        </p>
+                                                                                    )}
                                                                                 </div>
                                                                             ) : (
                                                                                 <p className="text-xs text-muted-foreground">No files attached</p>
@@ -836,8 +830,8 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                                                     </div>
                                                                                 )}
                                                                             </div>
-
-                                                                            {/* Titles Section */}
+                                                                            
+                                                                            {/* Suggested Titles */}
                                                                             {task.suggestedTitles && task.suggestedTitles.length > 0 && (
                                                                                 <div className="mt-4">
                                                                                     <h4 className="font-semibold text-sm text-gray-700 mb-2 flex items-center gap-2">

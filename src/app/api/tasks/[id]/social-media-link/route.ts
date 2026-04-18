@@ -33,10 +33,18 @@ export async function POST(
     const { platform, url, postedAt } = body;
     const user = getUserFromToken(request);
 
-    // Get current task
+    // Get current task with client info
     const task = await prisma.task.findUnique({
       where: { id: id },
-      select: { socialMediaLinks: true, title: true, description: true }
+      select: { 
+        socialMediaLinks: true, 
+        title: true, 
+        description: true,
+        clientId: true,
+        deliverableType: true,
+        monthlyDeliverable: { select: { type: true } },
+        oneOffDeliverable: { select: { type: true } },
+      }
     });
 
     if (!task) {
@@ -52,10 +60,11 @@ export async function POST(
       : [];
 
     // Add new link with user info
+    const postedAtValue = postedAt || new Date().toISOString();
     const newLink = {
       platform,
       url,
-      postedAt: postedAt || new Date().toISOString(),
+      postedAt: postedAtValue,
       addedBy: user?.userId || null,
     };
 
@@ -66,6 +75,32 @@ export async function POST(
         socialMediaLinks: [...existingLinks, newLink],
       },
     });
+
+    // 🔥 Also save to PostedContent table for persistent display
+    if (task.clientId) {
+      try {
+        const deliverableType = task.deliverableType || 
+          task.monthlyDeliverable?.type || 
+          task.oneOffDeliverable?.type || 
+          null;
+
+        await prisma.postedContent.create({
+          data: {
+            clientId: task.clientId,
+            title: task.title || task.description || null,
+            platform: platform.toLowerCase(),
+            url: url,
+            postedAt: new Date(postedAtValue),
+            deliverableType: deliverableType,
+            taskId: id,
+          },
+        });
+        console.log(`✅ PostedContent created for task ${id}, platform ${platform}`);
+      } catch (err) {
+        console.error('Failed to save to PostedContent:', err);
+        // Don't fail the whole operation if PostedContent save fails
+      }
+    }
 
     // 📝 Audit log
     if (user) {

@@ -410,7 +410,7 @@ model File {
   feedback           TaskFeedback[]
 
   @@index([taskId, folderType])
-  @@index([taskId, isActive]) 
+  @@index([taskId, isActive])
 }
 
 model Notification {
@@ -1290,29 +1290,29 @@ model PortfolioVideo {
 }
 
 model Contract {
-  id          String             @id @default(cuid())
-  title       String
-  description String?
-  status      ContractStatus     @default(DRAFT)
-  s3Key       String
-  signedS3Key String?
-  fileName    String
-  fileSize    BigInt
-  createdById Int
-  clientId    String?
-  templateId  String?
-  expiresAt   DateTime?
-  completedAt DateTime?
-  cancelledAt DateTime?
-  message     String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  annotations Json?
-  allowVariableSigners Boolean @default(false)
-  createdBy   User               @relation("ContractCreator", fields: [createdById], references: [id])
-  template    ContractTemplate?  @relation(fields: [templateId], references: [id])
-  auditLogs   ContractAuditLog[]
-  signers     ContractSigner[]
+  id                   String             @id @default(cuid())
+  title                String
+  description          String?
+  status               ContractStatus     @default(DRAFT)
+  s3Key                String
+  signedS3Key          String?
+  fileName             String
+  fileSize             BigInt
+  createdById          Int
+  clientId             String?
+  templateId           String?
+  expiresAt            DateTime?
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  message              String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  annotations          Json?
+  allowVariableSigners Boolean            @default(false)
+  createdBy            User               @relation("ContractCreator", fields: [createdById], references: [id])
+  template             ContractTemplate?  @relation(fields: [templateId], references: [id])
+  auditLogs            ContractAuditLog[]
+  signers              ContractSigner[]
 
   @@index([status])
   @@index([createdById])
@@ -1338,27 +1338,27 @@ model ContractTemplate {
 }
 
 model ContractSigner {
-  id             String       @id @default(cuid())
-  contractId     String
-  name           String
-  email          String
-  role           String       @default("signer")
-  status         SignerStatus @default(PENDING)
-  signToken      String       @unique
-  signedAt       DateTime?
-  viewedAt       DateTime?
-  declinedAt     DateTime?
-  declineReason  String?
-  signatureS3Key String?
-  signatureType  String?
-  order          Int          @default(0)
-  ipAddress      String?
-  userAgent      String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  isVariableSigner Boolean @default(false)  // Add this
-  smsVerified      Boolean @default(false)  // Add this
-  contract       Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id               String       @id @default(cuid())
+  contractId       String
+  name             String
+  email            String
+  role             String       @default("signer")
+  status           SignerStatus @default(PENDING)
+  signToken        String       @unique
+  signedAt         DateTime?
+  viewedAt         DateTime?
+  declinedAt       DateTime?
+  declineReason    String?
+  signatureS3Key   String?
+  signatureType    String?
+  order            Int          @default(0)
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  isVariableSigner Boolean      @default(false)
+  smsVerified      Boolean      @default(false)
+  contract         Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@index([contractId])
   @@index([signToken])
@@ -1383,17 +1383,17 @@ model ContractAuditLog {
 }
 
 model StripeCustomer {
-  id                   String              @id @default(cuid())
-  clientId             String              @unique
-  stripeCustomerId     String              @unique
+  id                   String          @id @default(cuid())
+  clientId             String          @unique
+  stripeCustomerId     String          @unique
   defaultPaymentMethod String?
-  currency             String              @default("usd")
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  client               Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  currency             String          @default("usd")
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
   invoices             Invoice[]
-  subscriptions        Subscription[]
   paymentMethods       PaymentMethod[]
+  client               Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  subscriptions        Subscription[]
 
   @@index([stripeCustomerId])
 }
@@ -1501,21 +1501,41 @@ model Payment {
 }
 
 model BillingPlan {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   name            String
   description     String?
-  stripePriceId   String    @unique
+  stripePriceId   String   @unique
   stripeProductId String
-  amount          Int       // Amount in cents
-  currency        String    @default("usd")
-  interval        String    @default("month") // 'month' | 'year'
-  isActive        Boolean   @default(true)
-  features        Json?     // Array of feature strings
+  amount          Int
+  currency        String   @default("usd")
+  interval        String   @default("month")
+  isActive        Boolean  @default(true)
+  features        Json?
   metadata        Json?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([isActive])
+}
+
+model leads {
+  id               Int       @id @default(autoincrement())
+  name             String    @db.VarChar(200)
+  niche            String?   @db.VarChar(100)
+  status           String    @default("new") @db.VarChar(20)
+  notes            String?
+  contactedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  detectedNeed     String?   @db.VarChar(300)
+  matchedService   String?   @db.VarChar(200)
+  postText         String?
+  postUrl          String?   @db.VarChar(500)
+  profileUrl       String    @db.VarChar(500)
+  suggestedMessage String?
+
+  @@index([createdAt])
+  @@index([profileUrl])
+  @@index([status])
 }
 
 enum SubscriptionStatus {

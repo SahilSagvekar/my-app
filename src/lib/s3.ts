@@ -1,6 +1,6 @@
 // src/lib/s3.ts
 
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import type { S3ClientConfig } from "@aws-sdk/client-s3";
 import fs from "fs";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -301,6 +301,23 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
   }
 }
 
+// Delete a file from S3/R2
+export async function deleteFromS3(key: string): Promise<boolean> {
+  if (!key) return false;
+  
+  try {
+    const client = getS3();
+    await client.send(new DeleteObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+    }));
+    console.log(`✅ Deleted from S3: ${key}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to delete from S3: ${key}`, error);
+    throw error;
+  }
+}
 // Generate pre-signed URL
 // export async function generateSignedUrl(
 //   key: string,

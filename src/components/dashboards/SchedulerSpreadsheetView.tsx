@@ -399,6 +399,7 @@ export function SchedulerSpreadsheetView() {
             const isEdit = linkDialog.mode === 'edit';
             const postedAtValue = linkPostedAt ? new Date(linkPostedAt).toISOString() : new Date().toISOString();
             
+            // Save to Task.socialMediaLinks
             const res = await fetch(`/api/tasks/${linkDialog.taskId}/social-media-link`, {
                 method: isEdit ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -410,6 +411,29 @@ export function SchedulerSpreadsheetView() {
             });
 
             if (!res.ok) throw new Error(`Failed to ${isEdit ? 'update' : 'add'} link`);
+
+            // Also save to PostedContent table (for persistent display)
+            const task = tasks.find(t => t.id === linkDialog.taskId);
+            if (task && task.clientId && !isEdit) {
+                try {
+                    await fetch('/api/posted-content', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            clientId: task.clientId,
+                            title: task.title,
+                            platform: linkDialog.platform,
+                            url: linkUrl,
+                            postedAt: postedAtValue,
+                            deliverableType: task.deliverable?.type || task.deliverableType,
+                            taskId: task.id,
+                        }),
+                    });
+                } catch (err) {
+                    console.error('Failed to save to PostedContent:', err);
+                    // Don't fail the whole operation if PostedContent save fails
+                }
+            }
 
             // Update local state
             setTasks(prev => prev.map(t => {

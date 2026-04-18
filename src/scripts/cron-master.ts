@@ -155,20 +155,30 @@ cron.schedule('0 1 * * *', async () => {
     const currentMonth = now.getMonth();
     const currentDay = now.getDate();
 
+    // Calculate last day of current month
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    // Check if we're in the last 3 days of the month
+    const isEndOfMonth = currentDay >= lastDayOfMonth - 2; // 29th, 30th, 31st (or 26th, 27th, 28th for Feb)
+
     console.log(`\n📦 [Cron Master] Starting Monthly Task Generation cycle...`);
     console.log(`   📅 Current: ${currentYear}-${currentMonth + 1}-${currentDay}`);
+    console.log(`   📅 Last day of month: ${lastDayOfMonth}`);
+    console.log(`   📅 Is end of month (last 3 days): ${isEndOfMonth}`);
 
-    // 1. Safety run for current month (always runs to catch any missed tasks)
+    // 1. Safety run for CURRENT month (always runs to catch any missed tasks)
+    // This ensures if tasks weren't created, they get created now
     const currentResult = await triggerJob('Current Month Tasks', '/api/tasks/recurring/run', 'POST', {
         year: currentYear,
         month: currentMonth,
         dryRun: false
     });
 
-    // 2. Generate NEXT month's tasks - ONLY on the 1st day of each month
+    // 2. Generate NEXT month's tasks - ONLY in the LAST 3 days of the month
+    // This gives time for next month's tasks to be ready before the new month starts
     let nextResult: any = null;
-    if (currentDay === 1) {
-        console.log(`   🎉 First of the month - generating next month's tasks...`);
+    if (isEndOfMonth) {
+        console.log(`   🎉 End of month (${currentDay}/${lastDayOfMonth}) - pre-generating next month's tasks...`);
 
         // Calculate next month
         let nextMonth = currentMonth + 1;
@@ -189,7 +199,7 @@ cron.schedule('0 1 * * *', async () => {
             }, 5000);
         });
     } else {
-        console.log(`   ⏭️ Not the 1st - skipping next month task generation`);
+        console.log(`   ⏭️ Not end of month yet (day ${currentDay}/${lastDayOfMonth}) - skipping next month task generation`);
     }
 
     // 3. Send Child-Friendly Report to Sahil
@@ -227,7 +237,7 @@ cron.schedule('0 1 * * *', async () => {
         // Always process current month
         processResult(currentResult, monthNames[currentMonth]);
 
-        // Only process next month if it was run (last 5 days of month)
+        // Only process next month if it was run (last 3 days of month)
         if (nextResult) {
             const nextMonthIndex = currentMonth === 11 ? 0 : currentMonth + 1;
             processResult(nextResult, monthNames[nextMonthIndex]);
@@ -294,7 +304,6 @@ cron.schedule('0 * * * *', () => {
 
 // Log initialized jobs
 console.log('📦 Jobs Scheduled:');
-console.log(' - Slack Reminders: Daily in America/New_York');
 console.log(' - Monthly Tasks: Daily at 1 AM');
 console.log(' - Meta Sync: Daily at 2 AM');
 console.log(' - YouTube Sync: Daily at 3 AM');

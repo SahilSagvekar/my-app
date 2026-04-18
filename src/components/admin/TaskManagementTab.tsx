@@ -241,6 +241,18 @@ export function TaskManagementTab() {
   });
   const [saving, setSaving] = useState(false);
 
+  // Delete confirmation dialog
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<Task | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Bulk delete confirmation dialog
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Super admin email - only this user can delete tasks
+  const SUPER_ADMIN_EMAIL = "sahilsagvekar230@gmail.com";
+  const canDeleteTasks = user?.email === SUPER_ADMIN_EMAIL;
+
   // Dynamic deliverable types from loaded tasks
   const [availableDeliverableTypes, setAvailableDeliverableTypes] = useState<string[]>(defaultDeliverableTypes);
 
@@ -603,6 +615,100 @@ export function TaskManagementTab() {
   }
 
   // ─────────────────────────────────────────
+  // Delete Task Handler (Super Admin Only)
+  // ─────────────────────────────────────────
+
+  async function handleDeleteTask() {
+    if (!deleteConfirmTask || !canDeleteTasks) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/tasks/${deleteConfirmTask.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete task');
+      }
+
+      toast({
+        title: 'Task Deleted',
+        description: `Task "${deleteConfirmTask.title || deleteConfirmTask.id}" has been permanently deleted.`,
+      });
+
+      setDeleteConfirmTask(null);
+      loadTasks();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete task',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // Bulk Delete Tasks Handler (Super Admin Only)
+  // ─────────────────────────────────────────
+
+  async function handleBulkDelete() {
+    if (selectedTasks.size === 0 || !canDeleteTasks) return;
+
+    setBulkDeleting(true);
+    const taskIds = Array.from(selectedTasks);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      // Delete tasks one by one (could be optimized with bulk API later)
+      for (const taskId of taskIds) {
+        try {
+          const res = await fetch(`/api/tasks/${taskId}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: 'Tasks Deleted',
+          description: `Successfully deleted ${successCount} task${successCount > 1 ? 's' : ''}${failCount > 0 ? `. ${failCount} failed.` : '.'}`,
+        });
+      }
+
+      if (failCount > 0 && successCount === 0) {
+        toast({
+          title: 'Error',
+          description: `Failed to delete ${failCount} task${failCount > 1 ? 's' : ''}.`,
+          variant: 'destructive',
+        });
+      }
+
+      setShowBulkDelete(false);
+      setSelectedTasks(new Set());
+      loadTasks();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete tasks',
+        variant: 'destructive',
+      });
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  // ─────────────────────────────────────────
   // Filter Helpers
   // ─────────────────────────────────────────
 
@@ -870,32 +976,43 @@ export function TaskManagementTab() {
             </div> */}
 
             <div className="relative flex-1 max-w-md flex items-center justify-between gap-3">
-  <div className="relative flex-1 max-w-xs">
-    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-    <Input
-      placeholder="Search tasks..."
-      value={filters.search}
-      onChange={(e) => {
-        setFilters({ ...filters, search: e.target.value });
-        setPage(1);
-      }}
-      className="pl-10"
-    />
-  </div>
+              {/* <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search tasks..."
+                  value={filters.search}
+                  onChange={(e) => {
+                    setFilters({ ...filters, search: e.target.value });
+                    setPage(1);
+                  }}
+                  className="pl-10"
+                />
+              </div> */}
 
-  {selectedTasks.size > 0 && (
-    <Button
-      variant="default"
-      size="sm"
-      onClick={openBulkEditDialog}
-      className="ml-auto"
-    >
-      <Pencil className="h-4 w-4 mr-2" />
-      Edit {selectedTasks.size} Task
-      {selectedTasks.size > 1 ? "s" : ""}
-    </Button>
-  )}
-</div>
+              {selectedTasks.size > 0 && (
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={openBulkEditDialog}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit {selectedTasks.size} Task
+                    {selectedTasks.size > 1 ? "s" : ""}
+                  </Button>
+                  {canDeleteTasks && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowBulkDelete(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete {selectedTasks.size}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Filter Dropdowns */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
@@ -1102,6 +1219,19 @@ export function TaskManagementTab() {
 
             {/* Date Range Filter */}
             <div className="mt-4 flex items-end gap-4">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search tasks..."
+                  value={filters.search}
+                  onChange={(e) => {
+                    setFilters({ ...filters, search: e.target.value });
+                    setPage(1);
+                  }}
+                  className="pl-10"
+                />
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">
                   Due Date Range
@@ -1291,11 +1421,18 @@ export function TaskManagementTab() {
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit Task
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              {/* <DropdownMenuItem className="text-red-600">
-                                                                <Trash2 className="h-4 w-4 mr-2" />
-                                                                Delete Task
-                                                            </DropdownMenuItem> */}
+                              {canDeleteTasks && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                    onClick={() => setDeleteConfirmTask(task)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Task
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>
@@ -1713,6 +1850,117 @@ export function TaskManagementTab() {
                 : `Update ${selectedTasks.size} Task${
                     selectedTasks.size > 1 ? "s" : ""
                   }`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog (Super Admin Only) */}
+      <Dialog
+        open={!!deleteConfirmTask}
+        onOpenChange={(open) => !open && setDeleteConfirmTask(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Task
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to permanently delete this task?
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="font-medium text-red-800">
+                  {deleteConfirmTask?.title || "Untitled Task"}
+                </p>
+                <p className="text-sm text-red-600 mt-1">
+                  Client: {deleteConfirmTask?.client?.name || "Unknown"}
+                </p>
+                <p className="text-sm text-red-600">
+                  Files:{" "}
+                  {deleteConfirmTask?.shootDetail
+                    ? "Will be deleted from storage"
+                    : "No files"}
+                </p>
+              </div>
+              <p className="mt-3 text-sm text-red-600 font-medium">
+                ⚠️ This action cannot be undone. All associated files and data
+                will be permanently removed.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmTask(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteTask}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete Permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog (Super Admin Only) */}
+      <Dialog
+        open={showBulkDelete}
+        onOpenChange={(open) => !open && setShowBulkDelete(false)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete {selectedTasks.size} Task
+              {selectedTasks.size > 1 ? "s" : ""}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to permanently delete these tasks?
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg max-h-48 overflow-y-auto">
+                {Array.from(selectedTasks).map((taskId) => {
+                  const task = tasks.find((t) => t.id === taskId);
+                  return (
+                    <div
+                      key={taskId}
+                      className="py-1 border-b border-red-100 last:border-0"
+                    >
+                      <p className="font-medium text-red-800 text-sm truncate">
+                        {task?.title || "Untitled Task"}
+                      </p>
+                      <p className="text-xs text-red-600">
+                        {task?.client?.name || "Unknown Client"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-sm text-red-600 font-medium">
+                ⚠️ This action cannot be undone. All associated files and data
+                will be permanently removed.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkDelete(false)}
+              disabled={bulkDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting
+                ? `Deleting ${selectedTasks.size}...`
+                : `Delete ${selectedTasks.size} Task${selectedTasks.size > 1 ? "s" : ""}`}
             </Button>
           </DialogFooter>
         </DialogContent>
