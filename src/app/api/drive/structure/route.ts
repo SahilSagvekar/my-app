@@ -412,5 +412,66 @@ async function buildFolderTree(objects: any[], rootPrefix: string) {
     }
   }
 
+  // Sort all folder children smartly
+  sortFolderChildren(root);
+
   return root;
+}
+
+// ─── Month name to index for chronological sorting ───
+const MONTH_ORDER: Record<string, number> = {
+  january: 0, february: 1, march: 2, april: 3,
+  may: 4, june: 5, july: 6, august: 7,
+  september: 8, october: 9, november: 10, december: 11,
+};
+
+// Parse "April-2026" or "January-2025" into sortable value
+function getMonthSortValue(name: string): number | null {
+  const match = name.match(/^([A-Za-z]+)-(\d{4})$/);
+  if (!match) return null;
+  const monthIdx = MONTH_ORDER[match[1].toLowerCase()];
+  if (monthIdx === undefined) return null;
+  const year = parseInt(match[2]);
+  return year * 12 + monthIdx; // e.g. 2025*12+0=24300 for Jan 2025
+}
+
+// Natural number sort: extract leading number from name
+function getLeadingNumber(name: string): number | null {
+  const match = name.match(/^(\d+)/);
+  return match ? parseInt(match[1]) : null;
+}
+
+// Recursively sort all children in the tree
+function sortFolderChildren(folder: any) {
+  if (!folder.children || folder.children.length === 0) return;
+
+  folder.children.sort((a: any, b: any) => {
+    // 1. Folders first, files second
+    if (a.type === 'folder' && b.type !== 'folder') return -1;
+    if (a.type !== 'folder' && b.type === 'folder') return 1;
+
+    // 2. Try month sort (April-2026, January-2025)
+    const aMonth = getMonthSortValue(a.name);
+    const bMonth = getMonthSortValue(b.name);
+    if (aMonth !== null && bMonth !== null) {
+      return aMonth - bMonth;
+    }
+
+    // 3. Try numeric sort (1, 2, 10, 34)
+    const aNum = getLeadingNumber(a.name);
+    const bNum = getLeadingNumber(b.name);
+    if (aNum !== null && bNum !== null) {
+      return aNum - bNum;
+    }
+
+    // 4. Fallback: alphabetical
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
+  // Recurse into subfolders
+  for (const child of folder.children) {
+    if (child.type === 'folder') {
+      sortFolderChildren(child);
+    }
+  }
 }

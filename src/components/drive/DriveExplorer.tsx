@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Folder,
   FolderPlus,
@@ -29,7 +29,9 @@ import {
   AlertTriangle,
   Link as LinkIcon,
   Share2,
-  Pencil
+  Pencil,
+  Filter,
+  FolderOpen,
 } from "lucide-react";
 import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
@@ -65,6 +67,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -74,11 +83,23 @@ interface DriveItem {
   type: "folder" | "file";
   path: string;
   s3Path?: string;
-  s3Key?: string; // Full S3 key for deletion
+  s3Key?: string;
   children?: DriveItem[];
   size?: number;
   url?: string;
   lastModified?: string;
+}
+
+interface SearchResult {
+  name: string;
+  type: "file";
+  path: string;
+  s3Key: string;
+  size?: number;
+  url?: string;
+  lastModified?: string;
+  folderPath: string;
+  breadcrumbParts: string[];
 }
 
 interface DriveExplorerProps {
@@ -86,6 +107,24 @@ interface DriveExplorerProps {
 }
 
 type ViewMode = "grid" | "list";
+
+// ─── FEATURE 2: URL Path Persistence Helpers ───
+function getPathFromUrl(): string {
+  if (typeof window === "undefined") return "";
+  const params = new URLSearchParams(window.location.search);
+  return params.get("drivePath") || "";
+}
+
+function setPathInUrl(path: string) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (path && path !== "/") {
+    url.searchParams.set("drivePath", path);
+  } else {
+    url.searchParams.delete("drivePath");
+  }
+  window.history.replaceState({}, "", url.toString());
+}
 
 export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
@@ -98,29 +137,29 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // 🔥 NEW: Delete states
+  // Delete states
   const [itemToDelete, setItemToDelete] = useState<DriveItem | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 🔥 NEW: Share states
+  // Share states
   const [shareLink, setShareLink] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // 🔥 NEW: Folder creation states
+  // Folder creation states
   const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
-  // 🔥 NEW: Folder rename states
+  // Folder rename states
   const [itemToRename, setItemToRename] = useState<DriveItem | null>(null);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
 
-  // 🔥 NEW: Storage limit states
+  // Storage limit states
   const [showStorageLimitModal, setShowStorageLimitModal] = useState(false);
   const [storageInfo, setStorageInfo] = useState<{
     used: number;
@@ -133,6 +172,22 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     isCritical: boolean;
   } | null>(null);
 
+  // ─── FEATURE 1: Deliverable Type Filter ───
+  const [deliverableTypes, setDeliverableTypes] = useState<string[]>([]);
+  const [selectedDeliverableFilter, setSelectedDeliverableFilter] = useState<string>("all");
+  const [loadingDeliverables, setLoadingDeliverables] = useState(false);
+
+  // ─── FEATURE 3: Global Search ───
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [globalSearchResults, setGlobalSearchResults] = useState<SearchResult[]>([]);
+  const [isGlobalSearching, setIsGlobalSearching] = useState(false);
+  const [showGlobalResults, setShowGlobalResults] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ─── FEATURE 2: Path restoration ref ───
+  const pendingPathRef = useRef<string>("");
+  const hasRestoredRef = useRef(false);
+
   // Fetch storage info for clients
   useEffect(() => {
     if (role === 'client' && user?.linkedClientId) {
@@ -140,7 +195,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         .then(res => res.json())
         .then(data => {
           setStorageInfo(data);
-          // Auto-show modal if at limit
           if (data.isAtLimit) {
             setShowStorageLimitModal(true);
           }
@@ -149,13 +203,78 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   }, [role, user?.linkedClientId]);
 
+  // ─── FEATURE 1: Fetch deliverable types for clients ───
+  useEffect(() => {
+    if (role === 'client' && user?.linkedClientId) {
+      setLoadingDeliverables(true);
+      fetch(`/api/clients/${user.linkedClientId}/deliverables`)
+        .then(res => res.json())
+        .then(data => {
+          const types: string[] = [];
+          const seenTypes = new Set<string>();
+          for (const d of (data.deliverables || data.monthlyDeliverables || [])) {
+            if (!seenTypes.has(d.type)) {
+              seenTypes.add(d.type);
+              types.push(d.type);
+            }
+          }
+          setDeliverableTypes(types);
+        })
+        .catch(err => {
+          console.error('Failed to fetch deliverables:', err);
+        })
+        .finally(() => setLoadingDeliverables(false));
+    }
+  }, [role, user?.linkedClientId]);
+
+  // ─── FEATURE 2: Save pending path from URL before loading ───
+  useEffect(() => {
+    if (!hasRestoredRef.current) {
+      pendingPathRef.current = getPathFromUrl();
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       loadDriveStructure();
     }
   }, [user]);
 
+  // ─── FEATURE 2: Navigate to folder by path string ───
+  const navigateToPathInTree = useCallback((tree: DriveItem, targetPath: string) => {
+    if (!targetPath || targetPath === "/") return;
+
+    // targetPath can be like "raw-footage/April-2026/LF" (relative parts after root)
+    const parts = targetPath.split("/").filter(Boolean);
+    let current = tree;
+    const newBreadcrumb: DriveItem[] = [tree];
+
+    for (const part of parts) {
+      const child = current.children?.find(
+        c => c.type === "folder" && c.name === part
+      );
+      if (!child) break; // Path no longer exists — stop at deepest valid point
+      newBreadcrumb.push(child);
+      current = child;
+    }
+
+    setBreadcrumb(newBreadcrumb);
+    setCurrentFolder(current);
+    // Update URL to reflect where we actually ended up
+    const resolvedPath = newBreadcrumb.slice(1).map(b => b.name).join("/");
+    setPathInUrl(resolvedPath || "/");
+  }, []);
+
   const loadDriveStructure = async () => {
+    // Capture current path BEFORE reload so we can restore it after
+    const currentNavPath = breadcrumb.length > 1
+      ? breadcrumb.slice(1).map(b => b.name).join("/")
+      : "";
+    // On first load, use URL path. On subsequent reloads, use current breadcrumb path.
+    const pathToRestore = hasRestoredRef.current
+      ? currentNavPath
+      : pendingPathRef.current;
+
     try {
       setLoading(true);
       setError(null);
@@ -176,8 +295,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       const data = await response.json();
       setDriveStructure(data);
-      setCurrentFolder(data);
-      setBreadcrumb([data]);
+
+      // ─── FEATURE 2: Restore navigation path after structure load ───
+      if (pathToRestore) {
+        navigateToPathInTree(data, pathToRestore);
+      } else {
+        setCurrentFolder(data);
+        setBreadcrumb([data]);
+      }
+      hasRestoredRef.current = true;
     } catch (error: any) {
       console.error("Failed to load drive structure:", error);
       setError(error.message);
@@ -190,6 +316,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       setDriveStructure(emptyRoot);
       setCurrentFolder(emptyRoot);
       setBreadcrumb([emptyRoot]);
+      hasRestoredRef.current = true;
     } finally {
       setLoading(false);
     }
@@ -198,12 +325,31 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const navigateToFolder = (folder: DriveItem) => {
     setCurrentFolder(folder);
     const folderIndex = breadcrumb.findIndex((f) => f.path === folder.path);
+    let newBreadcrumb: DriveItem[];
     if (folderIndex !== -1) {
-      setBreadcrumb(breadcrumb.slice(0, folderIndex + 1));
+      newBreadcrumb = breadcrumb.slice(0, folderIndex + 1);
     } else {
-      setBreadcrumb([...breadcrumb, folder]);
+      newBreadcrumb = [...breadcrumb, folder];
     }
+    setBreadcrumb(newBreadcrumb);
     setSelectedItems(new Set());
+
+    // ─── FEATURE 2: Persist path to URL ───
+    const pathStr = newBreadcrumb.slice(1).map(b => b.name).join("/");
+    setPathInUrl(pathStr || "/");
+
+    // ─── FEATURE 1: Auto-reset filter when user navigates into a deliverable type folder ───
+    if (selectedDeliverableFilter !== "all" && folder.name === selectedDeliverableFilter) {
+      // User clicked on the filtered deliverable folder itself — they're now inside, reset filter
+      setSelectedDeliverableFilter("all");
+    }
+
+    // Clear global search when navigating
+    if (showGlobalResults) {
+      setShowGlobalResults(false);
+      setGlobalSearchQuery("");
+      setGlobalSearchResults([]);
+    }
   };
 
   const handleItemClick = (item: DriveItem) => {
@@ -230,85 +376,49 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     if (breadcrumb.length === 0) {
       return "";
     }
-    // Include ALL breadcrumb parts including root (company name)
     const pathParts = breadcrumb.map((b) => b.name);
     return pathParts.join("/") + "/";
   };
 
-  // 🔥 Check if we're at a level where RawFootageUploadDialog should show
-  // Show it only at: raw-footage/, raw-footage/Month/, raw-footage/Month/DeliverableType/
-  // NOT inside custom subfolders created by the client
+  // Check if we're at a level where RawFootageUploadDialog should show
   const currentPath = getCurrentFolderS3Path();
   const pathParts = currentPath.split('/').filter(Boolean);
   const rawFootageIndex = pathParts.findIndex(p => p === 'raw-footage');
-  
-  // Calculate depth from raw-footage folder
-  // raw-footage = depth 0, raw-footage/April-2026 = depth 1, raw-footage/April-2026/LF = depth 2, raw-footage/April-2026/LF/custom = depth 3
   const depthFromRawFootage = rawFootageIndex >= 0 ? pathParts.length - rawFootageIndex - 1 : -1;
-  
-  // Check if client is inside raw-footage folder (any depth) - used for upload permissions
+
   const isClientInRawFootage = role === 'client' && currentPath.includes('raw-footage');
-  
-  // Show RawFootageUploadDialog only at depth 0, 1, or 2 (raw-footage, month, or deliverable type level)
-  // At depth 3+ (inside custom folders), show regular FileUploadDialog for direct uploads
-  const shouldShowRawFootageDialog = role === 'client' && 
-    !!user?.linkedClientId && 
-    currentPath.includes('raw-footage') && 
-    depthFromRawFootage >= 0 && 
+
+  const shouldShowRawFootageDialog = role === 'client' &&
+    !!user?.linkedClientId &&
+    currentPath.includes('raw-footage') &&
+    depthFromRawFootage >= 0 &&
     depthFromRawFootage <= 2;
-  
-  // Check if client is inside a deliverable folder (depth 2+) - used for folder management permissions
-  // depth 2 = inside deliverable type folder (e.g., raw-footage/April-2026/LF/)
-  // depth 3+ = inside custom subfolders
-  // Clients can create/rename/delete folders only at depth 2+ (inside deliverable folders)
-  const isClientInDeliverableFolder = role === 'client' && 
-    currentPath.includes('raw-footage') && 
+
+  const isClientInDeliverableFolder = role === 'client' &&
+    currentPath.includes('raw-footage') &&
     depthFromRawFootage >= 2;
-  
-  // Client can upload: only inside raw-footage folder
-  // Non-clients can upload anywhere
+
   const canUpload = role !== 'client' || isClientInRawFootage;
-  
-  useEffect(() => {
-    if (role === 'client') {
-      console.log('📁 DriveExplorer Debug:', {
-        role,
-        linkedClientId: user?.linkedClientId,
-        currentPath,
-        pathParts,
-        rawFootageIndex,
-        depthFromRawFootage,
-        isClientInRawFootage,
-        shouldShowRawFootageDialog,
-        isClientInDeliverableFolder,
-        canUpload,
-        companyName: breadcrumb[0]?.name
-      });
-    }
-  }, [role, user?.linkedClientId, currentPath, shouldShowRawFootageDialog, breadcrumb]);
 
   const closeUploadDialog = () => { };
 
-  // 🔥 NEW: Get S3 Key for item
+  // Get S3 Key for item
   const getS3Key = (item: DriveItem): string => {
-    // If item already has s3Key, use it
     if (item.s3Key) {
       return item.s3Key;
     }
-
-    // Build S3 key from breadcrumb + item name (include ALL parts including root)
     const pathParts = breadcrumb.map((b) => b.name);
     pathParts.push(item.name);
     return pathParts.join("/");
   };
 
-  // 🔥 NEW: Handle Delete Click
+  // Handle Delete Click
   const handleDeleteClick = (item: DriveItem) => {
     setItemToDelete(item);
     setShowDeleteDialog(true);
   };
 
-  // 🔥 NEW: Confirm Delete
+  // ─── Confirm Delete — reload structure, path auto-preserved ───
   const confirmDelete = async () => {
     if (!itemToDelete) return;
 
@@ -337,44 +447,34 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       toast.success(`${itemToDelete.name} deleted successfully`);
 
-      // 🔥 SIMPLE FIX: Just reload the page
-      setTimeout(() => {
-        window.location.reload();
-      }, 500); // Small delay to show the success toast
+      // Close dialog first
+      setShowDeleteDialog(false);
+      setItemToDelete(null);
+      setIsDeleting(false);
+
+      // Reload structure — FEATURE 2 will preserve the path
+      await loadDriveStructure();
+
+      // Refresh storage info
+      if (role === 'client' && user?.linkedClientId) {
+        fetch(`/api/clients/${user.linkedClientId}/storage`)
+          .then(res => res.json())
+          .then(setStorageInfo)
+          .catch(console.error);
+      }
     } catch (error: any) {
       console.error("Delete error:", error);
       toast.error(`Failed to delete ${itemToDelete.name}: ${error.message}`);
-      setIsDeleting(false); // Re-enable button on error
+      setIsDeleting(false);
     }
-    // Don't set isDeleting to false on success, page is reloading anyway
   };
 
-  // 🔥 NEW: Helper function to update drive structure
-  const updateDriveStructureAfterDelete = (deletedPath: string) => {
-    if (!driveStructure) return;
-
-    const removeItemRecursive = (item: DriveItem): DriveItem => {
-      if (!item.children) return item;
-
-      return {
-        ...item,
-        children: item.children
-          .filter((child) => child.path !== deletedPath)
-          .map((child) => removeItemRecursive(child)),
-      };
-    };
-
-    const updatedStructure = removeItemRecursive(driveStructure);
-    setDriveStructure(updatedStructure);
-  };
-
-  // 🔥 NEW: Cancel Delete
   const cancelDelete = () => {
     setShowDeleteDialog(false);
     setItemToDelete(null);
   };
 
-  // 🔥 NEW: Create Folder
+  // ─── Create Folder — reload structure, path auto-preserved ───
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
       toast.error('Please enter a folder name');
@@ -403,9 +503,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       toast.success(`Folder "${newFolderName}" created`);
       setShowCreateFolderDialog(false);
       setNewFolderName('');
-      
-      // Reload drive structure
-      setTimeout(loadDriveStructure, 500);
+
+      // Reload — path preserved via FEATURE 2
+      await loadDriveStructure();
     } catch (error: any) {
       console.error('Create folder error:', error);
       toast.error(error.message || 'Failed to create folder');
@@ -414,14 +514,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
-  // 🔥 NEW: Handle Rename Click
+  // Handle Rename Click
   const handleRenameClick = (item: DriveItem) => {
     setItemToRename(item);
     setRenameValue(item.name);
     setShowRenameDialog(true);
   };
 
-  // 🔥 NEW: Confirm Rename
+  // Confirm Rename
   const confirmRename = async () => {
     if (!itemToRename || !renameValue.trim()) {
       toast.error('Please enter a new name');
@@ -458,9 +558,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       setShowRenameDialog(false);
       setItemToRename(null);
       setRenameValue('');
-      
-      // Reload drive structure
-      setTimeout(loadDriveStructure, 500);
+
+      // Reload — path preserved via FEATURE 2
+      await loadDriveStructure();
     } catch (error: any) {
       console.error('Rename error:', error);
       toast.error(error.message || 'Failed to rename');
@@ -469,7 +569,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
-  // 🔥 NEW: Handle Share Link
+  // Handle Share Link
   const handleShareClick = async (item: DriveItem) => {
     if (item.type !== "file") return;
 
@@ -500,7 +600,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       setShareLink(data.shareUrl);
       setShowShareDialog(true);
 
-      // Auto-copy
       await navigator.clipboard.writeText(data.shareUrl);
       setCopied(true);
       toast.success("Share link created and copied to clipboard");
@@ -535,12 +634,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       }
 
       const data = await response.json();
-      // Redirect to presigned URL — browser's native download manager handles it
       window.open(data.downloadUrl, '_blank');
       toast.success('Download started');
     } catch (error: any) {
       console.error("Download error:", error);
-      // Fallback: open the file URL directly
       if (item.url) {
         window.open(item.url, '_blank');
       }
@@ -598,10 +695,156 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return date.toLocaleDateString();
   };
 
-  const filteredItems =
-    currentFolder?.children?.filter((item) =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase())
-    ) || [];
+  // ─── FEATURE 3: Global Search Handler ───
+  const handleGlobalSearch = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setGlobalSearchResults([]);
+      setShowGlobalResults(false);
+      return;
+    }
+
+    setIsGlobalSearching(true);
+    setShowGlobalResults(true);
+
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        role,
+        ...(user?.id ? { userId: user.id.toString() } : {}),
+      });
+
+      const response = await fetch(`/api/drive/search?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error("Search failed");
+      }
+
+      const data = await response.json();
+      setGlobalSearchResults(data.results || []);
+    } catch (error: any) {
+      console.error("Global search error:", error);
+      toast.error("Search failed");
+      setGlobalSearchResults([]);
+    } finally {
+      setIsGlobalSearching(false);
+    }
+  }, [role, user?.id]);
+
+  // ─── FEATURE 3: Debounced search input ───
+  const handleSearchInputChange = (value: string) => {
+    setGlobalSearchQuery(value);
+    // Also update local filter for current folder children
+    setSearchQuery(value);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (value.length >= 2) {
+      searchTimeoutRef.current = setTimeout(() => {
+        handleGlobalSearch(value);
+      }, 500); // 500ms debounce
+    } else {
+      setGlobalSearchResults([]);
+      setShowGlobalResults(false);
+    }
+  };
+
+  // ─── FEATURE 3: Navigate to a search result's parent folder ───
+  const navigateToSearchResult = (result: SearchResult) => {
+    if (!driveStructure) return;
+
+    // Walk the tree using the breadcrumb parts from the search result
+    const parts = result.breadcrumbParts;
+    let current = driveStructure;
+    const newBreadcrumb: DriveItem[] = [driveStructure];
+
+    for (const part of parts) {
+      const child = current.children?.find(
+        c => c.type === "folder" && c.name === part
+      );
+      if (!child) break;
+      newBreadcrumb.push(child);
+      current = child;
+    }
+
+    setBreadcrumb(newBreadcrumb);
+    setCurrentFolder(current);
+    const pathStr = newBreadcrumb.slice(1).map(b => b.name).join("/");
+    setPathInUrl(pathStr || "/");
+
+    // Clear search UI
+    setShowGlobalResults(false);
+    setGlobalSearchQuery("");
+    setSearchQuery("");
+    setGlobalSearchResults([]);
+
+    // Highlight the file so user can see it
+    setSelectedItems(new Set([result.path]));
+  };
+
+  // ─── Helper: check if a folder contains a child folder with matching name ───
+  const folderContainsDeliverable = (folder: DriveItem, deliverableType: string): boolean => {
+    if (!folder.children) return false;
+    // Direct child match
+    if (folder.children.some(c => c.type === "folder" && c.name === deliverableType)) {
+      return true;
+    }
+    // Recursive check (one level deeper)
+    return folder.children.some(
+      c => c.type === "folder" && c.children?.some(
+        gc => gc.type === "folder" && gc.name === deliverableType
+      )
+    );
+  };
+
+  // ─── FEATURE 1: Filter current folder items by deliverable type ───
+  const getFilteredItems = (): DriveItem[] => {
+    let items = currentFolder?.children || [];
+
+    if (selectedDeliverableFilter !== "all" && role === "client") {
+      const inRawFootage = currentPath.includes('raw-footage');
+
+      if (inRawFootage) {
+        if (depthFromRawFootage === 0) {
+          // At raw-footage level — seeing month folders
+          // Filter to only show months that CONTAIN the selected deliverable type
+          items = items.filter(item => {
+            if (item.type !== "folder") return true; // keep files
+            return folderContainsDeliverable(item, selectedDeliverableFilter);
+          });
+        } else if (depthFromRawFootage === 1) {
+          // At month level — seeing deliverable type folders (LF, SF, etc.)
+          // Direct match: only show the selected deliverable type folder
+          items = items.filter(item =>
+            item.type !== "folder" || item.name === selectedDeliverableFilter
+          );
+        }
+        // At depth 2+ (inside deliverable), don't filter — user already inside
+      } else {
+        // At root level (seeing raw-footage, outputs, etc.) — filter the raw-footage folder's children
+        // Show raw-footage folder only if it contains months with the deliverable type
+        items = items.filter(item => {
+          if (item.type !== "folder") return true;
+          if (item.name === 'raw-footage') {
+            return folderContainsDeliverable(item, selectedDeliverableFilter);
+          }
+          return true; // keep other root folders (outputs, elements, etc.)
+        });
+      }
+    }
+
+    // Apply local text search filter
+    if (searchQuery && !showGlobalResults) {
+      items = items.filter((item) =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    return items;
+  };
+
+  const filteredItems = getFilteredItems();
 
   if (loading) {
     return (
@@ -617,9 +860,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   return (
     <div className="flex flex-col sm:flex-row h-screen bg-background">
 
-      {/* Upload Progress Dialog Removed */}
-
-      {/* 🔥 NEW: Delete Confirmation Dialog */}
+      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -669,7 +910,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         copied={copied}
       />
 
-      {/* 🔥 NEW: Create Folder Dialog */}
+      {/* Create Folder Dialog */}
       <Dialog open={showCreateFolderDialog} onOpenChange={setShowCreateFolderDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -722,13 +963,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         </DialogContent>
       </Dialog>
 
-      {/* 🔥 NEW: Rename Dialog */}
+      {/* Rename Dialog */}
       <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Rename {itemToRename?.type === 'folder' ? 'Folder' : 'File'}</DialogTitle>
             <DialogDescription>
-              Enter a new name for "{itemToRename?.name}"
+              Enter a new name for &quot;{itemToRename?.name}&quot;
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -772,7 +1013,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         </DialogContent>
       </Dialog>
 
-      {/* 🔥 Storage Limit Modal */}
+      {/* Storage Limit Modal */}
       {storageInfo && storageInfo.percentage !== undefined && (
         <StorageLimitModal
           open={showStorageLimitModal}
@@ -783,11 +1024,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* 🔥 Storage Banner - Always show for clients */}
+        {/* Storage Banner */}
         {role === 'client' && user?.linkedClientId && (
           <div className="px-3 sm:px-4 pt-3">
-            <StorageLimitBanner 
-              clientId={user.linkedClientId} 
+            <StorageLimitBanner
+              clientId={user.linkedClientId}
               onUpgradeClick={() => setShowStorageLimitModal(true)}
             />
           </div>
@@ -795,8 +1036,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
         {/* Top Toolbar */}
         <div className="border-b bg-card">
-          <div className="flex items-center gap-4 p-3 sm:p-4">
-            {/* Left: Upload Button - Only show if user can upload and not at storage limit */}
+          <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 flex-wrap">
+            {/* Left: Upload Button */}
             {canUpload && !(role === 'client' && storageInfo?.isAtLimit) && (
               shouldShowRawFootageDialog ? (
                 <RawFootageUploadDialog
@@ -804,7 +1045,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   companyName={breadcrumb[0]?.name || ''}
                   onUploadComplete={() => {
                     setTimeout(loadDriveStructure, 1000);
-                    // Refresh storage info after upload
                     if (user?.linkedClientId) {
                       fetch(`/api/clients/${user.linkedClientId}/storage`)
                         .then(res => res.json())
@@ -835,11 +1075,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 />
               )
             )}
-            
-            {/* Show "Storage Full" button when at limit */}
+
+            {/* Storage Full button */}
             {role === 'client' && storageInfo?.isAtLimit && isClientInRawFootage && (
-              <Button 
-                className="gap-2 shrink-0 h-10 px-4" 
+              <Button
+                className="gap-2 shrink-0 h-10 px-4"
                 variant="destructive"
                 onClick={() => setShowStorageLimitModal(true)}
               >
@@ -848,10 +1088,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </Button>
             )}
 
-            {/* New Folder Button - Show for clients in raw-footage */}
+            {/* New Folder Button */}
             {isClientInDeliverableFolder && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="gap-2 shrink-0 h-10 px-4"
                 onClick={() => setShowCreateFolderDialog(true)}
               >
@@ -860,17 +1100,113 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </Button>
             )}
 
-            {/* Middle: Search bar */}
-            <div className="flex-1 max-w-2xl mx-auto">
+            {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
+            {role === 'client' && deliverableTypes.length > 0 && (
+              // Show at root level OR inside raw-footage before reaching deliverable depth
+              depthFromRawFootage === -1
+                ? breadcrumb.length <= 2 // At root or one level in (CompanyName)
+                : depthFromRawFootage < 2 // Inside raw-footage but not yet inside a deliverable
+            ) && (
+              <Select
+                value={selectedDeliverableFilter}
+                onValueChange={setSelectedDeliverableFilter}
+              >
+                <SelectTrigger className="w-[160px] h-10 shrink-0">
+                  <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Filter type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {deliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* ─── FEATURE 3: Global Search Bar ─── */}
+            <div className="flex-1 max-w-2xl mx-auto relative">
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
                 <Input
-                  placeholder="Search in Drive"
+                  placeholder="Search across all folders..."
                   className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={globalSearchQuery}
+                  onChange={(e) => handleSearchInputChange(e.target.value)}
+                  onFocus={() => {
+                    // Re-show results if we have them
+                    if (globalSearchResults.length > 0 && globalSearchQuery.length >= 2) {
+                      setShowGlobalResults(true);
+                    }
+                  }}
                 />
+                {globalSearchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                    onClick={() => {
+                      setGlobalSearchQuery("");
+                      setSearchQuery("");
+                      setGlobalSearchResults([]);
+                      setShowGlobalResults(false);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
+
+              {/* ─── FEATURE 3: Search Results Dropdown ─── */}
+              {showGlobalResults && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-card border rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
+                  {isGlobalSearching ? (
+                    <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Searching all folders...
+                    </div>
+                  ) : globalSearchResults.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground text-center">
+                      No files found matching &quot;{globalSearchQuery}&quot;
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+                        {globalSearchResults.length} result{globalSearchResults.length !== 1 ? 's' : ''} found across all folders
+                      </div>
+                      {globalSearchResults.map((result, idx) => (
+                        <div
+                          key={`${result.s3Key}-${idx}`}
+                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent cursor-pointer transition-colors border-b last:border-b-0"
+                          onClick={() => navigateToSearchResult(result)}
+                        >
+                          <div className="flex-shrink-0 scale-75">
+                            {getFileIcon(result.name)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{result.name}</p>
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground truncate">
+                              <FolderOpen className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate">
+                                {result.breadcrumbParts.join(' / ')}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 text-right">
+                            {result.size && (
+                              <span className="text-[11px] text-muted-foreground">
+                                {formatBytes(result.size)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Right: View toggle and Refresh */}
@@ -931,6 +1267,22 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 </Button>
               </div>
             ))}
+
+            {/* ─── FEATURE 1: Active filter badge ─── */}
+            {selectedDeliverableFilter !== "all" && (
+              <div className="flex items-center gap-1 ml-2">
+                <span className="text-[11px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full flex items-center gap-1">
+                  <Filter className="h-3 w-3" />
+                  {selectedDeliverableFilter}
+                  <button
+                    onClick={() => setSelectedDeliverableFilter("all")}
+                    className="ml-1 hover:text-blue-900"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -948,14 +1300,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
                 <Folder className="h-16 w-16 mb-4 opacity-20" />
                 <p className="text-lg font-medium">
-                  {searchQuery ? "No files found" : "This folder is empty"}
+                  {searchQuery
+                    ? "No files found"
+                    : selectedDeliverableFilter !== "all"
+                      ? `No ${selectedDeliverableFilter} folders here`
+                      : "This folder is empty"}
                 </p>
                 <p className="text-sm mb-4">
                   {searchQuery
                     ? "Try a different search term"
-                    : "Upload files to get started"}
+                    : selectedDeliverableFilter !== "all"
+                      ? "Try clearing the filter"
+                      : "Upload files to get started"}
                 </p>
-                {!searchQuery && (
+                {!searchQuery && selectedDeliverableFilter === "all" && (
                   <FileUploadDialog
                     folderType="drive"
                     subfolder={getCurrentFolderS3Path()}
@@ -1042,7 +1400,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           Add to starred
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        {/* 🔥 NEW: Share Link Option */}
                         {item.type === "file" && (
                           <DropdownMenuItem
                             onClick={(e) => {
@@ -1059,7 +1416,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             Copy shareable link
                           </DropdownMenuItem>
                         )}
-                        {/* 🔥 NEW: Rename Option - for clients in raw-footage */}
                         {isClientInDeliverableFolder && item.type === "folder" && (
                           <DropdownMenuItem
                             onClick={() => handleRenameClick(item)}
@@ -1068,7 +1424,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             Rename
                           </DropdownMenuItem>
                         )}
-                        {/* 🔥 NEW: Delete Option */}
                         <DropdownMenuItem
                           onClick={() => handleDeleteClick(item)}
                           className="text-red-600 focus:text-red-600"
@@ -1192,7 +1547,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                   Copy shareable link
                                 </DropdownMenuItem>
                               )}
-                              {/* 🔥 NEW: Rename Option - for clients in raw-footage */}
                               {isClientInDeliverableFolder && item.type === "folder" && (
                                 <DropdownMenuItem
                                   onClick={() => handleRenameClick(item)}
@@ -1201,7 +1555,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                   Rename
                                 </DropdownMenuItem>
                               )}
-                              {/* 🔥 NEW: Delete Option */}
                               <DropdownMenuItem
                                 onClick={() => handleDeleteClick(item)}
                                 className="text-red-600 focus:text-red-600"
