@@ -175,7 +175,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // ─── FEATURE 1: Deliverable Type Filter ───
   const [deliverableTypes, setDeliverableTypes] = useState<string[]>([]);
   const [selectedDeliverableFilter, setSelectedDeliverableFilter] = useState<string>("all");
-  const [loadingDeliverables, setLoadingDeliverables] = useState(false);
+
+  // Short code to display name mapping
+  const SHORT_CODE_LABELS: Record<string, string> = {
+    SF: "Short Form",
+    LF: "Long Form",
+    SQF: "Square Form",
+    THUMB: "Thumbnails",
+    T: "Tiles",
+    HP: "Hard Posts",
+    SEP: "Snapchat Episodes",
+    BSF: "Beta Short Form",
+  };
 
   // ─── FEATURE 3: Global Search ───
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
@@ -203,29 +214,56 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   }, [role, user?.linkedClientId]);
 
-  // ─── FEATURE 1: Fetch deliverable types for clients ───
+  // ─── FEATURE 1: Extract deliverable types from output folder names ───
+  // Runs whenever driveStructure or currentFolder changes
   useEffect(() => {
-    if (role === 'client' && user?.linkedClientId) {
-      setLoadingDeliverables(true);
-      fetch(`/api/clients/${user.linkedClientId}/deliverables`)
-        .then(res => res.json())
-        .then(data => {
-          const types: string[] = [];
-          const seenTypes = new Set<string>();
-          for (const d of (data.deliverables || data.monthlyDeliverables || [])) {
-            if (!seenTypes.has(d.type)) {
-              seenTypes.add(d.type);
-              types.push(d.type);
+    if (!driveStructure) return;
+
+    // Find output folder children — look for task folders with short codes
+    const extractTypesFromFolder = (folder: DriveItem): Set<string> => {
+      const types = new Set<string>();
+      if (!folder.children) return types;
+
+      for (const child of folder.children) {
+        if (child.type === 'folder') {
+          // Task folder names: "CompanyName_MM-DD-YYYY_SF3" or just contain short codes
+          const knownCodes = ['SF', 'LF', 'SQF', 'THUMB', 'HP', 'SEP', 'BSF', 'T'];
+          for (const code of knownCodes) {
+            // Match code in folder name: look for _CODE followed by digit or end
+            const pattern = new RegExp(`_${code}\\d*$|_${code}\\d*[^A-Z]`);
+            if (pattern.test(child.name) || child.name.includes(`_${code}`)) {
+              types.add(code);
             }
           }
-          setDeliverableTypes(types);
-        })
-        .catch(err => {
-          console.error('Failed to fetch deliverables:', err);
-        })
-        .finally(() => setLoadingDeliverables(false));
+          // Also recurse into month folders to find task folders inside
+          if (child.children) {
+            const subTypes = extractTypesFromFolder(child);
+            subTypes.forEach(t => types.add(t));
+          }
+        }
+      }
+      return types;
+    };
+
+    // Find the outputs folder in the tree
+    const findOutputsFolder = (folder: DriveItem): DriveItem | null => {
+      if (folder.name === 'outputs' || folder.name === 'output') return folder;
+      if (!folder.children) return null;
+      for (const child of folder.children) {
+        if (child.type === 'folder') {
+          const found = findOutputsFolder(child);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const outputsFolder = findOutputsFolder(driveStructure);
+    if (outputsFolder) {
+      const types = extractTypesFromFolder(outputsFolder);
+      setDeliverableTypes(Array.from(types).sort());
     }
-  }, [role, user?.linkedClientId]);
+  }, [driveStructure]);
 
   // ─── FEATURE 2: Save pending path from URL before loading ───
   useEffect(() => {
@@ -338,9 +376,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     const pathStr = newBreadcrumb.slice(1).map(b => b.name).join("/");
     setPathInUrl(pathStr || "/");
 
-    // ─── FEATURE 1: Auto-reset filter when user navigates into a deliverable type folder ───
-    if (selectedDeliverableFilter !== "all" && folder.name === selectedDeliverableFilter) {
-      // User clicked on the filtered deliverable folder itself — they're now inside, reset filter
+    // ─── FEATURE 1: Auto-reset filter when navigating deep into task folder ───
+    // Check if user is entering a task folder (depth 2+ from outputs)
+    const newPathParts = newBreadcrumb.map(b => b.name);
+    const newOutputsIdx = newPathParts.findIndex(p => p === 'outputs');
+    const newDepthFromOutputs = newOutputsIdx >= 0 ? newPathParts.length - newOutputsIdx - 1 : -1;
+    if (selectedDeliverableFilter !== "all" && newDepthFromOutputs >= 2) {
       setSelectedDeliverableFilter("all");
     }
 
@@ -783,53 +824,63 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     setSelectedItems(new Set([result.path]));
   };
 
-  // ─── Helper: check if a folder contains a child folder with matching name ───
-  const folderContainsDeliverable = (folder: DriveItem, deliverableType: string): boolean => {
+  // ─── Helper: check if a task folder name contains a deliverable short code ───
+  const taskFolderMatchesType = (folderName: string, shortCode: string): boolean => {
+    // Task folder names: "CompanyName_MM-DD-YYYY_SF3", "CompanyName_01-15-2026_LF1"
+    const pattern = new RegExp(`_${shortCode}\\d*$`);
+    return pattern.test(folderName);
+  };
+
+  // ─── Helper: check if a month folder contains task folders matching the type ───
+  const monthContainsType = (folder: DriveItem, shortCode: string): boolean => {
     if (!folder.children) return false;
-    // Direct child match
-    if (folder.children.some(c => c.type === "folder" && c.name === deliverableType)) {
-      return true;
-    }
-    // Recursive check (one level deeper)
     return folder.children.some(
-      c => c.type === "folder" && c.children?.some(
-        gc => gc.type === "folder" && gc.name === deliverableType
-      )
+      c => c.type === "folder" && taskFolderMatchesType(c.name, shortCode)
     );
   };
+
+  // ─── Check if we're inside the outputs folder ───
+  const isInOutputs = currentPath.includes('/outputs/') || currentPath.endsWith('/outputs/') ||
+    pathParts.some(p => p === 'outputs');
+  const outputsIndex = pathParts.findIndex(p => p === 'outputs');
+  const depthFromOutputs = outputsIndex >= 0 ? pathParts.length - outputsIndex - 1 : -1;
 
   // ─── FEATURE 1: Filter current folder items by deliverable type ───
   const getFilteredItems = (): DriveItem[] => {
     let items = currentFolder?.children || [];
 
-    if (selectedDeliverableFilter !== "all" && role === "client") {
-      const inRawFootage = currentPath.includes('raw-footage');
+    if (selectedDeliverableFilter !== "all") {
+      const code = selectedDeliverableFilter;
 
-      if (inRawFootage) {
-        if (depthFromRawFootage === 0) {
-          // At raw-footage level — seeing month folders
-          // Filter to only show months that CONTAIN the selected deliverable type
+      if (isInOutputs) {
+        if (depthFromOutputs === 0) {
+          // Inside outputs, seeing month folders
+          // Filter months to only show those containing task folders with the selected type
           items = items.filter(item => {
-            if (item.type !== "folder") return true; // keep files
-            return folderContainsDeliverable(item, selectedDeliverableFilter);
+            if (item.type !== "folder") return true;
+            return monthContainsType(item, code);
           });
-        } else if (depthFromRawFootage === 1) {
-          // At month level — seeing deliverable type folders (LF, SF, etc.)
-          // Direct match: only show the selected deliverable type folder
-          items = items.filter(item =>
-            item.type !== "folder" || item.name === selectedDeliverableFilter
-          );
+        } else if (depthFromOutputs === 1) {
+          // Inside a month folder, seeing task folders
+          // Filter task folders by deliverable short code
+          items = items.filter(item => {
+            if (item.type !== "folder") return true;
+            return taskFolderMatchesType(item.name, code);
+          });
         }
-        // At depth 2+ (inside deliverable), don't filter — user already inside
-      } else {
-        // At root level (seeing raw-footage, outputs, etc.) — filter the raw-footage folder's children
-        // Show raw-footage folder only if it contains months with the deliverable type
+        // depth 2+ = inside a task folder, don't filter
+      } else if (currentFolder?.children?.some(c => c.name === 'outputs')) {
+        // At company root, seeing outputs/raw-footage/etc
+        // Filter outputs folder to only show if it has matching content
         items = items.filter(item => {
           if (item.type !== "folder") return true;
-          if (item.name === 'raw-footage') {
-            return folderContainsDeliverable(item, selectedDeliverableFilter);
+          if (item.name === 'outputs' && item.children) {
+            // Check if any month inside outputs has matching tasks
+            return item.children.some(month =>
+              month.type === "folder" && monthContainsType(month, code)
+            );
           }
-          return true; // keep other root folders (outputs, elements, etc.)
+          return true;
         });
       }
     }
@@ -1101,17 +1152,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             )}
 
             {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
-            {role === 'client' && deliverableTypes.length > 0 && (
-              // Show at root level OR inside raw-footage before reaching deliverable depth
-              depthFromRawFootage === -1
-                ? breadcrumb.length <= 2 // At root or one level in (CompanyName)
-                : depthFromRawFootage < 2 // Inside raw-footage but not yet inside a deliverable
+            {deliverableTypes.length > 0 && (
+              // Show when: at company root (seeing outputs folder), OR inside outputs at depth 0-1
+              (currentFolder?.children?.some(c => c.name === 'outputs') || (isInOutputs && depthFromOutputs < 2))
             ) && (
               <Select
                 value={selectedDeliverableFilter}
                 onValueChange={setSelectedDeliverableFilter}
               >
-                <SelectTrigger className="w-[160px] h-10 shrink-0">
+                <SelectTrigger className="w-[180px] h-10 shrink-0">
                   <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Filter type" />
                 </SelectTrigger>
@@ -1119,7 +1168,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   <SelectItem value="all">All Types</SelectItem>
                   {deliverableTypes.map((type) => (
                     <SelectItem key={type} value={type}>
-                      {type}
+                      {SHORT_CODE_LABELS[type] || type} ({type})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1273,7 +1322,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               <div className="flex items-center gap-1 ml-2">
                 <span className="text-[11px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full flex items-center gap-1">
                   <Filter className="h-3 w-3" />
-                  {selectedDeliverableFilter}
+                  {SHORT_CODE_LABELS[selectedDeliverableFilter] || selectedDeliverableFilter} ({selectedDeliverableFilter})
                   <button
                     onClick={() => setSelectedDeliverableFilter("all")}
                     className="ml-1 hover:text-blue-900"
