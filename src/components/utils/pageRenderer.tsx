@@ -127,7 +127,7 @@ export function renderPage(
   }
 
   if (page === "posted") {
-    return <ClientPostedContentView clientId={linkedClientId} />;
+    return <PostedContentSidebar clientId={linkedClientId} />;
   }
 
   // if (page === "activity_logs") {
