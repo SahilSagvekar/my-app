@@ -107,6 +107,10 @@ function isJobEnabled(job: SlackScheduledJobDefinition): boolean {
   );
 }
 
+function withChannelMention(message: string): string {
+  return message.startsWith("<!channel>") ? message : `<!channel>\n${message}`;
+}
+
 export function getEnabledSlackScheduledJobs(): SlackScheduledJobDefinition[] {
   return SLACK_SCHEDULED_JOBS.filter(isJobEnabled);
 }
@@ -147,7 +151,7 @@ export async function runSlackScheduledJob(
   const notification: SlackNotification = {
     type: "scheduled_reminder",
     title: job.name,
-    message: job.message,
+    message: withChannelMention(job.message),
     payload: {
       scheduledJobKey: job.key,
       scheduledChannelGroup: job.channel,

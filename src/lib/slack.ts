@@ -469,10 +469,17 @@ export async function deliverSlackNotification(
   if (notificationType === "task_scheduled") {
     console.log(`[Slack Dispatch] Task Scheduled → Scheduling channel only`);
 
+    const stage = notification.payload?.notificationStage;
+    const taskTitle = notification.payload?.taskTitle || notification.title || "Task";
+
     const scheduledNotification = {
       ...notification,
-      title: `Content Scheduled/Posted`,
-      body: `Task "${notification.payload?.taskTitle || notification.title || "Task"}" has been marked as scheduled.`,
+      title: stage === "ready_for_scheduling"
+        ? "Task Ready for Scheduling"
+        : "Content Scheduled",
+      body: stage === "ready_for_scheduling"
+        ? `Task "${taskTitle}" is ready for scheduling.`
+        : `Task "${taskTitle}" has been ${stage === "posted" ? "posted" : "scheduled"}.`,
     };
 
     // Send to scheduling channel ONLY

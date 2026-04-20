@@ -273,7 +273,38 @@ export async function PATCH(
             body: `Task "${task.title}" is approved and ready for scheduling.`,
             payload: { taskId: task.id, clientId: task.clientId },
           });
+
+          await notifyUser({
+            userId: task.scheduler,
+            type: "task_scheduled",
+            title: "Task Ready for Scheduling",
+            body: `Task "${task.title}" is ready for scheduling.`,
+            payload: {
+              taskId: task.id,
+              clientId: task.clientId,
+              taskTitle: task.title,
+              schedulerId: task.scheduler,
+              notificationStage: "ready_for_scheduling",
+            },
+          });
         }
+      } else if (
+        finalStatus === "SCHEDULED" &&
+        task.status !== "SCHEDULED"
+      ) {
+        await notifyUser({
+          userId: task.scheduler || userId,
+          type: "task_scheduled",
+          title: "Content Scheduled",
+          body: `Task "${task.title}" has been scheduled.`,
+          payload: {
+            taskId: task.id,
+            clientId: task.clientId,
+            taskTitle: task.title,
+            schedulerId: task.scheduler,
+            notificationStage: "scheduled",
+          },
+        });
       } else if (finalStatus === "POSTED" && task.status !== "POSTED") {
         // Notify Team that content is Live/Posted
         await notifyUser({
@@ -282,6 +313,20 @@ export async function PATCH(
           title: "Content Posted! 🚀",
           body: `Content for "${task.title}" has been successfully posted.`,
           payload: { taskId: task.id, clientId: task.clientId },
+        });
+
+        await notifyUser({
+          userId: task.scheduler || userId,
+          type: "task_scheduled",
+          title: "Content Posted",
+          body: `Task "${task.title}" has been posted.`,
+          payload: {
+            taskId: task.id,
+            clientId: task.clientId,
+            taskTitle: task.title,
+            schedulerId: task.scheduler,
+            notificationStage: "posted",
+          },
         });
       }
     } catch (notifErr) {
