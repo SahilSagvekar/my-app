@@ -111,9 +111,16 @@ export function TaskRow({
 
                 {/* Title */}
                 <td className="px-3 py-3 max-w-[200px]">
-                    <p className="font-medium truncate" title={task.title}>
-                        {task.title}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                        <p className="font-medium truncate" title={task.title}>
+                            {task.title}
+                        </p>
+                        {task.isTrial && (
+                            <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded">
+                                TRIAL
+                            </span>
+                        )}
+                    </div>
                 </td>
 
                 {/* Client */}

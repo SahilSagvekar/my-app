@@ -159,6 +159,7 @@ export async function POST(
                         oneOffDeliverableId: deliverable.id,
                         outputFolderId,
                         monthFolder,
+                        isTrial: deliverable.isTrial ?? deliverable.client.isTrial ?? false,
                     },
                 });
                 createdTasks.push(newTask);

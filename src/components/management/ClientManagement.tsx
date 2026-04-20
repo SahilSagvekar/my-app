@@ -163,6 +163,7 @@ interface Client {
   requiresClientReview: string;
   requiresVideographer: string;
   hasPostingServices: boolean;
+  isTrial: boolean;
   brandAssets: BrandAsset[];
   brandGuidelines: {
     primaryColors: string[];
@@ -381,6 +382,7 @@ export function ClientManagement() {
     postingDays?: string[];
     postingTimes: string[];
     description?: string;
+    isTrial?: boolean;
   }>({
     type: "Short Form Videos",
     quantity: 1,
@@ -390,6 +392,7 @@ export function ClientManagement() {
     postingDays: [],
     postingTimes: ["10:00 AM"],
     description: "",
+    isTrial: false,
   });
 
   const [showAddDeliverableDialog, setShowAddDeliverableDialog] =
@@ -883,6 +886,7 @@ export function ClientManagement() {
       postingDays: deliverable.postingDays || [],
       postingTimes: deliverable.postingTimes || ["10:00 AM"],
       description: deliverable.description || "",
+      isTrial: (deliverable as any).isTrial ?? false,
     });
     setDeliverableDialogKey((prev) => prev + 1);
     setShowAddDeliverableDialog(true);
@@ -1672,8 +1676,13 @@ export function ClientManagement() {
                           <div className="flex items-center gap-2">
                             {getDeliverableTypeIcon(deliverable.type)}
                             <div>
-                              <div className="text-gray-900">
+                              <div className="flex items-center gap-2 text-gray-900">
                                 {deliverable.type}
+                                {(deliverable as any).isTrial && (
+                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded">
+                                    TRIAL
+                                  </span>
+                                )}
                               </div>
                               <div className="text-sm text-gray-600">
                                 {deliverable.quantity} per month (
@@ -2080,6 +2089,63 @@ export function ClientManagement() {
                       </Label>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Trial Client Setting */}
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 flex items-center gap-2">
+                    <Zap className="h-5 w-5" />
+                    Trial Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Trial Client</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        When enabled, all tasks for this client will be marked as trial reels.
+                        Schedulers will see a &quot;Trial&quot; tag on these tasks.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={selectedClient.isTrial ?? false}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          const res = await fetch(`/api/clients/${selectedClient.id}/toggle-trial`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ isTrial: checked }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Failed');
+
+                          setClients(prev => prev.map(c =>
+                            c.id === selectedClient.id ? { ...c, isTrial: checked } : c
+                          ));
+                          setSelectedClient({ ...selectedClient, isTrial: checked });
+
+                          toast.success(
+                            checked
+                              ? `Marked as trial — ${data.tasksUpdated} tasks updated`
+                              : `Removed trial — ${data.tasksUpdated} tasks updated`
+                          );
+                        } catch (err: any) {
+                          console.error('Toggle trial error:', err);
+                          toast.error(err.message || 'Failed to toggle trial');
+                        }
+                      }}
+                    />
+                  </div>
+                  {selectedClient.isTrial && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                      <p className="text-xs text-amber-700">
+                        All current and future tasks for this client are marked as trial.
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -3185,6 +3251,7 @@ export function ClientManagement() {
               postingDays: [],
               postingTimes: ["10:00 AM"],
               description: "",
+              isTrial: false,
             });
           }
         }}
@@ -3513,6 +3580,28 @@ export function ClientManagement() {
                 placeholder="Additional notes about this deliverable..."
                 className="bg-white border-gray-200 text-gray-900"
                 rows={3}
+              />
+            </div>
+
+            {/* Trial Reel Toggle */}
+            <div className="flex items-center justify-between p-4 bg-amber-50/50 rounded-lg border border-amber-200/50">
+              <div className="flex items-center gap-3">
+                <Zap className="h-4 w-4 text-amber-600" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Trial Reels</p>
+                  <p className="text-xs text-gray-500">
+                    Mark all tasks from this deliverable as trial reels
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={newDeliverable.isTrial ?? false}
+                onCheckedChange={(checked) =>
+                  setNewDeliverable({
+                    ...newDeliverable,
+                    isTrial: checked,
+                  })
+                }
               />
             </div>
           </div>

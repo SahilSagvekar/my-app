@@ -313,6 +313,7 @@ export async function POST(
             videographer: templateTask?.videographer,
             folderType: templateTask?.folderType,
             driveLinks: templateTask?.driveLinks ?? [],
+            isTrial: deliverable.isTrial ?? client.isTrial ?? false,
           },
         });
         createdTasks.push(newTask);

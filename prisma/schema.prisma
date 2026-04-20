@@ -299,6 +299,7 @@ model Client {
   slackEnabled            Boolean                  @default(false)
   slackWebhookUrl         String?
   hasPostingServices      Boolean                  @default(true)
+  isTrial                 Boolean                  @default(false)
   rawFootageStorageUsed   BigInt?                  @default(0)
   rawFootageStorageLimit  BigInt?                  @default(3298534883328)
   storageAlert90Sent      Boolean?                 @default(false)

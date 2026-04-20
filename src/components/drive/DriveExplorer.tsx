@@ -199,6 +199,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const pendingPathRef = useRef<string>("");
   const hasRestoredRef = useRef(false);
 
+  // ─── Admin browsing context: resolve clientId from company name ───
+  const [browsingClientId, setBrowsingClientId] = useState<string | null>(null);
+  const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
+
+  // For clients, clientId is always known. For admin, resolve from breadcrumb.
+  const effectiveClientId = role === 'client' ? (user?.linkedClientId || null) : browsingClientId;
+  const effectiveCompanyName = role === 'client'
+    ? (breadcrumb[0]?.name || '')
+    : browsingCompanyName;
+
   // Fetch storage info for clients
   useEffect(() => {
     if (role === 'client' && user?.linkedClientId) {
@@ -271,6 +281,36 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       pendingPathRef.current = getPathFromUrl();
     }
   }, []);
+
+  // ─── Resolve clientId for admin when browsing inside a company folder ───
+  useEffect(() => {
+    if (role === 'client') return; // Client already has linkedClientId
+
+    // For admin: breadcrumb[0] is "Root", breadcrumb[1] is the company name
+    // For other non-client roles with company as root, breadcrumb[0] is company
+    const companyFolder = breadcrumb.length >= 2 ? breadcrumb[1]?.name : breadcrumb[0]?.name;
+
+    if (!companyFolder || companyFolder === 'Root') {
+      setBrowsingClientId(null);
+      setBrowsingCompanyName('');
+      return;
+    }
+
+    // Don't re-fetch if same company
+    if (companyFolder === browsingCompanyName) return;
+
+    setBrowsingCompanyName(companyFolder);
+    fetch(`/api/drive/client-lookup?companyName=${encodeURIComponent(companyFolder)}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.clientId) {
+          setBrowsingClientId(data.clientId);
+        } else {
+          setBrowsingClientId(null);
+        }
+      })
+      .catch(() => setBrowsingClientId(null));
+  }, [role, breadcrumb, browsingCompanyName]);
 
   useEffect(() => {
     if (user) {
@@ -427,19 +467,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const rawFootageIndex = pathParts.findIndex(p => p === 'raw-footage');
   const depthFromRawFootage = rawFootageIndex >= 0 ? pathParts.length - rawFootageIndex - 1 : -1;
 
-  const isClientInRawFootage = role === 'client' && currentPath.includes('raw-footage');
+  const isInRawFootage = currentPath.includes('raw-footage');
 
-  const shouldShowRawFootageDialog = role === 'client' &&
-    !!user?.linkedClientId &&
-    currentPath.includes('raw-footage') &&
+  const shouldShowRawFootageDialog =
+    !!effectiveClientId &&
+    isInRawFootage &&
     depthFromRawFootage >= 0 &&
     depthFromRawFootage <= 2;
 
-  const isClientInDeliverableFolder = role === 'client' &&
-    currentPath.includes('raw-footage') &&
+  const isClientInDeliverableFolder =
+    isInRawFootage &&
     depthFromRawFootage >= 2;
 
-  const canUpload = role !== 'client' || isClientInRawFootage;
+  const canUpload = role !== 'client' || isInRawFootage;
 
   const closeUploadDialog = () => { };
 
@@ -1092,12 +1132,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             {canUpload && !(role === 'client' && storageInfo?.isAtLimit) && (
               shouldShowRawFootageDialog ? (
                 <RawFootageUploadDialog
-                  clientId={user!.linkedClientId!}
-                  companyName={breadcrumb[0]?.name || ''}
+                  clientId={effectiveClientId!}
+                  companyName={effectiveCompanyName}
                   onUploadComplete={() => {
                     setTimeout(loadDriveStructure, 1000);
-                    if (user?.linkedClientId) {
-                      fetch(`/api/clients/${user.linkedClientId}/storage`)
+                    if (effectiveClientId) {
+                      fetch(`/api/clients/${effectiveClientId}/storage`)
                         .then(res => res.json())
                         .then(setStorageInfo)
                         .catch(console.error);
@@ -1128,7 +1168,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             )}
 
             {/* Storage Full button */}
-            {role === 'client' && storageInfo?.isAtLimit && isClientInRawFootage && (
+            {role === 'client' && storageInfo?.isAtLimit && isInRawFootage && (
               <Button
                 className="gap-2 shrink-0 h-10 px-4"
                 variant="destructive"

@@ -979,6 +979,7 @@ export async function POST(req: any) {
         essentialsFolderId: true,
         requiresClientReview: true,
         requiresVideographer: true,
+        isTrial: true,
         userId: true,
       },
     });
@@ -1044,6 +1045,7 @@ export async function POST(req: any) {
         folderType: effectiveFolderType,
         monthFolder: getCurrentMonthFolder(),
         requiresClientReview: client.requiresClientReview,
+        isTrial: client.isTrial ?? false,
         status: (client.requiresVideographer || shootLocation || shootCamera)
           ? "VIDEOGRAPHER_ASSIGNED"
           : "PENDING",
