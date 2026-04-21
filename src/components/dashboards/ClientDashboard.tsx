@@ -680,7 +680,8 @@ export function ClientDashboard() {
         duration: '2:30',
         uploadDate: new Date(f.uploadedAt).toLocaleDateString(),
         status: 'client_review' as const,
-        url: f.url // Store URL to switch videos
+        url: f.url, // Store URL to switch videos
+        sizeBytes: f.size,
       }))
       : [{
         id: file.id,
@@ -689,7 +690,8 @@ export function ClientDashboard() {
         duration: '2:30',
         uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
         status: 'client_review' as const,
-        url: file.url
+        url: file.url,
+        sizeBytes: file.size,
       }];
 
     return {
@@ -704,6 +706,7 @@ export function ClientDashboard() {
       platform: 'Web',
       resolution: '1920x1080',
       fileSize: formatFileSize(file.size),
+      fileSizeBytes: file.size,
       uploader: 'Editor',
       uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
       versions: versions,

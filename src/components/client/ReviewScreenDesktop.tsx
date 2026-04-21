@@ -22,6 +22,7 @@ import {
 import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
+import { ReviewConnectionIndicator, type ReviewConnectionInsight } from './ReviewConnectionIndicator';
 
 /* ─── Shared prop type ─────────────────────────────────────────── */
 export interface ReviewScreenProps {
@@ -65,6 +66,7 @@ export interface ReviewScreenProps {
     generatingLink: boolean;
     linkCopied: boolean;
     showShareDialog: boolean;
+    connectionInsight: ReviewConnectionInsight;
 
     /* user */
     userName: string;
@@ -208,6 +210,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <span className="text-[var(--review-text-muted)]">•</span>
                                     <span className="text-sm text-[var(--review-text-muted)]">{p.measuredResolution || p.asset.resolution}</span>
                                 </div>
+                                <ReviewConnectionIndicator insight={p.connectionInsight} />
                             </div>
                         </div>
 

@@ -442,7 +442,8 @@ export function QCDashboard() {
         duration: '2:30',
         uploadDate: new Date(f.uploadedAt).toLocaleDateString(),
         status: 'in_qc' as 'in_qc',
-        url: f.url
+        url: f.url,
+        sizeBytes: f.size,
       }));
 
     return {
@@ -457,6 +458,7 @@ export function QCDashboard() {
       platform: 'Web',
       resolution: '1920x1080',
       fileSize: formatFileSize(file.size),
+      fileSizeBytes: file.size,
       uploader: selectedTask.user?.name || 'Editor',
       uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
       versions: versions,

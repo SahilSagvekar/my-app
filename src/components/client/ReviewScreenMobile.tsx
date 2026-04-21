@@ -16,9 +16,17 @@ import {
 import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
+import { ReviewConnectionIndicator } from './ReviewConnectionIndicator';
 import type { ReviewScreenProps } from './ReviewScreenDesktop';
 
 type MobileTab = 'comments' | 'actions' | 'info';
+
+// Keep extra mobile tabs soft-hidden for now so we can restore them easily later.
+const MOBILE_VISIBLE_TABS: readonly MobileTab[] = ['comments'];
+
+function isMobileTabVisible(tab: MobileTab) {
+    return MOBILE_VISIBLE_TABS.includes(tab);
+}
 
 /* ─────────────────────────────────────────────────────────────── */
 export function ReviewScreenMobile(p: ReviewScreenProps) {
@@ -40,6 +48,12 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
 
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
+    const activeMobileTab = isMobileTabVisible(mobileTab) ? mobileTab : 'comments';
+    const mobileTabs = [
+        { key: 'comments' as MobileTab, label: 'Comments', badge: p.comments.length },
+        { key: 'actions' as MobileTab, label: 'Actions', badge: null },
+        { key: 'info' as MobileTab, label: 'Info', badge: null },
+    ].filter(tab => isMobileTabVisible(tab.key));
 
     const { visibleComments, hasMoreComments } = useMemo(() => {
         if (p.sortedComments.length <= MAX_RENDERED_COMMENTS) {
@@ -306,6 +320,13 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 </div>
             </div>
 
+            <div
+                className="flex-shrink-0 border-b border-[var(--review-border)] px-3 py-2"
+                style={{ background: 'var(--review-bg-secondary)' }}
+            >
+                <ReviewConnectionIndicator insight={p.connectionInsight} compact />
+            </div>
+
             {/* ── VIDEO ── Smart sizing: portrait = fill height, landscape = 16:9 */}
             <div className={videoContainerClass} style={videoStyle}>
                 {p.videoError ? (
@@ -513,15 +534,11 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 className="flex-shrink-0 flex border-b border-[var(--review-border)]"
                 style={{ background: 'var(--review-bg-secondary)' }}
             >
-                {([
-                    { key: 'comments' as MobileTab, label: 'Comments', badge: p.comments.length },
-                    { key: 'actions' as MobileTab, label: 'Actions', badge: null },
-                    { key: 'info' as MobileTab, label: 'Info', badge: null },
-                ]).map(tab => (
+                {mobileTabs.map(tab => (
                     <button
                         key={tab.key}
                         onClick={() => setMobileTab(tab.key)}
-                        className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border-b-2 ${mobileTab === tab.key
+                        className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border-b-2 ${activeMobileTab === tab.key
                             ? 'text-white border-[var(--review-accent-purple)]'
                             : 'text-[var(--review-text-muted)] border-transparent hover:text-[var(--review-text-secondary)]'
                             }`}
@@ -540,7 +557,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
             <div className="flex-1 overflow-y-auto review-scrollbar min-h-0" style={{ background: 'var(--review-bg-primary)' }}>
 
                 {/* ─── Comments ─── */}
-                {mobileTab === 'comments' && (
+                {activeMobileTab === 'comments' && (
                     <div className="flex flex-col h-full">
                         {/* Comment input */}
                         <div className="p-3 border-b border-[var(--review-border)] shrink-0">
@@ -599,7 +616,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 )}
 
                 {/* ─── Actions ─── */}
-                {mobileTab === 'actions' && (
+                {activeMobileTab === 'actions' && (
                     <div className="p-4 space-y-4">
 
                         {/* Approve Section */}
@@ -735,7 +752,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 )}
 
                 {/* ─── Info ─── */}
-                {mobileTab === 'info' && (
+                {activeMobileTab === 'info' && (
                     <div className="p-4 space-y-3">
                         <p className="text-xs uppercase tracking-wider text-[var(--review-text-muted)] font-semibold">Asset Details</p>
                         <div className="grid grid-cols-2 gap-2">

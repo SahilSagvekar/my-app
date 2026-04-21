@@ -98,6 +98,7 @@ export default function SharedReviewPage() {
                 uploadDate: new Date(latestFile.uploadedAt).toLocaleDateString(),
                 status: 'client_review' as const,
                 url: latestFile.url,
+                sizeBytes: latestFile.size,
             };
         });
 
@@ -113,6 +114,7 @@ export default function SharedReviewPage() {
             platform: task.monthlyDeliverable?.platforms?.[0] || 'Various',
             resolution: '1920x1080',
             fileSize: formatFileSize(primaryFile?.size || 0),
+            fileSizeBytes: primaryFile?.size || 0,
             uploader: 'E8 Productions',
             uploadDate: new Date(task.createdAt).toLocaleDateString(),
             versions: versions.length > 0 ? versions : [{
@@ -123,6 +125,7 @@ export default function SharedReviewPage() {
                 uploadDate: new Date().toLocaleDateString(),
                 status: 'client_review' as const,
                 url: primaryFile?.url || '',
+                sizeBytes: primaryFile?.size || 0,
             }],
             currentVersion: versions[0]?.id || '1',
             downloadEnabled: false,

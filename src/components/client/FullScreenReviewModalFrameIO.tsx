@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { getVideoSource } from '../workflow/VideoUrlHelper';
 import { ReviewComment, ReviewStatus } from '../review/types';
 import { useAuth } from '../auth/AuthContext';
+import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import { ReviewScreenDesktop } from './ReviewScreenDesktop';
 import { ReviewScreenMobile } from './ReviewScreenMobile';
 
@@ -19,6 +20,7 @@ interface Version {
     status: 'draft' | 'in_qc' | 'client_review' | 'approved';
     url?: string;
     proxyUrl?: string | null;
+    sizeBytes?: number;
 }
 
 interface ReviewAsset {
@@ -35,6 +37,7 @@ interface ReviewAsset {
     platform: string;
     resolution: string;
     fileSize: string;
+    fileSizeBytes?: number;
     uploader: string;
     uploadDate: string;
     versions: Version[];
@@ -74,6 +77,81 @@ interface RevisionRequest {
         notes: string;
         videoTime?: string;
     }>;
+}
+
+type NetworkInformationLike = {
+    downlink?: number;
+    type?: string;
+    effectiveType?: string;
+    saveData?: boolean;
+    addEventListener?: (type: 'change', listener: () => void) => void;
+    removeEventListener?: (type: 'change', listener: () => void) => void;
+};
+
+const BUFFER_EVENT_COOLDOWN_MS = 2500;
+
+function parseFormattedFileSize(value?: string): number | null {
+    if (!value) return null;
+
+    const match = value.trim().match(/^([\d.]+)\s*(Bytes|KB|MB|GB|TB)$/i);
+    if (!match) return null;
+
+    const size = Number.parseFloat(match[1]);
+    if (!Number.isFinite(size)) return null;
+
+    const unit = match[2].toUpperCase();
+    const powers: Record<string, number> = {
+        BYTES: 0,
+        KB: 1,
+        MB: 2,
+        GB: 3,
+        TB: 4,
+    };
+    const power = powers[unit];
+
+    if (power === undefined) return null;
+
+    return Math.round(size * Math.pow(1024, power));
+}
+
+function calculateRequiredMbps(fileSizeBytes: number | null, durationSeconds: number): number | null {
+    if (!fileSizeBytes || durationSeconds <= 0) return null;
+
+    const averageBitrateMbps = (fileSizeBytes * 8) / durationSeconds / 1_000_000;
+    if (!Number.isFinite(averageBitrateMbps) || averageBitrateMbps <= 0) return null;
+
+    return Math.max(averageBitrateMbps * 1.5, 1);
+}
+
+function formatMbps(value: number): string {
+    return `${value >= 10 ? Math.round(value) : value.toFixed(1)} Mbps`;
+}
+
+function formatEffectiveType(value?: string): string | null {
+    if (!value) return null;
+    return value.toUpperCase().replace('SLOW-', 'SLOW ');
+}
+
+function getConnectionLabel(type?: string, effectiveType?: string): string {
+    const normalizedType = type?.toLowerCase();
+    const formattedEffectiveType = formatEffectiveType(effectiveType);
+
+    switch (normalizedType) {
+        case 'cellular':
+            return formattedEffectiveType ? `Mobile data (${formattedEffectiveType})` : 'Mobile data';
+        case 'wifi':
+            return 'Wi-Fi';
+        case 'ethernet':
+            return 'Ethernet';
+        case 'bluetooth':
+            return 'Bluetooth';
+        case 'wimax':
+            return 'WiMAX';
+        case 'none':
+            return 'Offline';
+        default:
+            return 'Internet';
+    }
 }
 
 /* ─────────────────────────────────────────────────────────────── */
@@ -118,6 +196,12 @@ export function FullScreenReviewModalFrameIO({
     const [videoError, setVideoError] = useState(false);
     const [iframeLoaded, setIframeLoaded] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [connectionSpeedMbps, setConnectionSpeedMbps] = useState<number | null>(null);
+    const [connectionSpeedSupported, setConnectionSpeedSupported] = useState(false);
+    const [connectionType, setConnectionType] = useState<string | null>(null);
+    const [effectiveConnectionType, setEffectiveConnectionType] = useState<string | null>(null);
+    const [bufferingEvents, setBufferingEvents] = useState(0);
+    const [isBuffering, setIsBuffering] = useState(false);
     const [retryKey, setRetryKey] = useState(0); // cache-busting key for video retries
     const videoRetryCountRef = useRef(0);
     const MAX_VIDEO_RETRIES = 3;
@@ -150,6 +234,7 @@ export function FullScreenReviewModalFrameIO({
     const containerRef = useRef<HTMLDivElement>(null);
     const commentsRef = useRef<HTMLDivElement>(null);
     const lastTimeUpdateRef = useRef<number>(0);
+    const lastBufferEventRef = useRef(0);
 
     /* ── Video source ── */
     const videoSource = useMemo(() => {
@@ -174,6 +259,109 @@ export function FullScreenReviewModalFrameIO({
         return source;
     }, [currentVideoUrl, asset, currentVersion, retryKey]);
 
+    const currentVersionFileSizeBytes = useMemo(() => {
+        const currentVersionAsset = asset?.versions.find(ver => ver.id === currentVersion);
+
+        return currentVersionAsset?.sizeBytes
+            ?? asset?.fileSizeBytes
+            ?? parseFormattedFileSize(asset?.fileSize);
+    }, [asset, currentVersion]);
+
+    const requiredSpeedMbps = useMemo(() => {
+        if (videoSource.type !== 'video') return null;
+        return calculateRequiredMbps(currentVersionFileSizeBytes, duration);
+    }, [videoSource.type, currentVersionFileSizeBytes, duration]);
+
+    const connectionInsight = useMemo<ReviewConnectionInsight>(() => {
+        const connectionLabel = getConnectionLabel(connectionType ?? undefined, effectiveConnectionType ?? undefined);
+        const currentSpeedText = connectionSpeedMbps !== null ? formatMbps(connectionSpeedMbps) : 'Not reported';
+        const requiredSpeedText = requiredSpeedMbps !== null
+            ? `~${formatMbps(requiredSpeedMbps)}`
+            : videoSource.type === 'iframe'
+                ? 'Not available'
+                : 'Measuring...';
+
+        let status: ReviewConnectionInsight['status'] = 'unknown';
+        let statusLabel = videoSource.type === 'iframe' ? 'Estimate only' : 'Measuring';
+
+        if (isBuffering) {
+            status = 'poor';
+            statusLabel = 'Buffering';
+        } else if (connectionSpeedMbps !== null && requiredSpeedMbps !== null) {
+            if (connectionSpeedMbps >= requiredSpeedMbps * 1.25) {
+                status = 'good';
+                statusLabel = 'Good';
+            } else if (connectionSpeedMbps >= requiredSpeedMbps) {
+                status = 'warning';
+                statusLabel = 'May buffer';
+            } else {
+                status = 'poor';
+                statusLabel = 'Too slow';
+            }
+        } else if (requiredSpeedMbps !== null) {
+            status = 'unknown';
+            statusLabel = 'Estimate only';
+        }
+
+        if (!isBuffering && bufferingEvents > 0 && status !== 'poor') {
+            status = 'warning';
+            statusLabel = 'Unstable';
+        }
+
+        const helperParts: string[] = [];
+
+        if (connectionLabel !== 'Internet') {
+            helperParts.push(`Connection detected as ${connectionLabel}.`);
+        } else if (effectiveConnectionType && !connectionType) {
+            helperParts.push(`Browser reported a ${formatEffectiveType(effectiveConnectionType)} quality estimate, but not whether it is Wi-Fi or mobile data.`);
+        }
+
+        if (isBuffering) {
+            helperParts.push('Playback is currently buffering.');
+        } else if (bufferingEvents > 0) {
+            helperParts.push(`Buffering seen ${bufferingEvents} time${bufferingEvents === 1 ? '' : 's'} in this review.`);
+        }
+
+        if (videoSource.type === 'iframe') {
+            helperParts.push('This embedded player hides the exact bitrate, so only the browser connection estimate is available.');
+        } else if (connectionSpeedMbps !== null && requiredSpeedMbps !== null) {
+            if (bufferingEvents > 0 && connectionSpeedMbps >= requiredSpeedMbps * 1.25) {
+                helperParts.push('The browser estimate looks healthy, but the connection has still dipped during playback.');
+            } else if (connectionSpeedMbps >= requiredSpeedMbps * 1.25) {
+                helperParts.push('This connection should be enough for smooth playback.');
+            } else if (connectionSpeedMbps >= requiredSpeedMbps) {
+                helperParts.push('This connection is close to the minimum and may buffer if it dips.');
+            } else {
+                helperParts.push('This connection is below the recommended speed for smooth playback.');
+            }
+        } else if (requiredSpeedMbps !== null) {
+            helperParts.push(connectionSpeedSupported
+                ? 'The browser is not exposing a usable downlink estimate right now, so we can only show the recommended speed.'
+                : 'This browser does not report internet speed, so we can only show the recommended speed.'
+            );
+        } else {
+            helperParts.push('We are still measuring this video so the smooth-playback requirement can be calculated.');
+        }
+
+        return {
+            status,
+            statusLabel,
+            connectionLabel,
+            currentSpeedText,
+            requiredSpeedText,
+            helperText: helperParts.join(' '),
+        };
+    }, [
+        bufferingEvents,
+        connectionType,
+        connectionSpeedMbps,
+        connectionSpeedSupported,
+        effectiveConnectionType,
+        isBuffering,
+        requiredSpeedMbps,
+        videoSource.type,
+    ]);
+
     /* ── Auto-retry on video error ── */
     const handleVideoError = useCallback(() => {
         if (videoRetryCountRef.current < MAX_VIDEO_RETRIES) {
@@ -185,6 +373,39 @@ export function FullScreenReviewModalFrameIO({
         } else {
             setVideoError(true);
         }
+    }, []);
+
+    useEffect(() => {
+        const nav = navigator as Navigator & {
+            connection?: NetworkInformationLike;
+            mozConnection?: NetworkInformationLike;
+            webkitConnection?: NetworkInformationLike;
+        };
+        const connection = nav.connection ?? nav.mozConnection ?? nav.webkitConnection;
+
+        if (!connection) {
+            setConnectionSpeedSupported(false);
+            setConnectionSpeedMbps(null);
+            return;
+        }
+
+        const updateConnectionSpeed = () => {
+            const downlink = typeof connection.downlink === 'number' && Number.isFinite(connection.downlink)
+                ? connection.downlink
+                : null;
+
+            setConnectionSpeedSupported(downlink !== null);
+            setConnectionSpeedMbps(downlink);
+            setConnectionType(typeof connection.type === 'string' ? connection.type : null);
+            setEffectiveConnectionType(typeof connection.effectiveType === 'string' ? connection.effectiveType : null);
+        };
+
+        updateConnectionSpeed();
+        connection.addEventListener?.('change', updateConnectionSpeed);
+
+        return () => {
+            connection.removeEventListener?.('change', updateConnectionSpeed);
+        };
     }, []);
 
     /* ── Initialise on asset change ── */
@@ -234,6 +455,50 @@ export function FullScreenReviewModalFrameIO({
 
         if (user) fetchExistingShareLinks(taskId || asset.id);
     }, [asset, taskId, user]);
+
+    useEffect(() => {
+        setBufferingEvents(0);
+        setIsBuffering(false);
+        lastBufferEventRef.current = 0;
+    }, [asset?.id, currentVersion, videoSource.src]);
+
+    useEffect(() => {
+        if (!open || videoSource.type !== 'video') {
+            setIsBuffering(false);
+            return;
+        }
+
+        const video = videoRef.current;
+        if (!video) return;
+
+        const markBuffering = () => {
+            if (video.paused || video.seeking || video.currentTime <= 0) return;
+
+            const now = Date.now();
+            if (now - lastBufferEventRef.current >= BUFFER_EVENT_COOLDOWN_MS) {
+                lastBufferEventRef.current = now;
+                setBufferingEvents(prev => prev + 1);
+            }
+
+            setIsBuffering(true);
+        };
+
+        const clearBuffering = () => setIsBuffering(false);
+
+        video.addEventListener('waiting', markBuffering);
+        video.addEventListener('stalled', markBuffering);
+        video.addEventListener('playing', clearBuffering);
+        video.addEventListener('canplay', clearBuffering);
+        video.addEventListener('pause', clearBuffering);
+
+        return () => {
+            video.removeEventListener('waiting', markBuffering);
+            video.removeEventListener('stalled', markBuffering);
+            video.removeEventListener('playing', clearBuffering);
+            video.removeEventListener('canplay', clearBuffering);
+            video.removeEventListener('pause', clearBuffering);
+        };
+    }, [open, videoError, videoSource.type, videoSource.src, viewMode]);
 
     const fetchExistingShareLinks = async (id: string) => {
         try {
@@ -327,6 +592,8 @@ export function FullScreenReviewModalFrameIO({
             setCurrentVideoUrl(ver.url);
             setIsPlaying(false);
             setCurrentTime(0);
+            setDuration(0);
+            setMeasuredResolution('');
             setVideoError(false);
             setIframeLoaded(false);
         }
@@ -674,6 +941,7 @@ export function FullScreenReviewModalFrameIO({
         generatingLink,
         linkCopied,
         showShareDialog,
+        connectionInsight,
         userName: user?.name || 'You',
         togglePlay,
         toggleMute,
