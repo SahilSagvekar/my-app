@@ -742,6 +742,8 @@ export async function GET(req: any) {
           monthlyDeliverable: true,
           oneOffDeliverableId: true,
           oneOffDeliverable: true,
+          isExtra: true,
+          extraSequence: true,
           socialMediaLinks: true,
           suggestedTitles: true,
           updatedAt: true,
@@ -933,13 +935,19 @@ export async function POST(req: any) {
     const videographer = isEditorCreate ? 0 : Number(form.get("videographer"));
     const clientId = form.get("clientId") as string;
     const folderType = form.get("folderType") as string;
-    const monthlyDeliverableId = isEditorCreate ? '' : (form.get("monthlyDeliverableId") as string);
+    const isExtra = form.get("isExtra") === "true";
+    const extraQuantity = Math.min(
+      100,
+      Math.max(1, Number(form.get("extraQuantity") || 1) || 1)
+    );
+    const requestedMonthlyDeliverableId = form.get("monthlyDeliverableId") as string;
+    const monthlyDeliverableId = isEditorCreate && !isExtra ? '' : requestedMonthlyDeliverableId;
     const oneOffDeliverableId = form.get("oneOffDeliverableId") as string;
 
     // 🔥 EDITOR PERMISSION CHECK
     if (isEditorCreate) {
-      if (!clientId || !oneOffDeliverableId) {
-        return NextResponse.json({ message: "clientId and oneOffDeliverableId are required" }, { status: 400 });
+      if (!clientId || (!oneOffDeliverableId && !(isExtra && monthlyDeliverableId))) {
+        return NextResponse.json({ message: "clientId and a valid deliverable are required" }, { status: 400 });
       }
       const perm = await (prisma as any).editorClientPermission.findUnique({
         where: { editorId_clientId: { editorId: Number(userId), clientId } },
@@ -991,11 +999,38 @@ export async function POST(req: any) {
       );
 
     // 🔥 Determine folder prefix based on folder type
+    const currentMonth = getCurrentMonthFolder();
+    const isExtraMonthlyTask = Boolean(isExtra && monthlyDeliverableId && !oneOffDeliverableId);
+    let extraSequence: number | null = null;
+    let extraMonthlyDeliverable: { id: string; type: string } | null = null;
+
+    if (isExtraMonthlyTask) {
+      extraMonthlyDeliverable = await prisma.monthlyDeliverable.findFirst({
+        where: { id: monthlyDeliverableId, clientId },
+        select: { id: true, type: true },
+      });
+
+      if (!extraMonthlyDeliverable) {
+        return NextResponse.json(
+          { message: "Monthly deliverable not found for this client" },
+          { status: 400 }
+        );
+      }
+
+      const existingMonthlyTaskCount = await prisma.task.count({
+        where: {
+          clientId,
+          monthlyDeliverableId,
+          monthFolder: currentMonth,
+        },
+      });
+      extraSequence = existingMonthlyTaskCount + 1;
+    }
+
     let folderPrefix = '';
 
     if (effectiveFolderType === "rawFootage") {
       const companyName = client.companyName || client.name;
-      const currentMonth = getCurrentMonthFolder();
       const rawFootageBase = client.rawFootageFolderId || `${companyName}/raw-footage/`;
       folderPrefix = `${rawFootageBase}${currentMonth}/`;
 
@@ -1043,9 +1078,11 @@ export async function POST(req: any) {
         oneOffDeliverableId: oneOffDeliverableId || null,
         driveLinks: uploadedLinks,
         folderType: effectiveFolderType,
-        monthFolder: getCurrentMonthFolder(),
+        monthFolder: currentMonth,
         requiresClientReview: client.requiresClientReview,
         isTrial: client.isTrial ?? false,
+        isExtra: isExtraMonthlyTask,
+        extraSequence,
         status: (client.requiresVideographer || shootLocation || shootCamera)
           ? "VIDEOGRAPHER_ASSIGNED"
           : "PENDING",
@@ -1134,7 +1171,77 @@ export async function POST(req: any) {
     }
 
     // 🔁 AUTO GENERATE TASKS (Only if it's a monthly deliverable)
-    if (monthlyDeliverableId) {
+    if (isExtraMonthlyTask && extraMonthlyDeliverable && extraSequence) {
+      const companyName = client.companyName || client.name;
+      const companyNameSlug = companyName.replace(/\s/g, '');
+      const deliverableSlug = getDeliverableShortCode(extraMonthlyDeliverable.type);
+      const createdAtStr = formatDateMMDDYYYY(task.createdAt);
+      const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${extraSequence}`;
+      const taskFolderPath = await createTaskFolderStructure(companyName, title, currentMonth);
+      const recurringMonthLabel = `${task.createdAt.getFullYear()}-${String(task.createdAt.getMonth() + 1).padStart(2, "0")}`;
+
+      const updatedExtra = await prisma.task.update({
+        where: { id: task.id },
+        data: {
+          title,
+          outputFolderId: taskFolderPath,
+          recurringMonth: recurringMonthLabel,
+          isExtra: true,
+          extraSequence,
+        },
+      });
+
+      const createdExtraTasks = [updatedExtra];
+
+      for (let i = 1; i < extraQuantity; i++) {
+        const nextSequence = extraSequence + i;
+        const nextTitle = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${nextSequence}`;
+        const nextTaskFolderPath = await createTaskFolderStructure(
+          companyName,
+          nextTitle,
+          currentMonth
+        );
+
+        const extraTask = await prisma.task.create({
+          data: {
+            title: nextTitle,
+            description: description || "",
+            dueDate: new Date(dueDate),
+            assignedTo,
+            qc_specialist,
+            scheduler,
+            videographer,
+            createdBy: userId,
+            clientId,
+            clientUserId: client?.userId,
+            monthlyDeliverableId,
+            driveLinks: [],
+            folderType: effectiveFolderType,
+            monthFolder: currentMonth,
+            outputFolderId: nextTaskFolderPath,
+            recurringMonth: recurringMonthLabel,
+            requiresClientReview: client.requiresClientReview,
+            isTrial: client.isTrial ?? false,
+            isExtra: true,
+            extraSequence: nextSequence,
+            status: (client.requiresVideographer || shootLocation || shootCamera)
+              ? "VIDEOGRAPHER_ASSIGNED"
+              : "PENDING",
+          },
+        });
+
+        createdExtraTasks.push(extraTask);
+      }
+
+      return NextResponse.json(
+        {
+          created: createdExtraTasks.length,
+          tasks: createdExtraTasks,
+          firstTask: updatedExtra,
+        },
+        { status: 201 }
+      );
+    } else if (monthlyDeliverableId) {
       await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
     } else if (oneOffDeliverableId) {
       // 🔥 HANDLE ONE-OFF TASK NAMING AND FOLDERS

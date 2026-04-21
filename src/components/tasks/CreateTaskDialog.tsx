@@ -576,6 +576,8 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
     clientId: "",
     monthlyDeliverableId: "",
     oneOffDeliverableId: "",
+    isExtra: false,
+    extraQuantity: 1,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -583,6 +585,7 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   const isSubmitting = useRef(false); // 🔒 Synchronous guard against double-clicks
   const [clientsLoading, setClientsLoading] = useState(false);
   const { user } = useAuth();
+  const isEditorUser = user?.role?.toLowerCase() === "editor";
 
   // list of available people for roles
   const [availableMembers, setAvailableMembers] = useState<any[]>([]);
@@ -728,13 +731,13 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         const d = availableDeliverables[0];
         setSelectedDeliverable(d.id);
         if (d.deliverableSource === 'monthly') {
-          setFormData(prev => ({ ...prev, monthlyDeliverableId: d.id, oneOffDeliverableId: "" }));
+          setFormData(prev => ({ ...prev, monthlyDeliverableId: d.id, oneOffDeliverableId: "", isExtra: isEditorUser || prev.isExtra }));
         } else {
-          setFormData(prev => ({ ...prev, oneOffDeliverableId: d.id, monthlyDeliverableId: "" }));
+          setFormData(prev => ({ ...prev, oneOffDeliverableId: d.id, monthlyDeliverableId: "", isExtra: false }));
         }
       } else {
         setSelectedDeliverable("");
-        setFormData(prev => ({ ...prev, monthlyDeliverableId: "", oneOffDeliverableId: "" }));
+        setFormData(prev => ({ ...prev, monthlyDeliverableId: "", oneOffDeliverableId: "", isExtra: false }));
       }
     }
 
@@ -780,6 +783,8 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
       formPayload.append("clientId", formData.clientId);
       formPayload.append("monthlyDeliverableId", formData.monthlyDeliverableId || "");
       formPayload.append("oneOffDeliverableId", formData.oneOffDeliverableId || "");
+      formPayload.append("isExtra", formData.isExtra ? "true" : "false");
+      formPayload.append("extraQuantity", String(formData.extraQuantity || 1));
 
       // 🔥 DEBUG: Log what we're sending
       console.log("📤 SENDING TO API:");
@@ -817,6 +822,8 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
         clientId: "",
         monthlyDeliverableId: "",
         oneOffDeliverableId: "",
+        isExtra: false,
+        extraQuantity: 1,
       });
 
 
@@ -833,6 +840,10 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
   };
 
   const selectedMember = availableMembers.find((m) => String(m.id) === String(formData.assignedTo));
+  const selectedDeliverableMeta = deliverables.find(
+    (d) => String(d.id) === String(selectedDeliverable)
+  );
+  const canMarkExtra = selectedDeliverableMeta?.deliverableSource === 'monthly';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -905,9 +916,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
                 if (v === "__no_deliverables__") return;
                 const selected = deliverables.find(d => d.id === v);
                 if (selected?.deliverableSource === 'monthly') {
-                  setFormData(prev => ({ ...prev, monthlyDeliverableId: v, oneOffDeliverableId: "" }));
+                  setFormData(prev => ({ ...prev, monthlyDeliverableId: v, oneOffDeliverableId: "", isExtra: isEditorUser || prev.isExtra }));
                 } else {
-                  setFormData(prev => ({ ...prev, oneOffDeliverableId: v, monthlyDeliverableId: "" }));
+                  setFormData(prev => ({ ...prev, oneOffDeliverableId: v, monthlyDeliverableId: "", isExtra: false }));
                 }
                 setSelectedDeliverable(v);
               }}
@@ -936,6 +947,46 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 
             {errors.monthlyDeliverableId && <p className="text-sm text-destructive">{errors.monthlyDeliverableId}</p>}
           </div>
+
+          {canMarkExtra && (
+            <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3">
+              <Checkbox
+                id="isExtra"
+                checked={formData.isExtra}
+                disabled={isEditorUser}
+                onCheckedChange={(checked) => handleInputChange("isExtra", checked === true)}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="isExtra" className="text-sm font-semibold text-rose-900">
+                  Create as extra monthly task
+                </Label>
+                <p className="text-xs text-rose-700">
+                  Use after promised quantity is done. This creates the next number without increasing promised progress.
+                </p>
+                {formData.isExtra && (
+                  <div className="pt-2">
+                    <Label htmlFor="extraQuantity" className="text-xs font-semibold text-rose-900">
+                      Extra task quantity
+                    </Label>
+                    <Input
+                      id="extraQuantity"
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={formData.extraQuantity}
+                      onChange={(e) =>
+                        handleInputChange(
+                          "extraQuantity",
+                          Math.max(1, Number(e.target.value) || 1)
+                        )
+                      }
+                      className="mt-1 h-9 w-28 bg-white"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Due Date</Label>

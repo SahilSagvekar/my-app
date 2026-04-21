@@ -43,6 +43,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'portfolio', label: 'Portfolio', icon: Film },
     { id: 'contracts', label: 'Contracts', icon: PenLine },
     { id: 'compression', label: 'Video Compression', icon: Camera },
+    { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   editor: [

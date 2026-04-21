@@ -157,6 +157,8 @@ model Task {
   billedAt             DateTime?
   invoiceId            String?
   isTrial              Boolean             @default(false)
+  isExtra              Boolean             @default(false)
+  extraSequence        Int?
   invoice              Invoice?  @relation(fields: [invoiceId], references: [id])
   files                File[]
   templateFor          RecurringTask[]     @relation("TemplateTask")
@@ -183,6 +185,8 @@ model Task {
   @@index([clientId, status])
   @@index([dueDate, status])
   @@index([qcReviewedBy])
+  @@index([clientId, monthlyDeliverableId, monthFolder])
+  @@index([isExtra])
 }
 
 model ShootDetail {

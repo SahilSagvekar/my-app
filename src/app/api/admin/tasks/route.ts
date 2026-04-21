@@ -2,7 +2,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@prisma/client";
@@ -217,7 +217,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 // }
 
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
     try {
         const user = await getCurrentUser2(req);
         if (!user) {
@@ -419,6 +419,8 @@ export async function GET(req: Request) {
                     },
                     deliverableType: true,
                     monthFolder: true,
+                    isExtra: true,
+                    extraSequence: true,
                 },
             }),
             prisma.task.count({ where }),
