@@ -16,7 +16,7 @@ import {
 import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
-// import { ReviewConnectionIndicator } from './ReviewConnectionIndicator';
+import { ReviewConnectionIndicator } from './ReviewConnectionIndicator';
 import type { ReviewScreenProps } from './ReviewScreenDesktop';
 
 type MobileTab = 'comments' | 'actions' | 'info';
@@ -320,15 +320,12 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 </div>
             </div>
 
-            {/*
-                Internet speed / recommendation indicator hidden for now.
-                <div
-                    className="flex-shrink-0 border-b border-[var(--review-border)] px-3 py-2"
-                    style={{ background: 'var(--review-bg-secondary)' }}
-                >
-                    <ReviewConnectionIndicator insight={p.connectionInsight} compact />
-                </div>
-            */}
+            <div
+                className="flex-shrink-0 border-b border-[var(--review-border)] px-3 py-2"
+                style={{ background: 'var(--review-bg-secondary)' }}
+            >
+                <ReviewConnectionIndicator insight={p.connectionInsight} compact />
+            </div>
 
             {/* ── VIDEO ── Smart sizing: portrait = fill height, landscape = 16:9 */}
             <div className={videoContainerClass} style={videoStyle}>
@@ -503,8 +500,9 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
 
                 {/* Reject button */}
                 <button
-                    onClick={() => setShowRejectDialog(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all active:scale-95"
+                    onClick={() => p.handleStatusChange('needs_changes')}
+                    disabled={p.savingFeedback}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <ThumbsDown className="h-3.5 w-3.5" />
                     Reject
@@ -688,12 +686,12 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                     size="lg"
                                     variant="outline"
                                     className="w-full bg-transparent border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300 h-14 text-base rounded-xl font-semibold"
-                                    onClick={() => setShowRejectDialog(true)}
+                                    onClick={() => p.handleStatusChange('needs_changes')}
                                     disabled={p.savingFeedback}
                                 >
                                     {p.savingFeedback
                                         ? <><div className="h-5 w-5 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />Saving...</>
-                                        : <><ThumbsDown className="h-5 w-5 mr-2" />Request Revisions</>
+                                        : <><ThumbsDown className="h-5 w-5 mr-2" />Reject</>
                                     }
                                 </Button>
                                 {unresolvedCount > 0 && (
