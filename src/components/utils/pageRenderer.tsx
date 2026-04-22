@@ -67,6 +67,11 @@ const SchedulerDailyTargetsPage = dynamic(() => import("../dashboards/Schedulerd
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Daily Targets...</div>
 });
 
+const AdminDailyTargetsPage = dynamic(() => import("../dashboards/AdminDailyTargetsPage").then(mod => mod.AdminDailyTargetsPage), {
+  ssr: false,
+  loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Posting Tracker...</div>
+});
+
 import { Loader2 } from "lucide-react";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
@@ -159,6 +164,8 @@ export function renderPage(
         return <CompressionDashboard />;
       case "production-tracker":
         return <ProductionTracker />;
+      case "posting-tracker":
+        return <AdminDailyTargetsPage />;
       // case "feedback":
       //   return <FeedbackSystem currentRole={role} />;
       case "training":

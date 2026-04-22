@@ -327,6 +327,7 @@ model Client {
   socialLogins            SocialLogin[]
   tasks                   Task[]
   postedContents          PostedContent[]
+  postingTargets          PostingTarget[]
   linkedUsers             User[]                   @relation("LinkedClientUsers")
   youtubeChannel          YouTubeChannel?
   youtubeSnapshots        YouTubeSnapshot[]
@@ -1694,4 +1695,22 @@ model PostedContent {
   @@index([clientId])
   @@index([postedAt])
   @@index([platform])
+}
+
+// Per-client, per-platform posting targets for daily tracking
+model PostingTarget {
+  id              String   @id @default(cuid())
+  clientId        String
+  platform        String   // e.g. "IG (Trials)", "FB Profile", "FB Page", "TT", "YT", "Snapchat", "LI"
+  deliverableType String   // e.g. "SF", "BSF", "SQF", "LF", "SEP", "HP"
+  count           Int      // how many per period (e.g. 4 SF/day)
+  frequency       String   @default("daily") // "daily", "weekly", "sunday"
+  extras          Json?    // { tiles: true, thumb: true, note: "every sunday" }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, platform, deliverableType])
+  @@index([clientId])
 }
