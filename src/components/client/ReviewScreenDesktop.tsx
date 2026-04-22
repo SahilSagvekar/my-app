@@ -22,7 +22,8 @@ import {
 import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
-import { ReviewConnectionIndicator, type ReviewConnectionInsight } from './ReviewConnectionIndicator';
+// import { ReviewConnectionIndicator, type ReviewConnectionInsight } from './ReviewConnectionIndicator';
+import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 
 /* ─── Shared prop type ─────────────────────────────────────────── */
 export interface ReviewScreenProps {
@@ -210,7 +211,10 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <span className="text-[var(--review-text-muted)]">•</span>
                                     <span className="text-sm text-[var(--review-text-muted)]">{p.measuredResolution || p.asset.resolution}</span>
                                 </div>
-                                <ReviewConnectionIndicator insight={p.connectionInsight} />
+                                {/*
+                                    Internet speed / recommendation indicator hidden for now.
+                                    <ReviewConnectionIndicator insight={p.connectionInsight} />
+                                */}
                             </div>
                         </div>
 

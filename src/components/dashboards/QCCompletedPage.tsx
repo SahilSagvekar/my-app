@@ -1,12 +1,33 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
-import { CheckCircle, XCircle, FileCheck, Calendar, FileText, Video, Palette, User, ArrowRight, Search, Filter, UserCheck, Loader, RotateCcw, Clock } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '../ui/pagination';
+import {
+  Calendar,
+  CheckCircle,
+  FileCheck,
+  Filter,
+  Loader,
+  RotateCcw,
+  Search,
+  UserCheck,
+  XCircle,
+  Clock,
+} from 'lucide-react';
 import { toast } from 'sonner';
+
+const PAGE_SIZE = 15;
+const SEARCH_DEBOUNCE_MS = 300;
 
 // 🛡️ Safe date formatter — returns a fallback string if the date is null/invalid
 const safeFormatDate = (
@@ -25,8 +46,6 @@ const safeFormatDate = (
 };
 
 type TaskStatus = 'COMPLETED' | 'REJECTED' | 'CLIENT_REVIEW';
-type TaskCategory = 'design' | 'video' | 'copywriting' | 'review';
-type TaskDestination = 'editor' | 'client' | 'scheduler';
 
 interface CompletedTask {
   id: string;
@@ -36,12 +55,11 @@ interface CompletedTask {
   createdAt: string;
   dueDate: string;
   clientId?: string;
-  taskCategory?: TaskCategory;
-  nextDestination?: TaskDestination;
+  taskCategory?: string;
+  nextDestination?: string;
   qcNotes?: string;
   feedback?: string;
   priority?: string;
-  // 🔥 QC reviewer tracking
   qcResult?: string | null;
   qcReviewedAt?: string | null;
   qcReviewer?: {
@@ -50,76 +68,173 @@ interface CompletedTask {
   } | null;
 }
 
+interface CompletedTaskApiItem {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: TaskStatus;
+  createdAt: string;
+  dueDate: string;
+  clientId?: string | null;
+  taskCategory?: string | null;
+  nextDestination?: string | null;
+  qcNotes?: string | null;
+  feedback?: string | null;
+  priority?: string | null;
+  qcResult?: string | null;
+  qcReviewedAt?: string | null;
+  qcReviewer?: {
+    id: number;
+    name: string;
+  } | null;
+}
+
+interface CompletedTasksResponse {
+  success: boolean;
+  tasks?: CompletedTaskApiItem[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  stats?: {
+    totalReviewed: number;
+    approved: number;
+    rejected: number;
+  };
+}
+
+const normalizeCompletedTask = (task: CompletedTaskApiItem): CompletedTask => ({
+  id: task.id,
+  title: task.title,
+  description: task.description || '',
+  status: task.status as TaskStatus,
+  createdAt: task.createdAt,
+  dueDate: task.dueDate,
+  clientId: task.clientId,
+  taskCategory: task.taskCategory || 'design',
+  nextDestination: task.nextDestination || 'scheduler',
+  qcNotes: task.qcNotes,
+  feedback: task.feedback,
+  priority: task.priority || 'medium',
+  qcResult: task.qcResult,
+  qcReviewedAt: task.qcReviewedAt,
+  qcReviewer: task.qcReviewer,
+});
+
+const fetchCompletedTasks = async (params: {
+  page: number;
+  status: 'all' | TaskStatus;
+  search: string;
+}) => {
+  const searchParams = new URLSearchParams({
+    page: String(params.page),
+    limit: String(PAGE_SIZE),
+  });
+
+  if (params.status !== 'all') {
+    searchParams.set('status', params.status);
+  }
+
+  if (params.search) {
+    searchParams.set('search', params.search);
+  }
+
+  const res = await fetch(`/api/tasks/qc-completed?${searchParams.toString()}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed fetching completed tasks');
+  }
+
+  return (await res.json()) as CompletedTasksResponse;
+};
+
 export function QCCompletedPage() {
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [loading, setLoading] = useState(true);
-  const [completedFilter, setCompletedFilter] = useState<'all' | 'COMPLETED' | 'REJECTED' | 'CLIENT_REVIEW'>('all');
+  const [completedFilter, setCompletedFilter] = useState<'all' | TaskStatus>('all');
   const [completedSearchTerm, setCompletedSearchTerm] = useState('');
-
-  // Multi-select state
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalMatchingTasks, setTotalMatchingTasks] = useState(0);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [stats, setStats] = useState({
+    totalReviewed: 0,
+    approved: 0,
+    rejected: 0,
+  });
 
   useEffect(() => {
-    loadCompletedTasks();
-  }, []);
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(completedSearchTerm.trim());
+    }, SEARCH_DEBOUNCE_MS);
 
-  const loadCompletedTasks = async () => {
-    try {
-      setLoading(true);
+    return () => window.clearTimeout(timeoutId);
+  }, [completedSearchTerm]);
 
-      // 🔥 Fetch COMPLETED and REJECTED tasks
-      const res = await fetch("/api/tasks?status=COMPLETED,REJECTED,CLIENT_REVIEW", {
-        method: "GET",
-        credentials: "include",
-      });
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [completedFilter, debouncedSearchTerm]);
 
-      if (!res.ok) throw new Error("Failed fetching completed tasks");
+  useEffect(() => {
+    setSelectedTaskIds(new Set());
+  }, [currentPage, completedFilter, debouncedSearchTerm]);
 
-      let data = await res.json();
+  useEffect(() => {
+    let isCancelled = false;
 
-      if (data.tasks) data = data.tasks;
-      if (!Array.isArray(data)) {
-        console.error("API returned non-array:", data);
-        return;
-      }
+    async function loadCompletedTasks() {
+      try {
+        setLoading(true);
 
-      const normalized = data.map((task: any) => ({
-        id: task.id,
-        title: task.title,
-        description: task.description || '',
-        status: task.status as TaskStatus,
-        createdAt: task.createdAt,
-        dueDate: task.dueDate,
-        clientId: task.clientId,
-        taskCategory: task.taskCategory || 'design',
-        nextDestination: task.nextDestination || 'scheduler',
-        qcNotes: task.qcNotes,
-        feedback: task.feedback,
-        priority: task.priority || 'medium',
-        // 🔥 QC reviewer tracking
-        qcResult: task.qcResult,
-        qcReviewedAt: task.qcReviewedAt,
-        qcReviewer: task.qcReviewer,
-      }));
+        const data = await fetchCompletedTasks({
+          page: currentPage,
+          status: completedFilter,
+          search: debouncedSearchTerm,
+        });
 
-      const sorted = normalized.sort(
-        (a, b) => {
-          const timeA = a.qcReviewedAt ? new Date(a.qcReviewedAt).getTime() : new Date(a.createdAt).getTime();
-          const timeB = b.qcReviewedAt ? new Date(b.qcReviewedAt).getTime() : new Date(b.createdAt).getTime();
-          return timeB - timeA;
+        if (isCancelled) return;
+
+        const responseTotalPages = data.pagination?.totalPages || 1;
+        if (currentPage > responseTotalPages) {
+          setCurrentPage(responseTotalPages);
+          return;
         }
-      );
 
-      setCompletedTasks(sorted);
-    } catch (err) {
-      console.error("Completed tasks load error:", err);
-      toast.error("Failed to load completed tasks");
-    } finally {
-      setLoading(false);
+        const normalizedTasks = Array.isArray(data.tasks)
+          ? data.tasks.map(normalizeCompletedTask)
+          : [];
+
+        setCompletedTasks(normalizedTasks);
+        setTotalPages(responseTotalPages);
+        setTotalMatchingTasks(data.pagination?.total || 0);
+        setStats({
+          totalReviewed: data.stats?.totalReviewed || 0,
+          approved: data.stats?.approved || 0,
+          rejected: data.stats?.rejected || 0,
+        });
+      } catch (err) {
+        console.error('Completed tasks load error:', err);
+        toast.error('Failed to load completed tasks');
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
     }
-  };
 
-  // Toggle individual task selection
+    void loadCompletedTasks();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentPage, completedFilter, debouncedSearchTerm]);
+
   const toggleTaskSelection = (taskId: string) => {
     const newSelection = new Set(selectedTaskIds);
     if (newSelection.has(taskId)) {
@@ -130,16 +245,18 @@ export function QCCompletedPage() {
     setSelectedTaskIds(newSelection);
   };
 
-  // Select all/none
+  const allVisibleTasksSelected =
+    completedTasks.length > 0 && selectedTaskIds.size === completedTasks.length;
+
   const toggleSelectAll = () => {
-    if (selectedTaskIds.size === filteredCompletedTasks.length && filteredCompletedTasks.length > 0) {
+    if (allVisibleTasksSelected) {
       setSelectedTaskIds(new Set());
-    } else {
-      setSelectedTaskIds(new Set(filteredCompletedTasks.map(t => t.id)));
+      return;
     }
+
+    setSelectedTaskIds(new Set(completedTasks.map((task) => task.id)));
   };
 
-  // Bulk revert selected tasks back to QC review
   const handleBulkRevert = async () => {
     if (selectedTaskIds.size === 0) {
       toast.error('No tasks selected');
@@ -160,81 +277,46 @@ export function QCCompletedPage() {
 
       toast.success(`✅ ${taskIds.length} task(s) reverted to QC Review`);
 
-      // Reload completed tasks
-      await loadCompletedTasks();
+      const refreshedData = await fetchCompletedTasks({
+        page: currentPage,
+        status: completedFilter,
+        search: debouncedSearchTerm,
+      });
 
-      // Clear selection
+      const responseTotalPages = refreshedData.pagination?.totalPages || 1;
       setSelectedTaskIds(new Set());
+
+      if (currentPage > responseTotalPages) {
+        setCurrentPage(responseTotalPages);
+        return;
+      }
+
+      const normalizedTasks = Array.isArray(refreshedData.tasks)
+        ? refreshedData.tasks.map(normalizeCompletedTask)
+        : [];
+
+      setCompletedTasks(normalizedTasks);
+      setTotalPages(responseTotalPages);
+      setTotalMatchingTasks(refreshedData.pagination?.total || 0);
+      setStats({
+        totalReviewed: refreshedData.stats?.totalReviewed || 0,
+        approved: refreshedData.stats?.approved || 0,
+        rejected: refreshedData.stats?.rejected || 0,
+      });
     } catch (err) {
       console.error(err);
       toast.error('Failed to revert tasks');
     }
   };
 
-  const totalCompleted = completedTasks.length;
-  const approvedCount = completedTasks.filter(t => t.status === 'COMPLETED').length;
-  const rejectedCount = completedTasks.filter(t => t.status === 'REJECTED').length;
-  const approvalRate = totalCompleted > 0 ? ((approvedCount / totalCompleted) * 100).toFixed(1) : '0';
+  const totalCompleted = stats.totalReviewed;
+  const approvedCount = stats.approved;
+  const rejectedCount = stats.rejected;
+  const approvalRate =
+    totalCompleted > 0 ? ((approvedCount / totalCompleted) * 100).toFixed(1) : '0';
 
-  // Filter completed tasks
-  const filteredCompletedTasks = completedTasks.filter(task => {
-    const matchesFilter = completedFilter === 'all' || task.status === completedFilter;
-    const matchesSearch = task.title.toLowerCase().includes(completedSearchTerm.toLowerCase()) ||
-      task.clientId?.toLowerCase().includes(completedSearchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'COMPLETED':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'REJECTED':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'CLIENT_REVIEW':
-        return <UserCheck className="h-4 w-4 text-purple-500" />;
-      default:
-        return null;
-    }
-  };
-
-  const getTaskCategoryIcon = (category?: string) => {
-    switch (category) {
-      case 'video':
-        return <Video className="h-3 w-3" />;
-      case 'design':
-        return <Palette className="h-3 w-3" />;
-      case 'copywriting':
-        return <FileText className="h-3 w-3" />;
-      default:
-        return <FileText className="h-3 w-3" />;
-    }
-  };
-
-  const getDestinationIcon = (destination?: TaskDestination) => {
-    switch (destination) {
-      case 'client':
-        return <UserCheck className="h-3 w-3" />;
-      case 'scheduler':
-        return <Calendar className="h-3 w-3" />;
-      case 'editor':
-        return <User className="h-3 w-3" />;
-      default:
-        return <ArrowRight className="h-3 w-3" />;
-    }
-  };
-
-  const getDestinationColor = (destination?: TaskDestination) => {
-    switch (destination) {
-      case 'client':
-        return 'text-purple-600 bg-purple-100';
-      case 'scheduler':
-        return 'text-green-600 bg-green-100';
-      case 'editor':
-        return 'text-blue-600 bg-blue-100';
-      default:
-        return 'text-gray-600 bg-gray-100';
-    }
-  };
+  const pageStart = totalMatchingTasks === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const pageEnd = totalMatchingTasks === 0 ? 0 : Math.min(currentPage * PAGE_SIZE, totalMatchingTasks);
 
   const getStatusBadgeVariant = (status: TaskStatus) => {
     if (status === 'COMPLETED') return 'default';
@@ -250,7 +332,6 @@ export function QCCompletedPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div>
         <h1>Completed Reviews</h1>
         <p className="text-muted-foreground mt-2">
@@ -258,7 +339,6 @@ export function QCCompletedPage() {
         </p>
       </div>
 
-      {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
@@ -306,7 +386,6 @@ export function QCCompletedPage() {
         </Card>
       </div>
 
-      {/* Filters */}
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -321,7 +400,10 @@ export function QCCompletedPage() {
                 />
               </div>
             </div>
-            <Select value={completedFilter} onValueChange={(value: any) => setCompletedFilter(value)}>
+            <Select
+              value={completedFilter}
+              onValueChange={(value: 'all' | TaskStatus) => setCompletedFilter(value)}
+            >
               <SelectTrigger className="w-full sm:w-48">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter by status" />
@@ -337,22 +419,24 @@ export function QCCompletedPage() {
         </CardContent>
       </Card>
 
-      {/* Completed Tasks List */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle>Review History ({filteredCompletedTasks.length})</CardTitle>
+              <CardTitle>Review History ({totalMatchingTasks})</CardTitle>
               <CardDescription>Recent review outcomes and feedback</CardDescription>
             </div>
-            {filteredCompletedTasks.length > 0 && (
-              <div className="flex items-center gap-2">
+            {completedTasks.length > 0 && (
+              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+                <span className="text-sm text-muted-foreground">
+                  Showing {pageStart}-{pageEnd} of {totalMatchingTasks}
+                </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={toggleSelectAll}
                 >
-                  {selectedTaskIds.size === filteredCompletedTasks.length && filteredCompletedTasks.length > 0 ? 'Deselect All' : 'Select All'}
+                  {allVisibleTasksSelected ? 'Deselect Page' : 'Select Page'}
                 </Button>
                 <Button
                   variant="default"
@@ -373,19 +457,24 @@ export function QCCompletedPage() {
               <Loader className="h-8 w-8 mx-auto mb-4 animate-spin" />
               <p>Loading completed reviews...</p>
             </div>
-          ) : filteredCompletedTasks.length === 0 ? (
+          ) : completedTasks.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileCheck className="h-16 w-16 mx-auto mb-4 opacity-40" />
               <h3 className="mb-2">No Completed Reviews</h3>
-              <p>Completed reviews will appear here</p>
+              <p>
+                {debouncedSearchTerm
+                  ? 'No reviews match your search right now'
+                  : 'Completed reviews will appear here'}
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredCompletedTasks.map((task) => (
+              {completedTasks.map((task) => (
                 <div
                   key={task.id}
-                  className={`border rounded-lg p-4 hover:bg-accent/50 transition-colors ${selectedTaskIds.has(task.id) ? 'bg-accent border-primary' : ''
-                    }`}
+                  className={`border rounded-lg p-4 hover:bg-accent/50 transition-colors ${
+                    selectedTaskIds.has(task.id) ? 'bg-accent border-primary' : ''
+                  }`}
                 >
                   <div className="flex items-start gap-3">
                     <Checkbox
@@ -397,56 +486,57 @@ export function QCCompletedPage() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            {/* {getStatusIcon(task.status)} */}
                             <h4 className="font-medium">{task.title}</h4>
                             <Badge variant={getStatusBadgeVariant(task.status)}>
                               {getStatusLabel(task.status)}
                             </Badge>
-                            {/* 🔥 Show QC Reviewer */}
                             {task.qcReviewer && (
                               <span className="text-xs text-muted-foreground flex items-center gap-1">
                                 <UserCheck className="h-3 w-3" />
                                 {task.qcReviewer.name}
                               </span>
                             )}
-
-                            {/* 🔥 Exact EST Time of Review */}
                             {task.qcReviewedAt && (
-                              <Badge variant="outline" className="text-[10px] bg-zinc-50 flex items-center gap-1">
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-zinc-50 flex items-center gap-1"
+                              >
                                 <Clock className="h-3 w-3" />
                                 {safeFormatDate(
                                   task.qcReviewedAt,
-                                  (d) => new Intl.DateTimeFormat('en-US', {
-                                    timeZone: 'America/New_York',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  }).format(d)
-                                )} EST
+                                  (d) =>
+                                    new Intl.DateTimeFormat('en-US', {
+                                      timeZone: 'America/New_York',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                    }).format(d)
+                                )}{' '}
+                                EST
                               </Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              <span>Created: {safeFormatDate(task.createdAt, (d) => d.toLocaleDateString())}</span>
+                              <span>
+                                Created:{' '}
+                                {safeFormatDate(task.createdAt, (d) => d.toLocaleDateString())}
+                              </span>
                             </div>
                           </div>
                         </div>
-                        {/* {task.nextDestination && (
-                          <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs flex-shrink-0 ${getDestinationColor(task.nextDestination)}`}>
-                            {getDestinationIcon(task.nextDestination)}
-                            <span className="capitalize">→ {task.nextDestination}</span>
-                          </div>
-                        )} */}
                       </div>
                       {(task.feedback || task.qcNotes) && (
                         <div className="mt-3 p-3 bg-accent/50 rounded">
                           <p className="text-sm font-medium mb-1">
-                            {task.status === 'COMPLETED' ? 'Feedback Provided:' :
-                              task.status === 'CLIENT_REVIEW' ? 'Review Notes:' : 'Rejection Reason:'}
+                            {task.status === 'COMPLETED'
+                              ? 'Feedback Provided:'
+                              : task.status === 'CLIENT_REVIEW'
+                                ? 'Review Notes:'
+                                : 'Rejection Reason:'}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             {task.feedback || task.qcNotes}
@@ -457,6 +547,62 @@ export function QCCompletedPage() {
                   </div>
                 </div>
               ))}
+
+              {totalPages > 1 && (
+                <Pagination className="pt-2">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                      >
+                        First
+                      </Button>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage > 1) {
+                            setCurrentPage((prev) => prev - 1);
+                          }
+                        }}
+                        className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                      />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <span className="px-3 text-sm text-muted-foreground">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage < totalPages) {
+                            setCurrentPage((prev) => prev + 1);
+                          }
+                        }}
+                        className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}
+                      />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage >= totalPages}
+                      >
+                        Last
+                      </Button>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
             </div>
           )}
         </CardContent>

@@ -96,6 +96,34 @@ function getStatusBadgeStyles(status: string) {
   }
 }
 
+// 🔥 Color coding for deliverable types (card-level background)
+function getDeliverableTypeColor(deliverableType: string): { bg: string; border: string; ring: string } {
+  const type = (deliverableType || '').toLowerCase();
+
+  if (type.includes('short form') || type === 'sf' || type === 'short_form') {
+    return { bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-300' };
+  }
+  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form') {
+    return { bg: 'bg-teal-50', border: 'border-teal-200', ring: 'ring-teal-300' };
+  }
+  if (type === 'sqf' || type.includes('sqf') || type.includes('super quick') || type.includes('square form')) {
+    return { bg: 'bg-cyan-50', border: 'border-cyan-200', ring: 'ring-cyan-300' };
+  }
+  if (type.includes('snapchat') || type === 'snap') {
+    return { bg: 'bg-yellow-50', border: 'border-yellow-200', ring: 'ring-yellow-300' };
+  }
+  if (type.includes('long form') || type === 'lf' || type === 'long_form') {
+    return { bg: 'bg-blue-50', border: 'border-blue-200', ring: 'ring-blue-300' };
+  }
+  if (type.includes('thumbnail') || type.includes('image')) {
+    return { bg: 'bg-purple-50', border: 'border-purple-200', ring: 'ring-purple-300' };
+  }
+  if (type.includes('podcast') || type.includes('audio')) {
+    return { bg: 'bg-orange-50', border: 'border-orange-200', ring: 'ring-orange-300' };
+  }
+  return { bg: 'bg-white', border: 'border-zinc-100', ring: 'ring-zinc-200' };
+}
+
 /* -------------------------------------------------------------------------- */
 /* 🔥 HELPER: Extract task number from title                                   */
 /* -------------------------------------------------------------------------- */
@@ -529,12 +557,15 @@ function TaskCard({
   const uploadValidation =
     task.status === "in_progress" ? validateRequiredUploads(task) : null;
 
+  // 🔥 Get deliverable type color for card background
+  const deliverableColors = getDeliverableTypeColor(task.deliverableType || '');
+
   return (
     <>
       <Card
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
-        className={`transition-all ${isDraggable
+        className={`transition-all ${deliverableColors.bg} ${deliverableColors.border} border ${isDraggable
           ? "cursor-grab active:cursor-grabbing hover:shadow-md"
           : "cursor-not-allowed opacity-75"
           } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}

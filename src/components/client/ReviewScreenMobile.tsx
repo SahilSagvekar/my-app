@@ -16,7 +16,7 @@ import {
 import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
-import { ReviewConnectionIndicator } from './ReviewConnectionIndicator';
+// import { ReviewConnectionIndicator } from './ReviewConnectionIndicator';
 import type { ReviewScreenProps } from './ReviewScreenDesktop';
 
 type MobileTab = 'comments' | 'actions' | 'info';
@@ -320,12 +320,15 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 </div>
             </div>
 
-            <div
-                className="flex-shrink-0 border-b border-[var(--review-border)] px-3 py-2"
-                style={{ background: 'var(--review-bg-secondary)' }}
-            >
-                <ReviewConnectionIndicator insight={p.connectionInsight} compact />
-            </div>
+            {/*
+                Internet speed / recommendation indicator hidden for now.
+                <div
+                    className="flex-shrink-0 border-b border-[var(--review-border)] px-3 py-2"
+                    style={{ background: 'var(--review-bg-secondary)' }}
+                >
+                    <ReviewConnectionIndicator insight={p.connectionInsight} compact />
+                </div>
+            */}
 
             {/* ── VIDEO ── Smart sizing: portrait = fill height, landscape = 16:9 */}
             <div className={videoContainerClass} style={videoStyle}>
