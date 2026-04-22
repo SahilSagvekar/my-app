@@ -37,6 +37,12 @@ export function FilePreviewModal({
   const isVideo = mimeType.startsWith("video/");
   const isWeb = mimeType === "text/html" || mimeType === "application/x-html" || (!isPDF && !isImage && !isVideo && file.url?.startsWith("http"));
 
+  // For videos, prefer the stream API which handles signing server-side
+  // Falls back to the direct URL if no file ID is available
+  const videoSrc = isVideo && file.id
+    ? `/api/files/${file.id}/stream`
+    : file.url;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl h-[90vh] overflow-hidden flex flex-col p-0">
@@ -71,8 +77,8 @@ export function FilePreviewModal({
           {isVideo && (
             <div className="w-full h-full flex items-center justify-center bg-black">
               <video
-                key={file.url}
-                src={file.url}
+                key={videoSrc}
+                src={videoSrc}
                 controls
                 className="max-w-full max-h-full"
                 preload="metadata"

@@ -316,8 +316,11 @@ export function SchedulerSpreadsheetView() {
 
             {previewFile && (
                 <FilePreviewModal
-                    isOpen={isPreviewOpen}
-                    onClose={() => setIsPreviewOpen(false)}
+                    open={isPreviewOpen}
+                    onOpenChange={(open) => {
+                        setIsPreviewOpen(open);
+                        if (!open) setPreviewFile(null);
+                    }}
                     file={previewFile}
                 />
             )}
