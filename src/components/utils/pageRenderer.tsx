@@ -67,7 +67,7 @@ const SchedulerDailyTargetsPage = dynamic(() => import("../dashboards/Schedulerd
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Daily Targets...</div>
 });
 
-const AdminDailyTargetsPage = dynamic(() => import("../dashboards/AdminDailyTargetsPage").then(mod => mod.AdminDailyTargetsPage), {
+const AdminDailyTargetsPage = dynamic(() => import("../dashboards/Admindailytargetspage").then(mod => mod.AdminDailyTargetsPage), {
   ssr: false,
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Posting Tracker...</div>
 });
