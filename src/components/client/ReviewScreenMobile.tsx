@@ -320,12 +320,12 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 </div>
             </div>
 
-            <div
+            {/* <div
                 className="flex-shrink-0 border-b border-[var(--review-border)] px-3 py-2"
                 style={{ background: 'var(--review-bg-secondary)' }}
             >
                 <ReviewConnectionIndicator insight={p.connectionInsight} compact />
-            </div>
+            </div> */}
 
             {/* ── VIDEO ── Smart sizing: portrait = fill height, landscape = 16:9 */}
             <div className={videoContainerClass} style={videoStyle}>
