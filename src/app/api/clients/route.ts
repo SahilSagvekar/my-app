@@ -468,6 +468,7 @@ export async function POST(req: Request) {
               postingTimes: d.postingTimes,
               platforms: d.platforms,
               description: d.description,
+              isTrial: d.isTrial ?? false,
             },
           })
         )

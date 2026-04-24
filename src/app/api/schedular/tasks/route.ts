@@ -175,7 +175,6 @@ export async function GET(req: Request) {
           title: t.title,
           description: t.description,
           status: t.status,
-          isTrial: t.isTrial,
           editor: t.user ? { name: t.user.name } : null,
           dueDate: t.dueDate,
           clientId: t.clientId,
@@ -203,6 +202,7 @@ export async function GET(req: Request) {
             postingTimes: (rawDeliverable as any).postingTimes || [],
             platforms: (rawDeliverable as any).platforms || [],
             description: rawDeliverable.description,
+            isTrial: (rawDeliverable as any).isTrial ?? false,
             isOneOff: !!t.oneOffDeliverable,
           } : null,
         };

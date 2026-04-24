@@ -28,20 +28,20 @@ export async function PATCH(
       select: { id: true, isTrial: true, companyName: true, name: true },
     });
 
-    // Bulk update ALL tasks for this client
-    const updateResult = await prisma.task.updateMany({
+    // Bulk update all monthly deliverables for this client
+    const updateResult = await prisma.monthlyDeliverable.updateMany({
       where: { clientId },
       data: { isTrial },
     });
 
     console.log(
-      `✅ Client ${updatedClient.companyName || updatedClient.name} trial=${isTrial}, ${updateResult.count} tasks updated`
+      `✅ Client ${updatedClient.companyName || updatedClient.name} trial=${isTrial}, ${updateResult.count} deliverables updated`
     );
 
     return NextResponse.json({
       success: true,
       client: updatedClient,
-      tasksUpdated: updateResult.count,
+      deliverablesUpdated: updateResult.count,
     });
   } catch (error: any) {
     console.error('Toggle client trial error:', error);

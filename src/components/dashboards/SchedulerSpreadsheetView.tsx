@@ -113,7 +113,6 @@ interface SchedulerTask {
     priority: string;
     status: string;
     dueDate?: string;
-    isTrial?: boolean;
     files: {
         id: string | number;
         name: string;
@@ -145,6 +144,7 @@ interface SchedulerTask {
         platforms?: string[];
         description?: string;
         isOneOff?: boolean;
+        isTrial?: boolean;
     };
     socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
     // AI Titling fields
@@ -295,13 +295,13 @@ export function SchedulerSpreadsheetView() {
                         postingTimes: rawDeliverable.postingTimes || [],
                         platforms: rawDeliverable.platforms || [],
                         description: rawDeliverable.description,
+                        isTrial: rawDeliverable.isTrial ?? false,
                         isOneOff: !!t.oneOffDeliverable && !t.monthlyDeliverable,
                     } : undefined,
                     socialMediaLinks: t.socialMediaLinks || [],
                     suggestedTitles: t.suggestedTitles || [],
                     titlingStatus: t.titlingStatus || 'NONE',
                     editor: t.editor,
-                    isTrial: t.isTrial,
                 };
             });
 
@@ -1023,7 +1023,6 @@ export function SchedulerSpreadsheetView() {
                       Editor
                     </div>
                   </th>
-                  <th className="px-3 py-3 text-center font-semibold">Trial</th>
                   <th
                     className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort("dueDate")}
@@ -1155,7 +1154,7 @@ export function SchedulerSpreadsheetView() {
                               >
                                 {task.title}
                               </p>
-                              {task.isTrial && (
+                              {task.deliverable?.isTrial && (
                                 <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded">
                                   TRIAL
                                 </span>
@@ -1177,43 +1176,6 @@ export function SchedulerSpreadsheetView() {
                             <span className="text-xs text-blue-600">
                               {task.editor?.name || "-"}
                             </span>
-                          </td>
-
-                          {/* Trial Toggle */}
-                          <td className="px-3 py-3 text-center">
-                            <Checkbox
-                              checked={task.isTrial || false}
-                              onCheckedChange={async (checked) => {
-                                try {
-                                  await fetch(
-                                    `/api/tasks/${task.id}/toggle-trial`,
-                                    {
-                                      method: "PATCH",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                      },
-                                      body: JSON.stringify({
-                                        isTrial: !!checked,
-                                      }),
-                                    },
-                                  );
-                                  setTasks((prev) =>
-                                    prev.map((t) =>
-                                      t.id === task.id
-                                        ? { ...t, isTrial: !!checked }
-                                        : t,
-                                    ),
-                                  );
-                                  toast.success(
-                                    checked
-                                      ? "Marked as trial"
-                                      : "Unmarked trial",
-                                  );
-                                } catch {
-                                  toast.error("Failed to update");
-                                }
-                              }}
-                            />
                           </td>
 
                           {/* Due Date */}

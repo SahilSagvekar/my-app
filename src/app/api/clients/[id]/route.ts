@@ -219,6 +219,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
             postingTimes: d.postingTimes || [],
             platforms: d.platforms || [],
             description: d.description || "",
+            isTrial: d.isTrial ?? false,
           },
         });
       } else {
@@ -235,6 +236,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
             postingTimes: d.postingTimes || [],
             platforms: d.platforms || [],
             description: d.description || "",
+            isTrial: d.isTrial ?? false,
           },
         });
       }

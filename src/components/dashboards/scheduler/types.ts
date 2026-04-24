@@ -7,7 +7,6 @@ export interface SchedulerTask {
     priority: string;
     status: string;
     dueDate?: string;
-    isTrial?: boolean;
     files: {
         id: string | number;
         name: string;
@@ -39,6 +38,7 @@ export interface SchedulerTask {
         platforms?: string[];
         description?: string;
         isOneOff?: boolean;
+        isTrial?: boolean;
     };
     socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
     // AI Titling fields

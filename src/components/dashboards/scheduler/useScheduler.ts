@@ -168,20 +168,6 @@ export function useScheduler() {
         setSelectedRows(new Set());
     };
 
-    const toggleTrial = async (taskId: string, isTrial: boolean) => {
-        try {
-            const res = await fetch(`/api/tasks/${taskId}/toggle-trial`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ isTrial }),
-            });
-            if (res.ok) {
-                setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isTrial } : t));
-                toast.success(isTrial ? "Marked as trial" : "Unmarked trial");
-            }
-        } catch (err) { toast.error("Failed to update trial status"); }
-    };
-
     const saveLink = async () => {
         if (!linkDialog || !linkUrl) return;
         setSubmittingLink(true);
@@ -250,7 +236,7 @@ export function useScheduler() {
         isPreviewOpen, setIsPreviewOpen, previewFile, setPreviewFile, linkDialog, setLinkDialog,
         linkUrl, setLinkUrl, linkPostedAt, setLinkPostedAt, submittingLink,
         loadTasks, handleSort, toggleRow, markAsScheduled, markAsPending, bulkMarkAsScheduled,
-        toggleTrial, downloadFile, copyTitle, saveLink, deleteSocialLink, getFileUrl,
+        downloadFile, copyTitle, saveLink, deleteSocialLink, getFileUrl,
         sortColumn, sortDirection, displayTasks
     };
 }
