@@ -72,6 +72,7 @@ import { SimpleCalendar } from "../ui/simple-calendar";
 // } from "../ui/table";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { TaskReassignmentDialog } from "./TaskReassignmentDialog";
 
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -342,6 +343,9 @@ export default function LeavesComponent() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  // Task reassignment on deactivation
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [deactivatingUserId, setDeactivatingUserId] = useState<number | null>(null);
   const [newUser, setNewUser] = useState({
     firstName: "",
     lastName: "",
@@ -819,6 +823,26 @@ export default function LeavesComponent() {
 
   const handleUpdateUserStatus = async (userId: number, currentStatus: string) => {
     const action = currentStatus === 'active' ? 'deactivate' : 'activate';
+
+    // If deactivating, check for active tasks first
+    if (action === 'deactivate') {
+      try {
+        const checkRes = await fetch(`/api/employee/${userId}/active-tasks`);
+        const checkData = await checkRes.json();
+
+        if (checkData.ok && checkData.taskCount > 0) {
+          // Has active tasks — open reassignment dialog
+          setDeactivatingUserId(userId);
+          setReassignDialogOpen(true);
+          return;
+        }
+      } catch (err) {
+        console.error('Error checking active tasks:', err);
+        // Fall through to normal deactivation if check fails
+      }
+    }
+
+    // No active tasks or activating — proceed normally
     const endpoint = `/api/employee/${userId}/${action}`;
 
     try {
@@ -2183,6 +2207,17 @@ export default function LeavesComponent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Task Reassignment Dialog (shown when deactivating user with active tasks) */}
+      <TaskReassignmentDialog
+        open={reassignDialogOpen}
+        onOpenChange={setReassignDialogOpen}
+        employeeId={deactivatingUserId || 0}
+        onDeactivated={() => {
+          setDeactivatingUserId(null);
+          loadEmployees();
+        }}
+      />
     </div>
   );
 }
