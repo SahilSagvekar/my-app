@@ -36,6 +36,7 @@ import { FilePreviewModal } from "../FileViewerModal";
 import { toast } from "sonner";
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
+import { EditorEodReport } from "./EditorEodReport";
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 STATUS + TYPE MAPPERS (BACKEND → UI FORMAT)                              */
@@ -1682,6 +1683,9 @@ export function EditorDashboard() {
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
       />
+
+      {/* EOD Report Section */}
+      <EditorEodReport />
 
     </div>
   );

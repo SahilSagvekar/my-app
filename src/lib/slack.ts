@@ -471,19 +471,84 @@ export async function deliverSlackNotification(
 
     const stage = notification.payload?.notificationStage;
     const taskTitle = notification.payload?.taskTitle || notification.title || "Task";
+    const schedulerId = notification.payload?.schedulerId;
 
-    const scheduledNotification = {
-      ...notification,
-      title: stage === "ready_for_scheduling"
-        ? "Task Ready for Scheduling"
-        : "Content Scheduled",
-      body: stage === "ready_for_scheduling"
-        ? `Task "${taskTitle}" is ready for scheduling.`
-        : `Task "${taskTitle}" has been ${stage === "posted" ? "posted" : "scheduled"}.`,
-    };
+    // Get scheduler's Slack ID for @mention
+    let schedulerMention = "";
+    if (schedulerId) {
+      try {
+        const schedulerIdNum = Number(schedulerId);
+        const scheduler = await prisma.user.findUnique({
+          where: { id: schedulerIdNum },
+          select: { slackUserId: true, name: true },
+        });
+        if (scheduler?.slackUserId) {
+          schedulerMention = `<@${scheduler.slackUserId}> `;
+        } else {
+          schedulerMention = `@${scheduler?.name?.replace(/\s+/g, '') || "scheduler"} `;
+        }
+      } catch (err) {
+        console.error("[Slack Dispatch] Failed to fetch scheduler:", err);
+        schedulerMention = "@scheduler ";
+      }
+    }
+
+    const scheduledNotification = { ...notification };
+
+    if (stage === "ready_for_scheduling") {
+      let approvedBy = "QC";
+      if (notification.payload?.taskId) {
+        try {
+          const t = await prisma.task.findUnique({
+            where: { id: notification.payload.taskId },
+            include: { client: true }
+          });
+          if (t?.client?.requiresClientReview) approvedBy = "Client";
+        } catch (e) {}
+      }
+      scheduledNotification.message = `:mag: :eyes: ${schedulerMention}✅ Content Approved by ${approvedBy}: Task "${taskTitle}" has been approved.`;
+    } else {
+      scheduledNotification.title = "Content Scheduled";
+      scheduledNotification.body = `Task "${taskTitle}" has been ${stage === "posted" ? "posted" : "scheduled"}.`;
+    }
 
     // Send to scheduling channel ONLY
     await sendToChannel("scheduling", scheduledNotification);
+    return;
+  }
+
+  // 4. REVIEW_QUEUE (QC Approved, Client Review Pending) -> Scheduling Channel
+  if (notificationType === "review_queue") {
+    console.log(`[Slack Dispatch] Review Queue -> Scheduling channel`);
+    let taskTitle = notification.title || "Task";
+    let schedulerMention = "@scheduler ";
+
+    if (notification.payload?.taskId) {
+      try {
+        const t = await prisma.task.findUnique({
+          where: { id: notification.payload.taskId },
+          select: { title: true, scheduler: true }
+        });
+        if (t) {
+          taskTitle = t.title || taskTitle;
+          if (t.scheduler) {
+            const schedUser = await prisma.user.findUnique({ where: { id: Number(t.scheduler) } });
+            if (schedUser?.slackUserId) {
+              schedulerMention = `<@${schedUser.slackUserId}> `;
+            } else {
+              schedulerMention = `@${schedUser?.name?.replace(/\s+/g, '') || "scheduler"} `;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[Slack Dispatch] Review queue lookup failed", e);
+      }
+    }
+
+    const reviewNotification = { ...notification };
+    reviewNotification.message = `:mag: :eyes: ${schedulerMention}✅ Content Approved by QC: Task "${taskTitle}" has been approved by QC (Pending Client Review).`;
+
+    await sendToChannel("scheduling", reviewNotification);
     return;
   }
 

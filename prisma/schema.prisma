@@ -63,6 +63,7 @@ model User {
   linkedClient            Client?                  @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin             UserSecurityPin?
   twoFactorAuth           UserTwoFactorAuth?
+  eodReports              EditorEodReport[]
 
   @@index([email])
   @@index([role])
@@ -172,6 +173,7 @@ model Task {
   qcReviewer           User?               @relation("QCReviewedTasks", fields: [qcReviewedBy], references: [id])
   taskFeedback         TaskFeedback[]
   titlingJob           TitlingJob?
+  eodReportItems       EditorEodReportItem[]
 
   @@index([assignedTo])
   @@index([clientId])
@@ -1714,4 +1716,38 @@ model PostingTarget {
 
   @@unique([clientId, platform, deliverableType])
   @@index([clientId])
+}
+
+model EditorEodReport {
+  id           String                @id @default(cuid())
+  editorId     Int
+  reportDate   String
+  slackChannel String?
+  slackTs      String?
+  status       String                @default("DRAFT")
+  notes        String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  editor       User                  @relation(fields: [editorId], references: [id])
+  items        EditorEodReportItem[]
+
+  @@unique([editorId, reportDate])
+  @@index([editorId])
+  @@index([reportDate])
+}
+
+model EditorEodReportItem {
+  id           String           @id @default(cuid())
+  reportId     String
+  taskId       String
+  taskTitle    String
+  proofLinks   Json             @default("[]")
+  statusAtSend String?
+  createdAt    DateTime         @default(now())
+  report       EditorEodReport  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  task         Task             @relation(fields: [taskId], references: [id])
+
+  @@unique([reportId, taskId])
+  @@index([reportId])
+  @@index([taskId])
 }
