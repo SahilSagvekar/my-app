@@ -16,6 +16,7 @@ import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFra
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { useAuth } from '../auth/AuthContext';
+import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
@@ -933,9 +934,16 @@ export function QCDashboard() {
 
                   {/* Card Body */}
                   <div className="p-4 flex flex-col gap-3">
-                    <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">
-                      {task.title}
-                    </h4>
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
+                        {task.title}
+                      </h4>
+                      <TaskGuidelinesButton
+                        clientId={task.clientId}
+                        clientName={task.client?.companyName || task.client?.name || null}
+                        role="qc"
+                      />
+                    </div>
 
                     {/* Deliverable Type Badge */}
                     <div className="flex flex-wrap gap-1.5">

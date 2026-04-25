@@ -4,10 +4,10 @@ import { Video, Lightbulb, Share2, Cpu, Scissors, DollarSign, Tv, Camera, ArrowR
 
 const services = [
   {
-    icon: Lightbulb,
-    title: 'Content Strategy',
-    description: 'Smart planning that helps you stand out in your market and connect with your customers.',
-    href: '/services/content-strategy',
+    icon: Scissors,
+    title: 'Video Editing',
+    description: 'Polished, professional editing that transforms raw footage into compelling stories.',
+    href: '/services/video-editing',
   },
   {
     icon: Video,
@@ -16,22 +16,28 @@ const services = [
     href: '/services/video-production',
   },
   {
-    icon: Scissors,
-    title: 'Video Editing',
-    description: 'Polished, professional editing that transforms raw footage into compelling stories.',
-    href: '/services/video-editing',
-  },
-  {
     icon: Share2,
     title: 'Social Media Management',
     description: 'Strategic management of your social presence across all platforms to maximize engagement.',
     href: '/services/social-media-management',
   },
   {
+    icon: Camera,
+    title: 'UGC Content',
+    description: 'Authentic user-generated style content that resonates with audiences and drives engagement.',
+    href: '/services/ugc-content',
+  },
+  {
     icon: Cpu,
     title: 'Posting & Distribution',
     description: 'Automated scheduling and distribution to ensure your content reaches the right audience at the right time.',
     href: '/services/posting-distribution',
+  },
+  {
+    icon: Lightbulb,
+    title: 'Content Strategy',
+    description: 'Smart planning that helps you stand out in your market and connect with your customers.',
+    href: '/services/content-strategy',
   },
   {
     icon: DollarSign,
@@ -44,12 +50,6 @@ const services = [
     title: 'Original Show Production',
     description: 'Full-scale production of original content series and shows that captivate audiences.',
     href: '/services/original-show-production',
-  },
-  {
-    icon: Camera,
-    title: 'UGC Content',
-    description: 'Authentic user-generated style content that resonates with audiences and drives engagement.',
-    href: '/services/ugc-content',
   },
 ];
 
