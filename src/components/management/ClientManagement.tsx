@@ -2121,15 +2121,26 @@ export function ClientManagement() {
                           const data = await res.json();
                           if (!res.ok) throw new Error(data.error || 'Failed');
 
+                          // Update client + deliverables in state
+                          const updatedDeliverables = (selectedClient.monthlyDeliverables || []).map(
+                            (d: any) => ({ ...d, isTrial: checked })
+                          );
+
                           setClients(prev => prev.map(c =>
-                            c.id === selectedClient.id ? { ...c, isTrial: checked } : c
+                            c.id === selectedClient.id
+                              ? { ...c, isTrial: checked, monthlyDeliverables: updatedDeliverables }
+                              : c
                           ));
-                          setSelectedClient({ ...selectedClient, isTrial: checked });
+                          setSelectedClient({
+                            ...selectedClient,
+                            isTrial: checked,
+                            monthlyDeliverables: updatedDeliverables,
+                          });
 
                           toast.success(
                             checked
-                              ? `Marked as trial — ${data.tasksUpdated} tasks updated`
-                              : `Removed trial — ${data.tasksUpdated} tasks updated`
+                              ? `Marked as trial — ${data.deliverablesUpdated || 0} deliverables updated`
+                              : `Removed trial — ${data.deliverablesUpdated || 0} deliverables updated`
                           );
                         } catch (err: any) {
                           console.error('Toggle trial error:', err);

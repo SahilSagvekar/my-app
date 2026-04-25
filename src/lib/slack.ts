@@ -34,7 +34,8 @@ export type SlackChannel =
   | "reports"
   | "e8app"
   | "attendance"
-  | "editors";
+  | "editors"
+  | "tdbs_guests";
 
 // ---------------------------------------------------------------------------
 // Channel Configuration (from environment variables)
@@ -81,6 +82,9 @@ const CHANNEL_CONFIG: Record<SlackChannel, () => string[]> = {
       "SLACK_EDITOR_WEBHOOK_URLS",
       "SLACK_EDITOR_WEBHOOK_URL",
     ),
+  // TDBS Guests channel
+  tdbs_guests: () =>
+    getWebhookGroup("SLACK_TDBS_GUESTS_CHANNEL_WEBHOOK_URL"),
 };
 
 // ---------------------------------------------------------------------------
@@ -361,12 +365,13 @@ export async function deliverSlackNotification(
 
     // Hardcoded Eric's Slack ID
     const adminMention = `<@U047GKLSCBD> `;
+    const taskTitle = notification.payload?.taskTitle || notification.title || "Task";
 
     // Create modified notification with admin mention
     const mentionedNotification = {
       ...notification,
       title: `👀 ${adminMention}Content Ready for QC Review`,
-      body: `Content "${notification.payload?.taskTitle || notification.title || "Task"}" is ready for review.`,
+      body: `Content "${taskTitle}" is ready for review.`,
     };
 
     // Send to QC channel ONLY
@@ -600,7 +605,7 @@ export async function sendDailySummaryToSlack(
   report: any,
   csvDownloadUrl?: string
 ): Promise<void> {
-  const webhookUrl = process.env.SLACK_REPORT_WEBHOOK_URL;
+  const webhookUrl = process.env.SLACKS_OPS_CHANNEL;
   if (!webhookUrl || !csvDownloadUrl) return;
 
   try {

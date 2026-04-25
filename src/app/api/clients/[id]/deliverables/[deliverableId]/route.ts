@@ -65,6 +65,7 @@ export async function PUT(
         postingTimes: data.postingTimes || ["10:00 AM"],
         platforms: data.platforms || [],
         description: data.description || "",
+        isTrial: data.isTrial ?? false,
       },
     });
 

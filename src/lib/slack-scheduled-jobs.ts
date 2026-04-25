@@ -74,7 +74,7 @@ export const SLACK_SCHEDULED_JOBS: SlackScheduledJobDefinition[] = [
     schedule: "0 10 * * *",
     channel: "attendance",
     message:
-      "Reminder: Export your videos and upload them to the E8 App so QC can review and provide feedback. Stay on track to hit deliverables!",
+      "Export your videos and upload them to the E8 App so QC can review and provide feedback. Stay on track to hit deliverables!",
     enabledEnvVar: "SLACK_ATTENDANCE_EXPORT_REMINDER_AM_ENABLED",
   },
   {
@@ -83,7 +83,7 @@ export const SLACK_SCHEDULED_JOBS: SlackScheduledJobDefinition[] = [
     schedule: "30 15 * * *",
     channel: "attendance",
     message:
-      "Reminder: Export your videos and upload them to the E8 App so QC can review and provide feedback. Stay on track to hit deliverables!",
+      "Export your videos and upload them to the E8 App so QC can review and provide feedback. Stay on track to hit deliverables!",
     enabledEnvVar: "SLACK_ATTENDANCE_EXPORT_REMINDER_PM_ENABLED",
   },
   {

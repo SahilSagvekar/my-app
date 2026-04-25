@@ -120,6 +120,11 @@ export function TaskRow({
                                 TRIAL
                             </span>
                         )}
+                        {task.deliverable?.isTrial && (
+                                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded">
+                                  TRIAL
+                                </span>
+                              )}
                     </div>
                 </td>
 
@@ -138,12 +143,12 @@ export function TaskRow({
                 </td>
 
                 {/* Trial Toggle */}
-                <td className="px-3 py-3 text-center">
+                {/* <td className="px-3 py-3 text-center">
                     <Checkbox
                         checked={task.isTrial || false}
                         onCheckedChange={(checked) => onToggleTrial(!!checked)}
                     />
-                </td>
+                </td> */}
 
                 {/* Due Date */}
                 <td className="px-3 py-3">
