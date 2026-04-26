@@ -148,46 +148,64 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
         try {
             setLoading(true);
             
-            // Fetch from PostedContent API
+            // Use same data source as PostedContentSidebar — fetch tasks with status filter
             const url = clientId
-                ? `/api/tasks?clientId=${clientId}&limit=1000`
-                : `/api/tasks?limit=1000`;
+                ? `/api/tasks?clientId=${clientId}&status=SCHEDULED,POSTED`
+                : `/api/tasks?status=SCHEDULED,POSTED`;
             
             const res = await fetch(url, { cache: "no-store" });
             if (!res.ok) throw new Error("Failed to fetch posted content");
             
             const data = await res.json();
-            const contents = data.contents || [];
             
-            // Transform PostedContent records into the format expected by the UI
-            // Group by taskId to create task-like objects
-            const taskMap = new Map<string, PostedTask>();
-            
-            contents.forEach((content: any) => {
-                const taskId = content.taskId || content.id; // Use content.id if no taskId
-                
-                if (!taskMap.has(taskId)) {
-                    taskMap.set(taskId, {
-                        id: taskId,
-                        title: content.title || 'Untitled',
-                        description: '',
-                        status: 'POSTED',
-                        createdAt: content.createdAt,
-                        deliverableType: content.deliverableType,
-                        socialMediaLinks: [],
-                        files: [],
-                    });
-                }
-                
-                const task = taskMap.get(taskId)!;
-                task.socialMediaLinks.push({
-                    platform: content.platform,
-                    url: content.url,
-                    postedAt: content.postedAt,
+            const postedTasks: PostedTask[] = (data.tasks || [])
+                .filter((task: any) => {
+                    const status = (task.status || "").toUpperCase();
+                    const isValidStatus = status === "SCHEDULED" || status === "POSTED";
+                    let links = task.socialMediaLinks;
+                    if (typeof links === "string") {
+                        try { links = JSON.parse(links); } catch { links = []; }
+                    }
+                    return isValidStatus && Array.isArray(links) && links.length > 0;
+                })
+                .map((task: any) => {
+                    let smLinks = task.socialMediaLinks;
+                    if (typeof smLinks === "string") {
+                        try { smLinks = JSON.parse(smLinks); } catch { smLinks = []; }
+                    }
+                    return {
+                        id: task.id,
+                        title: task.title || 'Untitled',
+                        description: task.description || '',
+                        status: task.status,
+                        createdAt: task.createdAt,
+                        dueDate: task.dueDate,
+                        deliverableType: task.deliverableType || task.monthlyDeliverable?.type,
+                        socialMediaLinks: smLinks || [],
+                        suggestedTitles: task.suggestedTitles || [],
+                        files: (task.files || [])
+                            .filter((f: any) => f.isActive !== false)
+                            .map((f: any) => ({
+                                id: f.id,
+                                name: f.name,
+                                url: f.url,
+                                size: f.size || 0,
+                                mimeType: f.mimeType || '',
+                                folderType: f.folderType,
+                                s3Key: f.s3Key,
+                            })),
+                        deliverable: task.monthlyDeliverable ? {
+                            id: task.monthlyDeliverable.id,
+                            type: task.monthlyDeliverable.type,
+                            platforms: task.monthlyDeliverable.platforms,
+                        } : task.oneOffDeliverable ? {
+                            id: task.oneOffDeliverable.id,
+                            type: task.oneOffDeliverable.type,
+                            platforms: task.oneOffDeliverable.platforms,
+                        } : undefined,
+                    };
                 });
-            });
             
-            const postedTasks = Array.from(taskMap.values());
             setTasks(postedTasks);
 
             // Extract unique deliverable types
