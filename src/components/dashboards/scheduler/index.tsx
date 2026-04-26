@@ -167,9 +167,6 @@ export function SchedulerSpreadsheetView() {
                                 <th className="px-3 py-3 text-left font-semibold">
                                     Editor
                                 </th>
-                                <th className="px-3 py-3 text-center font-semibold">
-                                    Trial
-                                </th>
                                 <th
                                     className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSort('dueDate')}

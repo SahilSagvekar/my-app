@@ -286,7 +286,7 @@ export function TaskRow({
             {/* Expanded Row */}
             {isExpanded && (
                 <tr className="bg-gray-50">
-                    <td colSpan={13} className="px-6 py-4">
+                    <td colSpan={14} className="px-6 py-4">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {/* Files Section */}
                             <div>
