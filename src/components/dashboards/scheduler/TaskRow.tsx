@@ -162,17 +162,41 @@ export function TaskRow({
 
                 {/* Files */}
                 <td className="px-3 py-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-center gap-1 flex-wrap">
+                        {imageFiles.length > 0 && (
+                            <div className="flex items-center gap-1">
+                                {imageFiles.map((file) => {
+                                    const url = getFileUrl(file);
+                                    return url ? (
+                                        <button
+                                            key={file.id}
+                                            onClick={(e) => { e.stopPropagation(); onPreviewFile(file); }}
+                                            className="w-8 h-8 rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-primary/40 transition-all flex-shrink-0"
+                                            title={file.name}
+                                        >
+                                            <img
+                                                src={url}
+                                                alt={file.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            key={file.id}
+                                            onClick={(e) => { e.stopPropagation(); onPreviewFile(file); }}
+                                            className="w-8 h-8 rounded border border-gray-200 bg-gray-50 flex items-center justify-center hover:ring-2 hover:ring-primary/40 transition-all flex-shrink-0"
+                                            title={file.name}
+                                        >
+                                            <ImageIcon className="h-3 w-3 text-emerald-500" />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                         {videoFiles.length > 0 && (
                             <Badge variant="outline" className="text-xs px-1.5">
                                 <Video className="h-3 w-3 mr-1" />
                                 {videoFiles.length}
-                            </Badge>
-                        )}
-                        {imageFiles.length > 0 && (
-                            <Badge variant="outline" className="text-xs px-1.5">
-                                <ImageIcon className="h-3 w-3 mr-1" />
-                                {imageFiles.length}
                             </Badge>
                         )}
                         {task.files.length === 0 && (

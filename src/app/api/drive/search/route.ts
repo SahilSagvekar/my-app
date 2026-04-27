@@ -60,8 +60,36 @@ export async function GET(request: NextRequest) {
       const companyName = clientRecord.companyName || clientRecord.name;
       prefix = `${companyName}/`;
     } else if (role === 'editor') {
-      // Editors only see raw-footage
+      // Editors see files for assigned clients — same logic as structure route
+      let assignedCompanyNames: string[] = [];
+      if (userId) {
+        const editorId = parseInt(userId);
+
+        const permissions = await prisma.editorClientPermission.findMany({
+          where: { editorId },
+          include: {
+            client: { select: { companyName: true, name: true } },
+          },
+        });
+        const permNames = permissions
+          .map(p => p.client.companyName || p.client.name)
+          .filter(Boolean);
+
+        const taskClients = await prisma.task.findMany({
+          where: { assignedTo: editorId, clientId: { not: null } },
+          select: {
+            client: { select: { companyName: true, name: true } },
+          },
+          distinct: ['clientId'],
+        });
+        const taskNames = taskClients
+          .map(t => t.client?.companyName || t.client?.name || '')
+          .filter(Boolean);
+
+        assignedCompanyNames = [...new Set([...permNames, ...taskNames])];
+      }
       prefix = '';
+      (request as any).__editorAssignedClients = assignedCompanyNames;
     }
 
     // List ALL objects with pagination
@@ -86,7 +114,15 @@ export async function GET(request: NextRequest) {
 
     // Filter for editors
     if (role === 'editor') {
-      allContents = allContents.filter(obj => obj.Key?.includes('/raw-footage/'));
+      const assignedClients: string[] = (request as any).__editorAssignedClients || [];
+      if (assignedClients.length > 0) {
+        allContents = allContents.filter(obj => {
+          const key = obj.Key || '';
+          return assignedClients.some(clientName => key.startsWith(`${clientName}/`));
+        });
+      } else {
+        allContents = allContents.filter(obj => obj.Key?.includes('/raw-footage/'));
+      }
     }
 
     // Search: match filename against query

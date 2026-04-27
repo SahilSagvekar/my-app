@@ -270,9 +270,44 @@ export async function GET(request: NextRequest) {
 
       console.log('👤 Client prefix:', prefix);
     } else if (role === 'editor') {
-      // Editors see all raw-footage folders across all companies
+      // Editors see files for clients they are assigned to
+      // Source 1: EditorClientPermission table (admin-managed)
+      // Source 2: Distinct clients from tasks assigned to this editor (ground truth)
+      let assignedCompanyNames: string[] = [];
+      if (userId) {
+        const editorId = parseInt(userId);
+
+        // Source 1: Explicit permissions
+        const permissions = await prisma.editorClientPermission.findMany({
+          where: { editorId },
+          include: {
+            client: { select: { companyName: true, name: true } },
+          },
+        });
+        const permNames = permissions
+          .map(p => p.client.companyName || p.client.name)
+          .filter(Boolean);
+
+        // Source 2: Clients from tasks actually assigned to this editor
+        const taskClients = await prisma.task.findMany({
+          where: { assignedTo: editorId, clientId: { not: null } },
+          select: {
+            client: { select: { companyName: true, name: true } },
+          },
+          distinct: ['clientId'],
+        });
+        const taskNames = taskClients
+          .map(t => t.client?.companyName || t.client?.name || '')
+          .filter(Boolean);
+
+        // Merge and deduplicate
+        assignedCompanyNames = [...new Set([...permNames, ...taskNames])];
+        console.log(`✏️ Editor ${userId} — perms: [${permNames.join(', ')}], tasks: [${taskNames.join(', ')}], merged: [${assignedCompanyNames.join(', ')}]`);
+      }
       prefix = '';
-      console.log('✏️ Editor: Will filter for raw-footage folders');
+      // Store for filtering later
+      (request as any).__editorAssignedClients = assignedCompanyNames;
+      console.log('✏️ Editor: Will filter for assigned client folders');
     } else if (role === 'admin' || role === 'manager') {
       // Admin/Manager see everything - no prefix restriction
       prefix = '';
@@ -320,11 +355,20 @@ export async function GET(request: NextRequest) {
     let filteredObjects = allContents;
 
     if (role === 'editor') {
-      // Editors only see items inside raw-footage folders
-      filteredObjects = allContents.filter(obj => {
-        return obj.Key?.includes('/raw-footage/');
-      });
-      console.log(`✏️ Filtered for editor: ${filteredObjects.length} objects in raw-footage`);
+      const assignedClients: string[] = (request as any).__editorAssignedClients || [];
+      if (assignedClients.length > 0) {
+        // Show all files/folders for assigned clients
+        filteredObjects = allContents.filter(obj => {
+          const key = obj.Key || '';
+          return assignedClients.some(clientName => key.startsWith(`${clientName}/`));
+        });
+      } else {
+        // Fallback: editors with no assignments see raw-footage across all companies
+        filteredObjects = allContents.filter(obj => {
+          return obj.Key?.includes('/raw-footage/');
+        });
+      }
+      console.log(`✏️ Filtered for editor: ${filteredObjects.length} objects (${assignedClients.length} assigned clients)`);
     }
 
     // Build folder tree

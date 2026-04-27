@@ -139,6 +139,22 @@ export function useScheduler() {
     const getFileUrl = (file: any) => signedUrls[String(file.id)] || file.url || '';
 
     const markAsScheduled = async (taskId: string) => {
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+            const requiredPlatforms = task.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
+            if (requiredPlatforms.length > 0) {
+                const existingLinks = (task.socialMediaLinks || []).map(l => l.platform.toLowerCase());
+                const missingPlatforms = requiredPlatforms.filter(p => !existingLinks.includes(p));
+                if (missingPlatforms.length > 0) {
+                    const platformNames = missingPlatforms.map(p => {
+                        const info = PLATFORMS[p as keyof typeof PLATFORMS];
+                        return info?.label || p;
+                    });
+                    toast.error(`Missing links for: ${platformNames.join(', ')}. Add all required platform links before marking as scheduled.`);
+                    return;
+                }
+            }
+        }
         try {
             const res = await fetch(`/api/tasks/${taskId}/mark-scheduled`, { method: "PATCH" });
             if (res.ok) {
@@ -159,11 +175,12 @@ export function useScheduler() {
     };
 
     const bulkMarkAsScheduled = async () => {
-        const selected = tasks.filter(t => selectedRows.has(t.id) && t.socialMediaLinks?.length);
+        const selected = tasks.filter(t => selectedRows.has(t.id));
         if (!selected.length) {
-            toast.error('Selected tasks need links to be scheduled');
+            toast.error('No tasks selected');
             return;
         }
+        // markAsScheduled already validates links per task
         for (const t of selected) await markAsScheduled(t.id);
         setSelectedRows(new Set());
     };
