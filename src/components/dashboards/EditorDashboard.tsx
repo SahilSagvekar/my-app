@@ -737,13 +737,13 @@ function TaskCard({
 
           {/* Compact Due Date + Files */}
           <div className="flex items-center justify-between mb-2 text-xs">
-            <span
+            {/* <span
               className={`text-[10px] ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
                 }`}
             >
               Due {new Date(task.dueDate).toLocaleDateString()}
               {isOverdue && " ⚠"}
-            </span>
+            </span> */}
 
             {/* {(task.files?.length ?? 0) > 0 && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">

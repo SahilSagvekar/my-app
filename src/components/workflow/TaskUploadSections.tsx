@@ -361,7 +361,7 @@ export function TaskUploadSections({
                           <span className="text-red-500 ml-0.5">*</span>
                         )}
                       </h3>
-                      {section.uploaded && (
+                      {/* {section.uploaded && (
                         <Badge
                           variant="outline"
                           className="text-green-600 border-green-600 text-[10px] px-1 py-0 h-3.5"
@@ -369,7 +369,7 @@ export function TaskUploadSections({
                           <CheckCircle className="h-2 w-2 mr-0.5" />
                           Done
                         </Badge>
-                      )}
+                      )} */}
                       {fileCount > 0 && (
                         <span className="text-[10px] text-gray-500">
                           ({fileCount} file{fileCount !== 1 ? "s" : ""})
