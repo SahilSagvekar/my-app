@@ -18,10 +18,20 @@ const UploadContext = createContext<UploadContextType | undefined>(undefined);
 export function UploadProvider({ children }: { children: React.ReactNode }) {
     const [activeUploads, setActiveUploads] = useState<UploadState[]>([]);
 
-    // Load active uploads on mount
+    // Load active uploads on mount — mark stale "uploading" as "paused"
+    // because the JS upload loop dies on page reload
     useEffect(() => {
         const loadActive = async () => {
             const active = await uploadStateManager.getAllActiveUploads();
+            
+            // Any upload marked "uploading" on mount is a zombie — no JS worker is running
+            for (const upload of active) {
+                if (upload.status === 'uploading') {
+                    await uploadStateManager.pauseUpload(upload.id);
+                    upload.status = 'paused';
+                }
+            }
+            
             setActiveUploads(active);
         };
         loadActive();
@@ -49,6 +59,12 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     const handleStart = async (file: File, taskData: any, subfolder: string, resumeId?: string, folderType?: string) => {
         const id = await uploadService.startUpload(file, taskData, subfolder, resumeId, folderType);
 
+        // Immediately fetch state from IndexedDB and add to React state
+        const initialState = await uploadStateManager.getUploadState(id);
+        if (initialState) {
+            updateUploadInState(initialState);
+        }
+
         // Subscribe to events
         const listener = (state: UploadState) => {
             updateUploadInState(state);
@@ -59,10 +75,12 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
                     uploadService.off(id, 'progress', listener);
                     uploadService.off(id, 'completed', listener);
                     uploadService.off(id, 'failed', listener);
+                    uploadService.off(id, 'started', listener);
                 }, 10000);
             }
         };
 
+        uploadService.on(id, 'started', listener);
         uploadService.on(id, 'progress', listener);
         uploadService.on(id, 'completed', listener);
         uploadService.on(id, 'failed', listener);
