@@ -36,7 +36,6 @@ import {
 import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
 import { RawFootageUploadDialog } from "./RawFootageUploadDialog";
-import { StorageLimitBanner } from "../Storagelimitbanner";
 import { StorageLimitModal } from "../Storagelimitmodal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -502,6 +501,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     depthFromRawFootage >= 2;
 
   const canUpload = role !== 'client' || isInRawFootage;
+  const isClientStorageLocked = role === 'client' && !!storageInfo?.isAtLimit;
 
   const closeUploadDialog = () => { };
 
@@ -1132,18 +1132,24 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           open={showStorageLimitModal}
           onOpenChange={setShowStorageLimitModal}
           storageInfo={storageInfo}
+          clientId={effectiveClientId || undefined}
         />
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Storage Banner */}
-        {role === 'client' && effectiveClientId && (
-          <div className="px-3 sm:px-4 pt-3">
-            <StorageLimitBanner
-              clientId={effectiveClientId}
-              onUpgradeClick={() => setShowStorageLimitModal(true)}
-            />
+      <div className="relative flex-1 flex flex-col min-w-0">
+        {isClientStorageLocked && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/90 backdrop-blur-sm">
+            <div className="mx-4 max-w-sm rounded-lg border bg-card p-5 text-center shadow-lg">
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-red-500" />
+              <h3 className="text-base font-semibold">Storage full</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Drive is locked until more storage is added.
+              </p>
+              <Button className="mt-4 w-full" onClick={() => setShowStorageLimitModal(true)}>
+                Get more storage
+              </Button>
+            </div>
           </div>
         )}
 

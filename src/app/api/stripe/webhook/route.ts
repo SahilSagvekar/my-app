@@ -302,6 +302,10 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       interval: subscription.items.data[0]?.price.recurring?.interval || 'month',
     },
   });
+
+  if (subscription.metadata?.type === 'storage_upgrade') {
+    await applyStorageUpgrade(subscription.metadata.clientId, subscription.metadata.addBytes);
+  }
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
@@ -357,6 +361,29 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       },
     });
   }
+}
+
+async function applyStorageUpgrade(clientId?: string, addBytes?: string) {
+  if (!clientId || !addBytes) return;
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { rawFootageStorageLimit: true },
+  });
+
+  if (!client) return;
+
+  const currentLimit = BigInt(client.rawFootageStorageLimit?.toString() || '3298534883328');
+  const addedStorage = BigInt(addBytes);
+
+  await prisma.client.update({
+    where: { id: clientId },
+    data: {
+      rawFootageStorageLimit: currentLimit + addedStorage,
+      storageAlert90Sent: false,
+      storageAlert95Sent: false,
+    },
+  });
 }
 
 async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) {

@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AlertTriangle, HardDrive, X } from 'lucide-react';
+import { AlertTriangle, Cloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
 interface StorageInfo {
@@ -26,7 +25,6 @@ interface StorageLimitBannerProps {
 export function StorageLimitBanner({ clientId, onUpgradeClick, className }: StorageLimitBannerProps) {
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     if (!clientId) return;
@@ -50,22 +48,6 @@ export function StorageLimitBanner({ clientId, onUpgradeClick, className }: Stor
 
   // Don't show if loading or no data
   if (loading || !storageInfo) return null;
-  // Allow dismiss only if not at critical level
-  if (dismissed && !storageInfo.isCritical && !storageInfo.isAtLimit) return null;
-
-  const getBannerStyle = () => {
-    if (storageInfo.isAtLimit) {
-      return 'bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-200';
-    }
-    if (storageInfo.isCritical) {
-      return 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-950 dark:border-orange-800 dark:text-orange-200';
-    }
-    if (storageInfo.isNearLimit) {
-      return 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-950 dark:border-yellow-800 dark:text-yellow-200';
-    }
-    // Default style for normal usage (< 90%)
-    return 'bg-secondary/50 border-border text-foreground';
-  };
 
   const getProgressColor = () => {
     if (storageInfo.isAtLimit) return 'bg-red-500';
@@ -74,75 +56,44 @@ export function StorageLimitBanner({ clientId, onUpgradeClick, className }: Stor
     return 'bg-blue-500';
   };
 
-  const getMessage = () => {
-    if (storageInfo.isAtLimit) {
-      return 'Storage limit reached. Uploads are disabled until you upgrade.';
-    }
-    if (storageInfo.isCritical) {
-      return 'Critical: You\'re almost out of storage space!';
-    }
-    if (storageInfo.isNearLimit) {
-      return 'Warning: Your storage is filling up.';
-    }
-    // Normal usage - just show storage info
-    return 'Raw Footage Storage';
-  };
-
-  // Only show upgrade button when near limit
-  const showUpgradeButton = storageInfo.isNearLimit || storageInfo.isCritical || storageInfo.isAtLimit;
-
   return (
     <div className={cn(
-      'flex items-center gap-4 p-3 border rounded-lg',
-      getBannerStyle(),
+      'w-full space-y-3 text-sm text-foreground',
       className
     )}>
-      <div className="shrink-0">
-        {storageInfo.isAtLimit || storageInfo.isCritical ? (
-          <AlertTriangle className="h-5 w-5" />
+      <div className="flex items-center gap-3">
+        {storageInfo.isAtLimit ? (
+          <AlertTriangle className="h-5 w-5 text-red-500" />
         ) : (
-          <HardDrive className="h-5 w-5" />
+          <Cloud className="h-5 w-5 text-muted-foreground" />
         )}
-      </div>
-      
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm">{getMessage()}</p>
-        <div className="flex items-center gap-3 mt-2">
-          <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div 
-              className={cn('h-full rounded-full transition-all', getProgressColor())}
-              style={{ width: `${Math.min(storageInfo.percentage, 100)}%` }}
-            />
-          </div>
-          <span className="text-xs font-medium whitespace-nowrap">
-            {storageInfo.usedFormatted} / {storageInfo.limitFormatted}
-          </span>
-        </div>
+        <span className="font-medium">Storage</span>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
-        {/* Only show upgrade button when storage is getting full */}
-        {showUpgradeButton && onUpgradeClick && (
-          <Button 
-            size="sm" 
-            variant={storageInfo.isAtLimit ? "destructive" : "default"}
-            onClick={onUpgradeClick}
-          >
-            Upgrade
-          </Button>
-        )}
-        {/* Only allow dismiss when not at limit and usage is high (90%+) */}
-        {showUpgradeButton && !storageInfo.isAtLimit && (
-          <Button 
-            size="icon" 
-            variant="ghost" 
-            className="h-8 w-8"
-            onClick={() => setDismissed(true)}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
+      <div className="space-y-2">
+        <div className="h-1 rounded-full bg-muted overflow-hidden">
+          <div
+            className={cn('h-full rounded-full transition-all', getProgressColor())}
+            style={{ width: `${Math.min(storageInfo.percentage, 100)}%` }}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {storageInfo.usedFormatted} of {storageInfo.limitFormatted} used
+        </p>
       </div>
+
+      {storageInfo.isAtLimit && (
+        <p className="text-xs font-medium text-red-600">Drive locked</p>
+      )}
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-9 rounded-full px-4 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+        onClick={onUpgradeClick}
+      >
+        Get more storage
+      </Button>
     </div>
   );
 }
@@ -186,7 +137,7 @@ export function StorageIndicator({ clientId, onClick }: { clientId: string; onCl
         getColor()
       )}
     >
-      <HardDrive className="h-3.5 w-3.5" />
+      <Cloud className="h-3.5 w-3.5" />
       <span>{storageInfo.percentage.toFixed(0)}%</span>
     </button>
   );

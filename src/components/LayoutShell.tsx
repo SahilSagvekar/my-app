@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
+import { SidebarStorage } from './ui/sidebar';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -419,7 +420,10 @@ export function LayoutShell({
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-200 space-y-4">
+            {currentRole.toLowerCase() === 'client' && authUser?.linkedClientId && (
+              <SidebarStorage clientId={authUser.linkedClientId} />
+            )}
             <div className="text-xs text-gray-500 text-center">
               {roleDisplay} Portal v2.1
             </div>

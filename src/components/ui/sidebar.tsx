@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
-import { PanelLeftIcon } from "lucide-react";
+import { AlertTriangle, Cloud, PanelLeftIcon } from "lucide-react";
 
 import { useIsMobile } from "./use-mobile"; 
 import { cn } from "./utils";
@@ -24,6 +24,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./tooltip";
+import { StorageLimitModal } from "../Storagelimitmodal";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -40,6 +41,17 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
+};
+
+type SidebarStorageInfo = {
+  used: number;
+  limit: number;
+  usedFormatted: string;
+  limitFormatted: string;
+  percentage: number;
+  isAtLimit: boolean;
+  isNearLimit: boolean;
+  isCritical: boolean;
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
@@ -351,6 +363,121 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("flex flex-col gap-2 p-2", className)}
       {...props}
     />
+  );
+}
+
+function SidebarStorage({
+  clientId,
+  className,
+}: {
+  clientId?: string | null;
+  className?: string;
+}) {
+  const [storageInfo, setStorageInfo] = React.useState<SidebarStorageInfo | null>(null);
+  const [showModal, setShowModal] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!clientId) return;
+
+    let cancelled = false;
+
+    fetch(`/api/clients/${clientId}/storage`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) {
+          setStorageInfo(data);
+          if (data.isAtLimit) {
+            setShowModal(true);
+          }
+        }
+      })
+      .catch(console.error);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
+
+  if (!clientId || !storageInfo) return null;
+
+  const progressColor = storageInfo.isAtLimit
+    ? "bg-red-600"
+    : storageInfo.isCritical
+      ? "bg-orange-500"
+      : storageInfo.isNearLimit
+        ? "bg-amber-500"
+        : "bg-blue-600";
+
+  return (
+    <>
+      <div
+        data-slot="sidebar-storage"
+        data-sidebar="storage"
+        className={cn("px-2 py-3 group-data-[collapsible=icon]:px-1", className)}
+      >
+        <div className="space-y-3 group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-2 text-sm font-medium text-sidebar-foreground">
+            {storageInfo.isAtLimit ? (
+              <AlertTriangle className="size-4 text-red-600" />
+            ) : (
+              <Cloud className="size-4 text-sidebar-foreground/70" />
+            )}
+            <span>Storage</span>
+          </div>
+
+          <div className="h-1 overflow-hidden rounded-full bg-sidebar-accent">
+            <div
+              className={cn("h-full rounded-full transition-all", progressColor)}
+              style={{ width: `${Math.min(storageInfo.percentage, 100)}%` }}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs text-sidebar-foreground/70">
+              {storageInfo.usedFormatted} of {storageInfo.limitFormatted} used
+            </p>
+            {storageInfo.isAtLimit && (
+              <p className="text-xs font-medium text-red-600">Drive locked</p>
+            )}
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-full border-blue-600 px-4 text-sm font-medium text-blue-700 hover:bg-blue-50 hover:text-blue-700"
+            onClick={() => setShowModal(true)}
+          >
+            Get more storage
+          </Button>
+        </div>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hidden size-8 group-data-[collapsible=icon]:flex"
+              onClick={() => setShowModal(true)}
+            >
+              <Cloud className="size-4" />
+              <span className="sr-only">Get more storage</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right" align="center">
+            {storageInfo.usedFormatted} of {storageInfo.limitFormatted} used
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      <StorageLimitModal
+        open={showModal}
+        onOpenChange={setShowModal}
+        storageInfo={storageInfo}
+        clientId={clientId}
+      />
+    </>
   );
 }
 
@@ -721,6 +848,7 @@ export {
   SidebarProvider,
   SidebarRail,
   SidebarSeparator,
+  SidebarStorage,
   SidebarTrigger,
   useSidebar,
 };

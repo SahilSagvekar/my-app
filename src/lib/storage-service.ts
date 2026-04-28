@@ -94,9 +94,14 @@ export async function calculateClientRawFootageStorage(clientId: string): Promis
  */
 export async function getClientStorageInfo(clientId: string): Promise<StorageInfo> {
   try {
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { rawFootageStorageLimit: true },
+    });
+
     // Always calculate actual storage from S3
     const actualUsed = await calculateClientRawFootageStorage(clientId);
-    const limit = DEFAULT_STORAGE_LIMIT;
+    const limit = Number(client?.rawFootageStorageLimit || DEFAULT_STORAGE_LIMIT);
     const percentage = limit > 0 ? (actualUsed / limit) * 100 : 0;
 
     return {

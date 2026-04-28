@@ -28,12 +28,14 @@ interface StorageLimitModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   storageInfo: StorageInfo;
+  clientId?: string;
   onUpgrade?: () => void;
   onContactSupport?: () => void;
 }
 
 const UPGRADE_PLANS = [
   {
+    id: '1tb',
     name: 'Additional 1 TB',
     price: '$49',
     period: '/month',
@@ -42,6 +44,7 @@ const UPGRADE_PLANS = [
     popular: false,
   },
   {
+    id: '3tb',
     name: 'Additional 3 TB',
     price: '$99',
     period: '/month',
@@ -50,6 +53,7 @@ const UPGRADE_PLANS = [
     popular: true,
   },
   {
+    id: 'unlimited',
     name: 'Unlimited',
     price: '$199',
     period: '/month',
@@ -63,17 +67,40 @@ export function StorageLimitModal({
   open, 
   onOpenChange, 
   storageInfo,
+  clientId,
   onUpgrade,
   onContactSupport 
 }: StorageLimitModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<number | null>(1);
+  const [buying, setBuying] = useState(false);
 
-  const handleUpgrade = () => {
+  const handleUpgrade = async () => {
     if (selectedPlan !== null) {
       if (onUpgrade) {
         onUpgrade();
-      } else {
-        window.open('/settings/billing', '_blank');
+        return;
+      }
+
+      const plan = UPGRADE_PLANS[selectedPlan];
+      if (!clientId || !plan) return;
+
+      setBuying(true);
+      try {
+        const res = await fetch(`/api/clients/${clientId}/storage/checkout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId: plan.id }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.checkoutUrl) {
+          throw new Error(data.message || 'Checkout failed');
+        }
+        window.location.href = data.checkoutUrl;
+      } catch (error) {
+        console.error('Storage checkout failed:', error);
+        window.open('mailto:support@e8productions.com?subject=Storage upgrade', '_blank');
+      } finally {
+        setBuying(false);
       }
     }
   };
@@ -110,7 +137,7 @@ export function StorageLimitModal({
 
         <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
           <p className="text-sm text-amber-800 dark:text-amber-200">
-            <strong>Uploads are disabled</strong> until you upgrade your storage plan or free up space by deleting files.
+            <strong>Drive is locked</strong> until more storage is added.
           </p>
         </div>
 
@@ -173,10 +200,10 @@ export function StorageLimitModal({
           </Button>
           <Button 
             onClick={handleUpgrade}
-            disabled={selectedPlan === null}
+            disabled={selectedPlan === null || buying}
             className="w-full sm:w-auto"
           >
-            Upgrade Now
+            {buying ? 'Opening checkout...' : 'Get more storage'}
           </Button>
         </DialogFooter>
       </DialogContent>
