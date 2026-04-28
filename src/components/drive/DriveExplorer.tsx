@@ -203,16 +203,38 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [browsingClientId, setBrowsingClientId] = useState<string | null>(null);
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
 
-  // For clients, clientId is always known. For admin, resolve from breadcrumb.
-  const effectiveClientId = role === 'client' ? (user?.linkedClientId || null) : browsingClientId;
+  // Use linkedClientId when present, otherwise resolve from the visible company folder.
+  const effectiveClientId = role === 'client' ? (user?.linkedClientId || browsingClientId) : browsingClientId;
   const effectiveCompanyName = role === 'client'
-    ? (breadcrumb[0]?.name || '')
+    ? (browsingCompanyName || breadcrumb[0]?.name || '')
     : browsingCompanyName;
+
+  // Resolve the client record from the visible company folder. Client users can
+  // be linked by email/user relation instead of linkedClientId.
+  useEffect(() => {
+    const companyFolder = breadcrumb.length >= 2 ? breadcrumb[1]?.name : breadcrumb[0]?.name;
+
+    if (!companyFolder || companyFolder === 'Root') {
+      setBrowsingClientId(null);
+      setBrowsingCompanyName('');
+      return;
+    }
+
+    if (companyFolder === browsingCompanyName) return;
+
+    setBrowsingCompanyName(companyFolder);
+    fetch(`/api/drive/client-lookup?companyName=${encodeURIComponent(companyFolder)}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        setBrowsingClientId(data?.clientId || null);
+      })
+      .catch(() => setBrowsingClientId(null));
+  }, [breadcrumb, browsingCompanyName]);
 
   // Fetch storage info for clients
   useEffect(() => {
-    if (role === 'client' && user?.linkedClientId) {
-      fetch(`/api/clients/${user.linkedClientId}/storage`)
+    if (role === 'client' && effectiveClientId) {
+      fetch(`/api/clients/${effectiveClientId}/storage`)
         .then(res => res.json())
         .then(data => {
           setStorageInfo(data);
@@ -222,7 +244,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         })
         .catch(console.error);
     }
-  }, [role, user?.linkedClientId]);
+  }, [role, effectiveClientId]);
 
   // ─── FEATURE 1: Extract deliverable types from output folder names ───
   // Runs whenever driveStructure or currentFolder changes
@@ -457,7 +479,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     if (breadcrumb.length === 0) {
       return "";
     }
-    const pathParts = breadcrumb.map((b) => b.name);
+    const pathParts = breadcrumb.map((b) => b.name).filter((name) => name !== "Root");
     return pathParts.join("/") + "/";
   };
 
@@ -488,7 +510,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     if (item.s3Key) {
       return item.s3Key;
     }
-    const pathParts = breadcrumb.map((b) => b.name);
+    const pathParts = breadcrumb.map((b) => b.name).filter((name) => name !== "Root");
     pathParts.push(item.name);
     return pathParts.join("/");
   };
@@ -537,8 +559,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       await loadDriveStructure();
 
       // Refresh storage info
-      if (role === 'client' && user?.linkedClientId) {
-        fetch(`/api/clients/${user.linkedClientId}/storage`)
+      if (role === 'client' && effectiveClientId) {
+        fetch(`/api/clients/${effectiveClientId}/storage`)
           .then(res => res.json())
           .then(setStorageInfo)
           .catch(console.error);
@@ -1116,10 +1138,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Storage Banner */}
-        {role === 'client' && user?.linkedClientId && (
+        {role === 'client' && effectiveClientId && (
           <div className="px-3 sm:px-4 pt-3">
             <StorageLimitBanner
-              clientId={user.linkedClientId}
+              clientId={effectiveClientId}
               onUpgradeClick={() => setShowStorageLimitModal(true)}
             />
           </div>

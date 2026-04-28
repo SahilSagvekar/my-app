@@ -255,7 +255,7 @@ export function RawFootageUploadDialog({
       // Start the first one and wait for it so we can show it in the UI
       const firstId = await startUpload(
         filesToUpload[0], 
-        undefined, // no task
+        { clientId }, // drive upload with storage-limit client context
         targetPath, // use full path as subfolder
         undefined, 
         'drive' // folderType
@@ -266,7 +266,7 @@ export function RawFootageUploadDialog({
       // Start the rest in parallel without awaiting
       if (filesToUpload.length > 1) {
         filesToUpload.slice(1).forEach(file => {
-          startUpload(file, undefined, targetPath, undefined, 'drive').catch(err =>
+          startUpload(file, { clientId }, targetPath, undefined, 'drive').catch(err =>
             console.error("Background initiation failed:", file.name, err)
           );
         });

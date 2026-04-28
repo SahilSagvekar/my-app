@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     const isRawFootageUpload = folderType === "rawFootage" || 
       (folderType === "drive" && subfolder?.includes("raw-footage"));
     
-    if (isRawFootageUpload && clientId) {
+    if (isRawFootageUpload && clientId && clientId !== "unknown") {
       const storageInfo = await getClientStorageInfo(clientId);
       
       // Check if upload would exceed limit

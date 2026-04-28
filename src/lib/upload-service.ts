@@ -184,6 +184,7 @@ class UploadService {
                 body: JSON.stringify({
                     fileName: file.name,
                     fileType: file.type,
+                    fileSize: file.size,
                     taskId: taskData?.id || "drive-upload",
                     clientId: taskData?.clientId || "unknown",
                     folderType,
