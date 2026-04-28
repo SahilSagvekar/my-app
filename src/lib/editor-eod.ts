@@ -147,12 +147,6 @@ export function formatEditorEodSlackMessage(params: {
 
   tasks.forEach((task, i) => {
     message += `\n${i + 1}. ${task.title}`;
-    if (task.proofLinks.length > 0) {
-      message += `\nCloudflare/Output Link:`;
-      task.proofLinks.forEach((link) => {
-        message += `\n${link.url}`;
-      });
-    }
     message += "\n";
   });
 

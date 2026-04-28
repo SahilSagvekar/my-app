@@ -9,7 +9,6 @@ import {
   extractTaskProofLinks,
   formatEditorEodSlackMessage,
 } from "@/lib/editor-eod";
-import { sendToChannel } from "@/lib/slack";
 
 export async function POST(req: NextRequest) {
   try {
@@ -182,16 +181,26 @@ export async function POST(req: NextRequest) {
     let slackFailed = false;
 
     try {
-      const result = await sendToChannel("reports", {
-        type: "editor_eod_report",
-        message: slackMessage,
-      });
-
-      if (result.succeeded > 0) {
-        console.log(`✅ [EOD] Slack message sent for ${user.name}`);
-      } else {
-        console.error(`[EOD] Slack send failed:`, result);
+      // Send directly as plain text to avoid Slack Block Kit 3000 char limit
+      const webhookUrl = process.env.SLACK_REPORT_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL;
+      
+      if (!webhookUrl) {
+        console.error("[EOD] No Slack webhook URL configured");
         slackFailed = true;
+      } else {
+        const res = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: slackMessage }),
+        });
+
+        if (res.ok) {
+          console.log(`✅ [EOD] Slack message sent for ${user.name}`);
+        } else {
+          const errorText = await res.text().catch(() => "unknown");
+          console.error(`[EOD] Slack send failed: ${res.status} ${errorText}`);
+          slackFailed = true;
+        }
       }
     } catch (slackErr) {
       console.error("[EOD] Slack send error:", slackErr);
