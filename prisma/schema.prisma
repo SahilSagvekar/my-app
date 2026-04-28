@@ -53,6 +53,7 @@ model User {
   monthlyTrends           QCMonthlyTrend[]
   rejectionReasons        QCRejectionReason[]
   salesLeads              SalesLead[]
+  salesLeadGenerationJobs SalesLeadGenerationJob[]
   sessions                Session[]
   shootDetails            ShootDetail[]            @relation("VideographerShootDetails")
   updatedSocialLogins     SocialLogin[]            @relation("LoginUpdatedBy")
@@ -1123,6 +1124,11 @@ model SalesLead {
   userId        Int
   name          String               @default("")
   email         String               @default("")
+  externalSource String?
+  externalId    String?
+  externalUrl   String?
+  profileUrl    String?              @db.VarChar(500)
+  postUrl       String?              @db.VarChar(500)
   socials       String               @default("")
   snapchatShow  String               @default("")
   igDm          Boolean              @default(false)
@@ -1157,6 +1163,33 @@ model SalesLead {
 
   @@index([userId])
   @@index([status])
+  @@index([externalSource, externalId])
+  @@unique([externalSource, externalId])
+}
+
+model SalesLeadGenerationJob {
+  id             String   @id @default(cuid())
+  userId         Int
+  provider       String   @default("LINKEDIN")
+  status         String   @default("QUEUED")
+  externalJobId  String?  @unique
+  totalLeads     Int      @default(0)
+  importedLeads  Int      @default(0)
+  duplicateLeads Int      @default(0)
+  requestedAt    DateTime @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  importedAt     DateTime?
+  errorMessage   String?
+  providerMessage String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([provider, userId])
 }
 
 model SalesDashboardColumn {

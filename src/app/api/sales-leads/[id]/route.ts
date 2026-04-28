@@ -36,6 +36,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         company: body.company ?? existing.company,
         email: body.email ?? existing.email,
         phone: body.phone ?? existing.phone,
+        profileUrl: body.profileUrl !== undefined ? body.profileUrl || null : existing.profileUrl,
+        postUrl: body.postUrl !== undefined ? body.postUrl || null : existing.postUrl,
         socials: body.socials ?? (existing as any).socials,
         instagram: body.instagram !== undefined ? !!body.instagram : (existing as any).instagram,
         facebook: body.facebook !== undefined ? !!body.facebook : (existing as any).facebook,

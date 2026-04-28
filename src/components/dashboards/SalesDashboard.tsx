@@ -26,6 +26,8 @@ interface Lead {
   company: string;
   email: string;
   phone: string;
+  profileUrl: string;
+  postUrl: string;
   socials: string;
   instagram: boolean;
   facebook: boolean;
@@ -76,6 +78,21 @@ interface ColumnDef {
   minPx?: number;
 }
 
+interface LinkedinLeadGenerationJob {
+  id: string;
+  status: string;
+  totalLeads: number;
+  importedLeads: number;
+  duplicateLeads: number;
+  errorMessage?: string | null;
+  providerMessage?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+  completedAt?: string | null;
+  importedAt?: string | null;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function tempId() {
@@ -85,7 +102,7 @@ function tempId() {
 function emptyDraftLead(status = 'NEW'): Lead {
   return {
     id: tempId(),
-    name: '', company: '', email: '', phone: '', socials: '',
+    name: '', company: '', email: '', phone: '', profileUrl: '', postUrl: '', socials: '',
     instagram: false, facebook: false, linkedin: false, twitter: false, tiktok: false,
     status, source: '', value: null, priority: '',
     meetingBooked: false, emailed: false,
@@ -97,9 +114,11 @@ function emptyDraftLead(status = 'NEW'): Lead {
 }
 
 function dbLeadToLocal(l: any): Lead {
+  const linkedinLead = l.metadata?.linkedinLead || {};
   return {
     id: l.id, name: l.name, company: l.company || '', email: l.email,
-    phone: l.phone || '', socials: l.socials || '',
+    phone: l.phone || '', profileUrl: l.profileUrl || l.externalUrl || linkedinLead.profileUrl || '',
+    postUrl: l.postUrl || linkedinLead.postUrl || '', socials: l.socials || '',
     instagram: !!l.instagram, facebook: !!l.facebook,
     linkedin: !!l.linkedin, twitter: !!l.twitter, tiktok: !!l.tiktok,
     status: l.status || 'NEW',
@@ -122,6 +141,45 @@ function formatToEST(iso: string) {
       hour: 'numeric', minute: '2-digit', hour12: true,
     });
   } catch { return iso; }
+}
+
+function isLinkedinLeadJobActive(job: LinkedinLeadGenerationJob | null) {
+  return !!job && (job.status === 'QUEUED' || job.status === 'RUNNING');
+}
+
+function getLinkedinStatusText(job: LinkedinLeadGenerationJob | null, startingLinkedinJob: boolean) {
+  if (startingLinkedinJob) {
+    return 'Starting LinkedIn lead generation...';
+  }
+
+  if (!job) {
+    return 'Ready to generate LinkedIn leads';
+  }
+
+  if (job.providerMessage) {
+    return job.providerMessage;
+  }
+
+  switch (job.status) {
+    case 'QUEUED':
+      return 'Waiting for LinkedIn lead service...';
+    case 'RUNNING':
+      return 'Generating LinkedIn leads...';
+    case 'COMPLETED':
+      return `Last run imported ${job.importedLeads || 0} leads`;
+    case 'PARTIAL_SUCCESS':
+      return `Imported ${job.importedLeads || 0} leads with some recoverable issues`;
+    case 'NO_RESULTS':
+      return 'Last run completed with no qualified LinkedIn leads';
+    case 'PLATFORM_DRIFT':
+      return 'LinkedIn layout changed and the scraper paused for repair';
+    case 'ANTI_BOT':
+      return 'LinkedIn blocked the run with a verification challenge';
+    case 'FAILED':
+      return job.errorMessage || 'Last LinkedIn run failed';
+    default:
+      return 'Ready to generate LinkedIn leads';
+  }
 }
 
 // ─── Monday.com Constants ─────────────────────────────────────────────────────
@@ -160,6 +218,8 @@ const CORE_COLUMNS: ColumnDef[] = [
   { id: 'email', label: 'Email', width: 'min-w-[180px] w-[180px]', minPx: 180 },
   { id: 'phone', label: 'Phone', width: 'min-w-[140px] w-[140px]', minPx: 140 },
   { id: 'socials', label: 'Socials', width: 'min-w-[160px] w-[160px]', minPx: 160 },
+  { id: 'profileUrl', label: 'Profile Link', width: 'min-w-[150px] w-[150px]', minPx: 150 },
+  { id: 'postUrl', label: 'Post Link', width: 'min-w-[150px] w-[150px]', minPx: 150 },
   { id: 'value', label: 'Deal Value', width: 'min-w-[110px] w-[110px]', align: 'center', minPx: 110 },
   { id: 'source', label: 'Source', width: 'min-w-[120px] w-[120px]', minPx: 120 },
   { id: 'activity', label: 'Activity', width: 'min-w-[160px] w-[160px]', minPx: 160 },
@@ -407,6 +467,31 @@ function SocialCell({ value, onUpdate }: {
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function LeadLinkCell({
+  href,
+  label,
+}: {
+  href?: string;
+  label: string;
+}) {
+  if (!href) {
+    return <span className="block px-2 text-[11px] text-gray-300">—</span>;
+  }
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex h-[30px] items-center gap-1.5 rounded px-2 text-[12px] font-medium text-[#0073EA] hover:bg-[#F5F6F8]"
+      title={href}
+    >
+      <LinkIcon className="h-3.5 w-3.5" />
+      {label}
+    </a>
   );
 }
 
@@ -769,6 +854,9 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
   onUpdate: (id: string, patch: Partial<Lead>) => void;
 }) {
   if (!lead) return null;
+  const linkedinLead = lead.metadata?.linkedinLead;
+  const profileUrl = lead.profileUrl || linkedinLead?.profileUrl || '';
+  const postUrl = lead.postUrl || linkedinLead?.postUrl || '';
   return (
     <Sheet open={!!lead} onOpenChange={v => !v && onClose()}>
       <SheetContent className="w-[420px] sm:w-[480px] overflow-y-auto p-0 border-l-4"
@@ -834,8 +922,18 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Deal Value ($)</label>
-                <Input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
+                  <Input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
                   className="h-9 text-sm bg-white" placeholder="0" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-gray-500">Profile Link</label>
+                <Input value={profileUrl} onChange={e => onUpdate(lead.id, { profileUrl: e.target.value })}
+                  className="h-9 text-sm bg-white" placeholder="https://www.linkedin.com/in/..." />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-gray-500">Post Link</label>
+                <Input value={postUrl} onChange={e => onUpdate(lead.id, { postUrl: e.target.value })}
+                  className="h-9 text-sm bg-white" placeholder="https://www.linkedin.com/feed/update/..." />
               </div>
             </div>
           </div>
@@ -854,6 +952,80 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
               </div>
             </div>
           </div>
+
+          {linkedinLead && (
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">LinkedIn Context</h3>
+              <div className="space-y-3 bg-cyan-50/60 p-4 rounded-lg border border-cyan-100">
+                <div className="flex flex-wrap gap-2">
+                  {linkedinLead.keyword && (
+                    <Badge variant="outline" className="bg-white border-cyan-200 text-cyan-700">
+                      Keyword: {linkedinLead.keyword}
+                    </Badge>
+                  )}
+                  {linkedinLead.confidence && (
+                    <Badge variant="outline" className="bg-white border-cyan-200 text-cyan-700">
+                      Confidence: {linkedinLead.confidence}
+                    </Badge>
+                  )}
+                  {linkedinLead.niche && (
+                    <Badge variant="outline" className="bg-white border-cyan-200 text-cyan-700">
+                      Niche: {linkedinLead.niche}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {profileUrl ? (
+                    <a
+                      href={profileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-cyan-700 hover:text-cyan-800"
+                    >
+                      <LinkIcon className="h-3.5 w-3.5" />
+                      Open profile
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">No profile URL</span>
+                  )}
+                  {postUrl ? (
+                    <a
+                      href={postUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-cyan-700 hover:text-cyan-800"
+                    >
+                      <LinkIcon className="h-3.5 w-3.5" />
+                      Open source post
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">No source post URL</span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-gray-500">Detected Need</label>
+                  <Textarea value={linkedinLead.detectedNeed || '—'} readOnly rows={2} className="text-sm bg-white resize-none" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-gray-500">Matched Service</label>
+                  <Textarea value={linkedinLead.matchedService || '—'} readOnly rows={2} className="text-sm bg-white resize-none" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-gray-500">Suggested Outreach</label>
+                  <Textarea value={linkedinLead.suggestedMessage || '—'} readOnly rows={4} className="text-sm bg-white resize-none" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-gray-500">Source Post</label>
+                  <Textarea value={linkedinLead.postText || '—'} readOnly rows={5} className="text-sm bg-white resize-none" />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Contact Actions */}
           <div className="space-y-3">
@@ -1132,10 +1304,6 @@ const LeadRow = memo(function LeadRow({
         <td key={col.id}
           style={col.minPx ? {
             width: col.minPx, minWidth: col.minPx,
-            ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6' } : {})
-          } : undefined}
-          style={col.minPx ? {
-            width: col.minPx, minWidth: col.minPx,
             ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6', transform: 'translateZ(0)' } : {})
           } : undefined}
           className={cn(
@@ -1159,6 +1327,12 @@ const LeadRow = memo(function LeadRow({
           )}
           {col.id === 'socials' && (
             <SocialCell value={lead.socials} onUpdate={patch => onUpdate(lead.id, patch)} />
+          )}
+          {col.id === 'profileUrl' && (
+            <LeadLinkCell href={lead.profileUrl} label="Profile" />
+          )}
+          {col.id === 'postUrl' && (
+            <LeadLinkCell href={lead.postUrl} label="Post" />
           )}
           {col.id === 'value' && (
             <input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
@@ -1225,6 +1399,8 @@ export function SalesDashboard() {
   const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [massEmailModal, setMassEmailModal] = useState(false);
+  const [linkedinJob, setLinkedinJob] = useState<LinkedinLeadGenerationJob | null>(null);
+  const [startingLinkedinJob, setStartingLinkedinJob] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
   const openNotes = useCallback((lead: Lead) => setNotesModal({ open: true, lead }), []);
@@ -1267,31 +1443,104 @@ export function SalesDashboard() {
   const leadsRef = useRef<Lead[]>([]);
   leadsRef.current = leads;
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastObservedLinkedinJob = useRef<{ id: string; status: string } | null>(null);
+  const refreshedCompletedJobId = useRef<string | null>(null);
+
+  const loadDashboardData = useCallback(async ({ signal, silent = false }: { signal?: AbortSignal; silent?: boolean } = {}) => {
+    try {
+      const res = await fetch('/api/sales-leads', { signal });
+      const data = await res.json();
+      if (data.ok) {
+        const pendingLocal = new Map(
+          leadsRef.current
+            .filter(l => !l._saved || l._dirty || l._committing)
+            .map(l => [l.id, l] as const),
+        );
+        const saved = data.leads
+          .map(dbLeadToLocal)
+          .map((lead: Lead) => pendingLocal.get(lead.id) ?? lead);
+        const drafts = Array.from(pendingLocal.values()).filter(lead => !lead._saved);
+        const nextLeads = drafts.length > 0 ? [...saved, ...drafts] : [...saved, emptyDraftLead()];
+
+        setLeads(nextLeads.length > 0 ? nextLeads : [emptyDraftLead()]);
+        setCustomColumns(data.columns || []);
+        if (data.columns) {
+          const customVisible = data.columns.filter((c: any) => c.isVisible).map((c: any) => c.name);
+          setVisibleCols(prev => [...new Set([...prev, ...customVisible])]);
+        }
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      if (!silent) toast.error('Failed to load dashboard data');
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
+
+  const loadLinkedinJob = useCallback(async ({ quiet = false }: { quiet?: boolean } = {}) => {
+    try {
+      const res = await fetch('/api/sales-leads/linkedin/generate', { cache: 'no-store' });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.message || 'Failed to load LinkedIn lead job');
+
+      const nextJob = data.job as LinkedinLeadGenerationJob | null;
+      const previousJob = lastObservedLinkedinJob.current;
+
+      if (
+        (nextJob?.status === 'COMPLETED' || nextJob?.status === 'PARTIAL_SUCCESS') &&
+        nextJob.id !== refreshedCompletedJobId.current
+      ) {
+        refreshedCompletedJobId.current = nextJob.id;
+        await loadDashboardData({ silent: true });
+      }
+
+      if (nextJob && previousJob && previousJob.id === nextJob.id && previousJob.status !== nextJob.status) {
+        if (nextJob.status === 'COMPLETED') {
+          toast.success(
+            `LinkedIn leads ready: ${nextJob.importedLeads || 0} imported, ${nextJob.duplicateLeads || 0} skipped as duplicates.`,
+          );
+        } else if (nextJob.status === 'PARTIAL_SUCCESS') {
+          toast.message(
+            nextJob.providerMessage ||
+              `LinkedIn imported ${nextJob.importedLeads || 0} leads, but some searches need review.`,
+          );
+        } else if (nextJob.status === 'NO_RESULTS') {
+          toast.message(
+            nextJob.providerMessage || 'LinkedIn search finished, but there were no qualified leads to import.',
+          );
+        } else if (nextJob.status === 'PLATFORM_DRIFT' || nextJob.status === 'ANTI_BOT') {
+          toast.error(nextJob.providerMessage || nextJob.errorMessage || 'LinkedIn lead generation needs attention');
+        } else if (nextJob.status === 'FAILED') {
+          toast.error(nextJob.errorMessage || 'LinkedIn lead generation failed');
+        }
+      }
+
+      lastObservedLinkedinJob.current = nextJob ? { id: nextJob.id, status: nextJob.status } : null;
+      setLinkedinJob(nextJob);
+    } catch (err: any) {
+      if (!quiet) toast.error(err.message || 'Failed to load LinkedIn lead status');
+    }
+  }, [loadDashboardData]);
 
   // ── Load leads & columns ──
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
-      try {
-        const res = await fetch('/api/sales-leads', { signal: controller.signal });
-        const data = await res.json();
-        if (data.ok) {
-          const saved = data.leads.map(dbLeadToLocal);
-          setLeads(saved.length > 0 ? [...saved, emptyDraftLead()] : [emptyDraftLead()]);
-          setCustomColumns(data.columns || []);
-          if (data.columns) {
-            const customVisible = data.columns.filter((c: any) => c.isVisible).map((c: any) => c.name);
-            setVisibleCols(prev => [...new Set([...prev, ...customVisible])]);
-          }
-        }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        toast.error('Failed to load dashboard data');
-      }
-      finally { setLoading(false); }
+      await loadDashboardData({ signal: controller.signal });
+      await loadLinkedinJob({ quiet: true });
     })();
     return () => controller.abort();
-  }, []);
+  }, [loadDashboardData, loadLinkedinJob]);
+
+  useEffect(() => {
+    if (!isLinkedinLeadJobActive(linkedinJob)) return;
+
+    const interval = setInterval(() => {
+      void loadLinkedinJob({ quiet: true });
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [linkedinJob, loadLinkedinJob]);
 
   // Keep drawer synced
   useEffect(() => {
@@ -1306,7 +1555,8 @@ export function SalesDashboard() {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, _committing: true } : l));
     const body = {
       name: lead.name, company: lead.company, email: lead.email,
-      phone: lead.phone, socials: lead.socials, status: lead.status,
+      phone: lead.phone, profileUrl: lead.profileUrl, postUrl: lead.postUrl,
+      socials: lead.socials, status: lead.status,
       source: lead.source, value: lead.value, priority: lead.priority,
       instagram: lead.instagram, facebook: lead.facebook, linkedin: lead.linkedin,
       twitter: lead.twitter, tiktok: lead.tiktok,
@@ -1367,6 +1617,29 @@ export function SalesDashboard() {
     catch { toast.error('Failed to delete'); }
   }, []);
 
+  const handleGenerateLinkedinLeads = useCallback(async () => {
+    try {
+      setStartingLinkedinJob(true);
+      const res = await fetch('/api/sales-leads/linkedin/generate', { method: 'POST' });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.message || 'Failed to start LinkedIn lead generation');
+
+      const job = data.job as LinkedinLeadGenerationJob;
+      setLinkedinJob(job);
+      lastObservedLinkedinJob.current = job ? { id: job.id, status: job.status } : null;
+
+      if (data.alreadyRunning) {
+        toast.message('LinkedIn lead generation is already running');
+      } else {
+        toast.success('LinkedIn lead generation started');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start LinkedIn lead generation');
+    } finally {
+      setStartingLinkedinJob(false);
+    }
+  }, []);
+
   const toggleGroup = (id: string) => {
     setCollapsedGroups(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   };
@@ -1404,9 +1677,9 @@ export function SalesDashboard() {
   // ── Export CSV ──
   const exportCSV = () => {
     const saved = leads.filter(l => l._saved);
-    const headers = ['Name', 'Company', 'Status', 'Priority', 'Email', 'Phone', 'Social Handles', 'Insta', 'FB', 'LI', 'X', 'TT', 'Value ($)', 'Source', 'Activity Log', 'Notes'];
+    const headers = ['Name', 'Company', 'Status', 'Priority', 'Email', 'Phone', 'Profile Link', 'Post Link', 'Social Handles', 'Insta', 'FB', 'LI', 'X', 'TT', 'Value ($)', 'Source', 'Activity Log', 'Notes'];
     const rows = saved.map(l => [
-      l.name, l.company, l.status, l.priority || '—', l.email, l.phone, l.socials,
+      l.name, l.company, l.status, l.priority || '—', l.email, l.phone, l.profileUrl, l.postUrl, l.socials,
       l.instagram ? 'Yes' : 'No', l.facebook ? 'Yes' : 'No', l.linkedin ? 'Yes' : 'No', l.twitter ? 'Yes' : 'No', l.tiktok ? 'Yes' : 'No',
       l.value ?? '', l.source,
       `"${parseActivities(l.metadata?.__activities).map(a => `${a.type} @ ${new Date(a.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}${a.location ? ` (${a.location})` : ''}`).join('; ')}"`,
@@ -1452,6 +1725,7 @@ export function SalesDashboard() {
       id: c.name,
       label: c.label,
       width: c.width || 'min-w-[150px] w-[150px]',
+      minPx: undefined,
       align: (c.type === 'number' || c.type === 'checkbox') ? 'center' as const : 'left' as const,
       isCustom: true,
       dbId: c.id
@@ -1462,6 +1736,9 @@ export function SalesDashboard() {
   const activeColumns = useMemo(() => {
     return allAvailableColumns.filter(c => visibleCols.includes(c.id));
   }, [allAvailableColumns, visibleCols]);
+
+  const linkedinJobActive = isLinkedinLeadJobActive(linkedinJob);
+  const linkedinStatusText = getLinkedinStatusText(linkedinJob, startingLinkedinJob);
 
   if (loading) {
     return (
@@ -1485,9 +1762,17 @@ export function SalesDashboard() {
           <h1 className="text-[26px] font-bold text-gray-900 tracking-tight">Sales Pipeline</h1>
           <p className="text-[13px] text-gray-400 flex items-center gap-1.5 mt-0.5">
             <Check className="h-3.5 w-3.5 text-[#00C875]" /> Auto-saves 1.5s after changes
+            <span className="text-gray-300">•</span>
+            <span className={cn(
+              'inline-flex items-center gap-1',
+              linkedinJob?.status === 'FAILED' ? 'text-red-500' : 'text-cyan-600'
+            )}>
+              <Sparkles className="h-3.5 w-3.5" />
+              {linkedinStatusText}
+            </span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
@@ -1497,6 +1782,20 @@ export function SalesDashboard() {
           {/* <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5 text-xs border-gray-200 text-gray-600 h-8">
             <Download className="h-3.5 w-3.5" /> Export
           </Button> */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleGenerateLinkedinLeads}
+            disabled={startingLinkedinJob || linkedinJobActive}
+            className="gap-1.5 text-xs border-cyan-200 text-cyan-700 hover:bg-cyan-50 h-8"
+          >
+            {startingLinkedinJob || linkedinJobActive ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            {startingLinkedinJob ? 'Starting...' : linkedinJobActive ? 'Generating...' : 'Generate Leads'}
+          </Button>
           <Button size="sm" onClick={() => addRow()} className="gap-1.5 text-xs bg-[#0073EA] hover:bg-[#0060C0] text-white h-8">
             <Plus className="h-3.5 w-3.5" /> New Lead
           </Button>

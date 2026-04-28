@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
         company: body.company ?? '',
         email: body.email ?? '',
         phone: body.phone ?? '',
+        profileUrl: body.profileUrl ?? null,
+        postUrl: body.postUrl ?? null,
         socials: body.socials ?? '',
         instagram: !!body.instagram,
         facebook: !!body.facebook,
