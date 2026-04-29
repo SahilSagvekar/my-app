@@ -985,6 +985,8 @@ export function EditorDashboard() {
   const [deliverableTypeFilter, setDeliverableTypeFilter] =
     useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
+  const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [draggingTask, setDraggingTask] = useState<WorkflowTask | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
@@ -1014,12 +1016,21 @@ export function EditorDashboard() {
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
   const loadTasks = useCallback(async () => {
     try {
-      const res = await fetch("/api/tasks");
+      const params = new URLSearchParams();
+      // if (monthFilter !== "all") params.set("month", monthFilter);
+      if (monthFilter !== "all") params.set("monthFolder", monthFilter);
+      const queryString = params.toString();
+      const res = await fetch(`/api/tasks${queryString ? `?${queryString}` : ""}`);
       const data = await res.json();
 
       console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
 
       console.log("📋 Raw task data from API:", data.tasks?.[0]);
+
+      // 🔥 Update available months from API response
+      if (data.availableMonths) {
+        setAvailableMonths(data.availableMonths);
+      }
 
       const formatted: WorkflowTask[] = (data.tasks || [])
         .filter((t: any) => t.assignedTo === Number(currentUser.id))
@@ -1080,34 +1091,67 @@ export function EditorDashboard() {
     } catch (err) {
       console.error("Failed to load tasks:", err);
     }
-  }, [currentUser.id]);
+  }, [currentUser.id, monthFilter]);
 
   // 🔥 Initial load - run once on mount
+  // useEffect(() => {
+  //   loadTasks();
+  // }, []);
+
   useEffect(() => {
-    loadTasks();
-  }, []);
+  if (!currentUser.id) return;
+  loadTasks();
+}, [loadTasks, currentUser.id]);
 
   // 🔥 Regular polling for new tasks - every 30 seconds
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     console.log("🔄 Polling for new tasks...");
+  //     loadTasks();
+  //   }, 30000); // Poll every 30 seconds
+  //   return () => clearInterval(interval);
+  // }, [loadTasks]);
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      console.log("🔄 Polling for new tasks...");
-      loadTasks();
-    }, 30000); // Poll every 30 seconds
-    return () => clearInterval(interval);
-  }, [loadTasks]);
+  if (!currentUser.id) return;
+
+  const interval = setInterval(() => {
+    console.log("🔄 Polling for new tasks...");
+    loadTasks();
+  }, 30000);
+
+  return () => clearInterval(interval);
+}, [loadTasks, currentUser.id]);
 
   // 🔥 Faster polling when active optimization jobs exist
-  useEffect(() => {
-    const hasActiveJobs = tasks.some(t => 
-      t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
-    );
+  // useEffect(() => {
+  //   const hasActiveJobs = tasks.some(t => 
+  //     t.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
+  //   );
 
-    if (hasActiveJobs) {
-      console.log("⏱️ Active optimization detected, starting fast poll...");
-      const interval = setInterval(loadTasks, 15000); // Poll every 15s for optimization
-      return () => clearInterval(interval);
-    }
-  }, [tasks.length]); // Only re-evaluate when task count changes
+  //   if (hasActiveJobs) {
+  //     console.log("⏱️ Active optimization detected, starting fast poll...");
+  //     const interval = setInterval(loadTasks, 15000); // Poll every 15s for optimization
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [tasks.length]); // Only re-evaluate when task count changes
+
+  useEffect(() => {
+  if (!currentUser.id) return;
+
+  const hasActiveJobs = tasks.some(t =>
+    t.files?.some(f =>
+      f.optimizationStatus === "PROCESSING" ||
+      f.optimizationStatus === "PENDING"
+    )
+  );
+
+  if (hasActiveJobs) {
+    console.log("⏱️ Active optimization detected, starting fast poll...");
+    const interval = setInterval(loadTasks, 15000);
+    return () => clearInterval(interval);
+  }
+}, [tasks, loadTasks, currentUser.id]);
 
   // Global listener for background task updates
   useEffect(() => {
@@ -1499,9 +1543,10 @@ export function EditorDashboard() {
   function clearAllFilters() {
     setDeliverableTypeFilter("all");
     setClientFilter("all");
+    setMonthFilter("all");
   }
 
-  const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all";
+  const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all" || monthFilter !== "all";
 
   /* ----------------------------- GROUPING ---------------------------------- */
 
@@ -1579,7 +1624,7 @@ export function EditorDashboard() {
               </span>
             </div>
 
-            <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+            <div className="flex items-center gap-2 flex-wrap flex-1 sm:flex-initial">
               <Select
                 value={deliverableTypeFilter}
                 onValueChange={setDeliverableTypeFilter}
@@ -1606,6 +1651,27 @@ export function EditorDashboard() {
                   {availableClients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* <Select value={monthFilter} onValueChange={setMonthFilter}> */}
+              <Select
+  value={monthFilter}
+  onValueChange={(value) => {
+    setMonthFilter(value);
+  }}
+>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <Calendar className="h-4 w-4 mr-1.5 text-muted-foreground" />
+                  <SelectValue placeholder="All Months" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Months</SelectItem>
+                  {availableMonths.map((month) => (
+                    <SelectItem key={month} value={month}>
+                      {month}
                     </SelectItem>
                   ))}
                 </SelectContent>

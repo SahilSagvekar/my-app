@@ -15,11 +15,15 @@ interface UploadState {
   uploadedBytes: number;
   totalChunks: number;
   completedChunks: number[];
-  status: 'pending' | 'uploading' | 'paused' | 'completed' | 'failed';
+  status: 'pending' | 'uploading' | 'paused' | 'completed' | 'failed' | 'queued';
   startedAt: number;
   lastUpdated: number;
   subfolder?: string;
   error?: string;
+  // Speed & ETA tracking
+  speed?: number;              // bytes/sec (rolling average)
+  estimatedTimeLeft?: number;  // seconds remaining
+  relativePath?: string;       // for folder uploads — relative path within the folder
 }
 
 interface UploadDB extends DBSchema {
@@ -100,11 +104,9 @@ class UploadStateManager {
     const state = await this.getUploadState(id);
     if (state) {
       state.status = 'completed';
+      state.uploadedBytes = state.fileSize; // Ensure 100%
       state.lastUpdated = Date.now();
       await db.put('uploads', state);
-
-      // Clean up chunks after completion
-      setTimeout(() => this.deleteUploadState(id), 5000);
     }
   }
 
@@ -138,6 +140,19 @@ class UploadStateManager {
       await db.put('uploads', state);
     }
     return state;
+  }
+
+  async clearCompleted(): Promise<void> {
+    const db = await this.init();
+    const completed = await db.getAllFromIndex('uploads', 'by-status', 'completed');
+    for (const upload of completed) {
+      await db.delete('uploads', upload.id);
+    }
+  }
+
+  async getAllUploads(): Promise<UploadState[]> {
+    const db = await this.init();
+    return db.getAll('uploads');
   }
 }
 

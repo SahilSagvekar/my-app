@@ -39,6 +39,35 @@ import { useUploads } from "../workflow/UploadContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+// ─── Folder traversal helpers for drag-and-drop ───
+async function getFileFromEntryRaw(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => { entry.file(resolve, reject); });
+}
+
+async function readAllEntriesRaw(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  const entries: FileSystemEntry[] = [];
+  let batch: FileSystemEntry[];
+  do {
+    batch = await new Promise((resolve, reject) => { reader.readEntries(resolve as any, reject); });
+    entries.push(...batch);
+  } while (batch.length > 0);
+  return entries;
+}
+
+async function traverseEntryRaw(entry: FileSystemEntry, result: File[]): Promise<void> {
+  if (entry.isFile) {
+    const file = await getFileFromEntryRaw(entry as FileSystemFileEntry);
+    result.push(file);
+  } else if (entry.isDirectory) {
+    const dirEntry = entry as FileSystemDirectoryEntry;
+    const reader = dirEntry.createReader();
+    const entries = await readAllEntriesRaw(reader);
+    for (const child of entries) {
+      await traverseEntryRaw(child, result);
+    }
+  }
+}
+
 interface DeliverableType {
   type: string;
   isOneOff: boolean;
@@ -94,9 +123,10 @@ export function RawFootageUploadDialog({
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const notifiedUploadsRef = useRef<Set<string>>(new Set());
 
-  const { startUpload, getUploadState } = useUploads();
+  const { enqueueUpload, getUploadState } = useUploads();
   const currentUpload = currentUploadId ? getUploadState(currentUploadId) : null;
   
   const monthOptions = getMonthOptions();
@@ -188,13 +218,38 @@ export function RawFootageUploadDialog({
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const newFiles = Array.from(e.dataTransfer.files);
+    const items = Array.from(e.dataTransfer.items);
+    const newFiles: File[] = [];
+
+    // Check if any items are directories
+    let hasDirectories = false;
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry?.();
+      if (entry?.isDirectory) {
+        hasDirectories = true;
+        break;
+      }
+    }
+
+    if (hasDirectories) {
+      // Traverse all entries (files + folders)
+      for (const item of items) {
+        const entry = item.webkitGetAsEntry?.();
+        if (entry) {
+          await traverseEntryRaw(entry, newFiles);
+        }
+      }
+    } else {
+      // Simple file drop
+      newFiles.push(...Array.from(e.dataTransfer.files));
+    }
+
+    if (newFiles.length > 0) {
       setSelectedFiles(prev => [...prev, ...newFiles]);
     }
   };
@@ -252,24 +307,23 @@ export function RawFootageUploadDialog({
     console.log('📁 Uploading to:', targetPath);
 
     try {
-      // Start the first one and wait for it so we can show it in the UI
-      const firstId = await startUpload(
+      // 🔥 FIFO: Enqueue all files — they upload one at a time
+      const firstId = await enqueueUpload(
         filesToUpload[0], 
-        { clientId }, // drive upload with storage-limit client context
-        targetPath, // use full path as subfolder
-        undefined, 
-        'drive' // folderType
+        { clientId },
+        targetPath,
+        'drive'
       );
       setCurrentUploadId(firstId);
       setIsStarting(false);
 
-      // Start the rest in parallel without awaiting
+      // Enqueue remaining files (they won't start until the previous finishes)
       if (filesToUpload.length > 1) {
-        filesToUpload.slice(1).forEach(file => {
-          startUpload(file, { clientId }, targetPath, undefined, 'drive').catch(err =>
-            console.error("Background initiation failed:", file.name, err)
+        for (const file of filesToUpload.slice(1)) {
+          enqueueUpload(file, { clientId }, targetPath, 'drive').catch(err =>
+            console.error("Queue initiation failed:", file.name, err)
           );
-        });
+        }
       }
       
       toast.success(`Uploading ${filesToUpload.length} file(s) to ${selectedDeliverable}/${selectedMonth}`);
@@ -277,6 +331,15 @@ export function RawFootageUploadDialog({
       console.error("Upload initiation failed:", err);
       setIsStarting(false);
       toast.error('Failed to start upload');
+    }
+  };
+
+  // 🔥 Folder upload handler
+  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+      toast.success(`${newFiles.length} files selected from folder`);
     }
   };
 
@@ -440,6 +503,24 @@ export function RawFootageUploadDialog({
               </div>
               <p className="text-[11px] text-blue-600">
                 {formatSize(currentUpload.uploadedBytes)} / {formatSize(currentUpload.fileSize)}
+                {currentUpload.status === 'uploading' && currentUpload.speed && currentUpload.speed > 0 && (
+                  <span className="text-muted-foreground ml-2">
+                    • {currentUpload.speed < 1024 * 1024
+                      ? `${(currentUpload.speed / 1024).toFixed(1)} KB/s`
+                      : `${(currentUpload.speed / (1024 * 1024)).toFixed(1)} MB/s`}
+                    {currentUpload.estimatedTimeLeft && currentUpload.estimatedTimeLeft > 0 && (
+                      <span>
+                        {' — '}
+                        {currentUpload.estimatedTimeLeft < 60
+                          ? `~${Math.round(currentUpload.estimatedTimeLeft)} sec left`
+                          : currentUpload.estimatedTimeLeft < 3600
+                            ? `~${Math.ceil(currentUpload.estimatedTimeLeft / 60)} min left`
+                            : `~${Math.floor(currentUpload.estimatedTimeLeft / 3600)}h ${Math.round((currentUpload.estimatedTimeLeft % 3600) / 60)}m left`
+                        }
+                      </span>
+                    )}
+                  </span>
+                )}
               </p>
               {currentUpload.status === 'completed' && (
                 <div className="flex items-center gap-2 text-green-600">
@@ -452,33 +533,57 @@ export function RawFootageUploadDialog({
 
           {/* Drop Zone */}
           {!currentUpload && (
-            <div
-              className={cn(
-                "border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer",
-                isDragging
-                  ? "border-primary bg-primary/5"
-                  : "border-muted-foreground/25 hover:border-primary/50"
-              )}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileSelect}
-                accept="video/*,image/*"
-              />
-              <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Drop files here or click to browse
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Video and image files
-              </p>
+            <div className="space-y-2">
+              <div
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer",
+                  isDragging
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-primary/50"
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  accept="video/*,image/*"
+                />
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFolderSelect}
+                  /* @ts-expect-error webkitdirectory is non-standard but widely supported */
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                />
+                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Drop files here or click to browse
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Video and image files
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  folderInputRef.current?.click();
+                }}
+              >
+                <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
+                Upload Entire Folder
+              </Button>
             </div>
           )}
 

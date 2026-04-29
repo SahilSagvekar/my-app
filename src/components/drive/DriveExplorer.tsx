@@ -211,7 +211,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // Resolve the client record from the visible company folder. Client users can
   // be linked by email/user relation instead of linkedClientId.
   useEffect(() => {
-    const companyFolder = breadcrumb.length >= 2 ? breadcrumb[1]?.name : breadcrumb[0]?.name;
+    // For clients: breadcrumb[0] IS the company name (no "Root" prefix)
+    // For admin/manager: breadcrumb[0] is "Root", breadcrumb[1] is the company name
+    const companyFolder = role === 'client'
+      ? breadcrumb[0]?.name
+      : (breadcrumb.length >= 2 ? breadcrumb[1]?.name : breadcrumb[0]?.name);
 
     if (!companyFolder || companyFolder === 'Root') {
       setBrowsingClientId(null);
@@ -500,8 +504,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     isInRawFootage &&
     depthFromRawFootage >= 2;
 
-  const canUpload = role !== 'client' || isInRawFootage;
+  const canUpload = role !== 'client' || isClientInDeliverableFolder;
   const isClientStorageLocked = role === 'client' && !!storageInfo?.isAtLimit;
+
+  // Clients can only modify (delete/rename) items when inside a deliverable folder (depth 2+ from raw-footage)
+  const clientCanModify = role !== 'client' || isClientInDeliverableFolder;
 
   const closeUploadDialog = () => { };
 
@@ -674,13 +681,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   // Handle Share Link
   const handleShareClick = async (item: DriveItem) => {
-    if (item.type !== "file") return;
-
     setIsSharing(true);
     setCopied(false);
 
     try {
       const s3Key = item.s3Key || getS3Key(item);
+
+      const isFolder = item.type === "folder";
 
       const response = await fetch("/api/drive/share", {
         method: "POST",
@@ -688,10 +695,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          s3Key,
+          s3Key: isFolder ? s3Key + '/' : s3Key,
           fileName: item.name,
           fileSize: item.size,
-          mimeType: item.url ? (await fetch(item.url, { method: 'HEAD' })).headers.get('content-type') : null
+          mimeType: !isFolder && item.url ? (await fetch(item.url, { method: 'HEAD' })).headers.get('content-type') : null,
+          type: isFolder ? 'folder' : 'file',
         }),
       });
 
@@ -705,7 +713,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       await navigator.clipboard.writeText(data.shareUrl);
       setCopied(true);
-      toast.success("Share link created and copied to clipboard");
+      toast.success(`Share link created and copied to clipboard`);
       setTimeout(() => setCopied(false), 3000);
 
     } catch (error: any) {
@@ -1430,7 +1438,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       ? "Try clearing the filter"
                       : "Upload files to get started"}
                 </p>
-                {!searchQuery && selectedDeliverableFilter === "all" && (
+                {/* {!searchQuery && selectedDeliverableFilter === "all" && canUpload && (
                   <FileUploadDialog
                     folderType="drive"
                     subfolder={getCurrentFolderS3Path()}
@@ -1444,7 +1452,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       </Button>
                     }
                   />
-                )}
+                )} */}
               </div>
             ) : viewMode === "grid" ? (
               // Grid View
@@ -1517,22 +1525,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           Add to starred
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        {item.type === "file" && (
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShareClick(item);
-                            }}
-                            disabled={isSharing}
-                          >
-                            {isSharing ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Share2 className="h-4 w-4 mr-2" />
-                            )}
-                            Copy shareable link
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShareClick(item);
+                          }}
+                          disabled={isSharing}
+                        >
+                          {isSharing ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Share2 className="h-4 w-4 mr-2" />
+                          )}
+                          Copy shareable link
+                        </DropdownMenuItem>
                         {isClientInDeliverableFolder && item.type === "folder" && (
                           <DropdownMenuItem
                             onClick={() => handleRenameClick(item)}
@@ -1541,13 +1547,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             Rename
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteClick(item)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
+                        {clientCanModify && (
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteClick(item)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -1648,22 +1656,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                 Add to starred
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              {item.type === "file" && (
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleShareClick(item);
-                                  }}
-                                  disabled={isSharing}
-                                >
-                                  {isSharing ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <Share2 className="h-4 w-4 mr-2" />
-                                  )}
-                                  Copy shareable link
-                                </DropdownMenuItem>
-                              )}
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleShareClick(item);
+                                }}
+                                disabled={isSharing}
+                              >
+                                {isSharing ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Share2 className="h-4 w-4 mr-2" />
+                                )}
+                                Copy shareable link
+                              </DropdownMenuItem>
                               {isClientInDeliverableFolder && item.type === "folder" && (
                                 <DropdownMenuItem
                                   onClick={() => handleRenameClick(item)}
@@ -1672,13 +1678,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                   Rename
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem
-                                onClick={() => handleDeleteClick(item)}
-                                className="text-red-600 focus:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
+                              {clientCanModify && (
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteClick(item)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>

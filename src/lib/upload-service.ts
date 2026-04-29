@@ -2,14 +2,30 @@
 import { uploadStateManager, UploadState } from './upload-state-manager';
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
-const PARALLEL_UPLOADS = 3; // 🔥 Reduced from 6 to 3 to avoid S3 throttling (503 errors)
+const PARALLEL_UPLOADS = 3; // Parallel chunk workers per file (NOT parallel files)
+const SPEED_WINDOW_SIZE = 8; // Rolling window for speed calculation
 
-type UploadEvent = 'progress' | 'completed' | 'failed' | 'paused' | 'started';
+type UploadEvent = 'progress' | 'completed' | 'failed' | 'paused' | 'started' | 'queued';
 type UploadListener = (state: UploadState) => void;
+
+interface QueueEntry {
+    file: File;
+    taskData: any;
+    subfolder: string;
+    folderType: string;
+    relativePath?: string;
+    resolve: (id: string) => void;
+    reject: (err: Error) => void;
+}
 
 class UploadService {
     private listeners: Map<string, Set<{ event: UploadEvent; callback: UploadListener }>> = new Map();
     private activeUploads: Map<string, boolean> = new Map();
+    private completionCallbacks: Map<string, { resolve: () => void; reject: (err: Error) => void }> = new Map();
+
+    // FIFO Queue — uploads process one file at a time
+    private uploadQueue: QueueEntry[] = [];
+    private isProcessingQueue: boolean = false;
 
     private emit(id: string, event: UploadEvent, state: UploadState) {
         const taskListeners = this.listeners.get(id);
@@ -50,7 +66,6 @@ class UploadService {
 
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
-                // 1. Get Presigned URL
                 const payload = JSON.stringify({ key, uploadId, partNumber });
                 const partUrlResponse = await fetch(`/api/upload/part-url?t=${Date.now()}`, {
                     method: "POST",
@@ -68,14 +83,12 @@ class UploadService {
                 }
                 const { presignedUrl } = await partUrlResponse.json();
 
-                // 2. Upload to S3
                 const uploadResponse = await fetch(presignedUrl, {
                     method: "PUT",
                     body: chunk,
                     headers: { "Content-Type": fileType },
                 });
 
-                // 🔥 Handle S3 503 (SlowDown/Service Unavailable) with retry
                 if (uploadResponse.status === 503) {
                     const retryAfter = parseInt(uploadResponse.headers.get('Retry-After') || '0') || 0;
                     const backoffMs = Math.max(retryAfter * 1000, Math.pow(2, attempt) * 1000 + Math.random() * 1000);
@@ -84,7 +97,6 @@ class UploadService {
                     continue;
                 }
 
-                // 🔥 Handle S3 500/502/504 errors with retry
                 if (uploadResponse.status >= 500 && uploadResponse.status <= 599) {
                     const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                     console.warn(`⚠️ S3 ${uploadResponse.status} on part ${partNumber}, attempt ${attempt + 1}/${maxRetries}. Retrying in ${Math.round(backoffMs)}ms...`);
@@ -105,13 +117,9 @@ class UploadService {
                 };
             } catch (err: any) {
                 lastError = err;
-                
-                // Don't retry on non-retryable errors
                 if (err.message?.includes('Failed to get presigned URL')) {
                     throw err;
                 }
-
-                // Network errors - retry with backoff
                 const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                 console.warn(`⚠️ Upload error on part ${partNumber}, attempt ${attempt + 1}/${maxRetries}: ${err.message}. Retrying in ${Math.round(backoffMs)}ms...`);
                 await this.sleep(backoffMs);
@@ -132,7 +140,6 @@ class UploadService {
         if (!isVideo) return null;
 
         try {
-            // Read first 1MB to find codec headers
             const buffer = await file.slice(0, 1024 * 1024).arrayBuffer();
             const bytes = new Uint8Array(buffer);
 
@@ -157,7 +164,86 @@ class UploadService {
         }
     }
 
-    async startUpload(file: File, taskData: any, subfolder: string, resumeId?: string, folderType: string = "outputs") {
+    // ─── FIFO QUEUE: Enqueue a file for sequential upload ───
+    // Returns the upload ID as soon as the file starts uploading (not after completion)
+    // onIdReady callback fires immediately when the upload ID is available
+    async enqueueUpload(
+        file: File,
+        taskData: any,
+        subfolder: string,
+        folderType: string = "outputs",
+        relativePath?: string,
+        onIdReady?: (id: string) => void
+    ): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
+            this.uploadQueue.push({
+                file, taskData, subfolder, folderType, relativePath,
+                resolve: (id: string) => {
+                    // Notify immediately so subscriber can attach listeners before upload events fire
+                    if (onIdReady) onIdReady(id);
+                    resolve(id);
+                },
+                reject
+            });
+            console.log(`📥 Queued: ${file.name} (queue size: ${this.uploadQueue.length})`);
+
+            if (!this.isProcessingQueue) {
+                this.processQueue();
+            }
+        });
+    }
+
+    private async processQueue() {
+        if (this.isProcessingQueue) return;
+        this.isProcessingQueue = true;
+
+        while (this.uploadQueue.length > 0) {
+            const entry = this.uploadQueue.shift()!;
+            console.log(`🚀 Processing: ${entry.file.name} (remaining in queue: ${this.uploadQueue.length})`);
+
+            try {
+                // Set up the completion promise BEFORE starting upload
+                // so we can track when it finishes
+                const completionPromise = new Promise<void>((resolve) => {
+                    // We'll register the callback after we get the upload ID
+                    (this as any)._pendingCompletionResolve = resolve;
+                });
+
+                const uploadId = await this.startUpload(
+                    entry.file,
+                    entry.taskData,
+                    entry.subfolder,
+                    undefined,
+                    entry.folderType,
+                    entry.relativePath
+                );
+
+                // Register the completion callback now that we have the ID
+                const pendingResolve = (this as any)._pendingCompletionResolve;
+                this.completionCallbacks.set(uploadId, { resolve: pendingResolve, reject: () => pendingResolve() });
+                delete (this as any)._pendingCompletionResolve;
+
+                // Resolve the entry promise IMMEDIATELY so the caller gets the ID
+                // This lets UploadContext subscribe to events before they fire
+                entry.resolve(uploadId);
+
+                // Wait for this upload to fully complete before starting next file
+                await completionPromise;
+            } catch (err: any) {
+                console.error(`❌ Queue processing failed for ${entry.file.name}:`, err);
+                entry.reject(err);
+            }
+        }
+
+        this.isProcessingQueue = false;
+        console.log("✅ Upload queue empty");
+    }
+
+    getQueueSize(): number {
+        return this.uploadQueue.length;
+    }
+
+    async startUpload(file: File, taskData: any, subfolder: string, resumeId?: string, folderType: string = "outputs", relativePath?: string) {
         let state: UploadState;
 
         const isVideo = file.type.startsWith('video/') ||
@@ -214,25 +300,32 @@ class UploadService {
                 startedAt: Date.now(),
                 lastUpdated: Date.now(),
                 subfolder,
+                relativePath,
             };
 
             await uploadStateManager.saveUploadState(state);
         }
 
         this.activeUploads.set(state.id, true);
-        this.emit(state.id, 'started', state);
 
-        this.runUploadLoop(file, state, codec);
+        // Defer emit and upload start to next microtask so that callers
+        // (e.g. UploadContext.onIdReady) can subscribe to events before they fire
+        Promise.resolve().then(() => {
+            this.emit(state.id, 'started', state);
+            this.runUploadLoop(file, state, codec);
+        });
 
         return state.id;
     }
 
     private async runUploadLoop(file: File, initialState: UploadState, codecProps?: string | null) {
         const { id, key, uploadId: s3UploadId } = initialState;
-        const currentState = { ...initialState }; // Local master copy to avoid DB race conditions
+        const currentState = { ...initialState };
         let codec = codecProps;
 
-        // If resuming and we don't have a codec yet, try identifying it
+        // Speed tracking: rolling window of recent chunk speeds
+        const speedSamples: Array<{ bytes: number; ms: number }> = [];
+
         if (!codec && file.type.startsWith('video/')) {
             codec = await this.detectCodec(file);
         }
@@ -253,7 +346,6 @@ class UploadService {
                 .fill(null)
                 .map(async () => {
                     while (queue.length > 0) {
-                        // Re-check status from DB to honor pauses
                         const latestStatus = await uploadStateManager.getUploadState(id);
                         if (!latestStatus || latestStatus.status !== 'uploading') return;
 
@@ -261,13 +353,30 @@ class UploadService {
                         if (!item) break;
 
                         try {
+                            const chunkStart = Date.now();
                             const result = await this.uploadChunk(item.chunk, item.partNumber, key, s3UploadId, file.type);
+                            const chunkDuration = Date.now() - chunkStart;
+
+                            // Track speed sample
+                            speedSamples.push({ bytes: item.chunk.size, ms: chunkDuration });
+                            if (speedSamples.length > SPEED_WINDOW_SIZE) {
+                                speedSamples.shift();
+                            }
+
+                            // Calculate rolling average speed
+                            const totalBytes = speedSamples.reduce((s, x) => s + x.bytes, 0);
+                            const totalMs = speedSamples.reduce((s, x) => s + x.ms, 0);
+                            const speed = totalMs > 0 ? (totalBytes / totalMs) * 1000 : 0;
+                            const remaining = currentState.fileSize - (currentState.uploadedBytes + item.chunk.size);
+                            const eta = speed > 0 ? remaining / speed : 0;
 
                             // Update master copy
                             currentState.uploadedParts.push(result);
                             currentState.completedChunks.push(item.partNumber);
                             currentState.uploadedBytes += item.chunk.size;
                             currentState.lastUpdated = Date.now();
+                            currentState.speed = speed;
+                            currentState.estimatedTimeLeft = eta;
 
                             // Save and emit
                             await uploadStateManager.updateProgress(id, currentState.uploadedBytes, currentState.completedChunks, currentState.uploadedParts);
@@ -285,7 +394,6 @@ class UploadService {
             if (!finalCheck || finalCheck.status !== 'uploading') return;
 
             if (currentState.completedChunks.length < currentState.totalChunks) {
-                // Some chunks missed? Should not happen if workers throw correctly
                 return;
             }
 
@@ -303,26 +411,39 @@ class UploadService {
                     fileType: currentState.fileType,
                     taskId: currentState.taskId,
                     subfolder: currentState.subfolder || 'main',
-                    codec: codec // 🔥 Pass the detected codec
+                    codec: codec
                 }),
             });
 
             if (!completeResponse.ok) throw new Error("Failed to complete upload");
 
             await uploadStateManager.markAsCompleted(id);
-            this.emit(id, 'completed', { ...currentState, status: 'completed' });
+            this.emit(id, 'completed', { ...currentState, status: 'completed', speed: 0, estimatedTimeLeft: 0 });
 
-            // Dispatch global event for UI refreshes
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('task-updated', {
                     detail: { taskId: currentState.taskId }
                 }));
             }
 
+            // Resolve completion promise for queue processing
+            const cb = this.completionCallbacks.get(id);
+            if (cb) {
+                cb.resolve();
+                this.completionCallbacks.delete(id);
+            }
+
         } catch (err: any) {
             console.error("Background upload loop failed:", err);
             await uploadStateManager.markAsFailed(id, err.message);
             this.emit(id, 'failed', { ...currentState, status: 'failed', error: err.message });
+
+            // Resolve (not reject) so queue continues to next file
+            const cb = this.completionCallbacks.get(id);
+            if (cb) {
+                cb.resolve();
+                this.completionCallbacks.delete(id);
+            }
         } finally {
             this.activeUploads.delete(id);
         }
@@ -345,6 +466,13 @@ class UploadService {
         }
         await uploadStateManager.deleteUploadState(id);
         this.activeUploads.delete(id);
+
+        // Resolve completion promise so queue moves on
+        const cb = this.completionCallbacks.get(id);
+        if (cb) {
+            cb.resolve();
+            this.completionCallbacks.delete(id);
+        }
     }
 }
 
