@@ -199,9 +199,11 @@ export function AdminDailyTargetsPage() {
   }, [fetchProgress]);
 
   const navigateDate = (direction: -1 | 1) => {
-    const current = selectedDate ? new Date(selectedDate) : new Date();
-    current.setDate(current.getDate() + direction);
-    setSelectedDate(current.toISOString().split('T')[0]);
+    // Parse date-only strings with explicit time to avoid UTC-midnight issues
+    const base = selectedDate ? selectedDate : new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const [y, m, d] = base.split('-').map(Number);
+    const next = new Date(y, m - 1, d + direction);
+    setSelectedDate(next.toLocaleDateString('en-CA')); // always YYYY-MM-DD
   };
 
   const goToToday = () => setSelectedDate('');

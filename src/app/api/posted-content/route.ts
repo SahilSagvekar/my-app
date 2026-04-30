@@ -41,8 +41,21 @@ export async function GET(req: NextRequest) {
 
     if (dateFrom || dateTo) {
       where.postedAt = {};
-      if (dateFrom) where.postedAt.gte = new Date(dateFrom);
-      if (dateTo) where.postedAt.lte = new Date(dateTo);
+      // Parse date strings as EST day boundaries, not UTC midnight
+      if (dateFrom) {
+        const d = new Date(dateFrom + 'T00:00:00');
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false, timeZoneName: 'shortOffset' }).formatToParts(d);
+        const offsetStr = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT-5';
+        const offsetHours = parseInt((offsetStr.match(/GMT([+-]\d+)/) || ['', '-5'])[1], 10);
+        where.postedAt.gte = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0 - offsetHours, 0, 0, 0));
+      }
+      if (dateTo) {
+        const d = new Date(dateTo + 'T00:00:00');
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false, timeZoneName: 'shortOffset' }).formatToParts(d);
+        const offsetStr = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT-5';
+        const offsetHours = parseInt((offsetStr.match(/GMT([+-]\d+)/) || ['', '-5'])[1], 10);
+        where.postedAt.lte = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23 - offsetHours, 59, 59, 999));
+      }
     }
 
     if (search) {

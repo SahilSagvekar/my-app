@@ -626,7 +626,7 @@ export async function GET(req: any) {
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status") as string | null;
     const clientIdFilter = searchParams.get("clientId") as string | null;
-    const monthFilter = searchParams.get("month") as string | null;
+    const monthFilter = searchParams.get("monthFolder") as string | null;
 
     // Build role-based where query
     let where: any = await buildRoleWhereQuery(role, Number(userId));
