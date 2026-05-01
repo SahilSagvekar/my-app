@@ -1649,6 +1649,7 @@ enum TaskStatus {
   CLIENT_REVIEW
   VIDEOGRAPHER_ASSIGNED
   POSTED
+  HIDDEN
 }
 
 enum FeedbackCategory {

@@ -205,6 +205,7 @@ export async function PATCH(
               taskId: task.id,
               clientId: task.clientId,
               qcId: task.qc_specialist,
+              taskTitle: task.title,
             },
           });
         }

@@ -31,6 +31,7 @@ import {
   Trash2,
   Edit
 } from 'lucide-react';
+import { EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -129,6 +130,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   REJECTED: { label: 'Rejected', variant: 'destructive', icon: <XCircle className="h-3 w-3" /> },
   CLIENT_REVIEW: { label: 'Client Review', variant: 'outline', icon: <User className="h-3 w-3" /> },
   VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', variant: 'outline', icon: <Users className="h-3 w-3" /> },
+  HIDDEN: { label: 'Hidden', variant: 'secondary', icon: <EyeOff className="h-3 w-3" /> },
 };
 
 // Default deliverable types - will be overridden by API
