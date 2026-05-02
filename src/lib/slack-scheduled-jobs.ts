@@ -12,7 +12,8 @@ export type SlackScheduledJobKey =
   | "attendance_eod"
   | "attendance_export_reminder_am"
   | "attendance_export_reminder_pm"
-  | "editor_file_naming_reminder";
+  | "editor_file_naming_reminder"
+  | "tdbs_filming_reminder";
 
 export interface SlackScheduledJobDefinition {
   key: SlackScheduledJobKey;
@@ -97,6 +98,15 @@ export const SLACK_SCHEDULED_JOBS: SlackScheduledJobDefinition[] = [
       "Example: CoinLaundryAssociation_04-01-2026_SF3",
     ].join("\n"),
     enabledEnvVar: "SLACK_EDITOR_FILE_NAMING_REMINDER_ENABLED",
+  },
+  {
+    key: "tdbs_filming_reminder",
+    name: "TDBS Guests Filming Reminder",
+    schedule: "0 16 * * *", // 11:00 AM EST (UTC-5) / 16:00 UTC
+    channel: "tdbs_guests",
+    message:
+      "Episode needs to be filmed this week. Are we on track? Drop a *Behind* or *Can't*? Reply in thread with what you need.",
+    enabledEnvVar: "SLACK_TDBS_FILMING_REMINDER_ENABLED",
   },
 ];
 
