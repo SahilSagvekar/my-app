@@ -681,9 +681,9 @@ function TaskCard({
                       <Alert
                         key={fb.id}
                         variant="destructive"
-                        className="py-1.5"
+                        className="py-1.5 overflow-hidden w-full min-w-0"
                       >
-                        <AlertDescription className="text-[10px]">
+                        <AlertDescription className="text-[10px] overflow-hidden min-w-0">
                           {/* Version and Section badges */}
                           <div className="flex items-center gap-1 mb-1 flex-wrap">
                             <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
@@ -767,12 +767,20 @@ function TaskCard({
                     />
                   ))}
                   {task.files.length > 1 && (
-                    <button
-                      className="text-[10px] text-primary hover:underline w-full text-left"
-                      onClick={() => setShowFiles(true)}
-                    >
-                      +{task.files.length - 1} more
-                    </button>
+                    <details className="group">
+                      <summary className="text-[10px] text-primary hover:underline cursor-pointer list-none">
+                        +{task.files.length - 1} more
+                      </summary>
+                      <div className="mt-0.5 space-y-0.5">
+                        {task.files.slice(1).map((file: TaskFile) => (
+                          <FilePreviewCard
+                            key={file.id}
+                            file={file}
+                            onView={() => onPreview(file)}
+                          />
+                        ))}
+                      </div>
+                    </details>
                   )}
                 </div>
               </div>
