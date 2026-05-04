@@ -157,6 +157,7 @@ model Task {
   oneOffDeliverableId  String?
   recurringMonth       String?
   billedAt             DateTime?
+  relatedTaskId        String?
   invoiceId            String?
   isTrial              Boolean             @default(false)
   isExtra              Boolean             @default(false)
@@ -175,6 +176,8 @@ model Task {
   taskFeedback         TaskFeedback[]
   titlingJob           TitlingJob?
   eodReportItems       EditorEodReportItem[]
+  relatedTask          Task?                @relation("RelatedTasks", fields: [relatedTaskId], references: [id], onDelete: SetNull)
+  relatedTasks         Task[]               @relation("RelatedTasks")
 
   @@index([assignedTo])
   @@index([clientId])

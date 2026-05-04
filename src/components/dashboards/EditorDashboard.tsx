@@ -1623,86 +1623,66 @@ export function EditorDashboard() {
             Manage your assigned tasks and complete work for QC review.
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs sm:text-sm text-muted-foreground">
-                Filter by:
-              </span>
+        <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Filter className="h-4 w-4" />
+              <span className="text-sm">Filter by:</span>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap flex-1 sm:flex-initial">
-              <Select
-                value={deliverableTypeFilter}
-                onValueChange={setDeliverableTypeFilter}
-              >
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="All Deliverables" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Deliverables</SelectItem>
-                  {availableDeliverableTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type.replace(/_/g, " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="All Deliverables" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Deliverables</SelectItem>
+                {availableDeliverableTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <Select value={clientFilter} onValueChange={setClientFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="All Clients" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clients</SelectItem>
-                  {availableClients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={clientFilter} onValueChange={setClientFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="All Clients" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clients</SelectItem>
+                {availableClients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              {/* <Select value={monthFilter} onValueChange={setMonthFilter}> */}
-              <Select
-  value={monthFilter}
-  onValueChange={(value) => {
-    setMonthFilter(value);
-  }}
->
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <Calendar className="h-4 w-4 mr-1.5 text-muted-foreground" />
-                  <SelectValue placeholder="All Months" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Months</SelectItem>
-                  {availableMonths.map((month) => (
-                    <SelectItem key={month} value={month}>
-                      {month}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={monthFilter} onValueChange={(value) => { setMonthFilter(value); }}>
+              <SelectTrigger className="w-[150px]">
+                <Calendar className="h-4 w-4 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="All Months" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                {availableMonths.map((month) => (
+                  <SelectItem key={month} value={month}>
+                    {month}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              {hasActiveFilters && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAllFilters}
-                  className="text-xs shrink-0"
-                >
-                  Clear Filters
-                </Button>
-              )}
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-xs">
+                Clear Filters
+              </Button>
+            )}
 
-              {/* Create Task button aligned to the right of filters */}
-              <div className="ml-auto">
-                <EditorCreateTaskDialog
-                  permittedClients={permittedClients}
-                  onTaskCreated={() => loadTasks()}
-                />
-              </div>
+            <div className="ml-auto">
+              <EditorCreateTaskDialog
+                permittedClients={permittedClients}
+                onTaskCreated={() => loadTasks()}
+              />
             </div>
           </div>
 
@@ -1725,7 +1705,6 @@ export function EditorDashboard() {
                 </p>
               </div>
             )} */}
-        </div>
       </div>
 
       {/* Kanban Board with Drag & Drop */}
