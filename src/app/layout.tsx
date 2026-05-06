@@ -61,15 +61,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         {/* Google Analytics (gtag.js) */}
         <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-ZQ3802HJK5"
+          src="https://www.googletagmanager.com/gtag/js?id=G-5ZF3VHTSD0"
           strategy="afterInteractive"
         />
         <Script id="google-analytics" strategy="afterInteractive">
           {`
             window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
+             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-            gtag('config', 'G-ZQ3802HJK5');
+            gtag('config', 'G-5ZF3VHTSD0');
           `}
         </Script>
       </body>
