@@ -1054,44 +1054,44 @@ export function SocialLogins() {
 
   /* ----------------------------- LOCKED VIEW ------------------------------- */
 
-  if (!isUnlocked) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Social Media Logins</h2>
-          <p className="text-sm text-gray-600">
-            {isClient ? "Access your social media credentials securely" : "Secure storage for client social media credentials"}
-          </p>
-        </div>
-        <div className="flex items-center justify-center h-[50vh]">
-          <Card className="max-w-md w-full">
-            <CardContent className="pt-8 pb-8 text-center">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Lock className="h-10 w-10 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Section Locked</h3>
-              <p className="text-gray-600 mb-6">
-                This section contains sensitive {isClient ? "account" : "client"} credentials.
-                {has2FA ? " Verify your identity with your authenticator app." : " Set up two-factor authentication to continue."}
-              </p>
-              <Button onClick={handleUnlockAttempt} size="lg" className="gap-2">
-                <Smartphone className="h-4 w-4" />
-                {has2FA ? "Verify with 2FA" : "Set Up Two-Factor Auth"}
-              </Button>
-              <div className="mt-6 pt-6 border-t">
-                <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                  <ShieldCheck className="h-4 w-4" />
-                  <span>All access is logged for security</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        <TotpVerificationDialog open={showTotpDialog} onVerify={handleTotpVerify} onCancel={() => setShowTotpDialog(false)} />
-        <TotpSetupDialog open={showTotpSetupDialog} onSetup={handleTotpSetup} onCancel={() => setShowTotpSetupDialog(false)} />
-      </div>
-    );
-  }
+  // if (!isUnlocked) {
+  //   return (
+  //     <div className="space-y-6">
+  //       <div>
+  //         <h2 className="text-3xl font-bold tracking-tight text-gray-900">Social Media Logins</h2>
+  //         <p className="text-sm text-gray-600">
+  //           {isClient ? "Access your social media credentials securely" : "Secure storage for client social media credentials"}
+  //         </p>
+  //       </div>
+  //       <div className="flex items-center justify-center h-[50vh]">
+  //         <Card className="max-w-md w-full">
+  //           <CardContent className="pt-8 pb-8 text-center">
+  //             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+  //               <Lock className="h-10 w-10 text-gray-400" />
+  //             </div>
+  //             <h3 className="text-xl font-semibold mb-2">Section Locked</h3>
+  //             <p className="text-gray-600 mb-6">
+  //               This section contains sensitive {isClient ? "account" : "client"} credentials.
+  //               {has2FA ? " Verify your identity with your authenticator app." : " Set up two-factor authentication to continue."}
+  //             </p>
+  //             <Button onClick={handleUnlockAttempt} size="lg" className="gap-2">
+  //               <Smartphone className="h-4 w-4" />
+  //               {has2FA ? "Verify with 2FA" : "Set Up Two-Factor Auth"}
+  //             </Button>
+  //             <div className="mt-6 pt-6 border-t">
+  //               <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+  //                 <ShieldCheck className="h-4 w-4" />
+  //                 <span>All access is logged for security</span>
+  //               </div>
+  //             </div>
+  //           </CardContent>
+  //         </Card>
+  //       </div>
+  //       <TotpVerificationDialog open={showTotpDialog} onVerify={handleTotpVerify} onCancel={() => setShowTotpDialog(false)} />
+  //       <TotpSetupDialog open={showTotpSetupDialog} onSetup={handleTotpSetup} onCancel={() => setShowTotpSetupDialog(false)} />
+  //     </div>
+  //   );
+  // }
 
   /* ----------------------------- UNLOCKED VIEW ----------------------------- */
 
