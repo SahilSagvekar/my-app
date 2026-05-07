@@ -243,25 +243,24 @@ export function ClientDashboard() {
         throw new Error(`Failed to mark as posted [${res.status}]: ${errDetails}`);
       }
 
-      // Update task in list
-      setTasks((prev) => prev.map((t) =>
-        t.id === taskToMark.id
-          ? { ...t, status: "POSTED" }
-          : t
-      ));
-
-      // Re-sort
-      setTasks((prev) => [...prev].sort((a, b) => {
-        const getOrder = (status: string) => {
-          if (status === 'POSTED') return 3;
-          if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
-          return 1;
-        };
-        const orderA = getOrder(a.status);
-        const orderB = getOrder(b.status);
-        if (orderA !== orderB) return orderA - orderB;
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      }));
+      // Optimistic update via SWR mutate — mark as posted + re-sort
+      refreshTasks((prev) => {
+        if (!prev) return prev;
+        const updated = prev.map((t) =>
+          t.id === taskToMark.id ? { ...t, status: "POSTED" as const } : t
+        );
+        return [...updated].sort((a, b) => {
+          const getOrder = (status: string) => {
+            if (status === 'POSTED') return 3;
+            if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
+            return 1;
+          };
+          const orderA = getOrder(a.status);
+          const orderB = getOrder(b.status);
+          if (orderA !== orderB) return orderA - orderB;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        });
+      }, { revalidate: false });
 
       toast.success("🚀 Task Marked as Posted", {
         description: "Task has been updated to posted status.",
@@ -293,25 +292,24 @@ export function ClientDashboard() {
         approved: true,
       });
 
-      // Update task in list instead of removing it
-      setTasks((prev) => prev.map((t) =>
-        t.id === taskToApprove.id
-          ? { ...t, status: "COMPLETED" }
-          : t
-      ));
-
-      // Re-sort tasks so the approved one moves to the end
-      setTasks((prev) => [...prev].sort((a, b) => {
-        const getOrder = (status: string) => {
-          if (status === 'POSTED') return 3;
-          if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
-          return 1;
-        };
-        const orderA = getOrder(a.status);
-        const orderB = getOrder(b.status);
-        if (orderA !== orderB) return orderA - orderB;
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      }));
+      // Optimistic update via SWR mutate — update + re-sort without a network refetch
+      refreshTasks((prev) => {
+        if (!prev) return prev;
+        const updated = prev.map((t) =>
+          t.id === taskToApprove.id ? { ...t, status: "COMPLETED" as const } : t
+        );
+        return [...updated].sort((a, b) => {
+          const getOrder = (status: string) => {
+            if (status === 'POSTED') return 3;
+            if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
+            return 1;
+          };
+          const orderA = getOrder(a.status);
+          const orderB = getOrder(b.status);
+          if (orderA !== orderB) return orderA - orderB;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        });
+      }, { revalidate: false });
 
       toast.success("✅ Approved – Sent to Scheduler", {
         description: "Content has been approved and sent for scheduling.",
@@ -374,7 +372,7 @@ export function ClientDashboard() {
       // Let's just remove REJECTED ones as before, UNLESS the user wants them to stay too.
       // The prompt specifically said "once the client has approved a task".
 
-      setTasks((prev) => prev.filter((t) => t.id !== selectedTask.id));
+      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
       toast.success("📝 Revision Requested – Sent to Editor", {
         description: "Your feedback has been sent to the editor.",
@@ -446,7 +444,7 @@ export function ClientDashboard() {
       });
 
       // Remove task from list - Revision requested tasks should disappear as they go back to the editor
-      setTasks((prev) => prev.filter((t) => t.id !== selectedTask.id));
+      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
       toast.success("📝 Revision Requested – Sent to Editor", {
         description: "Your feedback has been sent to the editor.",
@@ -512,7 +510,7 @@ export function ClientDashboard() {
         feedback: notes,
       });
 
-      setTasks((prev) => prev.filter((t) => t.id !== selectedTask.id));
+      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
       toast.success("📝 Revisions Requested", {
         description: "Your feedback on the thumbnail has been sent.",

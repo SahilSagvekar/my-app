@@ -60,15 +60,49 @@ export async function PATCH(
     if (qcNotes !== undefined) updateData.qcNotes = qcNotes;
     if (route !== undefined) updateData.route = route;
 
-    const task = await prisma.task.findUnique({
-      where: { id },
-      include: {
-        client: true,
-        files: {
-          where: { isActive: true },
+    let task: any;
+    try {
+      task = await prisma.task.findUnique({
+        where: { id },
+        include: {
+          client: true,
+          files: {
+            where: { isActive: true },
+          },
         },
-      },
-    });
+      });
+    } catch (readErr: any) {
+      // Older tasks may have a stale status value not present in the current TaskStatus enum.
+      // Prisma throws P2009 / "Expected TaskStatus" on read too, so fall back to raw SQL.
+      if (
+        readErr.message?.includes("Expected TaskStatus") ||
+        readErr.message?.includes("validation") ||
+        readErr.code === "P2009"
+      ) {
+        console.warn("⚠️ Prisma Enum Validation failed on task read. Using raw SQL fallback for initial fetch...");
+        const rawRows: any[] = await prisma.$queryRawUnsafe(
+          `SELECT t.*, row_to_json(c.*) AS client
+           FROM "Task" t
+           LEFT JOIN "Client" c ON t."clientId" = c.id
+           WHERE t.id = $1`,
+          id
+        );
+        if (!rawRows || rawRows.length === 0) {
+          return NextResponse.json({ message: "Task not found" }, { status: 404 });
+        }
+        const raw = rawRows[0];
+        task = {
+          ...raw,
+          client: raw.client,
+          files: await prisma.$queryRawUnsafe(
+            `SELECT * FROM "File" WHERE "taskId" = $1 AND "isActive" = true`,
+            id
+          ),
+        };
+      } else {
+        throw readErr;
+      }
+    }
 
     if (!task)
       return NextResponse.json({ message: "Task not found" }, { status: 404 });
@@ -116,7 +150,7 @@ export async function PATCH(
     } catch (e: any) {
       // If Prisma fails due to the enum mismatch (P2009 or specific error message), 
       // we use Raw SQL to force the update and bypass runtime enum checks.
-      if (e.message?.includes("Expected TaskStatus") || e.code === "P2009") {
+      if (e.message?.includes("Expected TaskStatus") || e.message?.includes("validation") || e.code === "P2009") {
         console.warn("⚠️ Prisma Enum Validation failed for status. Using raw SQL fallback...");
 
         // Construct raw update
