@@ -124,7 +124,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
-    const [statusFilter, setStatusFilter] = useState<'all' | 'posted' | 'scheduled'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'posted'>('all');
     const [platformFilter, setPlatformFilter] = useState<string[]>([]);
     const [deliverableFilter, setDeliverableFilter] = useState<string>('all');
     const [dateRange, setDateRange] = useState<string>('30d');
@@ -155,8 +155,8 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
 
             // ── Source 2: Tasks with SCHEDULED/POSTED status that have socialMediaLinks ──
             const taskUrl = clientId
-                ? `/api/tasks?clientId=${clientId}&status=SCHEDULED,POSTED`
-                : `/api/tasks?status=SCHEDULED,POSTED`;
+                ? `/api/tasks?clientId=${clientId}&status=POSTED`
+                : `/api/tasks?status=POSTED`;
 
             const [pcRes, taskRes] = await Promise.all([
                 fetch(pcUrl, { cache: "no-store", credentials: "include" }),
@@ -189,7 +189,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
             const fromTasks: PostedTask[] = (taskData.tasks || [])
                 .filter((task: any) => {
                     const status = (task.status || "").toUpperCase();
-                    const isValidStatus = status === "SCHEDULED" || status === "POSTED";
+                    const isValidStatus = status === "POSTED";
                     let links = task.socialMediaLinks;
                     if (typeof links === "string") {
                         try { links = JSON.parse(links); } catch { links = []; }
@@ -205,7 +205,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                         id: task.id,
                         title: task.title || 'Untitled',
                         description: task.description || '',
-                        status: task.status,
+                        status: 'POSTED', // normalize SCHEDULED → POSTED for display
                         createdAt: task.createdAt,
                         dueDate: task.dueDate,
                         deliverableType: task.deliverableType || task.monthlyDeliverable?.type,
@@ -284,9 +284,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                     task.deliverableType === deliverableFilter;
                 
                 // Status filter
-                const matchesStatus = statusFilter === 'all' ||
-                    (statusFilter === 'posted' && task.status?.toUpperCase() === 'POSTED') ||
-                    (statusFilter === 'scheduled' && task.status?.toUpperCase() === 'SCHEDULED');
+                const matchesStatus = statusFilter === 'all' || statusFilter === 'posted';
 
                 // Date range filter
                 let matchesDateRange = true;
@@ -401,8 +399,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
     };
 
     // Stats
-    const postedCount = filteredItems.filter(i => i.task.status?.toUpperCase() === 'POSTED').length;
-    const scheduledCount = filteredItems.filter(i => i.task.status?.toUpperCase() === 'SCHEDULED').length;
+    const postedCount = filteredItems.length;
     const hasActiveFilters = debouncedSearchTerm || platformFilter.length > 0 || deliverableFilter !== 'all' || statusFilter !== 'all';
 
     if (loading) {
@@ -439,10 +436,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                             <CheckCircle className="h-3 w-3 mr-1" />
                             {postedCount} Posted
                         </Badge>
-                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {scheduledCount} Scheduled
-                        </Badge>
+
                     </div>
                     
                     {/* View mode toggle */}
@@ -526,14 +520,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                     >
                         Posted
                     </Button>
-                    <Button
-                        variant={statusFilter === "scheduled" ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setStatusFilter("scheduled")}
-                        className={cn("h-9 px-3 text-xs", statusFilter === "scheduled" && "bg-blue-600 text-white")}
-                    >
-                        Scheduled
-                    </Button>
+
                 </div>
 
                 {/* Platform Filter */}
@@ -698,7 +685,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                     <React.Fragment key={rowKey}>
                                                         <tr className={cn(
                                                             "hover:bg-gray-50 transition-colors",
-                                                            task.status?.toUpperCase() === 'POSTED' ? 'bg-emerald-50/30' : 'bg-blue-50/30'
+'bg-emerald-50/30'
                                                         )}>
                                                             {/* Expand */}
                                                             <td className="px-2 py-2">
@@ -757,11 +744,9 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                             <td className="px-3 py-2 text-center">
                                                                 <Badge className={cn(
                                                                     "border-none text-[10px] font-bold",
-                                                                    task.status?.toUpperCase() === 'POSTED'
-                                                                        ? "bg-emerald-100 text-emerald-700"
-                                                                        : "bg-blue-100 text-blue-700"
+                                                                "bg-emerald-100 text-emerald-700"
                                                                 )}>
-                                                                    {task.status?.toUpperCase() === 'POSTED' ? 'Posted' : 'Scheduled'}
+                                                                    Posted
                                                                 </Badge>
                                                             </td>
 
@@ -967,15 +952,9 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                 <div className="absolute top-3 right-3">
                                                     <Badge className={cn(
                                                         "border-none rounded-full px-2.5 py-0.5 text-[10px] font-bold flex items-center gap-1",
-                                                        task.status?.toUpperCase() === 'POSTED'
-                                                            ? "bg-emerald-50 text-emerald-600"
-                                                            : "bg-blue-50 text-blue-600"
+"bg-emerald-50 text-emerald-600"
                                                     )}>
-                                                        {task.status?.toUpperCase() === 'POSTED' ? (
-                                                            <><CheckCircle className="h-2.5 w-2.5" /> Posted</>
-                                                        ) : (
-                                                            <><Clock className="h-2.5 w-2.5" /> Scheduled</>
-                                                        )}
+<><CheckCircle className="h-2.5 w-2.5" /> Posted</>
                                                     </Badge>
                                                 </div>
 
