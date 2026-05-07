@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const search = searchParams.get("search");
-    const limit = parseInt(searchParams.get("limit") || "100");
+    const limit = parseInt(searchParams.get("limit") || "9999");
     const offset = parseInt(searchParams.get("offset") || "0");
 
     // Build where clause

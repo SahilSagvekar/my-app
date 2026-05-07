@@ -147,18 +147,46 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
     async function fetchPostedContent() {
         try {
             setLoading(true);
-            
-            // Use same data source as PostedContentSidebar — fetch tasks with status filter
-            const url = clientId
+
+            // ── Source 1: PostedContent records (imported from spreadsheet / manually added) ──
+            const pcUrl = clientId
+                ? `/api/posted-content?clientId=${clientId}&limit=9999`
+                : `/api/posted-content?limit=9999`;
+
+            // ── Source 2: Tasks with SCHEDULED/POSTED status that have socialMediaLinks ──
+            const taskUrl = clientId
                 ? `/api/tasks?clientId=${clientId}&status=SCHEDULED,POSTED`
                 : `/api/tasks?status=SCHEDULED,POSTED`;
-            
-            const res = await fetch(url, { cache: "no-store" });
-            if (!res.ok) throw new Error("Failed to fetch posted content");
-            
-            const data = await res.json();
-            
-            const postedTasks: PostedTask[] = (data.tasks || [])
+
+            const [pcRes, taskRes] = await Promise.all([
+                fetch(pcUrl, { cache: "no-store", credentials: "include" }),
+                fetch(taskUrl, { cache: "no-store", credentials: "include" }),
+            ]);
+
+            // ── Map PostedContent records → PostedTask shape ──
+            if (!pcRes.ok) console.error('[PostedContent] API error:', pcRes.status, await pcRes.text().catch(() => ''));
+            const pcData = pcRes.ok ? await pcRes.json() : { contents: [] };
+            const fromPostedContent: PostedTask[] = (pcData.contents || []).map((pc: any) => ({
+                id: `pc-${pc.id}`,
+                title: pc.title || 'Untitled',
+                description: '',
+                status: 'POSTED',
+                createdAt: pc.createdAt,
+                dueDate: pc.postedAt,
+                deliverableType: pc.deliverableType,
+                socialMediaLinks: [{
+                    platform: pc.platform,
+                    url: pc.url,
+                    postedAt: pc.postedAt,
+                }],
+                suggestedTitles: [],
+                files: [],
+                deliverable: undefined,
+            }));
+
+            // ── Map Tasks → PostedTask shape (original behaviour) ──
+            const taskData = taskRes.ok ? await taskRes.json() : { tasks: [] };
+            const fromTasks: PostedTask[] = (taskData.tasks || [])
                 .filter((task: any) => {
                     const status = (task.status || "").toUpperCase();
                     const isValidStatus = status === "SCHEDULED" || status === "POSTED";
@@ -205,19 +233,22 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                         } : undefined,
                     };
                 });
-            
-            setTasks(postedTasks);
+
+            // ── Merge both sources ──
+            const allPosts: PostedTask[] = [...fromPostedContent, ...fromTasks];
+
+            setTasks(allPosts);
 
             // Extract unique deliverable types
             const types = new Set<string>();
-            postedTasks.forEach(t => {
+            allPosts.forEach(t => {
                 if (t.deliverableType) types.add(t.deliverableType);
             });
             setAvailableDeliverables(Array.from(types).sort());
 
             // Auto-expand all date groups initially
             const allDates = new Set<string>();
-            postedTasks.forEach(task => {
+            allPosts.forEach(task => {
                 task.socialMediaLinks.forEach(link => {
                     const date = new Date(link.postedAt).toDateString();
                     allDates.add(date);
