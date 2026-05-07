@@ -1259,7 +1259,7 @@ export function ClientDashboard() {
                   selectedTask.status === "POSTED"
                 ) && (
                     <div className="flex items-center gap-3">
-                      <Button
+                      {/* <Button
                         variant="outline"
                         size="sm"
                         className="flex-1"
@@ -1281,7 +1281,7 @@ export function ClientDashboard() {
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Approve All
-                      </Button>
+                      </Button> */}
                     </div>
                   )}
 
