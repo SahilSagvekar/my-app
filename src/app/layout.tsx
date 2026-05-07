@@ -34,7 +34,7 @@ export default function RootLayout({
         {/* Google Tag Manager (noscript) - place immediately after <body> */}
         <noscript>
           <iframe
-            src="https://www.googletagmanager.com/ns.html?id=GTM-W82XVTPF"
+            src="https://www.googletagmanager.com/ns.html?id=GTM-NMX9JSXC"
             height="0"
             width="0"
             style={{ display: 'none', visibility: 'hidden' }}
@@ -50,7 +50,7 @@ export default function RootLayout({
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-W82XVTPF');`}
+})(window,document,'script','dataLayer','GTM-NMX9JSXC');`}
         </Script>
       </body>
     </html>
