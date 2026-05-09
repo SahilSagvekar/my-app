@@ -159,6 +159,7 @@ interface Client {
   };
   lastActivity: string;
   clientReviewRequired: string;
+  clientReviewDeliverableTypes: string[];
   videographerRequired: string;
   requiresClientReview: string;
   requiresVideographer: string;
@@ -294,6 +295,7 @@ export function ClientManagement() {
     renewalDate: "",
     status: "active",
     clientReviewRequired: "no",
+    clientReviewDeliverableTypes: [],
     videographerRequired: "no",
     hasPostingServices: true,
     monthlyDeliverables: [],
@@ -1312,6 +1314,7 @@ export function ClientManagement() {
         renewalDate: "",
         status: "active",
         clientReviewRequired: "no",
+        clientReviewDeliverableTypes: [],
         videographerRequired: "no",
         monthlyDeliverables: [],
         brandAssets: [],
@@ -1353,6 +1356,7 @@ export function ClientManagement() {
       phone: client.phone,
       phones: client.phones || [],
       clientReviewRequired: client.requiresClientReview ? "yes" : "no",
+      clientReviewDeliverableTypes: (client as any).clientReviewDeliverableTypes ?? [],
       videographerRequired: client.requiresVideographer ? "yes" : "no",
       hasPostingServices: client.hasPostingServices ?? true,
       accountManagerId: client.accountManagerId,
@@ -2583,6 +2587,7 @@ export function ClientManagement() {
                       setNewClient({
                         ...newClient,
                         clientReviewRequired: value,
+                        clientReviewDeliverableTypes: value === "no" ? [] : (newClient.clientReviewDeliverableTypes ?? []),
                       })
                     }
                   >
@@ -2594,6 +2599,42 @@ export function ClientManagement() {
                       <SelectItem value="no">No</SelectItem>
                     </SelectContent>
                   </Select>
+                  {newClient.clientReviewRequired === "yes" && (
+                    <div className="mt-2 space-y-1.5 rounded-md border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs font-medium text-gray-600 mb-2">Review which deliverable types?</p>
+                      {(["SF", "LF", "SQF", "BSF", "HP", "SEP"] as const).map((type) => {
+                        const labels: Record<string, string> = {
+                          SF: "Short Form (SF)",
+                          LF: "Long Form (LF)",
+                          SQF: "Square Form (SQF)",
+                          BSF: "Beta Short Form (BSF)",
+                          HP: "Hard Posts (HP)",
+                          SEP: "Snapchat Episodes (SEP)",
+                        };
+                        const checked = (newClient.clientReviewDeliverableTypes ?? []).includes(type);
+                        return (
+                          <label key={type} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const prev = newClient.clientReviewDeliverableTypes ?? [];
+                                const next = checked
+                                  ? prev.filter((t) => t !== type)
+                                  : [...prev, type];
+                                setNewClient({ ...newClient, clientReviewDeliverableTypes: next });
+                              }}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
+                            />
+                            <span className="text-xs text-gray-700">{labels[type]}</span>
+                          </label>
+                        );
+                      })}
+                      {(newClient.clientReviewDeliverableTypes ?? []).length === 0 && (
+                        <p className="text-xs text-amber-600 mt-1">⚠ No types selected — all tasks will go to review</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">

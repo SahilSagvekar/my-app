@@ -390,6 +390,7 @@ export async function POST(req: Request) {
       billing,
       postingSchedule,
       clientReviewRequired,
+      clientReviewDeliverableTypes,
       videographerRequired,
       hasPostingServices,
     } = body;
@@ -449,6 +450,7 @@ export async function POST(req: Request) {
           billing,
           postingSchedule,
           requiresClientReview: clientReview,
+          clientReviewDeliverableTypes: clientReviewDeliverableTypes ?? [],
           requiresVideographer: videographer,
           hasPostingServices: hasPostingServices ?? true,
           currentProgress: { completed: 0, total: 0 },

@@ -292,6 +292,7 @@ model Client {
   requiresClientReview    Boolean                  @default(false)
   requiresVideographer    Boolean                  @default(false)
   createdAt               DateTime                 @default(now())
+  clientReviewDeliverableTypes     String[]                 @default([])
   updatedAt               DateTime                 @updatedAt
   uploadedFiles           Json?
   brandGuidelines         Json?

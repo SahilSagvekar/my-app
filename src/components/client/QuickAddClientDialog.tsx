@@ -37,6 +37,7 @@ export function QuickAddClientDialog({ trigger, onClientCreated }: QuickAddClien
     phone: '',
     status: 'active' as 'active' | 'pending' | 'expired',
     clientReviewRequired: 'no',
+    clientReviewDeliverableTypes: [] as string[],
     videographerRequired: 'no',
     hasPostingServices: true,
   });
@@ -53,6 +54,7 @@ export function QuickAddClientDialog({ trigger, onClientCreated }: QuickAddClien
       phone: '',
       status: 'active',
       clientReviewRequired: 'no',
+      clientReviewDeliverableTypes: [] as string[],
       videographerRequired: 'no',
       hasPostingServices: true,
     });
@@ -237,6 +239,34 @@ export function QuickAddClientDialog({ trigger, onClientCreated }: QuickAddClien
                   <SelectItem value="no">No</SelectItem>
                 </SelectContent>
               </Select>
+              {formData.clientReviewRequired === 'yes' && (
+                <div className="mt-2 space-y-1.5 rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-600 mb-2">Review which deliverable types?</p>
+                  {['SF', 'LF', 'SQF', 'BSF', 'HP', 'SEP'].map((type) => {
+                    const labels: Record<string, string> = { SF: 'Short Form (SF)', LF: 'Long Form (LF)', SQF: 'Square Form (SQF)', BSF: 'Beta Short Form (BSF)', HP: 'Hard Posts (HP)', SEP: 'Snapchat Episodes (SEP)' };
+                    const checked = formData.clientReviewDeliverableTypes.includes(type);
+                    return (
+                      <label key={type} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const next = checked
+                              ? formData.clientReviewDeliverableTypes.filter((t) => t !== type)
+                              : [...formData.clientReviewDeliverableTypes, type];
+                            handleInputChange('clientReviewDeliverableTypes', next);
+                          }}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
+                        />
+                        <span className="text-xs text-gray-700">{labels[type]}</span>
+                      </label>
+                    );
+                  })}
+                  {formData.clientReviewDeliverableTypes.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1">⚠ No types selected — all tasks will go to review</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

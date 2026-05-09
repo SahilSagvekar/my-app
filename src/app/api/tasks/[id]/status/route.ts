@@ -114,7 +114,14 @@ export async function PATCH(
       status === "COMPLETED" &&
       task.client?.requiresClientReview === true
     ) {
-      finalStatus = "CLIENT_REVIEW";
+      const allowedTypes: string[] = task.client?.clientReviewDeliverableTypes ?? [];
+      const taskType: string = task.deliverableType ?? "";
+      // If no types configured → all tasks go to review (backwards compatible).
+      // If types configured → only matching deliverable types go to review.
+      const shouldReview = allowedTypes.length === 0 || allowedTypes.includes(taskType);
+      if (shouldReview) {
+        finalStatus = "CLIENT_REVIEW";
+      }
     }
 
     if (role.toLowerCase() === "client") {
