@@ -1,4 +1,4 @@
-export type PlatformKey = 'instagram' | 'youtube' | 'tiktok' | 'facebook' | 'linkedin' | 'twitter' | 'other';
+export type PlatformKey = 'instagram' | 'youtube' | 'tiktok' | 'facebook' | 'linkedin' | 'twitter' | 'snapchat' | 'other';
 
 export interface SchedulerTask {
     id: string;

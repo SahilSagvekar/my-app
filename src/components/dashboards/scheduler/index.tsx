@@ -209,7 +209,7 @@ export function SchedulerSpreadsheetView() {
                         <tbody className={`divide-y ${loading && !isInitialLoad ? 'opacity-50 pointer-events-none' : ''}`}>
                             {tasks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={14} className="px-6 py-12 text-center text-muted-foreground">
+                                    <td colSpan={15} className="px-6 py-12 text-center text-muted-foreground">
                                         {loading ? (
                                             <div className="flex flex-col items-center justify-center">
                                                 <RefreshCw className="h-8 w-8 animate-spin mb-4 text-primary" />
