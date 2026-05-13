@@ -69,6 +69,8 @@ export async function PATCH(
           files: {
             where: { isActive: true },
           },
+          monthlyDeliverable: { select: { type: true } },
+          oneOffDeliverable: { select: { type: true } },
         },
       });
     } catch (readErr: any) {
@@ -115,7 +117,28 @@ export async function PATCH(
       task.client?.requiresClientReview === true
     ) {
       const allowedTypes: string[] = task.client?.clientReviewDeliverableTypes ?? [];
-      const taskType: string = task.deliverableType ?? "";
+
+      // Resolve the short code: prefer task.deliverableType (set on new tasks),
+      // fall back to converting the deliverable type name for older tasks.
+      const DELIVERABLE_SHORT_CODES: Record<string, string> = {
+        "short form videos": "SF",
+        "long form videos": "LF",
+        "square form videos": "SQF",
+        "thumbnails": "THUMB",
+        "tiles": "T",
+        "hard posts / graphic images": "HP",
+        "snapchat episodes": "SEP",
+        "beta short form": "BSF",
+      };
+      const rawDeliverableType: string =
+        task.monthlyDeliverable?.type ||
+        task.oneOffDeliverable?.type ||
+        "";
+      const fallbackShortCode = DELIVERABLE_SHORT_CODES[rawDeliverableType.toLowerCase().trim()] || rawDeliverableType;
+      const taskType: string = task.deliverableType || fallbackShortCode || "";
+
+      console.log(`[ClientReview] taskType="${taskType}", allowedTypes=${JSON.stringify(allowedTypes)}, deliverableType=${task.deliverableType}, rawType="${rawDeliverableType}"`);
+
       // If no types configured → all tasks go to review (backwards compatible).
       // If types configured → only matching deliverable types go to review.
       const shouldReview = allowedTypes.length === 0 || allowedTypes.includes(taskType);

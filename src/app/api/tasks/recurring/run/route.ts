@@ -472,6 +472,7 @@ export async function POST(req: Request) {
               priority: masterTemplate.priority,
               taskCategory: masterTemplate.taskCategory,
               deliverableType: masterTemplate.deliverableType,
+              requiresClientReview: client.requiresClientReview ?? false,
               isTrial: deliverable.isTrial ?? client.isTrial ?? false,
             },
           });

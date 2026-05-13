@@ -2096,6 +2096,143 @@ export function ClientManagement() {
                 </CardContent>
               </Card>
 
+              {/* Client Review Setting */}
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    Client Review Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Requires Client Review</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        When enabled, QC-approved tasks go to the client for review before being marked complete.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={selectedClient.requiresClientReview ?? false}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          const currentTypes = (selectedClient as any).clientReviewDeliverableTypes ?? [];
+                          const res = await fetch(`/api/clients/${selectedClient.id}/client-review`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              requiresClientReview: checked,
+                              clientReviewDeliverableTypes: currentTypes,
+                            }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Failed');
+
+                          setClients(prev => prev.map(c =>
+                            c.id === selectedClient.id
+                              ? { ...c, requiresClientReview: checked, clientReviewDeliverableTypes: checked ? currentTypes : [] }
+                              : c
+                          ));
+                          setSelectedClient({
+                            ...selectedClient,
+                            requiresClientReview: checked,
+                            clientReviewDeliverableTypes: checked ? currentTypes : [],
+                          } as any);
+
+                          toast.success(
+                            checked
+                              ? 'Client review enabled'
+                              : 'Client review disabled'
+                          );
+                        } catch (err: any) {
+                          console.error('Toggle client review error:', err);
+                          toast.error(err.message || 'Failed to update client review');
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {(selectedClient.requiresClientReview ?? false) && (
+                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Which deliverable types go to client review?</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Leave all unchecked to send every task to review. Check specific types to only send those.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["SF", "LF", "SQF", "BSF", "HP", "SEP"] as const).map((type) => {
+                          const labels: Record<string, string> = {
+                            SF: "Short Form (SF)",
+                            LF: "Long Form (LF)",
+                            SQF: "Square Form (SQF)",
+                            BSF: "Beta Short Form (BSF)",
+                            HP: "Hard Posts (HP)",
+                            SEP: "Snapchat Episodes (SEP)",
+                          };
+                          const currentTypes: string[] = (selectedClient as any).clientReviewDeliverableTypes ?? [];
+                          const checked = currentTypes.includes(type);
+                          return (
+                            <label key={type} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-100">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={async () => {
+                                  const next = checked
+                                    ? currentTypes.filter((t) => t !== type)
+                                    : [...currentTypes, type];
+                                  try {
+                                    const res = await fetch(`/api/clients/${selectedClient.id}/client-review`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        requiresClientReview: true,
+                                        clientReviewDeliverableTypes: next,
+                                      }),
+                                    });
+                                    const data = await res.json();
+                                    if (!res.ok) throw new Error(data.error || 'Failed');
+
+                                    setClients(prev => prev.map(c =>
+                                      c.id === selectedClient.id
+                                        ? { ...c, clientReviewDeliverableTypes: next }
+                                        : c
+                                    ));
+                                    setSelectedClient({ ...selectedClient, clientReviewDeliverableTypes: next } as any);
+                                  } catch (err: any) {
+                                    toast.error(err.message || 'Failed to update');
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                              />
+                              <span className="text-sm text-gray-700">{labels[type]}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {((selectedClient as any).clientReviewDeliverableTypes ?? []).length === 0 && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md">
+                          <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                          <p className="text-xs text-amber-700">
+                            No types selected — all tasks will go to client review
+                          </p>
+                        </div>
+                      )}
+                      {((selectedClient as any).clientReviewDeliverableTypes ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {((selectedClient as any).clientReviewDeliverableTypes as string[]).map((t) => (
+                            <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {t}
+                            </span>
+                          ))}
+                          <span className="text-xs text-gray-500 self-center">will go to review · others skip</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Trial Client Setting */}
               <Card className="bg-white border-gray-200">
                 <CardHeader>

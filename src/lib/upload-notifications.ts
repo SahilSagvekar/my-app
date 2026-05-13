@@ -110,7 +110,10 @@ export async function sendUploadNotification(
       return;
     }
 
-    const isClientUpload = uploader.role === "client";
+    // const isClientUpload = uploader.role === "client";
+    const isRawFootageUpload = !!(s3Key && s3Key.includes("raw-footage/"));
+    const isClientUpload = uploader.role === "client" || isRawFootageUpload;
+
     const formattedSize = formatFileSize(fileSize);
     const folderPath = getFolderPath(s3Key);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

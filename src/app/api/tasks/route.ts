@@ -1061,6 +1061,24 @@ export async function POST(req: any) {
     const uploadedLinks: string[] = [];
     const files = form.getAll("files") as File[];
 
+    // 🔥 Resolve deliverableType short code upfront so it's stamped on every task path
+    let resolvedDeliverableType: string | null = null;
+    if (isExtraMonthlyTask && extraMonthlyDeliverable) {
+      resolvedDeliverableType = getDeliverableShortCode(extraMonthlyDeliverable.type);
+    } else if (monthlyDeliverableId) {
+      const mdForType = await prisma.monthlyDeliverable.findFirst({
+        where: { id: monthlyDeliverableId, clientId },
+        select: { type: true },
+      });
+      if (mdForType) resolvedDeliverableType = getDeliverableShortCode(mdForType.type);
+    } else if (oneOffDeliverableId) {
+      const odForType = await prisma.oneOffDeliverable.findUnique({
+        where: { id: oneOffDeliverableId },
+        select: { type: true },
+      });
+      if (odForType) resolvedDeliverableType = getDeliverableShortCode(odForType.type);
+    }
+
     // 📝 CREATE TASK FIRST
     const task = await prisma.task.create({
       data: {
@@ -1083,6 +1101,7 @@ export async function POST(req: any) {
         isTrial: client.isTrial ?? false,
         isExtra: isExtraMonthlyTask,
         extraSequence,
+        deliverableType: resolvedDeliverableType,
         status: (client.requiresVideographer || shootLocation || shootCamera)
           ? "VIDEOGRAPHER_ASSIGNED"
           : "PENDING",
@@ -1224,6 +1243,7 @@ export async function POST(req: any) {
             isTrial: client.isTrial ?? false,
             isExtra: true,
             extraSequence: nextSequence,
+            deliverableType: resolvedDeliverableType,
             status: (client.requiresVideographer || shootLocation || shootCamera)
               ? "VIDEOGRAPHER_ASSIGNED"
               : "PENDING",
