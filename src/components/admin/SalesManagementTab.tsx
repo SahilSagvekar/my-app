@@ -730,10 +730,10 @@ export function SalesManagementTab() {
         <CommissionManagement />
       ) : (
         <>
-          {/* Previous Team Overview Content */}
-          <div className="space-y-6">
+          {/* ── Team Overview — Monday.com style ── */}
+          <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
 
-            {/* ── Stats ─────────────────────────────────────────────── */}
+            {/* Stats Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
                 { label: 'Total Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
@@ -748,14 +748,13 @@ export function SalesManagementTab() {
               ))}
             </div>
 
-            {/* ── Sales Rep Cards ────────────────────────────────────── */}
+            {/* Rep filter pills */}
             {salesUsers.length > 0 && (
-              <div className="flex flex-wrap gap-3">
-                {/* All button */}
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setSelectedUserId('all')}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all',
+                    'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
                     selectedUserId === 'all'
                       ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm'
                       : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-300 hover:bg-yellow-50'
@@ -763,15 +762,10 @@ export function SalesManagementTab() {
                 >
                   <Users className="h-4 w-4" />
                   All Reps
-                  <span className={cn(
-                    'text-xs px-1.5 py-0.5 rounded-full font-semibold',
-                    selectedUserId === 'all' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
-                  )}>
+                  <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-semibold', selectedUserId === 'all' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500')}>
                     {leads.length}
                   </span>
                 </button>
-
-                {/* Per-user buttons */}
                 {salesUsers.map(u => {
                   const count = leads.filter(l => l.userId === u.id).length;
                   const active = selectedUserId === u.id;
@@ -780,10 +774,8 @@ export function SalesManagementTab() {
                       key={u.id}
                       onClick={() => setSelectedUserId(active ? 'all' : u.id)}
                       className={cn(
-                        'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all',
-                        active
-                          ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-300 hover:bg-yellow-50'
+                        'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
+                        active ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm' : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-300 hover:bg-yellow-50'
                       )}
                     >
                       <Avatar className="h-5 w-5">
@@ -792,10 +784,7 @@ export function SalesManagementTab() {
                         </AvatarFallback>
                       </Avatar>
                       {displayName(u)}
-                      <span className={cn(
-                        'text-xs px-1.5 py-0.5 rounded-full font-semibold',
-                        active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
-                      )}>
+                      <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-semibold', active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500')}>
                         {count}
                       </span>
                     </button>
@@ -804,10 +793,10 @@ export function SalesManagementTab() {
               </div>
             )}
 
-            {/* ── Toolbar ────────────────────────────────────────────── */}
+            {/* Toolbar */}
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 <Input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -822,21 +811,21 @@ export function SalesManagementTab() {
               </div>
               <span className="text-xs text-muted-foreground whitespace-nowrap">
                 {filtered.length} lead{filtered.length !== 1 ? 's' : ''}
-                {selectedUserId !== 'all' && selectedUserObj ? ` · ${displayName(selectedUserObj)}` : ''}
+                {selectedUserId !== 'all' && salesUsers.find(u => u.id === selectedUserId)
+                  ? ` · ${displayName(salesUsers.find(u => u.id === selectedUserId)!)}`
+                  : ''}
               </span>
               <div className="ml-auto flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={fetchLeads} className="gap-1.5">
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh
+                <Button variant="outline" size="sm" onClick={fetchLeads} className="gap-1.5 h-8 text-xs">
+                  <RefreshCw className="h-3.5 w-3.5" /> Refresh
                 </Button>
-                <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5">
-                  <Download className="h-4 w-4" />
-                  Export CSV
+                <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5 h-8 text-xs">
+                  <Download className="h-3.5 w-3.5" /> Export CSV
                 </Button>
               </div>
             </div>
 
-            {/* ── Table ──────────────────────────────────────────────── */}
+            {/* Monday.com grouped table */}
             {leads.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-muted-foreground">
                 <Users className="h-10 w-10 mx-auto mb-3 text-gray-300" />
@@ -844,269 +833,336 @@ export function SalesManagementTab() {
                 <p className="text-xs mt-1">Sales team members haven't added any leads yet.</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-x-auto no-scrollbar">
-                <div className="min-w-max">
-                  <table className="w-full text-sm border-collapse">
+              <div className="rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[13px] border-separate border-spacing-0" style={{ minWidth: 900 }}>
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-400 border-r border-gray-200 w-10">#</th>
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-36">Sales Rep</th>
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-40">Lead Name</th>
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-48">Email</th>
-                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">Insta</th>
-                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">FB</th>
-                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">LI</th>
-                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">X/TW</th>
-                        <th className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider border-r border-gray-200 w-20">TikTok</th>
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200 w-40">Handles</th>
-                        <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Meet</th>
-                        <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Email</th>
-                        <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Call</th>
-                        <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Text</th>
-                        <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-28">Notes</th>
-                        <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider w-24">Email Tmpl</th>
-                        <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-l border-gray-200 w-36">Added</th>
+                      <tr className="bg-[#F5F6F8]">
+                        <th className="w-[40px] px-2 py-2 sticky left-0 bg-[#F5F6F8] z-10 border-b-2 border-gray-200" />
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider sticky left-[40px] bg-[#F5F6F8] z-10 border-b-2 border-gray-200 min-w-[200px] w-[200px]">Lead</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[130px] w-[130px]">Sales Rep</th>
+                        <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[120px] w-[120px]">Status</th>
+                        <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[110px] w-[110px]">Priority</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[180px] w-[180px]">Email</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[160px] w-[160px]">Socials</th>
+                        <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[120px] w-[120px]">Activity</th>
+                        <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 min-w-[130px] w-[130px]">Added</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody>
                       {filtered.length === 0 ? (
                         <tr>
-                          <td colSpan={13} className="py-12 text-center text-muted-foreground text-sm">
+                          <td colSpan={9} className="py-12 text-center text-gray-400 text-sm">
                             No leads match your search.
                           </td>
                         </tr>
                       ) : (
-                        filtered.map((lead, idx) => (
-                          <Fragment key={lead.id}>
-                            <tr className={cn(
-                              'transition-colors group border-b border-gray-100',
-                              expandedRows.has(lead.id) ? 'bg-yellow-50/50' : 'bg-white hover:bg-yellow-50/30'
-                            )}>
-                              {/* # */}
-                              <td className="px-3 py-2.5 text-center text-xs text-gray-400 border-r border-gray-100 select-none">
-                                <button onClick={() => toggleRow(lead.id)} className="hover:text-amber-600 flex flex-col items-center gap-1 w-full">
-                                  <ChevronRight className={cn('h-3 w-3 transition-transform', expandedRows.has(lead.id) && 'rotate-90')} />
-                                  <span className="text-[10px] font-mono opacity-50">{idx + 1}</span>
-                                </button>
-                              </td>
+                        (() => {
+                          const STATUS_GROUPS_TEAM = [
+                            { id: 'NEW', label: 'New', color: '#579BFC' },
+                            { id: 'CONTACTED', label: 'Contacted', color: '#FDAB3D' },
+                            { id: 'WORKING', label: 'Working', color: '#A25DDC' },
+                            { id: 'QUALIFIED', label: 'Qualified', color: '#00C875' },
+                            { id: 'WON', label: 'Won', color: '#037F4C' },
+                            { id: 'LOST', label: 'Lost', color: '#E2445C' },
+                          ];
+                          const PRIORITY_COLORS: Record<string, string> = {
+                            critical: '#333333', high: '#E2445C', medium: '#FDAB3D', low: '#579BFC',
+                          };
+                          const groups = STATUS_GROUPS_TEAM.map(g => ({
+                            ...g,
+                            leads: filtered.filter(l => (l.status || 'NEW').toUpperCase() === g.id),
+                          })).filter(g => g.leads.length > 0);
 
-                              {/* Sales Rep */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-6 w-6 flex-shrink-0">
-                                    <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
-                                      {initials(lead.user.name, lead.user.email)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="text-xs font-medium text-gray-700 truncate max-w-[90px]" title={displayName(lead.user)}>
-                                    {displayName(lead.user)}
-                                  </span>
-                                </div>
-                              </td>
-
-                              {/* Lead Name */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <span className="text-sm font-medium text-gray-800">
-                                  {lead.name || <span className="text-gray-300 italic">—</span>}
-                                </span>
-                              </td>
-
-                              {/* Email */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <span className="text-xs text-gray-600 truncate block max-w-[180px]" title={lead.email}>
-                                  {lead.email || <span className="text-gray-300">—</span>}
-                                </span>
-                              </td>
-
-                              {/* Social Checkboxes */}
-                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
-                                <TickBadge on={lead.instagram} activeColor="bg-pink-100 text-pink-600" />
-                              </td>
-                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
-                                <TickBadge on={lead.facebook} activeColor="bg-blue-100 text-blue-600" />
-                              </td>
-                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
-                                <TickBadge on={lead.linkedin} activeColor="bg-cyan-100 text-cyan-700" />
-                              </td>
-                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
-                                <TickBadge on={lead.twitter} activeColor="bg-gray-100 text-gray-900" />
-                              </td>
-                              <td className="px-2 py-2.5 border-r border-gray-100 bg-gray-50/20">
-                                <TickBadge on={lead.tiktok} activeColor="bg-gray-200 text-black" />
-                              </td>
-                              
-                              {/* Social Handles */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <span className="text-xs text-gray-600 truncate block max-w-[150px]" title={lead.socials}>
-                                  {lead.socials || <span className="text-gray-300">—</span>}
-                                </span>
-                              </td>
-
-                              {/* Meeting */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <TickBadge on={lead.meetingBooked} activeColor="bg-green-100 text-green-600" />
-                              </td>
-
-                              {/* Emailed */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <TickBadge on={lead.emailed} activeColor="bg-blue-100 text-blue-600" />
-                              </td>
-
-                              {/* Called */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <TickBadge on={lead.called} activeColor="bg-emerald-100 text-emerald-600" />
-                              </td>
-
-                              {/* Texted */}
-                              <td className="px-3 py-2.5 border-r border-gray-100">
-                                <TickBadge on={lead.texted} activeColor="bg-purple-100 text-purple-600" />
-                              </td>
-
-                              {/* Notes */}
-                              <td className="px-3 py-2.5 border-r border-gray-100 text-center">
-                                {lead.notes ? (
-                                  <button
-                                    onClick={() => setNotesModal({ open: true, lead })}
-                                    className="text-[10px] px-2 py-1 rounded-md border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors truncate max-w-[100px] block mx-auto"
-                                    title={lead.notes}
+                          return groups.map(group => (
+                            <Fragment key={group.id}>
+                              {/* Group header */}
+                              <tr>
+                                <td colSpan={9} className="border-b border-gray-100">
+                                  <div
+                                    className="flex items-center gap-2 px-3 py-1.5"
+                                    style={{ borderLeft: `4px solid ${group.color}` }}
                                   >
-                                    {lead.notes.slice(0, 18)}{lead.notes.length > 18 ? '…' : ''}
-                                  </button>
-                                ) : (
-                                  <span className="text-gray-300 text-xs">—</span>
-                                )}
-                              </td>
-
-                              {/* Email Template */}
-                              <td className="px-3 py-2.5 text-center">
-                                {lead.emailTemplate ? (
-                                  <button
-                                    onClick={() => setEmailModal({ open: true, lead })}
-                                    className="text-[10px] px-2 py-1 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1 mx-auto"
-                                  >
-                                    <Mail className="h-3 w-3" />View
-                                  </button>
-                                ) : (
-                                  <span className="text-gray-300 text-xs">—</span>
-                                )}
-                              </td>
-
-                              {/* Added — date + salesperson, for duplicate/commission disputes */}
-                              <td className="px-3 py-2.5 border-l border-gray-200">
-                                <div className="flex flex-col gap-0.5 min-w-[120px]">
-                                  <span className="text-[11px] font-semibold text-gray-700 whitespace-nowrap">
-                                    {new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                                  </span>
-                                  <span className="text-[10px] text-gray-400 whitespace-nowrap">
-                                    {new Date(lead.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
-                                  </span>
-                                  <span className="text-[10px] text-indigo-600 font-medium truncate max-w-[120px]" title={displayName(lead.user)}>
-                                    {displayName(lead.user)}
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
-
-                            {/* ── Expanded View ── */}
-                            {expandedRows.has(lead.id) && (
-                              <tr className="bg-yellow-50/20">
-                                <td colSpan={13} className="px-6 py-4 border-b border-gray-200">
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {/* Metadata */}
-                                    <div className="space-y-4">
-                                      <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                          <HistoryIcon className="h-3 w-3" /> Timestamps
-                                        </p>
-                                        <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
-                                          <p className="text-xs flex justify-between">
-                                            <span className="text-gray-400">Created:</span>
-                                            <span className="font-medium text-gray-600">{formatToEST(lead.createdAt)}</span>
-                                          </p>
-                                          <p className="text-xs flex justify-between">
-                                            <span className="text-gray-400">Last Sync:</span>
-                                            <span className="font-medium text-gray-600">{formatToEST(lead.updatedAt)}</span>
-                                          </p>
-                                        </div>
-                                      </div>
-
-                                      <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                          <HistoryIcon className="h-3 w-3" /> Contact Timeline
-                                        </p>
-                                        <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
-                                          {!lead.dmAt && !lead.meetingAt && !lead.emailedAt && !lead.calledAt && !lead.textedAt && (
-                                            <p className="text-[10px] text-gray-300 italic text-center py-2">No contact recorded</p>
-                                          )}
-                                          {lead.dmAt && (
-                                            <p className="text-[10px] flex justify-between">
-                                              <span className="text-gray-400">Social DM:</span>
-                                              <span className="font-medium text-pink-600">{formatToEST(lead.dmAt)}</span>
-                                            </p>
-                                          )}
-                                          {lead.meetingAt && (
-                                            <p className="text-[10px] flex justify-between">
-                                              <span className="text-gray-400">Meeting:</span>
-                                              <span className="font-medium text-green-600">{formatToEST(lead.meetingAt)}</span>
-                                            </p>
-                                          )}
-                                          {lead.emailedAt && (
-                                            <p className="text-[10px] flex justify-between">
-                                              <span className="text-gray-400">Email:</span>
-                                              <span className="font-medium text-blue-600">{formatToEST(lead.emailedAt)}</span>
-                                            </p>
-                                          )}
-                                          {lead.calledAt && (
-                                            <p className="text-[10px] flex justify-between">
-                                              <span className="text-gray-400">Call:</span>
-                                              <span className="font-medium text-emerald-600">{formatToEST(lead.calledAt)}</span>
-                                            </p>
-                                          )}
-                                          {lead.textedAt && (
-                                            <p className="text-[10px] flex justify-between">
-                                              <span className="text-gray-400">Text:</span>
-                                              <span className="font-medium text-purple-600">{formatToEST(lead.textedAt)}</span>
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                          <LinkIcon className="h-3 w-3" /> Context
-                                        </p>
-                                        <div className="bg-white p-3 rounded-lg border border-yellow-200/50 text-xs text-gray-600 space-y-1">
-                                          <p><strong>Platform:</strong> {lead.dmPlatform ? DM_PLATFORMS[lead.dmPlatform]?.label : 'None'}</p>
-                                          <p><strong>Priority:</strong> {lead.priority ? lead.priority.charAt(0).toUpperCase() + lead.priority.slice(1) : 'N/A'}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                          <InfoIcon className="h-3 w-3" /> Lead Notes
-                                        </p>
-                                        <div className="bg-white p-3 rounded-lg border border-yellow-200/50 min-h-[100px] text-xs text-gray-700 whitespace-pre-wrap leading-relaxed shadow-inner italic">
-                                          {lead.notes || '(No notes provided by rep)'}
-                                        </div>
-                                      </div>
-                                      <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                          <Mail className="h-3 w-3" /> Email Template
-                                        </p>
-                                        <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 min-h-[100px] text-xs text-blue-900/70 whitespace-pre-wrap font-mono shadow-inner leading-relaxed">
-                                          {lead.emailTemplate || '(No custom template)'}
-                                        </div>
-                                      </div>
-                                    </div>
+                                    <span
+                                      className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[3px] text-white"
+                                      style={{ backgroundColor: group.color }}
+                                    >
+                                      {group.label}
+                                    </span>
+                                    <span className="text-[11px] text-gray-400 font-medium">{group.leads.length} item{group.leads.length !== 1 ? 's' : ''}</span>
                                   </div>
                                 </td>
                               </tr>
-                            )}
-                          </Fragment>
-                        ))
+                              {/* Lead rows */}
+                              {group.leads.map((lead, idx) => (
+                                <Fragment key={lead.id}>
+                                  <tr
+                                    className={cn(
+                                      'transition-colors border-b border-gray-100',
+                                      expandedRows.has(lead.id) ? 'bg-yellow-50/40' : 'bg-white hover:bg-[#F5F6F8]/60'
+                                    )}
+                                    style={{ borderLeft: `4px solid ${group.color}` }}
+                                  >
+                                    {/* Expand toggle */}
+                                    <td className="w-[40px] px-2 py-2 text-center sticky left-0 bg-inherit z-10">
+                                      <button
+                                        onClick={() => toggleRow(lead.id)}
+                                        className="text-gray-300 hover:text-amber-500 transition-colors"
+                                      >
+                                        <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', expandedRows.has(lead.id) && 'rotate-90')} />
+                                      </button>
+                                    </td>
+
+                                    {/* Lead name */}
+                                    <td className="px-3 py-2 sticky left-[40px] bg-inherit z-10 min-w-[200px]">
+                                      <div className="flex flex-col gap-0.5">
+                                        <span className="text-[13px] font-semibold text-gray-900 truncate max-w-[180px]" title={lead.name}>
+                                          {lead.name || <span className="text-gray-300 italic text-xs">Unnamed</span>}
+                                        </span>
+                                        {lead.company && (
+                                          <span className="text-[11px] text-gray-400 truncate max-w-[180px]">{lead.company}</span>
+                                        )}
+                                      </div>
+                                    </td>
+
+                                    {/* Sales Rep */}
+                                    <td className="px-3 py-2 border-r border-gray-100">
+                                      <div className="flex items-center gap-2">
+                                        <Avatar className="h-6 w-6 flex-shrink-0">
+                                          <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
+                                            {initials(lead.user.name, lead.user.email)}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <span className="text-[12px] text-gray-700 truncate max-w-[80px]" title={displayName(lead.user)}>
+                                          {displayName(lead.user)}
+                                        </span>
+                                      </div>
+                                    </td>
+
+                                    {/* Status pill */}
+                                    <td className="px-3 py-2 border-r border-gray-100 text-center">
+                                      <span
+                                        className="inline-flex items-center justify-center h-[26px] px-3 rounded-[3px] text-[12px] font-medium text-white w-full max-w-[100px]"
+                                        style={{ backgroundColor: group.color }}
+                                      >
+                                        {group.label}
+                                      </span>
+                                    </td>
+
+                                    {/* Priority pill */}
+                                    <td className="px-3 py-2 border-r border-gray-100 text-center">
+                                      {lead.priority ? (
+                                        <span
+                                          className="inline-flex items-center justify-center h-[26px] px-3 rounded-[3px] text-[12px] font-medium text-white w-full max-w-[100px]"
+                                          style={{ backgroundColor: PRIORITY_COLORS[lead.priority] || '#C4C4C4' }}
+                                        >
+                                          {lead.priority.charAt(0).toUpperCase() + lead.priority.slice(1)}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-300 text-xs">—</span>
+                                      )}
+                                    </td>
+
+                                    {/* Email */}
+                                    <td className="px-3 py-2 border-r border-gray-100">
+                                      <span className="text-[12px] text-gray-600 truncate block max-w-[160px]" title={lead.email}>
+                                        {lead.email || <span className="text-gray-300">—</span>}
+                                      </span>
+                                    </td>
+
+                                    {/* Socials — Monday-style ticks, clickable if URL exists */}
+                                    <td className="px-3 py-2 border-r border-gray-100">
+                                      <div className="flex items-center gap-1">
+                                        {(() => {
+                                          let socialEntries: Array<{ platform: string; url: string }> = [];
+                                          try {
+                                            const parsed = JSON.parse(lead.socials || '[]');
+                                            if (Array.isArray(parsed)) socialEntries = parsed;
+                                          } catch {}
+                                          return [
+                                            { key: 'instagram', label: 'IG', color: '#E1306C' },
+                                            { key: 'facebook', label: 'FB', color: '#1877F2' },
+                                            { key: 'linkedin', label: 'LI', color: '#0A66C2' },
+                                            { key: 'twitter', label: 'X', color: '#1DA1F2' },
+                                            { key: 'tiktok', label: 'TT', color: '#010101' },
+                                          ].map(({ key, label, color }) => {
+                                            const active = !!(lead as any)[key];
+                                            const entry = socialEntries.find(e => e.platform === key);
+                                            const url = entry?.url || lead.profileUrl || '';
+                                            const Tag = active && url ? 'a' : 'span';
+                                            return (
+                                              <Tag
+                                                key={key}
+                                                {...(active && url ? { href: url.startsWith('http') ? url : `https://${url}`, target: '_blank', rel: 'noopener noreferrer' } : {})}
+                                                title={active && url ? url : label}
+                                                className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-[3px] text-[10px] font-bold transition-opacity"
+                                                style={
+                                                  active
+                                                    ? { backgroundColor: color, color: '#fff', opacity: url ? 1 : 0.7, cursor: url ? 'pointer' : 'default' }
+                                                    : { backgroundColor: '#F5F6F8', color: '#C4C4C4', border: '1px solid #E6E9EF' }
+                                                }
+                                              >
+                                                {label}
+                                              </Tag>
+                                            );
+                                          });
+                                        })()}
+                                      </div>
+                                    </td>
+
+                                    {/* Activity — Monday-style ticks for contacted actions */}
+                                    <td className="px-3 py-2 border-r border-gray-100">
+                                      <div className="flex items-center justify-center gap-1">
+                                        {[
+                                          { flag: lead.meetingBooked, label: 'M', color: '#00C875', title: 'Meeting' },
+                                          { flag: lead.emailed, label: 'E', color: '#579BFC', title: 'Emailed' },
+                                          { flag: lead.called, label: 'C', color: '#FDAB3D', title: 'Called' },
+                                          { flag: lead.texted, label: 'T', color: '#A25DDC', title: 'Texted' },
+                                        ].map(({ flag, label, color, title }) => (
+                                          <span
+                                            key={label}
+                                            title={title}
+                                            className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-[3px] text-[10px] font-bold"
+                                            style={
+                                              flag
+                                                ? { backgroundColor: color, color: '#fff' }
+                                                : { backgroundColor: '#F5F6F8', color: '#C4C4C4', border: '1px solid #E6E9EF' }
+                                            }
+                                          >
+                                            {flag ? <Check className="h-3 w-3" strokeWidth={3} /> : label}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </td>
+
+                                    {/* Added */}
+                                    <td className="px-3 py-2">
+                                      <div className="flex flex-col gap-0.5">
+                                        <span className="text-[11px] font-semibold text-gray-700 whitespace-nowrap">
+                                          {new Date(lead.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                          {new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                        </span>
+                                      </div>
+                                    </td>
+                                  </tr>
+
+                                  {/* Expanded detail panel — unchanged */}
+                                  {expandedRows.has(lead.id) && (
+                                    <tr className="bg-yellow-50/20" style={{ borderLeft: `4px solid ${group.color}` }}>
+                                      <td colSpan={9} className="px-6 py-4 border-b border-gray-200">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                          {/* Metadata */}
+                                          <div className="space-y-4">
+                                            <div className="space-y-1">
+                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                                <HistoryIcon className="h-3 w-3" /> Timestamps
+                                              </p>
+                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
+                                                <p className="text-xs flex justify-between">
+                                                  <span className="text-gray-400">Created:</span>
+                                                  <span className="font-medium text-gray-600">{formatToEST(lead.createdAt)}</span>
+                                                </p>
+                                                <p className="text-xs flex justify-between">
+                                                  <span className="text-gray-400">Last Sync:</span>
+                                                  <span className="font-medium text-gray-600">{formatToEST(lead.updatedAt)}</span>
+                                                </p>
+                                              </div>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                                <HistoryIcon className="h-3 w-3" /> Contact Timeline
+                                              </p>
+                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
+                                                {!lead.dmAt && !lead.meetingAt && !lead.emailedAt && !lead.calledAt && !lead.textedAt && (
+                                                  <p className="text-[10px] text-gray-300 italic text-center py-2">No contact recorded</p>
+                                                )}
+                                                {lead.dmAt && (
+                                                  <p className="text-[10px] flex justify-between">
+                                                    <span className="text-gray-400">Social DM:</span>
+                                                    <span className="font-medium text-pink-600">{formatToEST(lead.dmAt)}</span>
+                                                  </p>
+                                                )}
+                                                {lead.meetingAt && (
+                                                  <p className="text-[10px] flex justify-between">
+                                                    <span className="text-gray-400">Meeting:</span>
+                                                    <span className="font-medium text-green-600">{formatToEST(lead.meetingAt)}</span>
+                                                  </p>
+                                                )}
+                                                {lead.emailedAt && (
+                                                  <p className="text-[10px] flex justify-between">
+                                                    <span className="text-gray-400">Email:</span>
+                                                    <span className="font-medium text-blue-600">{formatToEST(lead.emailedAt)}</span>
+                                                  </p>
+                                                )}
+                                                {lead.calledAt && (
+                                                  <p className="text-[10px] flex justify-between">
+                                                    <span className="text-gray-400">Call:</span>
+                                                    <span className="font-medium text-amber-600">{formatToEST(lead.calledAt)}</span>
+                                                  </p>
+                                                )}
+                                                {lead.textedAt && (
+                                                  <p className="text-[10px] flex justify-between">
+                                                    <span className="text-gray-400">Text:</span>
+                                                    <span className="font-medium text-purple-600">{formatToEST(lead.textedAt)}</span>
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                                <LinkIcon className="h-3 w-3" /> Context
+                                              </p>
+                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 text-xs text-gray-600 space-y-1">
+                                                <p><strong>Platform:</strong> {lead.dmPlatform ? DM_PLATFORMS[lead.dmPlatform]?.label : 'None'}</p>
+                                                <p><strong>Priority:</strong> {lead.priority ? lead.priority.charAt(0).toUpperCase() + lead.priority.slice(1) : 'N/A'}</p>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Content */}
+                                          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                                <InfoIcon className="h-3 w-3" /> Lead Notes
+                                              </p>
+                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 min-h-[100px] text-xs text-gray-700 whitespace-pre-wrap leading-relaxed shadow-inner italic">
+                                                {lead.notes || '(No notes provided by rep)'}
+                                              </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                                <Mail className="h-3 w-3" /> Email Template
+                                              </p>
+                                              <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 min-h-[100px] text-xs text-blue-900/70 whitespace-pre-wrap font-mono shadow-inner leading-relaxed">
+                                                {lead.emailTemplate || '(No custom template)'}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </Fragment>
+                              ))}
+                              {/* Group summary row */}
+                              <tr className="bg-[#F5F6F8] border-b border-gray-200">
+                                <td colSpan={2} className="px-3 py-1.5 sticky left-0 bg-[#F5F6F8]">
+                                  <span className="text-[11px] text-gray-400 font-medium">{group.leads.length} item{group.leads.length !== 1 ? 's' : ''}</span>
+                                </td>
+                                <td colSpan={7} className="px-3 py-1.5">
+                                  <span className="text-[11px] text-gray-400">
+                                    {group.leads.filter(l => l.meetingBooked).length} meetings ·{' '}
+                                    {group.leads.filter(l => l.emailed || l.called || l.texted).length} contacted
+                                  </span>
+                                </td>
+                              </tr>
+                            </Fragment>
+                          ));
+                        })()
                       )}
                     </tbody>
                   </table>
@@ -1114,7 +1170,7 @@ export function SalesManagementTab() {
               </div>
             )}
 
-            {/* ── Modals ─────────────────────────────────────────────── */}
+            {/* Modals — unchanged */}
             <ReadonlyNotesModal
               open={notesModal.open}
               lead={notesModal.lead}
