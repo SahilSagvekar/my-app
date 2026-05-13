@@ -865,6 +865,7 @@ export function SalesManagementTab() {
                         <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-16">Text</th>
                         <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider border-r border-gray-200 w-28">Notes</th>
                         <th className="px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider w-24">Email Tmpl</th>
+                        <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider border-l border-gray-200 w-36">Added</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -988,6 +989,21 @@ export function SalesManagementTab() {
                                 ) : (
                                   <span className="text-gray-300 text-xs">—</span>
                                 )}
+                              </td>
+
+                              {/* Added — date + salesperson, for duplicate/commission disputes */}
+                              <td className="px-3 py-2.5 border-l border-gray-200">
+                                <div className="flex flex-col gap-0.5 min-w-[120px]">
+                                  <span className="text-[11px] font-semibold text-gray-700 whitespace-nowrap">
+                                    {new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                                    {new Date(lead.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}
+                                  </span>
+                                  <span className="text-[10px] text-indigo-600 font-medium truncate max-w-[120px]" title={displayName(lead.user)}>
+                                    {displayName(lead.user)}
+                                  </span>
+                                </div>
                               </td>
                             </tr>
 
