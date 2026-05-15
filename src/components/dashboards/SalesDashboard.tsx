@@ -6,7 +6,7 @@ import {
   History as HistoryIcon, Clock, Loader2, RefreshCw, Plus, Trash2,
   Download, Search, ChevronDown, Mail, Phone, MessageSquare, FileText,
   UploadCloud, Instagram, Eye, EyeOff, GripVertical, Flag, ChevronUp,
-  Settings2, Columns3, Sparkles, Zap
+  Settings2, Columns3, Sparkles, Zap, FileSpreadsheet
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ImportLeadsDialog } from './sales/ImportLeadsDialog';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1401,6 +1402,7 @@ export function SalesDashboard() {
   const [massEmailModal, setMassEmailModal] = useState(false);
   const [linkedinJob, setLinkedinJob] = useState<LinkedinLeadGenerationJob | null>(null);
   const [startingLinkedinJob, setStartingLinkedinJob] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
   const openNotes = useCallback((lead: Lead) => setNotesModal({ open: true, lead }), []);
@@ -1785,6 +1787,15 @@ export function SalesDashboard() {
           <Button
             size="sm"
             variant="outline"
+            onClick={() => setShowImportDialog(true)}
+            className="gap-1.5 text-xs border-green-200 text-green-700 hover:bg-green-50 h-8"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Import Excel
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={handleGenerateLinkedinLeads}
             disabled={startingLinkedinJob || linkedinJobActive}
             className="gap-1.5 text-xs border-cyan-200 text-cyan-700 hover:bg-cyan-50 h-8"
@@ -1941,6 +1952,15 @@ export function SalesDashboard() {
             const data = await res.json();
             if (data.ok) setLeads(data.leads.map(dbLeadToLocal).concat([emptyDraftLead()]));
           })();
+        }}
+      />
+      <ImportLeadsDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImported={async () => {
+          const res = await fetch('/api/sales-leads', { credentials: 'include' });
+          const data = await res.json();
+          if (data.ok) setLeads(data.leads.map(dbLeadToLocal).concat([emptyDraftLead()]));
         }}
       />
     </div>
