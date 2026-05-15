@@ -46,6 +46,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
+    { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },

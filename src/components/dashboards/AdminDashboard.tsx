@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  FolderSearch,
 } from 'lucide-react';
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
@@ -89,6 +90,7 @@ const SalesManagementTab = safeDynamic(() => import('../admin/SalesManagementTab
 const VideographerManagementTab = safeDynamic(() => import('../admin/VideographerManagementTab').then(mod => ({ default: mod.VideographerManagementTab })), "Videographer Management");
 const MonthlyDeliverablesTab = safeDynamic(() => import('../admin/MonthlyDeliverablesTab').then(mod => ({ default: mod.MonthlyDeliverablesTab })), "Monthly Deliverables");
 const BillingDashboard = safeDynamic(() => import('../billing/BillingDashboard').then(mod => ({ default: mod.BillingDashboard })), "Billing");
+const FolderRepairTool = safeDynamic(() => import('../admin/Folderrepairtool').then(mod => ({ default: mod.FolderRepairTool })), "Folder Repair");
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
@@ -651,6 +653,14 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           System & Compliance
         </div>
 
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('repair-folders')}
+          className="gap-2 cursor-pointer"
+        >
+          <FolderSearch className="h-4 w-4 text-amber-500" />
+          Repair R2 Folders
+        </DropdownMenuItem>
+
         {/* <DropdownMenuItem
           onClick={() => onPageChange?.('activity_logs')}
           className="gap-2 cursor-pointer"
@@ -889,6 +899,9 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
             <BillingDashboard />
           </div>
         );
+
+      case 'repair-folders':
+        return <FolderRepairTool />;
 
       default:
         console.log('📑 [ADMIN] Falling back to dashboard');

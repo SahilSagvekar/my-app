@@ -15,19 +15,33 @@ export async function GET(req: NextRequest) {
     // }
 
     const user = await getCurrentUser2(req);
-        if (!user) {
-          return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-        }
-    
+    if (!user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
     const { searchParams } = new URL(req.url);
-    const clientId = searchParams.get("clientId");
+    const requestedClientId = searchParams.get("clientId");
     const platform = searchParams.get("platform");
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
     const search = searchParams.get("search");
     const limit = parseInt(searchParams.get("limit") || "9999");
     const offset = parseInt(searchParams.get("offset") || "0");
+
+    // ── Data isolation: clients can ONLY see their own posted content ──────────
+    // Admins/managers/schedulers can see all or filter by any clientId.
+    // A client user must always be scoped to their own linkedClientId — regardless
+    // of what clientId param they pass in the request.
+    const isClient = user.role?.toLowerCase() === "client";
+    let clientId = requestedClientId;
+
+    if (isClient) {
+      // Enforce their own clientId — ignore whatever was in the query param
+      if (!user.linkedClientId) {
+        return NextResponse.json({ message: "No client account linked to your user." }, { status: 403 });
+      }
+      clientId = user.linkedClientId;
+    }
 
     // Build where clause
     const where: any = {};

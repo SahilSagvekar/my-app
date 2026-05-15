@@ -40,6 +40,7 @@ import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 import { CompressionDashboard } from "@/components/admin/CompressionDashboard";
 import { ProductionTracker } from "../dashboards/ProductionTracker";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
+import { FolderRepairTool } from "../admin/Folderrepairtool";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -210,6 +211,8 @@ export function renderPage(
             <DriveExplorer role={role} />
           </div>
         );
+      case "repair-folders":
+        return <FolderRepairTool />;
       // case "activity_logs":
       //   return <ActivityLogReportTab />;
       default:

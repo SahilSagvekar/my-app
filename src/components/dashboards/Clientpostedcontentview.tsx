@@ -141,22 +141,22 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
     const [availableDeliverables, setAvailableDeliverables] = useState<string[]>([]);
 
     useEffect(() => {
+        // Don't fetch at all if clientId is not available yet — avoids leaking all data
+        if (!clientId) return;
         fetchPostedContent();
     }, [clientId]);
 
     async function fetchPostedContent() {
+        if (!clientId) return;
+
         try {
             setLoading(true);
 
-            // ── Source 1: PostedContent records (imported from spreadsheet / manually added) ──
-            const pcUrl = clientId
-                ? `/api/posted-content?clientId=${clientId}&limit=9999`
-                : `/api/posted-content?limit=9999`;
+            // ── Source 1: PostedContent records ──
+            const pcUrl = `/api/posted-content?clientId=${clientId}&limit=9999`;
 
-            // ── Source 2: Tasks with SCHEDULED/POSTED status that have socialMediaLinks ──
-            const taskUrl = clientId
-                ? `/api/tasks?clientId=${clientId}&status=POSTED`
-                : `/api/tasks?status=POSTED`;
+            // ── Source 2: Tasks with POSTED status that have socialMediaLinks ──
+            const taskUrl = `/api/tasks?clientId=${clientId}&status=POSTED`;
 
             const [pcRes, taskRes] = await Promise.all([
                 fetch(pcUrl, { cache: "no-store", credentials: "include" }),
@@ -401,6 +401,15 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
     // Stats
     const postedCount = filteredItems.length;
     const hasActiveFilters = debouncedSearchTerm || platformFilter.length > 0 || deliverableFilter !== 'all' || statusFilter !== 'all';
+
+    if (!clientId) {
+        return (
+            <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
+                <p className="font-medium">No client account linked</p>
+                <p className="text-sm mt-1">Contact your account manager to set up access.</p>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
