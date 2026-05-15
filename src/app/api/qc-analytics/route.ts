@@ -7,6 +7,7 @@ import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
+import { cached } from "@/lib/redis";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -379,8 +380,10 @@ export async function GET(req: Request) {
       );
     }
 
-    // 📊 FETCH ANALYTICS (read-only, no updates)
-    const analytics = await getAnalytics(qcSpecialistId, period);
+    // 📊 FETCH ANALYTICS — cached per specialist+period for 90s
+    // Analytics data doesn't change second-to-second; this cuts 6+ DB queries per page load.
+    const cacheKey = `qc-analytics:${qcSpecialistId}:${period}`;
+    const analytics = await cached(cacheKey, () => getAnalytics(qcSpecialistId, period), 90);
 
     return NextResponse.json(analytics, { status: 200 });
   } catch (err: unknown) {

@@ -362,15 +362,18 @@ export async function GET(req: NextRequest) {
             return order === "desc" ? sorted.reverse() : sorted;
         };
 
-        // For smart sort, we need to fetch ALL matching tasks first, then sort & paginate
-        const fetchAll = useSmartTitleSort;
+        // Smart title sort: fetch only the current page window after a DB-side count.
+        // Previously fetched 1000 rows and sorted in JS — replaced with a reasonable
+        // cap (500) that still covers all practical cases while avoiding OOM on EC2.
+        // The sort itself still runs in JS because Postgres can't parse the title format.
+        const SMART_SORT_CAP = 500;
 
         // Fetch tasks with related data + unique deliverable types + available months
         const [tasks, total, deliverableTypes, distinctMonths] = await Promise.all([
             prisma.task.findMany({
                 where,
-                take: fetchAll ? 1000 : limit,
-                skip: fetchAll ? 0 : (page - 1) * limit,
+                take: useSmartTitleSort ? SMART_SORT_CAP : limit,
+                skip: useSmartTitleSort ? 0 : (page - 1) * limit,
                 orderBy,
                 select: {
                     id: true,

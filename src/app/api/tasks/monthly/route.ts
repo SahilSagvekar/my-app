@@ -19,13 +19,11 @@ export async function GET(req: Request) {
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
 
-    // Role-based filters
     const where =
       ["admin", "manager"].includes(decoded.role)
         ? {}
         : { assignedTo: Number(decoded.userId) };
 
-    // Calculate ranges
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
@@ -33,45 +31,11 @@ export async function GET(req: Request) {
     const monthStart = new Date(year, month, 1);
     const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
 
-    const nextMonthStart = new Date(year, month + 1, 1);
-    const nextMonthEnd = new Date(year, month + 2, 0, 23, 59, 59);
-
-    // ========== CURRENT MONTH TASKS ==========
+    // Single query — was being run twice with identical params (bug from refactor)
     const currentMonthTasks = await prisma.task.findMany({
       where: {
         ...where,
-        dueDate: {
-          gte: monthStart,
-          lte: monthEnd,
-        },
-      },
-      orderBy: { dueDate: "asc" },
-    });
-
-    // ========== NEXT MONTH RECURRING ==========
-    // const nextMonthRecurring = await prisma.recurringTask.findMany({
-    //   where: {
-    //     // client: where.clientId ? { id: where.clientId } : undefined,
-    //     active: true,
-    //     nextRunDate: {
-    //       gte: nextMonthStart,
-    //       lte: nextMonthEnd,
-    //     },
-    //   },
-    //   include: {
-    //     client: true,
-    //     deliverable: true,
-    //   },
-    //   orderBy: { nextRunDate: "asc" },
-    // });
-
-    const nextMonthRecurring = await prisma.task.findMany({
-      where: {
-        ...where,
-        dueDate: {
-          gte: monthStart,
-          lte: monthEnd,
-        },
+        dueDate: { gte: monthStart, lte: monthEnd },
       },
       orderBy: { dueDate: "asc" },
     });
@@ -79,13 +43,13 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         currentMonthTasks,
-        nextMonthRecurring,
+        // nextMonthRecurring reuses the same data; caller can use currentMonthTasks
+        nextMonthRecurring: currentMonthTasks,
       },
       { status: 200 }
     );
-
   } catch (err: any) {
-    console.error("❌ GET /api/tasks/monthly error:", err);
+    console.error("GET /api/tasks/monthly error:", err);
     return NextResponse.json(
       { message: "Server error", error: err.message },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser2 } from "@/lib/auth";
+import { cached } from "@/lib/redis";
 
 // GET /api/admin/production-tracker?month=April-2026
 export async function GET(req: NextRequest) {
@@ -25,6 +26,11 @@ export async function GET(req: NextRequest) {
     const year = parseInt(yearStr);
     const monthStart = new Date(year, monthIndex, 1);
     const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+
+    // Cached per month — 120s TTL. Tasks change every few minutes at most,
+    // and this route runs 3 heavy queries. Cache dramatically reduces DB load.
+    const cacheKey = `production-tracker:${targetMonth}`;
+    const cachedResult = await cached(cacheKey, async () => {
 
     // 1. Get all active clients with their monthly deliverables
     const clients = await prisma.client.findMany({
@@ -301,7 +307,7 @@ export async function GET(req: NextRequest) {
       return dB.getTime() - dA.getTime(); // newest first
     });
 
-    return NextResponse.json({
+    return {
       month: targetMonth,
       summary,
       statusSummary,
@@ -311,7 +317,10 @@ export async function GET(req: NextRequest) {
       schedulerPerformance: schedulerPerf,
       atRiskClients,
       availableMonths,
-    });
+    };
+    }, 120); // 120s TTL
+
+    return NextResponse.json(cachedResult);
   } catch (err: any) {
     console.error("Production tracker error:", err);
     return NextResponse.json(

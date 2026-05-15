@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
+import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Users, UserCheck, UserX, Calendar } from "lucide-react";
+
+const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 const roles = [
   {
@@ -133,66 +136,45 @@ export function UserManagementTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [employeesList, setEmployeesList] = useState<Employee[]>([]);
   const [clientsCount, setClientsCount] = useState(0);
 
+  // SWR: employees — cached 5 min, don't refetch on focus (stable list)
+  const { data: empData } = useSWR("/api/employee/list", fetcher, {
+    dedupingInterval: 300000,
+    revalidateOnFocus: false,
+  });
+
+  // Lightweight client count — just need the number, not full objects
   useEffect(() => {
-    async function loadEmployees() {
-      try {
-        const res = await fetch("api/employee/list");
-        const data: EmployeeApiResponse = await res.json();
-
-        if (data.ok) {
-          const formatted: Employee[] = data.employees.map((u) => {
-            const initials =
-              u.name && u.name.trim() !== ""
-                ? u.name
-                  .split(" ")
-                  .map((n: string) => n[0])
-                  .join("")
-                : "U";
-
-            return {
-              id: u.id,
-              name: u.name || "No Name",
-              email: u.email,
-              phone: "N/A",
-              role: u.role,
-              status:
-                u.employeeStatus === "ACTIVE"
-                  ? "active"
-                  : u.employeeStatus === "INACTIVE"
-                    ? "inactive"
-                    : "active",
-              joinDate: formatDateMDY(u.joinedAt || null),
-              lastActive: formatLastActive(u.lastActive),
-              tasksCompleted: 0,
-              avatar: initials,
-            };
-          });
-
-          setEmployeesList(formatted);
-        }
-      } catch (error) {
-        console.error("Failed to fetch employees →", error);
-      }
-    }
-
-    async function loadClientsCount() {
-      try {
-        const res = await fetch("/api/clients");
-        const data = await res.json();
-        if (data.clients && Array.isArray(data.clients)) {
-          setClientsCount(data.clients.length);
-        }
-      } catch (error) {
-        console.error("Failed to fetch clients count →", error);
-      }
-    }
-
-    loadEmployees();
-    loadClientsCount();
+    fetch("/api/clients/count")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.count != null) setClientsCount(d.count); })
+      .catch(() => {
+        // Fallback: fetch full list but only use length
+        fetch("/api/clients")
+          .then(r => r.json())
+          .then(d => { if (d.clients) setClientsCount(d.clients.length); })
+          .catch(() => {});
+      });
   }, []);
+
+  const employeesList: Employee[] = (empData?.employees || []).map((u: any) => {
+    const initials = u.name?.trim()
+      ? u.name.split(" ").map((n: string) => n[0]).join("")
+      : "U";
+    return {
+      id: u.id,
+      name: u.name || "No Name",
+      email: u.email,
+      phone: "N/A",
+      role: u.role,
+      status: u.employeeStatus === "ACTIVE" ? "active" : u.employeeStatus === "INACTIVE" ? "inactive" : "active",
+      joinDate: formatDateMDY(u.joinedAt || null),
+      lastActive: formatLastActive(u.lastActive),
+      tasksCompleted: 0,
+      avatar: initials,
+    };
+  });
 
   const filteredEmployees = employeesList.filter((employee) => {
     const matchesSearch =
@@ -227,8 +209,7 @@ export function UserManagementTab() {
     count: employeesList.filter((emp) => emp.status === status.id).length,
   }));
 
-  // Use filteredEmployees, getRoleBadge, getStatusBadge to prevent unused variable warnings
-  console.log({ filteredEmployees, getRoleBadge, getStatusBadge });
+  // filteredEmployees, getRoleBadge, getStatusBadge are used in render below
 
   return (
     <div className="space-y-6">

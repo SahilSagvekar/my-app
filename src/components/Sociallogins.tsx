@@ -805,7 +805,8 @@ export function SocialLogins() {
   const [deletePasswordError, setDeletePasswordError] = useState("");
   const [isDeletingLogin, setIsDeletingLogin] = useState(false);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // changed: don't block initial render
+  const [loginsLoading, setLoginsLoading] = useState(false);
 
   const userRole = (user?.role ?? "").toLowerCase();
   const isAdmin = userRole === "admin";
@@ -853,6 +854,7 @@ export function SocialLogins() {
   /* ----------------------------- DATA LOADING ------------------------------ */
 
   useEffect(() => {
+    // Load clients + 2FA check in parallel — does NOT block the lock screen from rendering
     async function loadData() {
       try {
         const [clientsRes, twoFactorRes] = await Promise.all([
@@ -889,6 +891,7 @@ export function SocialLogins() {
   useEffect(() => {
     async function loadLogins() {
       try {
+        setLoginsLoading(true);
         const url = isClient && userClientId ? `/api/logins?clientId=${userClientId}` : "/api/logins";
         const res = await fetch(url);
         const data = await res.json();
@@ -899,6 +902,8 @@ export function SocialLogins() {
         setLogins(fetched);
       } catch (err) {
         console.error("Failed to load logins:", err);
+      } finally {
+        setLoginsLoading(false);
       }
     }
     if (isUnlocked) loadLogins();
@@ -1166,7 +1171,17 @@ export function SocialLogins() {
 
       {/* Logins grouped by client */}
       <div className="space-y-6">
-        {Object.entries(loginsByClient).map(([clientId, { clientName, logins: clientLogins }]) => (
+        {loginsLoading ? (
+          // Skeleton — shown while logins load after unlock, not a full-page blocker
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="border rounded-xl p-4 space-y-3 animate-pulse">
+              <div className="h-5 w-40 bg-muted rounded" />
+              {Array.from({ length: 2 }).map((__, j) => (
+                <div key={j} className="h-16 bg-muted/60 rounded-lg" />
+              ))}
+            </div>
+          ))
+        ) : Object.entries(loginsByClient).map(([clientId, { clientName, logins: clientLogins }]) => (
           <Card key={clientId}>
             <CardHeader className="pb-0">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -1297,7 +1312,7 @@ export function SocialLogins() {
           </Card>
         ))}
 
-        {Object.keys(loginsByClient).length === 0 && (
+        {!loginsLoading && Object.keys(loginsByClient).length === 0 && (
           <Card>
             <CardContent className="py-12 text-center">
               <Key className="h-12 w-12 text-gray-300 mx-auto mb-4" />

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
 import { getCurrentUser2 } from "@/lib/auth";
+import { cached } from "@/lib/redis";
 
 // GET - Fetch posted content for a client
 export async function GET(req: NextRequest) {
@@ -65,25 +66,35 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    // Fetch with pagination
-    const [contents, total] = await Promise.all([
-      prisma.postedContent.findMany({
-        where,
-        orderBy: { postedAt: "desc" },
-        take: limit,
-        skip: offset,
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              companyName: true,
+    // Cache simple clientId-only reads for 60s — stable data, no search/date filters
+    const isSimpleRead = !!(clientId && !search && !dateFrom && !dateTo && !platform);
+    const cacheKey = `posted-content:${clientId}:${offset}:${limit}`;
+
+    const fetchData = async () => {
+      const [contents, total] = await Promise.all([
+        prisma.postedContent.findMany({
+          where,
+          orderBy: { postedAt: "desc" },
+          take: limit,
+          skip: offset,
+          include: {
+            client: {
+              select: {
+                id: true,
+                name: true,
+                companyName: true,
+              },
             },
           },
-        },
-      }),
-      prisma.postedContent.count({ where }),
-    ]);
+        }),
+        prisma.postedContent.count({ where }),
+      ]);
+      return { contents, total };
+    };
+
+    const { contents, total } = isSimpleRead
+      ? await cached(cacheKey, fetchData, 60)
+      : await fetchData();
 
     return NextResponse.json({
       contents,

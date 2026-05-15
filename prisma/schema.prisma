@@ -182,6 +182,7 @@ model Task {
   @@index([assignedTo])
   @@index([clientId])
   @@index([status])
+  @@index([monthFolder])  // production-tracker and admin tasks filter on monthFolder
   @@index([qc_specialist])
   @@index([scheduler])
   @@index([videographer])
@@ -1736,6 +1737,7 @@ model PostedContent {
   @@index([clientId])
   @@index([postedAt])
   @@index([platform])
+  @@index([clientId, postedAt])  // composite: progress API filters clientId IN [...] AND postedAt BETWEEN
 }
 
 // Per-client, per-platform posting targets for daily tracking
