@@ -32,6 +32,10 @@ import {
   Pencil,
   Filter,
   FolderOpen,
+  CheckSquare,
+  Square,
+  FolderDown,
+  PackageOpen,
 } from "lucide-react";
 import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
@@ -140,6 +144,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [itemToDelete, setItemToDelete] = useState<DriveItem | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // ─── Multi-select & bulk download state ───────────────────────────────────
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [isZipping, setIsZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState<string>('');
 
   // Share states
   const [shareLink, setShareLink] = useState("");
@@ -756,6 +766,111 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
+  // ─── Zip download helpers ─────────────────────────────────────────────────
+
+  const triggerZipDownload = (blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const handleDownloadFolder = async (item: DriveItem) => {
+    const s3Key = item.s3Key || getS3Key(item);
+    const folderPrefix = s3Key.endsWith('/') ? s3Key : `${s3Key}/`;
+    setIsZipping(true);
+    setZipProgress(`Preparing "${item.name}"…`);
+    try {
+      const res = await fetch('/api/drive/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderPrefix, zipName: `${item.name}.zip` }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+      triggerZipDownload(await res.blob(), `${item.name}.zip`);
+      toast.success(`Downloaded "${item.name}.zip"`);
+    } catch (err: any) {
+      toast.error(err.message || 'Zip failed');
+    } finally { setIsZipping(false); setZipProgress(''); }
+  };
+
+  const handleDownloadAll = async () => {
+    const currentPrefix = getCurrentFolderS3Path();
+    const folderName = breadcrumb[breadcrumb.length - 1]?.name || 'download';
+    setIsZipping(true);
+    setZipProgress(`Zipping "${folderName}"…`);
+    try {
+      const res = await fetch('/api/drive/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderPrefix: currentPrefix, zipName: `${folderName}.zip` }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+      triggerZipDownload(await res.blob(), `${folderName}.zip`);
+      toast.success(`Downloaded "${folderName}.zip"`);
+    } catch (err: any) {
+      toast.error(err.message || 'Zip failed');
+    } finally { setIsZipping(false); setZipProgress(''); }
+  };
+
+  const handleDownloadSelected = async () => {
+    const keys = Array.from(checkedItems);
+    if (keys.length === 0) return;
+    setIsZipping(true);
+    setZipProgress(`Zipping ${keys.length} item${keys.length !== 1 ? 's' : ''}…`);
+    try {
+      const fileKeys: string[] = [];
+      for (const key of keys) {
+        const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
+        if (item?.type === 'folder') {
+          const res = await fetch('/api/drive/download-zip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folderPrefix: key.endsWith('/') ? key : `${key}/`, zipName: `${item.name}.zip` }),
+          });
+          if (res.ok) triggerZipDownload(await res.blob(), `${item.name}.zip`);
+        } else {
+          fileKeys.push(key);
+        }
+      }
+      if (fileKeys.length > 0) {
+        const res = await fetch('/api/drive/download-zip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keys: fileKeys, zipName: 'selected-files.zip' }),
+        });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+        triggerZipDownload(await res.blob(), 'selected-files.zip');
+      }
+      toast.success('Download started');
+      setCheckedItems(new Set());
+      setIsSelectionMode(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Zip failed');
+    } finally { setIsZipping(false); setZipProgress(''); }
+  };
+
+  const toggleChecked = (item: DriveItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const key = item.s3Key || getS3Key(item);
+    setCheckedItems(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const selectAllFiles = () => {
+    setCheckedItems(new Set(filteredItems.map(i => i.s3Key || getS3Key(i))));
+  };
+
+  const clearChecked = () => { setCheckedItems(new Set()); setIsSelectionMode(false); };
+
+
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase();
 
@@ -1334,8 +1449,72 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               )}
             </div>
 
-            {/* Right: View toggle and Refresh */}
+            {/* Right: Download All, Select, View toggle, Refresh */}
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+
+              {/* Zip progress indicator */}
+              {isZipping && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span className="hidden sm:inline">{zipProgress || 'Preparing zip…'}</span>
+                </div>
+              )}
+
+              {/* Selection mode active: show count + actions */}
+              {isSelectionMode && checkedItems.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {checkedItems.size} selected
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="gap-1.5 h-9"
+                    onClick={handleDownloadSelected}
+                    disabled={isZipping}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Download</span>
+                    <span className="sm:hidden">{checkedItems.size}</span>
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-9 px-2" onClick={clearChecked}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Download All button */}
+              {filteredItems.some(i => i.type === 'file') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 h-9 shrink-0"
+                  onClick={handleDownloadAll}
+                  disabled={isZipping}
+                >
+                  <FolderDown className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Download All</span>
+                </Button>
+              )}
+
+              {/* Select mode toggle */}
+              <Button
+                variant={isSelectionMode ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5 h-9 shrink-0"
+                onClick={() => { setIsSelectionMode(s => !s); if (isSelectionMode) clearChecked(); }}
+              >
+                {isSelectionMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{isSelectionMode ? 'Done' : 'Select'}</span>
+              </Button>
+
+              {/* Select All (shown only in selection mode) */}
+              {isSelectionMode && (
+                <Button size="sm" variant="ghost" className="h-9 px-2 text-xs" onClick={selectAllFiles}>
+                  All
+                </Button>
+              )}
+
               <div className="flex bg-secondary/30 p-1 rounded-lg">
                 <Button
                   variant={viewMode === "grid" ? "secondary" : "ghost"}
@@ -1462,11 +1641,24 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     key={item.path}
                     className={cn(
                       "group relative border rounded-lg p-2 sm:p-4 cursor-pointer hover:bg-accent transition-colors",
-                      selectedItems.has(item.path) && "bg-accent border-primary"
+                      selectedItems.has(item.path) && "bg-accent border-primary",
+                      checkedItems.has(item.s3Key || getS3Key(item)) && "ring-2 ring-primary bg-primary/5"
                     )}
-                    onClick={() => handleItemClick(item)}
+                    onClick={() => isSelectionMode ? toggleChecked(item, { stopPropagation: () => {} } as any) : handleItemClick(item)}
                     onDoubleClick={() => handleItemDoubleClick(item)}
                   >
+                    {/* Selection checkbox */}
+                    {(isSelectionMode || checkedItems.has(item.s3Key || getS3Key(item))) && (
+                      <div
+                        className="absolute top-2 left-2 z-10"
+                        onClick={(e) => toggleChecked(item, e)}
+                      >
+                        {checkedItems.has(item.s3Key || getS3Key(item))
+                          ? <CheckSquare className="h-4 w-4 text-primary" />
+                          : <Square className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                    )}
+
                     <div className="flex flex-col items-center text-center">
                       {item.type === "folder" ? (
                         <Folder className="h-12 w-12 sm:h-16 sm:w-16 text-blue-500 mb-1 sm:mb-2" />
@@ -1500,6 +1692,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {item.type === "folder" && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); handleDownloadFolder(item); }}
+                              disabled={isZipping}
+                            >
+                              <FolderDown className="h-4 w-4 mr-2" />
+                              Download folder
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
                         {item.type === "file" && item.url && (
                           <>
                             <DropdownMenuItem
@@ -1520,9 +1724,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             <DropdownMenuSeparator />
                           </>
                         )}
-                        <DropdownMenuItem>
-                          <Star className="h-4 w-4 mr-2" />
-                          Add to starred
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleChecked(item, e);
+                            if (!isSelectionMode) setIsSelectionMode(true);
+                          }}
+                        >
+                          <CheckSquare className="h-4 w-4 mr-2" />
+                          {checkedItems.has(item.s3Key || getS3Key(item)) ? 'Deselect' : 'Select'}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -1585,13 +1795,22 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         key={item.path}
                         className={cn(
                           "border-b hover:bg-accent cursor-pointer transition-colors",
-                          selectedItems.has(item.path) && "bg-accent"
+                          selectedItems.has(item.path) && "bg-accent",
+                          checkedItems.has(item.s3Key || getS3Key(item)) && "bg-primary/5"
                         )}
-                        onClick={() => handleItemClick(item)}
+                        onClick={() => isSelectionMode ? toggleChecked(item, { stopPropagation: () => {} } as any) : handleItemClick(item)}
                         onDoubleClick={() => handleItemDoubleClick(item)}
                       >
                         <td className="p-2 sm:p-3">
                           <div className="flex items-center gap-2 sm:gap-3">
+                            {/* Checkbox in selection mode */}
+                            {isSelectionMode && (
+                              <div onClick={(e) => toggleChecked(item, e)} className="flex-shrink-0">
+                                {checkedItems.has(item.s3Key || getS3Key(item))
+                                  ? <CheckSquare className="h-4 w-4 text-primary" />
+                                  : <Square className="h-4 w-4 text-muted-foreground" />}
+                              </div>
+                            )}
                             {item.type === "folder" ? (
                               <Folder className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
                             ) : (
@@ -1629,6 +1848,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {item.type === "folder" && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={(e) => { e.stopPropagation(); handleDownloadFolder(item); }}
+                                    disabled={isZipping}
+                                  >
+                                    <FolderDown className="h-4 w-4 mr-2" />
+                                    Download folder
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               {item.type === "file" && item.url && (
                                 <>
                                   <DropdownMenuItem
@@ -1651,9 +1882,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                   <DropdownMenuSeparator />
                                 </>
                               )}
-                              <DropdownMenuItem>
-                                <Star className="h-4 w-4 mr-2" />
-                                Add to starred
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleChecked(item, e);
+                                  if (!isSelectionMode) setIsSelectionMode(true);
+                                }}
+                              >
+                                <CheckSquare className="h-4 w-4 mr-2" />
+                                {checkedItems.has(item.s3Key || getS3Key(item)) ? 'Deselect' : 'Select'}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem

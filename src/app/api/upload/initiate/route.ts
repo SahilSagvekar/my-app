@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
       folderType,
       taskTitle,
       subfolder, // 🔥 Can be empty string for main folder
+      relativePath, // 🔥 For folder uploads — e.g. "my-folder/sub/video.mp4"
     } = body;
 
     console.log("📤 Upload initiate request:", {
@@ -225,8 +226,21 @@ export async function POST(req: NextRequest) {
       if (drivePath !== "" && !drivePath.endsWith("/")) {
         drivePath += "/";
       }
-      await ensureS3FolderExists(drivePath);
-      s3Key = `${drivePath}${fileName}`;
+      // 🔥 Folder upload: relativePath preserves the sub-folder structure
+      // e.g. relativePath = "shoot-day-1/raw/clip.mp4" → key = basePath/shoot-day-1/raw/clip.mp4
+      if (relativePath) {
+        const dirPart = relativePath.split('/').slice(0, -1).join('/');
+        if (dirPart) {
+          await ensureS3FolderExists(`${drivePath}${dirPart}`);
+          s3Key = `${drivePath}${relativePath}`;
+        } else {
+          await ensureS3FolderExists(drivePath);
+          s3Key = `${drivePath}${fileName}`;
+        }
+      } else {
+        await ensureS3FolderExists(drivePath);
+        s3Key = `${drivePath}${fileName}`;
+      }
     } else {
       return NextResponse.json(
         { message: "Invalid folder type" },
