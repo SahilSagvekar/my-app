@@ -242,6 +242,7 @@ import jwt from "jsonwebtoken";
 import { createClientFolders } from "@/lib/s3";
 import { createRecurringTasksForClient } from "@/app/api/clients/recurring";
 import { redis, cached } from "@/lib/redis";
+import { onboardNewClient } from "@/lib/client-onboarding";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -502,6 +503,14 @@ export async function POST(req: Request) {
 
     // 🔥 Invalidate clients cache
     await redis.del("clients:all");
+
+    // 🎉 Onboarding: create Slack channel + send welcome email (non-blocking)
+    onboardNewClient({
+      clientId: client.id,
+      clientName: name,
+      companyName: companyName || name,
+      email,
+    }).catch(err => console.error('[POST /clients] Onboarding error:', err));
 
     return NextResponse.json(
       {
