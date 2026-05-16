@@ -111,6 +111,7 @@ interface DriveExplorerProps {
 
 type ViewMode = "grid" | "list";
 
+// ─── FEATURE 2: URL Path Persistence Helpers ───
 function getPathFromUrl(): string {
   if (typeof window === "undefined") return "";
   const params = new URLSearchParams(window.location.search);
@@ -144,7 +145,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Multi-select & bulk download state
+  // ─── Multi-select & bulk download state ───────────────────────────────────
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [isZipping, setIsZipping] = useState(false);
@@ -180,15 +181,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     isCritical: boolean;
   } | null>(null);
 
-  // Drag & Drop state
+  // ─── Drag & Drop state ───────────────────────────────────────────────────
   const [draggedItem, setDraggedItem] = useState<DriveItem | null>(null);
-  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null); // path of folder being hovered
   const [isMoving, setIsMoving] = useState(false);
-
-  // Deliverable type filter
   const [deliverableTypes, setDeliverableTypes] = useState<string[]>([]);
   const [selectedDeliverableFilter, setSelectedDeliverableFilter] = useState<string>("all");
 
+  // Short code to display name mapping
   const SHORT_CODE_LABELS: Record<string, string> = {
     SF: "Short Form",
     LF: "Long Form",
@@ -200,25 +200,32 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     BSF: "Beta Short Form",
   };
 
-  // Global Search
+  // ─── FEATURE 3: Global Search ───
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [globalSearchResults, setGlobalSearchResults] = useState<SearchResult[]>([]);
   const [isGlobalSearching, setIsGlobalSearching] = useState(false);
   const [showGlobalResults, setShowGlobalResults] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ─── FEATURE 2: Path restoration ref ───
   const pendingPathRef = useRef<string>("");
   const hasRestoredRef = useRef(false);
 
+  // ─── Admin browsing context: resolve clientId from company name ───
   const [browsingClientId, setBrowsingClientId] = useState<string | null>(null);
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
 
+  // Use linkedClientId when present, otherwise resolve from the visible company folder.
   const effectiveClientId = role === 'client' ? (user?.linkedClientId || browsingClientId) : browsingClientId;
   const effectiveCompanyName = role === 'client'
     ? (browsingCompanyName || breadcrumb[0]?.name || '')
     : browsingCompanyName;
 
+  // Resolve the client record from the visible company folder. Client users can
+  // be linked by email/user relation instead of linkedClientId.
   useEffect(() => {
+    // For clients: breadcrumb[0] IS the company name (no "Root" prefix)
+    // For admin/manager: breadcrumb[0] is "Root", breadcrumb[1] is the company name
     const companyFolder = role === 'client'
       ? breadcrumb[0]?.name
       : (breadcrumb.length >= 2 ? breadcrumb[1]?.name : breadcrumb[0]?.name);
@@ -240,6 +247,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       .catch(() => setBrowsingClientId(null));
   }, [breadcrumb, browsingCompanyName]);
 
+  // Fetch storage info for clients
   useEffect(() => {
     if (role === 'client' && effectiveClientId) {
       fetch(`/api/clients/${effectiveClientId}/storage`)
@@ -254,22 +262,28 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   }, [role, effectiveClientId]);
 
+  // ─── FEATURE 1: Extract deliverable types from output folder names ───
+  // Runs whenever driveStructure or currentFolder changes
   useEffect(() => {
     if (!driveStructure) return;
 
+    // Find output folder children — look for task folders with short codes
     const extractTypesFromFolder = (folder: DriveItem): Set<string> => {
       const types = new Set<string>();
       if (!folder.children) return types;
 
       for (const child of folder.children) {
         if (child.type === 'folder') {
+          // Task folder names: "CompanyName_MM-DD-YYYY_SF3" or just contain short codes
           const knownCodes = ['SF', 'LF', 'SQF', 'THUMB', 'HP', 'SEP', 'BSF', 'T'];
           for (const code of knownCodes) {
+            // Match code in folder name: look for _CODE followed by digit or end
             const pattern = new RegExp(`_${code}\\d*$|_${code}\\d*[^A-Z]`);
             if (pattern.test(child.name) || child.name.includes(`_${code}`)) {
               types.add(code);
             }
           }
+          // Also recurse into month folders to find task folders inside
           if (child.children) {
             const subTypes = extractTypesFromFolder(child);
             subTypes.forEach(t => types.add(t));
@@ -279,6 +293,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       return types;
     };
 
+    // Find the outputs folder in the tree
     const findOutputsFolder = (folder: DriveItem): DriveItem | null => {
       if (folder.name === 'outputs' || folder.name === 'output') return folder;
       if (!folder.children) return null;
@@ -298,15 +313,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   }, [driveStructure]);
 
+  // ─── FEATURE 2: Save pending path from URL before loading ───
   useEffect(() => {
     if (!hasRestoredRef.current) {
       pendingPathRef.current = getPathFromUrl();
     }
   }, []);
 
+  // ─── Resolve clientId for admin when browsing inside a company folder ───
   useEffect(() => {
-    if (role === 'client') return;
+    if (role === 'client') return; // Client already has linkedClientId
 
+    // For admin: breadcrumb[0] is "Root", breadcrumb[1] is the company name
+    // For other non-client roles with company as root, breadcrumb[0] is company
     const companyFolder = breadcrumb.length >= 2 ? breadcrumb[1]?.name : breadcrumb[0]?.name;
 
     if (!companyFolder || companyFolder === 'Root') {
@@ -315,6 +334,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       return;
     }
 
+    // Don't re-fetch if same company
     if (companyFolder === browsingCompanyName) return;
 
     setBrowsingCompanyName(companyFolder);
@@ -336,9 +356,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   }, [user]);
 
+  // ─── FEATURE 2: Navigate to folder by path string ───
   const navigateToPathInTree = useCallback((tree: DriveItem, targetPath: string) => {
     if (!targetPath || targetPath === "/") return;
 
+    // targetPath can be like "raw-footage/April-2026/LF" (relative parts after root)
     const parts = targetPath.split("/").filter(Boolean);
     let current = tree;
     const newBreadcrumb: DriveItem[] = [tree];
@@ -347,21 +369,24 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       const child = current.children?.find(
         c => c.type === "folder" && c.name === part
       );
-      if (!child) break;
+      if (!child) break; // Path no longer exists — stop at deepest valid point
       newBreadcrumb.push(child);
       current = child;
     }
 
     setBreadcrumb(newBreadcrumb);
     setCurrentFolder(current);
+    // Update URL to reflect where we actually ended up
     const resolvedPath = newBreadcrumb.slice(1).map(b => b.name).join("/");
     setPathInUrl(resolvedPath || "/");
   }, []);
 
   const loadDriveStructure = async () => {
+    // Capture current path BEFORE reload so we can restore it after
     const currentNavPath = breadcrumb.length > 1
       ? breadcrumb.slice(1).map(b => b.name).join("/")
       : "";
+    // On first load, use URL path. On subsequent reloads, use current breadcrumb path.
     const pathToRestore = hasRestoredRef.current
       ? currentNavPath
       : pendingPathRef.current;
@@ -387,6 +412,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       const data = await response.json();
       setDriveStructure(data);
 
+      // ─── FEATURE 2: Restore navigation path after structure load ───
       if (pathToRestore) {
         navigateToPathInTree(data, pathToRestore);
       } else {
@@ -424,9 +450,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     setBreadcrumb(newBreadcrumb);
     setSelectedItems(new Set());
 
+    // ─── FEATURE 2: Persist path to URL ───
     const pathStr = newBreadcrumb.slice(1).map(b => b.name).join("/");
     setPathInUrl(pathStr || "/");
 
+    // ─── FEATURE 1: Auto-reset filter when navigating deep into task folder ───
+    // Check if user is entering a task folder (depth 2+ from outputs)
     const newPathParts = newBreadcrumb.map(b => b.name);
     const newOutputsIdx = newPathParts.findIndex(p => p === 'outputs');
     const newDepthFromOutputs = newOutputsIdx >= 0 ? newPathParts.length - newOutputsIdx - 1 : -1;
@@ -434,6 +463,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       setSelectedDeliverableFilter("all");
     }
 
+    // Clear global search when navigating
     if (showGlobalResults) {
       setShowGlobalResults(false);
       setGlobalSearchQuery("");
@@ -469,6 +499,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return pathParts.join("/") + "/";
   };
 
+  // Check if we're at a level where RawFootageUploadDialog should show
   const currentPath = getCurrentFolderS3Path();
   const pathParts = currentPath.split('/').filter(Boolean);
   const rawFootageIndex = pathParts.findIndex(p => p === 'raw-footage');
@@ -488,10 +519,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   const canUpload = role !== 'client' || isClientInDeliverableFolder;
   const isClientStorageLocked = role === 'client' && !!storageInfo?.isAtLimit;
+
+  // Clients can only modify (delete/rename) items when inside a deliverable folder (depth 2+ from raw-footage)
   const clientCanModify = role !== 'client' || isClientInDeliverableFolder;
 
   const closeUploadDialog = () => { };
 
+  // Get S3 Key for item
   const getS3Key = (item: DriveItem): string => {
     if (item.s3Key) {
       return item.s3Key;
@@ -501,11 +535,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return pathParts.join("/");
   };
 
+  // Handle Delete Click
   const handleDeleteClick = (item: DriveItem) => {
     setItemToDelete(item);
     setShowDeleteDialog(true);
   };
 
+  // ─── Confirm Delete — reload structure, path auto-preserved ───
   const confirmDelete = async () => {
     if (!itemToDelete) return;
 
@@ -534,12 +570,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       toast.success(`${itemToDelete.name} deleted successfully`);
 
+      // Close dialog first
       setShowDeleteDialog(false);
       setItemToDelete(null);
       setIsDeleting(false);
 
+      // Reload structure — FEATURE 2 will preserve the path
       await loadDriveStructure();
 
+      // Refresh storage info
       if (role === 'client' && effectiveClientId) {
         fetch(`/api/clients/${effectiveClientId}/storage`)
           .then(res => res.json())
@@ -558,6 +597,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     setItemToDelete(null);
   };
 
+  // ─── Create Folder — reload structure, path auto-preserved ───
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
       toast.error('Please enter a folder name');
@@ -587,6 +627,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       setShowCreateFolderDialog(false);
       setNewFolderName('');
 
+      // Reload — path preserved via FEATURE 2
       await loadDriveStructure();
     } catch (error: any) {
       console.error('Create folder error:', error);
@@ -596,12 +637,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
+  // Handle Rename Click
   const handleRenameClick = (item: DriveItem) => {
     setItemToRename(item);
     setRenameValue(item.name);
     setShowRenameDialog(true);
   };
 
+  // Confirm Rename
   const confirmRename = async () => {
     if (!itemToRename || !renameValue.trim()) {
       toast.error('Please enter a new name');
@@ -639,6 +682,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       setItemToRename(null);
       setRenameValue('');
 
+      // Reload — path preserved via FEATURE 2
       await loadDriveStructure();
     } catch (error: any) {
       console.error('Rename error:', error);
@@ -648,6 +692,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
+  // Handle Share Link
   const handleShareClick = async (item: DriveItem) => {
     setIsSharing(true);
     setCopied(false);
@@ -655,6 +700,17 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     try {
       const s3Key = item.s3Key || getS3Key(item);
       const isFolder = item.type === "folder";
+
+      // Resolve mimeType before building the body — never fetch inside JSON.stringify
+      let mimeType: string | null = null;
+      if (!isFolder && item.url) {
+        try {
+          const head = await fetch(item.url, { method: 'HEAD' });
+          mimeType = head.headers.get('content-type');
+        } catch {
+          // Non-fatal — mimeType stays null
+        }
+      }
 
       const response = await fetch("/api/drive/share", {
         method: "POST",
@@ -665,7 +721,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           s3Key: isFolder ? s3Key + '/' : s3Key,
           fileName: item.name,
           fileSize: item.size,
-          mimeType: !isFolder && item.url ? (await fetch(item.url, { method: 'HEAD' })).headers.get('content-type') : null,
+          mimeType,
           type: isFolder ? 'folder' : 'file',
         }),
       });
@@ -691,6 +747,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
+  // Download file via presigned S3 URL
   const handleDownloadClick = async (item: DriveItem) => {
     if (item.type !== "file") return;
 
@@ -721,6 +778,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       toast.error("Failed to start download");
     }
   };
+
+  // ─── Zip download helpers ─────────────────────────────────────────────────
 
   const triggerZipDownload = (blob: Blob, name: string) => {
     const url = URL.createObjectURL(blob);
@@ -824,9 +883,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   const clearChecked = () => { setCheckedItems(new Set()); setIsSelectionMode(false); };
 
+
   // ─── Drag & Drop Handlers ────────────────────────────────────────────────
 
   const handleDragStart = (e: DragEvent<HTMLDivElement>, item: DriveItem) => {
+    // Clients cannot move files
     if (role === 'client') { e.preventDefault(); return; }
     setDraggedItem(item);
     e.dataTransfer.effectAllowed = 'move';
@@ -835,7 +896,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>, targetFolder: DriveItem) => {
     if (!draggedItem || targetFolder.type !== 'folder') return;
-    if (targetFolder.path === draggedItem.path) return;
+    if (targetFolder.path === draggedItem.path) return; // can't drop on itself
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverTarget(targetFolder.path);
@@ -848,9 +909,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const handleDrop = async (e: DragEvent<HTMLDivElement>, targetFolder: DriveItem) => {
     e.preventDefault();
     setDragOverTarget(null);
-    if (!draggedItem || targetFolder.type !== 'folder') return;
+    if (!draggedItem || !draggedItem || targetFolder.type !== 'folder') return;
     if (targetFolder.path === draggedItem.path) return;
 
+    // Prevent dropping a folder into its own descendant
     const sourceKey = draggedItem.s3Key || getS3Key(draggedItem);
     const destKey = targetFolder.s3Key || getS3Key(targetFolder);
     if (destKey.startsWith(sourceKey)) {
@@ -943,6 +1005,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return date.toLocaleDateString();
   };
 
+  // ─── FEATURE 3: Global Search Handler ───
   const handleGlobalSearch = useCallback(async (query: string) => {
     if (!query || query.length < 2) {
       setGlobalSearchResults([]);
@@ -977,8 +1040,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   }, [role, user?.id]);
 
+  // ─── FEATURE 3: Debounced search input ───
   const handleSearchInputChange = (value: string) => {
     setGlobalSearchQuery(value);
+    // Also update local filter for current folder children
     setSearchQuery(value);
 
     if (searchTimeoutRef.current) {
@@ -988,16 +1053,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     if (value.length >= 2) {
       searchTimeoutRef.current = setTimeout(() => {
         handleGlobalSearch(value);
-      }, 500);
+      }, 500); // 500ms debounce
     } else {
       setGlobalSearchResults([]);
       setShowGlobalResults(false);
     }
   };
 
+  // ─── FEATURE 3: Navigate to a search result's parent folder ───
   const navigateToSearchResult = (result: SearchResult) => {
     if (!driveStructure) return;
 
+    // Walk the tree using the breadcrumb parts from the search result
     const parts = result.breadcrumbParts;
     let current = driveStructure;
     const newBreadcrumb: DriveItem[] = [driveStructure];
@@ -1016,19 +1083,24 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     const pathStr = newBreadcrumb.slice(1).map(b => b.name).join("/");
     setPathInUrl(pathStr || "/");
 
+    // Clear search UI
     setShowGlobalResults(false);
     setGlobalSearchQuery("");
     setSearchQuery("");
     setGlobalSearchResults([]);
 
+    // Highlight the file so user can see it
     setSelectedItems(new Set([result.path]));
   };
 
+  // ─── Helper: check if a task folder name contains a deliverable short code ───
   const taskFolderMatchesType = (folderName: string, shortCode: string): boolean => {
+    // Task folder names: "CompanyName_MM-DD-YYYY_SF3", "CompanyName_01-15-2026_LF1"
     const pattern = new RegExp(`_${shortCode}\\d*$`);
     return pattern.test(folderName);
   };
 
+  // ─── Helper: check if a month folder contains task folders matching the type ───
   const monthContainsType = (folder: DriveItem, shortCode: string): boolean => {
     if (!folder.children) return false;
     return folder.children.some(
@@ -1036,11 +1108,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     );
   };
 
+  // ─── Check if we're inside the outputs folder ───
   const isInOutputs = currentPath.includes('/outputs/') || currentPath.endsWith('/outputs/') ||
     pathParts.some(p => p === 'outputs');
   const outputsIndex = pathParts.findIndex(p => p === 'outputs');
   const depthFromOutputs = outputsIndex >= 0 ? pathParts.length - outputsIndex - 1 : -1;
 
+  // ─── FEATURE 1: Filter current folder items by deliverable type ───
   const getFilteredItems = (): DriveItem[] => {
     let items = currentFolder?.children || [];
 
@@ -1049,20 +1123,28 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       if (isInOutputs) {
         if (depthFromOutputs === 0) {
+          // Inside outputs, seeing month folders
+          // Filter months to only show those containing task folders with the selected type
           items = items.filter(item => {
             if (item.type !== "folder") return true;
             return monthContainsType(item, code);
           });
         } else if (depthFromOutputs === 1) {
+          // Inside a month folder, seeing task folders
+          // Filter task folders by deliverable short code
           items = items.filter(item => {
             if (item.type !== "folder") return true;
             return taskFolderMatchesType(item.name, code);
           });
         }
+        // depth 2+ = inside a task folder, don't filter
       } else if (currentFolder?.children?.some(c => c.name === 'outputs')) {
+        // At company root, seeing outputs/raw-footage/etc
+        // Filter outputs folder to only show if it has matching content
         items = items.filter(item => {
           if (item.type !== "folder") return true;
           if (item.name === 'outputs' && item.children) {
+            // Check if any month inside outputs has matching tasks
             return item.children.some(month =>
               month.type === "folder" && monthContainsType(month, code)
             );
@@ -1072,6 +1154,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       }
     }
 
+    // Apply local text search filter
     if (searchQuery && !showGlobalResults) {
       items = items.filter((item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1262,8 +1345,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       {/* Main Content Area */}
       <div className="relative flex-1 flex flex-col min-w-0">
-
-        {/* Moving overlay */}
         {isMoving && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm pointer-events-none">
             <div className="flex items-center gap-2 bg-card border rounded-full px-4 py-2 shadow-md text-sm">
@@ -1291,6 +1372,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         {/* Top Toolbar */}
         <div className="border-b bg-card">
           <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 flex-wrap">
+            {/* Left: Upload Button */}
             {canUpload && !(role === 'client' && storageInfo?.isAtLimit) && (
               shouldShowRawFootageDialog ? (
                 <RawFootageUploadDialog
@@ -1329,6 +1411,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               )
             )}
 
+            {/* Storage Full button */}
             {role === 'client' && storageInfo?.isAtLimit && isInRawFootage && (
               <Button
                 className="gap-2 shrink-0 h-10 px-4"
@@ -1340,6 +1423,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </Button>
             )}
 
+            {/* New Folder Button */}
             {isClientInDeliverableFolder && (
               <Button
                 variant="outline"
@@ -1351,7 +1435,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </Button>
             )}
 
+            {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
             {deliverableTypes.length > 0 && (
+              // Show when: at company root (seeing outputs folder), OR inside outputs at depth 0-1
               (currentFolder?.children?.some(c => c.name === 'outputs') || (isInOutputs && depthFromOutputs < 2))
             ) && (
               <Select
@@ -1373,7 +1459,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </Select>
             )}
 
-            {/* Global Search Bar */}
+            {/* ─── FEATURE 3: Global Search Bar ─── */}
             <div className="flex-1 max-w-2xl mx-auto relative">
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
@@ -1383,6 +1469,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   value={globalSearchQuery}
                   onChange={(e) => handleSearchInputChange(e.target.value)}
                   onFocus={() => {
+                    // Re-show results if we have them
                     if (globalSearchResults.length > 0 && globalSearchQuery.length >= 2) {
                       setShowGlobalResults(true);
                     }
@@ -1405,6 +1492,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 )}
               </div>
 
+              {/* ─── FEATURE 3: Search Results Dropdown ─── */}
               {showGlobalResults && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-card border rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
                   {isGlobalSearching ? (
@@ -1454,8 +1542,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               )}
             </div>
 
-            {/* Right actions */}
+            {/* Right: Download All, Select, View toggle, Refresh */}
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+
+              {/* Zip progress indicator */}
               {isZipping && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1463,6 +1553,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 </div>
               )}
 
+              {/* Selection mode active: show count + actions */}
               {isSelectionMode && checkedItems.size > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground hidden sm:inline">
@@ -1485,6 +1576,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 </div>
               )}
 
+              {/* Download All button */}
               {filteredItems.some(i => i.type === 'file') && (
                 <Button
                   variant="outline"
@@ -1498,6 +1590,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 </Button>
               )}
 
+              {/* Select mode toggle */}
               <Button
                 variant={isSelectionMode ? "secondary" : "ghost"}
                 size="sm"
@@ -1508,6 +1601,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 <span className="hidden sm:inline">{isSelectionMode ? 'Done' : 'Select'}</span>
               </Button>
 
+              {/* Select All (shown only in selection mode) */}
               {isSelectionMode && (
                 <Button size="sm" variant="ghost" className="h-9 px-2 text-xs" onClick={selectAllFiles}>
                   All
@@ -1571,6 +1665,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </div>
             ))}
 
+            {/* ─── FEATURE 1: Active filter badge ─── */}
             {selectedDeliverableFilter !== "all" && (
               <div className="flex items-center gap-1 ml-2">
                 <span className="text-[11px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full flex items-center gap-1">
@@ -1615,8 +1710,24 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       ? "Try clearing the filter"
                       : "Upload files to get started"}
                 </p>
+                {/* {!searchQuery && selectedDeliverableFilter === "all" && canUpload && (
+                  <FileUploadDialog
+                    folderType="drive"
+                    subfolder={getCurrentFolderS3Path()}
+                    onUploadComplete={() => {
+                      setTimeout(loadDriveStructure, 1000);
+                    }}
+                    trigger={
+                      <Button>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload files
+                      </Button>
+                    }
+                  />
+                )} */}
               </div>
             ) : viewMode === "grid" ? (
+              // Grid View
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                 {filteredItems.map((item) => (
                   <div
@@ -1637,6 +1748,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     onClick={() => isSelectionMode ? toggleChecked(item, { stopPropagation: () => {} } as any) : handleItemClick(item)}
                     onDoubleClick={() => handleItemDoubleClick(item)}
                   >
+                    {/* Selection checkbox */}
                     {(isSelectionMode || checkedItems.has(item.s3Key || getS3Key(item))) && (
                       <div
                         className="absolute top-2 left-2 z-10"
@@ -1668,6 +1780,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       )}
                     </div>
 
+                    {/* Actions Menu */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -1791,6 +1904,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       >
                         <td className="p-2 sm:p-3">
                           <div className="flex items-center gap-2 sm:gap-3">
+                            {/* Checkbox in selection mode */}
                             {isSelectionMode && (
                               <div onClick={(e) => toggleChecked(item, e)} className="flex-shrink-0">
                                 {checkedItems.has(item.s3Key || getS3Key(item))

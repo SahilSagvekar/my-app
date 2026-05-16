@@ -7,7 +7,7 @@ import {
   Check, Ghost, FileText, X, Loader2, Send,
   History as HistoryIcon, Link as LinkIcon, Info as InfoIcon,
   TrendingUp, DollarSign, Clock, BadgePercent, Wallet,
-  CheckCircle, XCircle, ArrowRight, ShieldCheck
+  CheckCircle, XCircle, ArrowRight, ShieldCheck, UserCheck
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthContext';
 import { Button } from '../ui/button';
@@ -24,6 +24,7 @@ import { Textarea } from '../ui/textarea';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { SalesDashboard } from '../dashboards/SalesDashboard';
+import { ConvertLeadDialog } from '../sales/ConvertLeadDialog';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -551,6 +552,7 @@ export function SalesManagementTab() {
   const [selectedUserId, setSelectedUserId] = useState<number | 'all'>('all');
   const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  const [convertModal, setConvertModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [view, setView] = useState<'team' | 'personal' | 'commissions'>('team');
 
@@ -847,6 +849,7 @@ export function SalesManagementTab() {
                         <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[160px] w-[160px]">Socials</th>
                         <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[120px] w-[120px]">Activity</th>
                         <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 min-w-[130px] w-[130px]">Added</th>
+                        <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 min-w-[100px] w-[100px]">Convert</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1046,6 +1049,29 @@ export function SalesManagementTab() {
                                         </span>
                                       </div>
                                     </td>
+
+                                    {/* Convert to Client */}
+                                    <td className="px-3 py-2">
+                                      {(lead as any).convertedToClientId ? (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full whitespace-nowrap">
+                                          <UserCheck className="h-3 w-3" />
+                                          Client
+                                        </span>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 text-[11px] px-2 whitespace-nowrap border-green-300 text-green-700 hover:bg-green-50"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setConvertModal({ open: true, lead });
+                                          }}
+                                        >
+                                          <UserCheck className="h-3 w-3 mr-1" />
+                                          Convert
+                                        </Button>
+                                      )}
+                                    </td>
                                   </tr>
 
                                   {/* Expanded detail panel — unchanged */}
@@ -1180,6 +1206,12 @@ export function SalesManagementTab() {
               open={emailModal.open}
               lead={emailModal.lead}
               onClose={() => setEmailModal({ open: false, lead: null })}
+            />
+            <ConvertLeadDialog
+              open={convertModal.open}
+              lead={convertModal.lead}
+              onOpenChange={(o) => setConvertModal(m => ({ ...m, open: o }))}
+              onConverted={() => { fetchLeads(); setConvertModal({ open: false, lead: null }); }}
             />
           </div>
         </>

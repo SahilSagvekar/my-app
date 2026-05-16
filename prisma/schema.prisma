@@ -1163,6 +1163,8 @@ model SalesLead {
   priority      String               @default("")
   tiktok        Boolean              @default(false)
   twitter       Boolean              @default(false)
+  convertedToClientId String?
+  convertedAt         DateTime?
   commissions   AffiliateCommission?
   user          User                 @relation(fields: [userId], references: [id])
 
