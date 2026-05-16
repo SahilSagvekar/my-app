@@ -11,7 +11,6 @@ function getTokenFromCookies(req: Request) {
     return match ? match[1] : null;
 }
 
-// POST /api/drive/share - Generate a shareable link for an S3 file
 export async function POST(req: NextRequest) {
     try {
         const token = getTokenFromCookies(req);
@@ -25,32 +24,33 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { s3Key, fileName, fileSize, mimeType } = body;
+        const { s3Key, fileName, fileSize, mimeType, type } = body;
 
         if (!s3Key) {
             return NextResponse.json({ error: 'S3 Key is required' }, { status: 400 });
         }
 
-        // Generate a unique share token
+        const isFolder = type === 'folder';
         const shareToken = randomBytes(24).toString('hex');
+        const resolvedMimeType = isFolder ? 'application/x-directory' : mimeType;
 
-        // Create the shareable file record (Never expires by default)
-        const shareableFile = await prisma.shareableFile.create({
+        await prisma.shareableFile.create({
             data: {
                 s3Key,
-                fileName: fileName || s3Key.split('/').pop() || 'file',
+                fileName: fileName || s3Key.replace(/\/$/, '').split('/').pop() || (isFolder ? 'folder' : 'file'),
                 fileSize: fileSize ? BigInt(fileSize) : null,
-                mimeType,
+                mimeType: resolvedMimeType,
                 shareToken,
                 createdBy: Number(decoded.userId),
                 isActive: true,
-                expiresAt: null, // Never expires
+                expiresAt: null,
             }
         });
 
-        // Generate the shareable URL
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.headers.get('origin') || 'http://localhost:3000';
-        const shareUrl = `${baseUrl}/shared/file/${shareToken}`;
+        const shareUrl = isFolder
+            ? `${baseUrl}/shared/folder/${shareToken}`
+            : `${baseUrl}/shared/file/${shareToken}`;
 
         return NextResponse.json({
             success: true,

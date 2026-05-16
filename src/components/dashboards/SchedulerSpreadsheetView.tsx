@@ -6,6 +6,7 @@ import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Checkbox } from '../ui/checkbox';
+import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import {
     Select,
     SelectContent,

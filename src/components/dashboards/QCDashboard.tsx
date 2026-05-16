@@ -18,6 +18,7 @@ import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { useAuth } from '../auth/AuthContext';
 import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
+import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
 

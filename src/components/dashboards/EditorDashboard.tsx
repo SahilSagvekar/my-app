@@ -6,6 +6,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
+import { LinkedSfTasks } from "../tasks/LinkedSfTasks";
 import {
   Select,
   SelectContent,
@@ -785,6 +786,20 @@ function TaskCard({
                 </div>
               </div>
             )}
+
+            {/* 🔗 Linked SF Tasks — read-only view for editors on Long Form tasks */}
+          {task.deliverableType && (
+            task.deliverableType.toLowerCase().includes('long') ||
+            task.deliverableType.toUpperCase().includes('LF')
+          ) && (
+            <div className="mb-2 border rounded-lg p-2.5 bg-muted/20">
+              <LinkedSfTasks
+                lfTaskId={task.id}
+                clientId={task.clientId}
+                canEdit={false}
+              />
+            </div>
+          )}
 
           {/* 🔥 Upload Section */}
           {(task.status === "pending" || task.status === "rejected") && (

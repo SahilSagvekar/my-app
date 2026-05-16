@@ -12,6 +12,7 @@ import { Checkbox } from '../ui/checkbox';
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { Plus } from 'lucide-react';
 import { DateRangePicker } from '../ui/date-range-picker';
+import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import {
   ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight,
   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
@@ -47,6 +48,7 @@ interface Task {
   qc_specialist: number | null;
   scheduler: number | null;
   videographer: number | null;
+  _linkedSfCount?: number;
   clientId: string | null;
   editor: { id: number; name: string; email: string; role: string } | null;
   qcSpecialist: { id: number; name: string; role: string } | null;
@@ -565,14 +567,34 @@ export function TaskManagementTab() {
                                 : <span className="text-muted-foreground">-</span>}
                             </td>
                             <td className="py-3 px-4">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => openEditDialog(task)}><Edit className="h-4 w-4 mr-2" />Edit Task</DropdownMenuItem>
-                                  {canDeleteTasks && (<><DropdownMenuSeparator /><DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteConfirmTask(task)}><Trash2 className="h-4 w-4 mr-2" />Delete Task</DropdownMenuItem></>)}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </td>
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      <DropdownMenuItem onClick={() => openEditDialog(task)}><Edit className="h-4 w-4 mr-2" />Edit Task</DropdownMenuItem>
+      {(() => {
+        const dtype = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || '';
+        const isLF = dtype.toLowerCase().includes('long') || dtype.toUpperCase().includes('LF');
+        if (!isLF) return null;
+        return (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => openEditDialog(task)}>
+              <span className="mr-2 text-sm">🔗</span>Link SF Tasks
+            </DropdownMenuItem>
+          </>
+        );
+      })()}
+      {canDeleteTasks && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteConfirmTask(task)}>
+            <Trash2 className="h-4 w-4 mr-2" />Delete Task
+          </DropdownMenuItem>
+        </>
+      )}
+    </DropdownMenuContent>
+  </DropdownMenu>
+</td>
                           </tr>
                         );
                       })}
@@ -595,7 +617,7 @@ export function TaskManagementTab() {
 
       {/* Single Edit Dialog */}
       <Dialog open={!!editingTask} onOpenChange={o => !o && setEditingTask(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit Task</DialogTitle>
             <DialogDescription>{editingTask?.title || editingTask?.description?.slice(0, 50) || 'Untitled Task'}</DialogDescription>
@@ -668,6 +690,20 @@ export function TaskManagementTab() {
               <p className="text-xs text-muted-foreground">Leave unchanged to keep existing due dates</p>
             </div>
           </div>
+          {/* SF → LF linking — only shown for Long Form tasks */}
+          {editingTask && (() => {
+            const dtype = editingTask.monthlyDeliverable?.type || editingTask.oneOffDeliverable?.type || '';
+            const isLF = dtype.toLowerCase().includes('long') || dtype.toUpperCase().includes('LF');
+            return isLF ? (
+              <div className="border-t pt-4 px-1">
+                <LinkedSfTasks
+                  lfTaskId={editingTask.id}
+                  clientId={editingTask.clientId}
+                  canEdit={true}
+                />
+              </div>
+            ) : null;
+          })()}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBulkEdit(false)}>Cancel</Button>
             <Button onClick={handleBulkEdit} disabled={saving}>{saving ? 'Updating...' : `Update ${selectedTasks.size} Task${selectedTasks.size > 1 ? 's' : ''}`}</Button>
@@ -677,7 +713,7 @@ export function TaskManagementTab() {
 
       {/* Delete Dialog */}
       <Dialog open={!!deleteConfirmTask} onOpenChange={o => !o && setDeleteConfirmTask(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600"><Trash2 className="h-5 w-5" />Delete Task</DialogTitle>
             <DialogDescription className="pt-2">
@@ -697,7 +733,7 @@ export function TaskManagementTab() {
 
       {/* Bulk Delete Dialog */}
       <Dialog open={showBulkDelete} onOpenChange={o => !o && setShowBulkDelete(false)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600"><Trash2 className="h-5 w-5" />Delete {selectedTasks.size} Tasks</DialogTitle>
             <DialogDescription className="pt-2">
