@@ -1,2075 +1,689 @@
-"use client";
-
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Input } from '../ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { Checkbox } from '../ui/checkbox';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "../ui/select";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import {
-    Search,
-    Download,
-    Play,
-    Eye,
-    Check,
-    X,
-    Plus,
-    ChevronDown,
-    ChevronRight,
-    ChevronUp,
-    ExternalLink,
-    Sparkles,
-    FileText,
-    Video,
-    Image as ImageIcon,
-    Copy,
-    RefreshCw,
-    Filter,
-    ArrowUpDown,
-    Instagram,
-    Youtube,
-    Facebook,
-    Linkedin,
-    Twitter,
-    Music,
-    Clock,
-    Pencil,
-    Trash2,
-    Package,
-    Calendar,
-    Loader2,
-    Users,
-    ArrowLeft,
-    AlertTriangle,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle, FileText, Eye, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { useTaskWorkflow, WorkflowTask } from '../workflow/TaskWorkflowEngine';
 import { FilePreviewModal } from '../FileViewerModal';
-import { useDebounce } from '@/hooks/useDebounce';
+import { toast } from 'sonner';
 
-// Custom TikTok Icon Component
-const TikTokIcon = ({ className }: { className?: string }) => (
-    <svg 
-        viewBox="0 0 24 24" 
-        fill="currentColor" 
-        className={className}
-    >
-        <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-    </svg>
-);
-
-// Custom Snapchat Icon Component
-const SnapchatIcon = ({ className }: { className?: string }) => (
-    <svg
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        className={className}
-    >
-        <path d="M12.206 1c.266 0 2.869.108 4.156 2.476.68 1.252.515 3.391.39 4.626l-.006.063a.696.696 0 0 0 .282.076c.3-.016.622-.156.933-.312l.085-.043c.259-.126.52-.218.777-.218a.96.96 0 0 1 .388.077c.488.2.564.585.564.775 0 .357-.242.678-.727.964-.134.079-.282.15-.44.224l-.075.035c-.432.197-1.024.467-1.14.862-.063.213-.012.484.149.806l.012.024c.031.065 3.07 6.46-3.148 7.636a.632.632 0 0 0-.094.035c-.053.032-.072.072-.04.15.107.262.345.492.603.736l.059.056c.258.242.536.503.72.82.349.603.162 1.195-.516 1.612-.637.393-1.462.558-2.136.639a4.18 4.18 0 0 0-.403.063c-.135.032-.274.094-.423.16l-.041.018c-.347.155-.828.37-1.537.37-.03 0-.063 0-.094-.002a3.382 3.382 0 0 1-.124.002c-.709 0-1.19-.215-1.537-.37l-.041-.018a2.516 2.516 0 0 0-.423-.16 4.185 4.185 0 0 0-.403-.063c-.674-.081-1.499-.246-2.136-.639-.678-.417-.865-1.009-.516-1.612.184-.317.462-.578.72-.82l.059-.056c.258-.244.496-.474.603-.736.032-.078.013-.118-.04-.15a.632.632 0 0 0-.094-.035C2.93 18.53 5.968 12.135 6 12.07l.012-.024c.161-.322.212-.593.149-.806-.116-.395-.708-.665-1.14-.862l-.075-.035a4.453 4.453 0 0 1-.44-.224C4.02 9.825 3.778 9.504 3.778 9.147c0-.19.076-.575.564-.775a.96.96 0 0 1 .388-.077c.257 0 .518.092.777.218l.085.043c.311.156.634.296.933.312a.696.696 0 0 0 .282-.076l-.006-.063c-.125-1.235-.29-3.374.39-4.626C8.478 1.108 11.08 1 11.794 1h.412z"/>
-    </svg>
-);
-
-// Platform icons and colors
-const PLATFORMS = {
-    instagram: { label: 'IG', icon: Instagram, color: 'text-pink-600', bgColor: 'bg-pink-50' },
-    youtube: { label: 'YT', icon: Youtube, color: 'text-red-600', bgColor: 'bg-red-50' },
-    tiktok: { label: 'TT', icon: TikTokIcon, color: 'text-black', bgColor: 'bg-gray-100' },
-    facebook: { label: 'FB', icon: Facebook, color: 'text-blue-600', bgColor: 'bg-blue-50' },
-    linkedin: { label: 'LI', icon: Linkedin, color: 'text-blue-700', bgColor: 'bg-blue-50' },
-    twitter: { label: 'X', icon: Twitter, color: 'text-gray-900', bgColor: 'bg-gray-100' },
-    snapchat: { label: 'SC', icon: SnapchatIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-50' },
+// Mock current scheduler user
+const currentUser = {
+  id: 'sch1',
+  name: 'Emma White',
+  role: 'scheduler'
 };
 
-type PlatformKey = keyof typeof PLATFORMS;
+const currentDate = new Date(2024, 7, 10); // August 2024
 
-// Helper: format a posting time to ensure AM/PM is displayed
-const formatPostingTime = (timeStr: string): string => {
-    // If already has AM/PM, just return it cleaned up
-    const matchAmPm = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-    if (matchAmPm) {
-        return `${matchAmPm[1]}:${matchAmPm[2]} ${matchAmPm[3].toUpperCase()}`;
-    }
-    // Handle 24h format (e.g., "14:00" -> "2:00 PM")
-    const match24 = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-    if (match24) {
-        let h = parseInt(match24[1], 10);
-        const period = h >= 12 ? "PM" : "AM";
-        if (h === 0) h = 12;
-        else if (h > 12) h -= 12;
-        return `${h}:${match24[2]} ${period}`;
-    }
-    // Fallback: return as-is
-    return timeStr;
+// Mock scheduled events (in real app would come from API)
+const calendarEvents: Record<string, any[]> = {
+  '2024-08-12': [
+    { id: 1, title: 'Video Shoot - Product Demo', time: '09:00', type: 'production', color: 'bg-blue-500' },
+    { id: 2, title: 'Client Meeting - Brand Review', time: '14:00', type: 'meeting', color: 'bg-purple-500' }
+  ],
+  '2024-08-13': [
+    { id: 3, title: 'Photo Shoot - Lifestyle', time: '10:00', type: 'production', color: 'bg-blue-500' }
+  ],
+  '2024-08-14': [
+    { id: 4, title: 'Content Delivery', time: '11:00', type: 'delivery', color: 'bg-green-500' },
+    { id: 5, title: 'Team Standup', time: '09:00', type: 'meeting', color: 'bg-purple-500' }
+  ],
+  '2024-08-15': [
+    { id: 6, title: 'Campaign Launch', time: '16:00', type: 'launch', color: 'bg-orange-500' }
+  ],
+  '2024-08-16': [
+    { id: 7, title: 'Video Shoot - Interview', time: '13:00', type: 'production', color: 'bg-blue-500' }
+  ]
 };
 
-// Helper: format array of posting times
-const formatPostingTimes = (times: string[]): string => {
-    if (!times || times.length === 0) return "";
-    return times.map(formatPostingTime).join(", ");
-};
+// Initial scheduling tasks
+const initialSchedulingTasks: WorkflowTask[] = [];
 
-interface SchedulerTask {
-    id: string;
-    title: string;
-    description?: string;
-    priority: string;
-    status: string;
-    dueDate?: string;
-    files: {
-        id: string | number;
-        name: string;
-        url?: string;
-        size: number;
-        mimeType?: string;
-        folderType?: string;
-        s3Key?: string;
-    }[];
-    createdAt: string;
-    clientId: string;
-    client?: {
-        id?: string;
-        name: string;
-        companyName?: string;
-    };
-    editor?: {
-        id: number;
-        name: string;
-    };
-    deliverable?: {
-        id: string;
-        type: string;
-        quantity?: number;
-        videosPerDay?: number;
-        postingSchedule?: string;
-        postingDays?: string[];
-        postingTimes?: string[];
-        platforms?: string[];
-        description?: string;
-        isOneOff?: boolean;
-        isTrial?: boolean;
-    };
-    socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
-    // AI Titling fields
-    suggestedTitles?: Array<{ style?: string; title: string; reasoning?: string }> | string[];
-    titlingStatus?: string;
+
+function mapStatus(status: string) {
+  if (status === "QC_APPROVED" || status === "READY_FOR_SCHEDULER")
+    return "pending";
+  if (status === "SCHEDULED") return "completed";
+  return "pending";
 }
 
-// Deliverable interface for client deliverables display
-interface ClientDeliverable {
-    id: string;
-    type: string;
-    quantity: number;
-    postingSchedule: string;
-    postingDays: string[];
-    postingTimes: string[];
-    platforms: string[];
-    description?: string;
-    isOneOff?: boolean;
+function getTaskThumbnails(task: WorkflowTask): string[] {
+  if (!task.files || task.files.length === 0) return [];
+  // All images from the thumbnails folder
+  const thumbs = task.files.filter(
+    (f) => f.folderType === 'thumbnails' && f.mimeType?.startsWith('image/')
+  );
+  if (thumbs.length > 0) return thumbs.map((f) => f.url);
+  // Fallback: any active image
+  const anyImage = task.files.find((f) => f.mimeType?.startsWith('image/'));
+  return anyImage ? [anyImage.url] : [];
 }
 
-export function SchedulerSpreadsheetView() {
-    const [tasks, setTasks] = useState<SchedulerTask[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebounce(searchTerm, 500);
-    const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-    const [sortColumn, setSortColumn] = useState<string>('dueDate');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'scheduled'>('all');
-    const [clientFilter, setClientFilter] = useState<string>('all');
-    const [deliverableFilter, setDeliverableFilter] = useState<string>('all');
-    const [dateRange, setDateRange] = useState<string>('30d');
-
-    // Metadata for filters
-    const [allClients, setAllClients] = useState<{ id: string; name: string, companyName?: string }[]>([]);
-    const [allDeliverables, setAllDeliverables] = useState<string[]>([]);
-
-    // Pagination/Load More state
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalTasks, setTotalTasks] = useState(0);
-    const [hasMore, setHasMore] = useState(false);
-    const [pageSize, setPageSize] = useState(50);
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
-
-    // Client deliverables display
-    const [clientDeliverables, setClientDeliverables] = useState<ClientDeliverable[]>([]);
-    const [loadingDeliverables, setLoadingDeliverables] = useState(false);
-    const [deliverablesExpanded, setDeliverablesExpanded] = useState(true);
-
-    // Signed URLs cache (fileId -> signedUrl)
-    const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
-
-    // File preview
-    const [previewFile, setPreviewFile] = useState<any | null>(null);
-    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-
-    // Video player
-    const [playingVideo, setPlayingVideo] = useState<string | null>(null);
-    const videoRef = useRef<HTMLVideoElement>(null);
-
-    // Social link dialog - now supports edit mode
-    const [linkDialog, setLinkDialog] = useState<{ 
-        open: boolean; 
-        taskId: string; 
-        platform: PlatformKey; 
-        mode: 'add' | 'edit';
-        existingUrl?: string;
-        existingPostedAt?: string;
-    } | null>(null);
-    const [linkUrl, setLinkUrl] = useState('');
-    const [linkPostedAt, setLinkPostedAt] = useState('');
-    const [submittingLink, setSubmittingLink] = useState(false);
-
-    // Selected rows for bulk actions
-    const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-
-    // Send back to editor state
-    const [showSendBackDialog, setShowSendBackDialog] = useState(false);
-    const [sendBackTaskId, setSendBackTaskId] = useState<string | null>(null);
-    const [sendBackTaskTitle, setSendBackTaskTitle] = useState('');
-    const [sendBackFeedback, setSendBackFeedback] = useState('');
-    const [isSendingBack, setIsSendingBack] = useState(false);
-
-    useEffect(() => {
-        fetchMetadata();
-    }, []);
-
-    useEffect(() => {
-        // Reset to first page and LOAD when filters change
-        loadTasks(1, false);
-    }, [debouncedSearchTerm, statusFilter, clientFilter, dateRange, deliverableFilter]);
-
-    async function fetchMetadata() {
-        try {
-            const res = await fetch("/api/schedular/metadata", { cache: "no-store" });
-            const data = await res.json();
-            if (data.clients) setAllClients(data.clients);
-            if (data.deliverableTypes) setAllDeliverables(data.deliverableTypes);
-        } catch (error) {
-            console.error("Error loading metadata:", error);
-        }
-    }
-
-    async function loadTasks(pageNum: number = 1, isLoadMore: boolean = false) {
-        try {
-            setLoading(true);
-            const queryParams = new URLSearchParams({
-                page: pageNum.toString(),
-                limit: pageSize.toString(),
-                search: debouncedSearchTerm,
-                status: statusFilter,
-                clientId: clientFilter,
-                deliverableType: deliverableFilter,
-                dateRange: dateRange
-            });
-
-            const res = await fetch(`/api/schedular/tasks?${queryParams.toString()}`, { cache: "no-store" });
-            const data = await res.json();
-
-            if (!data.tasks) {
-                if (!isLoadMore) setTasks([]);
-                setTotalTasks(0);
-                setHasMore(false);
-                return;
-            }
-
-            const mapped = data.tasks.map((t: any) => {
-                const rawDeliverable = t.monthlyDeliverable || t.oneOffDeliverable;
-                return {
-                    id: t.id,
-                    title: t.title,
-                    description: t.description,
-                    priority: t.priority || "medium",
-                    status: ['SCHEDULED', 'POSTED', 'PUBLISHED'].includes((t.status || '').toUpperCase()) ? 'SCHEDULED' : 'PENDING',
-                    dueDate: t.dueDate,
-                    files: (t.files || []).map((file: any) => ({
-                        id: file.id,
-                        name: file.name,
-                        url: file.url || '',
-                        size: file.size || 0,
-                        mimeType: file.mimeType || '',
-                        folderType: file.folderType || 'other',
-                        s3Key: file.s3Key || '',
-                    })),
-                    createdAt: t.createdAt,
-                    clientId: t.clientId,
-                    client: t.client,
-                    deliverable: rawDeliverable ? {
-                        id: rawDeliverable.id,
-                        type: rawDeliverable.type,
-                        quantity: rawDeliverable.quantity,
-                        videosPerDay: rawDeliverable.videosPerDay,
-                        postingSchedule: rawDeliverable.postingSchedule,
-                        postingDays: rawDeliverable.postingDays || [],
-                        postingTimes: rawDeliverable.postingTimes || [],
-                        platforms: rawDeliverable.platforms || [],
-                        description: rawDeliverable.description,
-                        isTrial: rawDeliverable.isTrial ?? false,
-                        isOneOff: !!t.oneOffDeliverable && !t.monthlyDeliverable,
-                    } : undefined,
-                    socialMediaLinks: t.socialMediaLinks || [],
-                    suggestedTitles: t.suggestedTitles || [],
-                    titlingStatus: t.titlingStatus || 'NONE',
-                    editor: t.editor,
-                };
-            });
-
-            if (isLoadMore) {
-                setTasks(prev => [...prev, ...mapped]);
-            } else {
-                setTasks(mapped);
-            }
-            
-            setTotalTasks(data.total || 0);
-            setHasMore(data.page < data.totalPages);
-            setCurrentPage(data.page || 1);
-            setIsInitialLoad(false);
-        } catch (error) {
-            console.error("Error loading tasks:", error);
-            toast.error('Failed to load tasks');
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    // Fetch deliverables when client is selected
-    async function fetchClientDeliverables(clientId: string) {
-        if (clientId === 'all') {
-            setClientDeliverables([]);
-            return;
-        }
-
-        try {
-            setLoadingDeliverables(true);
-            
-            // Fetch both monthly and one-off deliverables
-            const [monthlyRes, oneOffRes] = await Promise.all([
-                fetch(`/api/clients/${clientId}/deliverables`, { cache: "no-store" }),
-                fetch(`/api/clients/${clientId}/one-off-deliverables`, { cache: "no-store" })
-            ]);
-
-            const monthlyData = await monthlyRes.json();
-            const oneOffData = await oneOffRes.json();
-
-            const monthlyDeliverables: ClientDeliverable[] = (monthlyData.deliverables || []).map((d: any) => ({
-                id: d.id,
-                type: d.type,
-                quantity: d.quantity,
-                postingSchedule: d.postingSchedule,
-                postingDays: d.postingDays || [],
-                postingTimes: d.postingTimes || [],
-                platforms: d.platforms || [],
-                description: d.description,
-                isOneOff: false,
-            }));
-
-            const oneOffDeliverables: ClientDeliverable[] = (oneOffData.deliverables || []).map((d: any) => ({
-                id: d.id,
-                type: d.type,
-                quantity: d.quantity,
-                postingSchedule: d.postingSchedule,
-                postingDays: d.postingDays || [],
-                postingTimes: d.postingTimes || [],
-                platforms: d.platforms || [],
-                description: d.description,
-                isOneOff: true,
-            }));
-
-            setClientDeliverables([...monthlyDeliverables, ...oneOffDeliverables]);
-            setDeliverablesExpanded(true);
-        } catch (error) {
-            console.error("Error loading client deliverables:", error);
-            toast.error('Failed to load deliverables');
-            setClientDeliverables([]);
-        } finally {
-            setLoadingDeliverables(false);
-        }
-    }
-
-    // Handle client filter change
-    function handleClientFilterChange(clientId: string) {
-        setClientFilter(clientId);
-        fetchClientDeliverables(clientId);
-    }
-
-    // Check if platform has a link
-    const hasPlatformLink = (task: SchedulerTask, platform: PlatformKey): string | null => {
-        const link = task.socialMediaLinks?.find(l => l.platform.toLowerCase() === platform);
-        return link?.url || null;
-    };
-
-    // Add social media link
-    async function submitSocialLink() {
-        if (!linkDialog || !linkUrl) return;
-
-        try {
-            setSubmittingLink(true);
-            
-            const isEdit = linkDialog.mode === 'edit';
-            const postedAtValue = linkPostedAt ? new Date(linkPostedAt).toISOString() : new Date().toISOString();
-            
-            // Save to Task.socialMediaLinks
-            const res = await fetch(`/api/tasks/${linkDialog.taskId}/social-media-link`, {
-                method: isEdit ? 'PATCH' : 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    platform: linkDialog.platform,
-                    url: linkUrl,
-                    postedAt: postedAtValue,
-                }),
-            });
-
-            if (!res.ok) throw new Error(`Failed to ${isEdit ? 'update' : 'add'} link`);
-
-            // Also save to PostedContent table (for persistent display)
-            const task = tasks.find(t => t.id === linkDialog.taskId);
-            if (task && task.clientId && !isEdit) {
-                try {
-                    await fetch('/api/posted-content', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            clientId: task.clientId,
-                            title: task.title,
-                            platform: linkDialog.platform,
-                            url: linkUrl,
-                            postedAt: postedAtValue,
-                            deliverableType: task.deliverable?.type || task.deliverableType,
-                            taskId: task.id,
-                        }),
-                    });
-                } catch (err) {
-                    console.error('Failed to save to PostedContent:', err);
-                    // Don't fail the whole operation if PostedContent save fails
-                }
-            }
-
-            // Update local state
-            setTasks(prev => prev.map(t => {
-                if (t.id === linkDialog.taskId) {
-                    if (isEdit) {
-                        // Update existing link
-                        return {
-                            ...t,
-                            socialMediaLinks: (t.socialMediaLinks || []).map(link =>
-                                link.platform.toLowerCase() === linkDialog.platform.toLowerCase()
-                                    ? { ...link, url: linkUrl, postedAt: postedAtValue }
-                                    : link
-                            )
-                        };
-                    } else {
-                        // Add new link
-                        return {
-                            ...t,
-                            socialMediaLinks: [
-                                ...(t.socialMediaLinks || []),
-                                { platform: linkDialog.platform, url: linkUrl, postedAt: postedAtValue }
-                            ]
-                        };
-                    }
-                }
-                return t;
-            }));
-
-            toast.success(`${PLATFORMS[linkDialog.platform].label} link ${isEdit ? 'updated' : 'added'}!`);
-            setLinkDialog(null);
-            setLinkUrl('');
-            setLinkPostedAt('');
-        } catch (err) {
-            toast.error(`Failed to ${linkDialog.mode === 'edit' ? 'update' : 'add'} link`);
-        } finally {
-            setSubmittingLink(false);
-        }
-    }
-
-    // Delete social media link
-    async function deleteSocialLink(taskId: string, platform: string) {
-        if (!confirm(`Are you sure you want to remove this ${platform} link?`)) return;
-
-        try {
-            const res = await fetch(`/api/tasks/${taskId}/social-media-link`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ platform }),
-            });
-
-            if (!res.ok) throw new Error('Failed to delete link');
-
-            // Update local state
-            setTasks(prev => prev.map(t => {
-                if (t.id === taskId) {
-                    return {
-                        ...t,
-                        socialMediaLinks: (t.socialMediaLinks || []).filter(
-                            link => link.platform.toLowerCase() !== platform.toLowerCase()
-                        )
-                    };
-                }
-                return t;
-            }));
-
-            toast.success('Link removed');
-        } catch (err) {
-            toast.error('Failed to remove link');
-        }
-    }
-
-    // Mark task as scheduled
-    async function markAsScheduled(taskId: string) {
-        const task = tasks.find(t => t.id === taskId);
-        if (!task?.socialMediaLinks?.length) {
-            toast.error('Add at least one social media link first');
-            return;
-        }
-
-        try {
-            const res = await fetch(`/api/tasks/${taskId}/mark-scheduled`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ postedAt: new Date().toISOString() })
-            });
-
-            if (!res.ok) throw new Error("Failed to schedule");
-
-            setTasks(prev => prev.map(t =>
-                t.id === taskId ? { ...t, status: 'SCHEDULED' } : t
-            ));
-
-            toast.success('Marked as scheduled!');
-        } catch (err) {
-            toast.error('Failed to mark as scheduled');
-        }
-    }
-
-    // Mark task as pending (revert)
-    async function markAsPending(taskId: string) {
-        try {
-            const res = await fetch(`/api/tasks/${taskId}/mark-pending`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" }
-            });
-
-            if (!res.ok) throw new Error("Failed to revert to pending");
-
-            setTasks(prev => prev.map(t =>
-                t.id === taskId ? { ...t, status: 'PENDING' } : t
-            ));
-
-            toast.success('Reverted to pending!');
-        } catch (err) {
-            toast.error('Failed to revert status');
-        }
-    }
-
-    // Send task back to editor with feedback
-    async function sendBackToEditor() {
-        if (!sendBackTaskId || !sendBackFeedback.trim()) return;
-        setIsSendingBack(true);
-        try {
-            const res = await fetch(`/api/tasks/${sendBackTaskId}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({
-                    status: 'REJECTED',
-                    schedulerFeedback: sendBackFeedback.trim(),
-                    route: 'editor',
-                }),
-            });
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || 'Failed to send back');
-            }
-            toast.success('Task sent back to editor with feedback');
-            setShowSendBackDialog(false);
-            setSendBackFeedback('');
-            setSendBackTaskId(null);
-            // Remove from list
-            setTasks(prev => prev.filter(t => t.id !== sendBackTaskId));
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to send task back');
-        } finally {
-            setIsSendingBack(false);
-        }
-    }
-
-    // Bulk mark as scheduled
-    async function bulkMarkAsScheduled() {
-        const selectedTasks = tasks.filter(t => selectedRows.has(t.id));
-        const tasksWithLinks = selectedTasks.filter(t => t.socialMediaLinks && t.socialMediaLinks.length > 0);
-
-        if (tasksWithLinks.length === 0) {
-            toast.error('Selected tasks need at least one social media link');
-            return;
-        }
-
-        for (const task of tasksWithLinks) {
-            await markAsScheduled(task.id);
-        }
-
-        setSelectedRows(new Set());
-    }
-
-    // Download file - always use the download API which signs on demand
-    async function downloadFile(file: any) {
-        try {
-            if (file.id) {
-                window.open(`/api/files/${file.id}/download`, '_blank');
-                toast.success('Download started', { id: 'download' });
-            } else if (file.url) {
-                window.open(file.url, '_blank');
-                toast.success('Download started', { id: 'download' });
-            }
-        } catch (error) {
-            toast.error('Download failed', { id: 'download' });
-        }
-    }
-
-    // Fetch signed URLs for a task's files (lazy signing on expand)
-    async function fetchSignedUrls(taskId: string) {
-        const task = tasks.find(t => t.id === taskId);
-        if (!task || task.files.length === 0) return;
-
-        // Only sign files that don't already have a signed URL cached
-        const fileIds = task.files
-            .filter(f => f.id && !signedUrls[String(f.id)])
-            .map(f => String(f.id));
-
-        if (fileIds.length === 0) return;
-
-        try {
-            const res = await fetch('/api/files/batch-presign', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fileIds }),
-            });
-
-            if (!res.ok) return;
-
-            const data = await res.json();
-            if (data.urls) {
-                setSignedUrls(prev => ({ ...prev, ...data.urls }));
-            }
-        } catch (error) {
-            console.error('Failed to fetch signed URLs:', error);
-        }
-    }
-
-    // Helper to get the viewable URL for a file
-    const getFileUrl = (file: { id: string | number; url?: string }) => {
-        return signedUrls[String(file.id)] || file.url || '';
-    };
-
-    // Toggle row expansion
-    const toggleRow = (taskId: string) => {
-        setExpandedRows(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(taskId)) {
-                newSet.delete(taskId);
-            } else {
-                newSet.add(taskId);
-                // Lazy-sign file URLs for this task
-                fetchSignedUrls(taskId);
-            }
-            return newSet;
-        });
-    };
-
-    // Sort handler
-    const handleSort = (column: string) => {
-        if (sortColumn === column) {
-            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortColumn(column);
-            setSortDirection('asc');
-        }
-    };
-
-    // Tasks are already filtered and paginated on the server
-    const displayTasks = tasks.sort((a, b) => {
-        let aVal: any, bVal: any;
-        switch (sortColumn) {
-            case 'title': aVal = a.title; bVal = b.title; break;
-            case 'client': aVal = a.client?.name || a.clientId; bVal = b.client?.name || b.clientId; break;
-            case 'dueDate': aVal = new Date(a.dueDate || 0); bVal = new Date(b.dueDate || 0); break;
-            case 'status': aVal = a.status; bVal = b.status; break;
-            default: aVal = a.dueDate; bVal = b.dueDate;
-        }
-        if (sortDirection === 'asc') {
-            return aVal > bVal ? 1 : -1;
-        }
-        return aVal < bVal ? 1 : -1;
-    });
-
-    const pendingCount = tasks.filter(t => t.status === 'PENDING').length;
-    const scheduledCount = tasks.filter(t => t.status === 'SCHEDULED').length;
-
-    // Metadata for dropdowns now comes from separate API
-    const uniqueClients = allClients.map(c => [c.id, c.companyName || c.name] as [string, string]);
-    const uniqueDeliverables = allDeliverables;
-
-    // Copy title to clipboard - handle both string and object formats
-    const copyTitle = (titleItem: any) => {
-        const titleText = typeof titleItem === 'string' ? titleItem : titleItem?.title || '';
-        navigator.clipboard.writeText(titleText);
-        toast.success('Copied to clipboard!');
-    };
-
-    // Get title text from item (handles both string and object)
-    const getTitleText = (titleItem: any): string => {
-        return typeof titleItem === 'string' ? titleItem : titleItem?.title || '';
-    };
-
-    if (loading && isInitialLoad) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-                    <p className="text-muted-foreground">Loading tasks...</p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Scheduling Queue</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            {selectedRows.size > 0 && (
-              <Button onClick={bulkMarkAsScheduled} size="sm">
-                <Check className="h-4 w-4 mr-2" />
-                Mark Selected ({selectedRows.size})
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={() => loadTasks()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
+function CalendarGrid() {
+  const [currentMonth, setCurrentMonth] = useState(currentDate);
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const daysInMonth = getDaysInMonth(currentMonth);
+  const firstDay = getFirstDayOfMonth(currentMonth);
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const emptyDays = Array.from({ length: firstDay }, (_, i) => null);
+
+  const formatEventDate = (day: number) => {
+    const year = currentMonth.getFullYear();
+    const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    return `${year}-${month}-${dayStr}`;
+  };
+
+
+
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium">
+          {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </h3>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
+      </div>
 
-        {/* Filters Bar */}
-        <div className="flex flex-wrap items-center gap-4 bg-white border rounded-lg p-3 shadow-sm">
-          {/* Search */}
-          <div className="flex-1 min-w-[200px] relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by title, client or ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9 text-xs"
-            />
+      <div className="grid grid-cols-7 gap-1">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
+            {day}
           </div>
+        ))}
 
-          {/* Date Selection */}
-          <div className="flex items-center gap-2 border-l pl-4">
-            <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5" />
-              Window:
-            </span>
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="h-9 w-[120px] text-xs">
-                <SelectValue placeholder="Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-                <SelectItem value="90d">Last 90 Days</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        {emptyDays.map((_, index) => (
+          <div key={`empty-${index}`} className="p-2 h-24"></div>
+        ))}
 
-          {/* Status Toggle */}
-          <div className="flex items-center gap-1 border-l pl-4">
-            <Button
-              variant={statusFilter === "all" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setStatusFilter("all")}
-              className={`h-9 px-3 text-xs ${statusFilter === "all" ? "bg-slate-900 text-white" : ""}`}
-            >
-              All
-            </Button>
-            <Button
-              variant={statusFilter === "pending" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setStatusFilter("pending")}
-              className={`h-9 px-3 text-xs ${statusFilter === "pending" ? "bg-indigo-600 text-white" : ""}`}
-            >
-              Pending
-            </Button>
-            <Button
-              variant={statusFilter === "scheduled" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setStatusFilter("scheduled")}
-              className={`h-9 px-3 text-xs ${statusFilter === "scheduled" ? "bg-emerald-600 text-white" : ""}`}
-            >
-              Scheduled
-            </Button>
-          </div>
+        {days.map(day => {
+          const dateKey = formatEventDate(day);
+          const dayEvents = calendarEvents[dateKey] || [];
+          const isToday = day === 10; // Current day for demo
 
-          {/* Client Filter */}
-          <div className="flex items-center gap-2 border-l pl-4">
-            <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5" />
-              Client:
-            </span>
-            <Select
-              value={clientFilter}
-              onValueChange={handleClientFilterChange}
+          return (
+            <div
+              key={day}
+              className={`p-2 h-24 border border-border rounded-lg hover:bg-muted/50 ${isToday ? 'bg-primary/10 border-primary' : ''
+                }`}
             >
-              <SelectTrigger className="h-9 w-[150px] text-xs">
-                <SelectValue placeholder="All Clients" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[300px]">
-                <SelectItem value="all">All Clients</SelectItem>
-                {uniqueClients.map(([id, name]) => (
-                  <SelectItem key={id} value={id}>
-                    {name}
-                  </SelectItem>
+              <div className={`text-sm mb-1 ${isToday ? 'font-medium text-primary' : ''}`}>
+                {day}
+              </div>
+              <div className="space-y-1">
+                {dayEvents.slice(0, 2).map((event: any) => (
+                  <div
+                    key={event.id}
+                    className={`text-xs px-1 py-0.5 rounded text-white truncate ${event.color}`}
+                  >
+                    {event.time} {event.title}
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Deliverable Type Filter */}
-          <div className="flex items-center gap-2 border-l pl-4">
-            <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
-              <Package className="h-3.5 w-3.5" />
-              Type:
-            </span>
-            <Select
-              value={deliverableFilter}
-              onValueChange={setDeliverableFilter}
-            >
-              <SelectTrigger className="h-9 w-[130px] text-xs">
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {uniqueDeliverables.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Client Deliverables Display */}
-        {clientFilter !== "all" && (
-          <div className="bg-white border rounded-lg overflow-hidden">
-            <button
-              onClick={() => setDeliverablesExpanded(!deliverablesExpanded)}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-primary" />
-                <span className="font-medium">
-                  Deliverables for{" "}
-                  {uniqueClients.find(([id]) => id === clientFilter)?.[1] ||
-                    "Client"}
-                </span>
-                {clientDeliverables.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {clientDeliverables.length}
-                  </Badge>
+                {dayEvents.length > 2 && (
+                  <div className="text-xs text-muted-foreground">
+                    +{dayEvents.length - 2} more
+                  </div>
                 )}
               </div>
-              {loadingDeliverables ? (
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              ) : deliverablesExpanded ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function SchedulerDashboard() {
+  // const [schedulingTasks, setSchedulingTasks] = useState<WorkflowTask[]>(initialSchedulingTasks);
+  const [schedulingTasks, setSchedulingTasks] = useState<WorkflowTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<WorkflowTask | null>(null);
+  const { tasks: workflowTasks, completeSchedulingTask } = useTaskWorkflow();
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // Send back to editor state
+  const [showSendBackDialog, setShowSendBackDialog] = useState(false);
+  const [sendBackFeedback, setSendBackFeedback] = useState('');
+  const [isSendingBack, setIsSendingBack] = useState(false);
+
+  // useEffect(() => {
+  //   // Filter workflow tasks for scheduling
+  //   const userSchedulingTasks = workflowTasks.filter(task => 
+  //     task.assignedTo === currentUser.id && task.type === 'scheduling'
+  //   );
+
+  //   // Combine with initial tasks
+  //   const allSchedulingTasks = [...initialSchedulingTasks, ...userSchedulingTasks.filter(wt => 
+  //     !initialSchedulingTasks.some(it => it.id === wt.id)
+  //   )];
+
+  //   setSchedulingTasks(allSchedulingTasks);
+
+  //   // Auto-select first pending task
+  //   if (!selectedTask && allSchedulingTasks.length > 0) {
+  //     const firstPending = allSchedulingTasks.find(task => task.status === 'pending');
+  //     if (firstPending) setSelectedTask(firstPending);
+  //   }
+  // }, [workflowTasks, selectedTask]);
+
+  useEffect(() => {
+    async function loadTasks() {
+      try {
+        const res = await fetch("/api/tasks", { cache: "no-store" });
+        const data = await res.json();
+
+        const mapped = data.tasks.map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          type: "scheduling",
+          status: mapStatus(t.status),
+          assignedTo: String(t.assignedSchedulerId),
+          dueDate: t.dueDate,
+          clientId: t.clientId,
+          oneOffDeliverableId: t.oneOffDeliverableId,
+          projectId: t.clientId,
+          priority: t.priority,
+          feedback: t.feedback,
+          files: (t.files || [])
+            .filter((f: any) => f.isActive !== false)
+            .map((f: any) => ({
+              id: f.id,
+              name: f.name,
+              url: f.url,
+              size: f.size || 0,
+              mimeType: f.mimeType || f.contentType || '',
+              folderType: f.folderType || 'main',
+            })),
+        }));
+
+        setSchedulingTasks(mapped);
+      } catch (err) {
+        console.error("Error loading scheduler tasks:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadTasks();
+
+    // 🔥 Regular polling for new tasks - every 30 seconds
+    const interval = setInterval(() => {
+      console.log("🔄 Polling for new scheduler tasks...");
+      loadTasks();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSendBack = async () => {
+    if (!selectedTask || !sendBackFeedback.trim()) return;
+    setIsSendingBack(true);
+    try {
+      const res = await fetch(`/api/tasks/${selectedTask.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          status: 'REJECTED',
+          schedulerFeedback: sendBackFeedback.trim(),
+          route: 'editor',
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to send back');
+      }
+      toast.success('Task sent back to editor with feedback');
+      setShowSendBackDialog(false);
+      setSendBackFeedback('');
+      // Remove from queue
+      setSchedulingTasks((prev) => prev.filter((t) => t.id !== selectedTask.id));
+      setSelectedTask(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send task back');
+    } finally {
+      setIsSendingBack(false);
+    }
+  };
+
+  const handleScheduleTask = async (task: WorkflowTask) => {
+    try {
+      // 1️⃣ Immediately update UI (optimistic update)
+      setSchedulingTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: "completed" } : t))
+      );
+
+      // 2️⃣ Call backend API
+      await fetch(`/api/tasks/${task.id}/schedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduledAt: new Date().toISOString(),
+        }),
+      });
+
+      // 3️⃣ Notify workflow engine (if you're still using it)
+      await completeSchedulingTask(task);
+
+      console.log("✅ Task scheduled:", task.id);
+
+      // 4️⃣ Move to the next pending task using the UPDATED list
+      setSchedulingTasks((prev) => {
+        const updated = prev; // we've already updated the status at #1
+
+        const next = updated.find(
+          (t) => t.status === "pending" && t.id !== task.id
+        );
+
+        setSelectedTask(next || null);
+
+        return updated;
+      });
+    } catch (err) {
+      console.error("❌ Error scheduling:", err);
+
+      // 5️⃣ Roll back if needed
+      setSchedulingTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? { ...t, status: "pending" } : t))
+      );
+    }
+  };
+
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+
+
+  // Stats
+  const pendingTasks = schedulingTasks.filter(task => task.status === 'pending').length;
+  const scheduledToday = schedulingTasks.filter(task =>
+    task.status === 'completed' &&
+    new Date(task.createdAt).toDateString() === new Date().toDateString()
+  ).length;
+  const urgentTasks = 0; // Removed priority logic
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Scheduler Portal</h1>
+          <p className="text-muted-foreground mt-1 text-lg">
+            Schedule QC-approved content and manage production timeline
+          </p>
+        </div>
+        <Button className="shadow-sm">
+          <Calendar className="h-4 w-4 mr-2" />
+          New Schedule
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Clock className="h-8 w-8 text-blue-500" />
+              <div>
+                <p className="text-sm text-muted-foreground">Pending Tasks</p>
+                <h3 className="text-2xl font-bold">{pendingTasks}</h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <CheckCircle className="h-8 w-8 text-green-500" />
+              <div>
+                <p className="text-sm text-muted-foreground">Scheduled Today</p>
+                <h3 className="text-2xl font-bold">{scheduledToday}</h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Users className="h-8 w-8 text-purple-500" />
+              <div>
+                <p className="text-sm text-muted-foreground">Active Events</p>
+                <h3 className="text-2xl font-bold">7</h3>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Workflow Info */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Calendar className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-medium">Automated Content Flow</h4>
+              <p className="text-sm text-muted-foreground">
+                You receive QC-approved content automatically. Once you schedule it, the workflow is complete.
+                Content is ready for production and client delivery.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendar */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Production Calendar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CalendarGrid />
+          </CardContent>
+        </Card>
+
+        {/* Approved Queue */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              Approved Queue
+              <Badge variant="secondary">{pendingTasks}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="space-y-0 max-h-[600px] overflow-y-auto">
+              {schedulingTasks.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-40" />
+                  <p>No approved tasks to schedule</p>
+                  <p className="text-xs">Tasks will appear here after QC approval</p>
+                </div>
               ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              )}
-            </button>
-
-            {deliverablesExpanded && (
-              <div className="border-t px-4 py-3">
-                {loadingDeliverables ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
-                    <span className="text-sm text-muted-foreground">
-                      Loading deliverables...
-                    </span>
-                  </div>
-                ) : clientDeliverables.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Package className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">
-                      No deliverables configured for this client
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {clientDeliverables.map((deliverable) => (
-                      <div
-                        key={deliverable.id}
-                        className={`p-3 rounded-lg border ${
-                          deliverable.isOneOff
-                            ? "bg-amber-50 border-amber-200"
-                            : "bg-gray-50 border-gray-200"
-                        }`}
-                      >
-                        {/* Type & Quantity */}
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm">
-                              {deliverable.type}
-                            </span>
-                            {deliverable.isOneOff && (
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] h-4 px-1 bg-amber-100 text-amber-700 border-amber-300"
-                              >
-                                One-Off
-                              </Badge>
-                            )}
-                          </div>
-                          <Badge
-                            variant="secondary"
-                            className="text-xs font-bold"
-                          >
-                            ×{deliverable.quantity}
-                          </Badge>
-                        </div>
-
-                        {/* Posting Schedule */}
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-                          <Calendar className="h-3 w-3" />
-                          <span className="capitalize">
-                            {deliverable.postingSchedule}
-                          </span>
-                          {deliverable.postingDays.length > 0 && (
-                            <span className="text-gray-400">
-                              • {deliverable.postingDays.slice(0, 3).join(", ")}
-                              {deliverable.postingDays.length > 3 && "..."}
-                            </span>
+                schedulingTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className={`p-4 border-b hover:bg-muted/50 cursor-pointer transition-colors ${selectedTask?.id === task.id ? 'bg-muted' : ''
+                      }`}
+                    onClick={() => setSelectedTask(task)}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex flex-col gap-1">
+                          <h4 className="font-medium text-sm">
+                            {task.title.replace('Schedule: ', '')}
+                          </h4>
+                          {(task as any).oneOffDeliverableId && (
+                            <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                              One-Off
+                            </Badge>
                           )}
                         </div>
+                      </div>
 
-                        {/* Posting Times */}
-                        {deliverable.postingTimes.length > 0 && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-                            <Clock className="h-3 w-3" />
-                            <span>
-                              {deliverable.postingTimes
-                                .slice(0, 2)
-                                .map(formatPostingTime)
-                                .join(", ")}
-                              {deliverable.postingTimes.length > 2 &&
-                                ` +${deliverable.postingTimes.length - 2}`}
-                            </span>
+                      {/* Thumbnails strip */}
+                      {(() => {
+                        const thumbs = getTaskThumbnails(task);
+                        if (thumbs.length === 0) return null;
+                        return (
+                          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                            {thumbs.map((url, i) => (
+                              <img
+                                key={i}
+                                src={url}
+                                alt={`Thumbnail ${i + 1}`}
+                                className="h-16 w-24 object-cover rounded-md flex-shrink-0 border border-zinc-200"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            ))}
+                          </div>
+                        );
+                      })()}
+
+                      <div className="space-y-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3 w-3" />
+                          <span>From QC Approval</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3" />
+                          <span>Due {task.dueDate}</span>
+                        </div>
+                        {task.files && (
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-3 w-3" />
+                            <span>{task.files.length} files</span>
                           </div>
                         )}
+                      </div>
 
-                        {/* Platforms */}
-                        {deliverable.platforms.length > 0 && (
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {deliverable.platforms.map((platform) => {
-                              const platformKey =
-                                platform.toLowerCase() as PlatformKey;
-                              const platformInfo = PLATFORMS[platformKey];
-                              if (!platformInfo) {
-                                return (
-                                  <Badge
-                                    key={platform}
-                                    variant="outline"
-                                    className="text-[10px] h-5 px-1.5"
-                                  >
-                                    {platform}
-                                  </Badge>
-                                );
-                              }
-                              const Icon = platformInfo.icon;
-                              return (
-                                <div
-                                  key={platform}
-                                  className={`inline-flex items-center justify-center w-6 h-6 rounded ${platformInfo.bgColor}`}
-                                  title={platform}
-                                >
-                                  <Icon
-                                    className={`h-3.5 w-3.5 ${platformInfo.color}`}
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-xs">
+                          {task.id}
+                        </Badge>
+                        <div className="flex gap-1">
+                          {task.status === 'completed' ? (
+                            <Badge variant="default" className="text-xs">
+                              Scheduled
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleScheduleTask(task);
+                              }}
+                            >
+                              Schedule
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-                        {/* Description (if any) */}
-                        {deliverable.description && (
-                          <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                            {deliverable.description}
-                          </p>
-                        )}
+      {/* Selected Task Details */}
+      {selectedTask && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Task Details: {selectedTask.title.replace('Schedule: ', '')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Task Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Project ID</p>
+                  <p className="font-medium">{selectedTask.projectId || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Due Date</p>
+                  <p className="font-medium">{selectedTask.dueDate}</p>
+                </div>
+              </div>
+
+              {/* QC Feedback */}
+              {selectedTask.feedback && (
+                <div>
+                  <h4 className="font-medium mb-2">QC Feedback</h4>
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800">{selectedTask.feedback}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Files */}
+              {selectedTask.files && selectedTask.files.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-3">Approved Files ({selectedTask.files.length})</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {selectedTask.files.map((file) => (
+                      <div key={file.id} className="border rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4" />
+                          <span className="text-sm font-medium truncate">{file.name}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          {formatFileSize(file.size)}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setPreviewFile(file);
+                            setIsPreviewOpen(true);
+                          }}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          View
+                        </Button>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                </div>
+              )}
 
-        {/* Spreadsheet Table */}
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              {/* Header */}
-              <thead className="bg-gray-50 border-b sticky top-0 z-10">
-                <tr>
-                  <th className="w-10 px-3 py-3 text-left">
-                    <Checkbox
-                      checked={
-                        selectedRows.size === tasks.length && tasks.length > 0
-                      }
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedRows(new Set(tasks.map((t) => t.id)));
-                        } else {
-                          setSelectedRows(new Set());
-                        }
-                      }}
-                    />
-                  </th>
-                  <th className="w-8 px-2"></th>
-                  <th
-                    className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort("title")}
+              {/* Action */}
+              {selectedTask.status === 'pending' && (
+                <div className="flex flex-col sm:flex-row justify-center gap-3 pt-4">
+                  <Button
+                    size="lg"
+                    onClick={() => handleScheduleTask(selectedTask)}
                   >
-                    <div className="flex items-center gap-1">
-                      Task Title
-                      <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-                    </div>
-                  </th>
-                  <th
-                    className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort("client")}
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Schedule This Content
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                    onClick={() => {
+                      setSendBackFeedback('');
+                      setShowSendBackDialog(true);
+                    }}
                   >
-                    <div className="flex items-center gap-1">
-                      Client
-                      <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-                    </div>
-                  </th>
-                  <th className="px-3 py-3 text-left font-semibold">
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" />
-                      Editor
-                    </div>
-                  </th>
-                  <th
-                    className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort("dueDate")}
-                  >
-                    <div className="flex items-center gap-1">
-                      Due
-                      <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-                    </div>
-                  </th>
-                  <th className="px-3 py-3 text-center font-semibold">
-                    <div className="flex items-center justify-center gap-1">
-                      <FileText className="h-4 w-4" />
-                      Files
-                    </div>
-                  </th>
-                  <th className="px-3 py-3 text-center font-semibold">
-                    <div className="flex items-center justify-center gap-1">
-                      <Sparkles className="h-4 w-4 text-yellow-500" />
-                      AI Title
-                    </div>
-                  </th>
-                  {/* Platform columns */}
-                  {Object.entries(PLATFORMS).map(([key, platform]) => (
-                    <th
-                      key={key}
-                      className="px-2 py-3 text-center font-semibold w-12"
-                    >
-                      <div
-                        className="flex justify-center"
-                        title={platform.label}
-                      >
-                        <platform.icon
-                          className={`h-4 w-4 ${platform.color}`}
-                        />
-                      </div>
-                    </th>
-                  ))}
-                  <th
-                    className="px-3 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort("status")}
-                  >
-                    Status
-                  </th>
-                </tr>
-              </thead>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Send Back to Editor
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-              {/* Body */}
-              <tbody
-                className={`divide-y ${loading && !isInitialLoad ? "opacity-50 pointer-events-none" : ""}`}
-              >
-                {tasks.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={15}
-                      className="px-6 py-12 text-center text-muted-foreground"
-                    >
-                      {loading ? (
-                        <div className="flex flex-col items-center justify-center">
-                          <RefreshCw className="h-8 w-8 animate-spin mb-4 text-primary" />
-                          <p>Finding tasks...</p>
-                        </div>
-                      ) : (
-                        <>
-                          <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
-                          <p className="font-medium">No tasks found</p>
-                          <p className="text-sm mt-1">
-                            Adjust your filters or wait for new tasks
-                          </p>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ) : (
-                  displayTasks.map((task) => {
-                    const isExpanded = expandedRows.has(task.id);
-                    const videoFiles = task.files.filter((f) =>
-                      f.mimeType?.startsWith("video/"),
-                    );
-                    const imageFiles = task.files.filter((f) =>
-                      f.mimeType?.startsWith("image/"),
-                    );
-                    const hasLinks =
-                      task.socialMediaLinks && task.socialMediaLinks.length > 0;
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
 
-                    return (
-                      <React.Fragment key={task.id}>
-                        {/* Main Row */}
-                        <tr
-                          className={`hover:bg-gray-50 transition-colors ${
-                            task.status === "SCHEDULED" ? "bg-green-50" : ""
-                          } ${selectedRows.has(task.id) ? "bg-blue-50" : ""}`}
-                        >
-                          {/* Checkbox */}
-                          <td className="px-3 py-3">
-                            <Checkbox
-                              checked={selectedRows.has(task.id)}
-                              onCheckedChange={(checked) => {
-                                const newSet = new Set(selectedRows);
-                                if (checked) {
-                                  newSet.add(task.id);
-                                } else {
-                                  newSet.delete(task.id);
-                                }
-                                setSelectedRows(newSet);
-                              }}
-                            />
-                          </td>
+      {/* Send Back to Editor Dialog */}
+      <Dialog open={showSendBackDialog} onOpenChange={setShowSendBackDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Send Back to Editor
+            </DialogTitle>
+            <DialogDescription>
+              {selectedTask && (
+                <span className="block text-xs text-zinc-500 mt-1 truncate">
+                  Task: {selectedTask.title.replace('Schedule: ', '')}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
 
-                          {/* Expand */}
-                          <td className="px-2 py-3">
-                            <button
-                              onClick={() => toggleRow(task.id)}
-                              className="p-1 hover:bg-gray-200 rounded"
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </button>
-                          </td>
-
-                          {/* Title */}
-                          <td className="px-3 py-3 max-w-[200px]">
-                            <div className="flex items-center gap-1.5">
-                              <p
-                                className="font-medium truncate"
-                                title={task.title}
-                              >
-                                {task.title}
-                              </p>
-                              {task.deliverable?.isTrial && (
-                                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded">
-                                  TRIAL
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Client */}
-                          <td className="px-3 py-3">
-                            <span className="text-muted-foreground text-xs">
-                              {task.client?.companyName ||
-                                task.client?.name ||
-                                task.clientId}
-                            </span>
-                          </td>
-
-                          {/* Editor */}
-                          <td className="px-3 py-3">
-                            <span className="text-xs text-blue-600">
-                              {task.editor?.name || "-"}
-                            </span>
-                          </td>
-
-                          {/* Due Date */}
-                          <td className="px-3 py-3">
-                            <span className="text-xs">
-                              {task.dueDate
-                                ? new Date(task.dueDate).toLocaleDateString(
-                                    "en-US",
-                                    { month: "short", day: "numeric" },
-                                  )
-                                : "-"}
-                            </span>
-                          </td>
-
-                          {/* Files */}
-                          <td className="px-3 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              {videoFiles.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs px-1.5"
-                                >
-                                  <Video className="h-3 w-3 mr-1" />
-                                  {videoFiles.length}
-                                </Badge>
-                              )}
-                              {imageFiles.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs px-1.5"
-                                >
-                                  <ImageIcon className="h-3 w-3 mr-1" />
-                                  {imageFiles.length}
-                                </Badge>
-                              )}
-                              {task.files.length === 0 && (
-                                <span className="text-muted-foreground text-xs">
-                                  -
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* AI Title */}
-                          <td className="px-3 py-3 text-center">
-                            {task.titlingStatus === "COMPLETED" &&
-                            task.suggestedTitles?.length ? (
-                              <button
-                                onClick={() =>
-                                  copyTitle(task.suggestedTitles![0])
-                                }
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-50 hover:bg-yellow-100 rounded text-xs font-medium text-yellow-800 border border-yellow-200"
-                                title={getTitleText(task.suggestedTitles[0])}
-                              >
-                                <Copy className="h-3 w-3" />
-                                Copy
-                              </button>
-                            ) : task.titlingStatus === "PROCESSING" ? (
-                              <Badge variant="outline" className="text-xs">
-                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                Processing
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">
-                                -
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Platform columns */}
-                          {Object.entries(PLATFORMS).map(([key, platform]) => {
-                            const linkUrl = hasPlatformLink(
-                              task,
-                              key as PlatformKey,
-                            );
-                            const Icon = platform.icon;
-
-                            // Check if this platform is in the task's deliverable
-                            const deliverablePlatforms =
-                              task.deliverable?.platforms?.map((p: string) =>
-                                p.toLowerCase(),
-                              ) || [];
-                            // Only allow adding links to platforms defined in the deliverable
-                            const isPlatformInDeliverable =
-                              deliverablePlatforms.includes(key.toLowerCase());
-
-                            return (
-                              <td key={key} className="px-2 py-3 text-center">
-                                {linkUrl ? (
-                                  <button
-                                    onClick={() =>
-                                      window.open(linkUrl, "_blank")
-                                    }
-                                    className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${platform.bgColor} ${platform.color} border border-current opacity-80 hover:opacity-100 transition-opacity`}
-                                    title={`View ${key} post`}
-                                  >
-                                    <Icon className="h-4 w-4" />
-                                  </button>
-                                ) : isPlatformInDeliverable ? (
-                                  <button
-                                    onClick={() =>
-                                      setLinkDialog({
-                                        open: true,
-                                        taskId: task.id,
-                                        platform: key as PlatformKey,
-                                        mode: "add",
-                                      })
-                                    }
-                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors border border-dashed border-gray-300"
-                                    title={`Add ${key} link`}
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </button>
-                                ) : (
-                                  <span
-                                    className="inline-flex items-center justify-center w-7 h-7 text-gray-200"
-                                    title={`${key} not configured for this deliverable`}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </span>
-                                )}
-                              </td>
-                            );
-                          })}
-
-                          {/* Status */}
-                          <td className="px-3 py-3 text-center">
-                            <DropdownMenu modal={false}>
-                              <DropdownMenuTrigger asChild>
-                                {task.status === "SCHEDULED" ? (
-                                  <Button
-                                    variant="ghost"
-                                    className="h-7 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1 px-2"
-                                  >
-                                    ✓ Scheduled
-                                    <ChevronDown className="h-3 w-3 opacity-50" />
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs gap-1"
-                                  >
-                                    Pending
-                                    <ChevronDown className="h-3 w-3 opacity-50" />
-                                  </Button>
-                                )}
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                sideOffset={4}
-                                onCloseAutoFocus={(e) => e.preventDefault()}
-                              >
-                                {task.status !== "SCHEDULED" ? (
-                                  <DropdownMenuItem
-                                    onClick={() => markAsScheduled(task.id)}
-                                    className="text-green-600 font-medium"
-                                  >
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Mark as Scheduled
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() => markAsPending(task.id)}
-                                    className="text-amber-600 font-medium"
-                                  >
-                                    <Clock className="h-4 w-4 mr-2" />
-                                    Revert to Pending
-                                  </DropdownMenuItem>
-                                )}
-                                {task.status !== "SCHEDULED" && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      const id = task.id;
-                                      const title = task.title || '';
-                                      setSendBackTaskId(id);
-                                      setSendBackTaskTitle(title);
-                                      setSendBackFeedback('');
-                                      setTimeout(() => setShowSendBackDialog(true), 50);
-                                    }}
-                                    className="text-red-600 font-medium"
-                                  >
-                                    <ArrowLeft className="h-4 w-4 mr-2" />
-                                    Send Back to Editor
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-
-                        {/* Expanded Row - Files & Details */}
-                        {isExpanded && (
-                          <tr className="bg-gray-50">
-                            <td colSpan={14} className="px-6 py-4">
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Files Section */}
-                                <div>
-                                  <h4 className="font-semibold mb-3 flex items-center gap-2">
-                                    <FileText className="h-4 w-4" />
-                                    Task Files ({task.files.length})
-                                  </h4>
-                                  {task.files.length === 0 ? (
-                                    <p className="text-muted-foreground text-sm">
-                                      No files attached
-                                    </p>
-                                  ) : (
-                                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                                      {(() => {
-                                        // Group files by folderType
-                                        const grouped = task.files.reduce(
-                                          (acc, file) => {
-                                            const folderType =
-                                              file.folderType ||
-                                              "Uncategorized";
-                                            if (!acc[folderType])
-                                              acc[folderType] = [];
-                                            acc[folderType].push(file);
-                                            return acc;
-                                          },
-                                          {} as Record<
-                                            string,
-                                            typeof task.files
-                                          >,
-                                        );
-
-                                        // Sort: main first, thumbnails & music-license last
-                                        const folderOrder: Record<
-                                          string,
-                                          number
-                                        > = {
-                                          main: 0,
-                                          covers: 1,
-                                          tiles: 2,
-                                          other: 3,
-                                          Uncategorized: 4,
-                                          thumbnails: 5,
-                                          "music-license": 6,
-                                        };
-
-                                        return Object.entries(grouped).sort(
-                                          ([a], [b]) =>
-                                            (folderOrder[a] ?? 3) -
-                                            (folderOrder[b] ?? 3),
-                                        );
-                                      })().map(([folderType, folderFiles]) => (
-                                        <div
-                                          key={folderType}
-                                          className="space-y-2"
-                                        >
-                                          <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-gray-100 px-2 py-1 rounded inline-block">
-                                            {folderType.replace(/_/g, " ")}
-                                          </h5>
-                                          <div className="space-y-2">
-                                            {folderFiles.map((file) => {
-                                              const isVideo =
-                                                file.mimeType?.startsWith(
-                                                  "video/",
-                                                );
-                                              const isImage =
-                                                file.mimeType?.startsWith(
-                                                  "image/",
-                                                );
-
-                                              return (
-                                                <div
-                                                  key={file.id}
-                                                  className="flex items-center justify-between p-2 bg-white rounded-lg border hover:border-primary/30 transition-colors"
-                                                >
-                                                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                    {isVideo ? (
-                                                      <Video className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                                                    ) : isImage ? (
-                                                      <img
-                                                        src={file.url}
-                                                        alt={file.name}
-                                                        className="h-10 w-14 object-cover rounded flex-shrink-0 border border-zinc-200"
-                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                      />
-                                                    ) : (
-                                                      <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                                                    )}
-                                                    <div className="min-w-0">
-                                                      <p className="font-medium text-[13px] truncate">
-                                                        {file.name}
-                                                      </p>
-                                                      <p className="text-[10px] text-muted-foreground">
-                                                        {(
-                                                          file.size /
-                                                          1024 /
-                                                          1024
-                                                        ).toFixed(2)}{" "}
-                                                        MB
-                                                      </p>
-                                                    </div>
-                                                  </div>
-                                                  <div className="flex items-center gap-1">
-                                                    <Button
-                                                      size="sm"
-                                                      variant="ghost"
-                                                      onClick={() => {
-                                                        setPreviewFile({
-                                                          ...file,
-                                                          url: getFileUrl(file),
-                                                        });
-                                                        setIsPreviewOpen(true);
-                                                      }}
-                                                      className="h-7 w-7 p-0"
-                                                    >
-                                                      <Eye className="h-3 w-3" />
-                                                    </Button>
-                                                    <Button
-                                                      size="sm"
-                                                      variant="ghost"
-                                                      onClick={() =>
-                                                        downloadFile(file)
-                                                      }
-                                                      className="h-7 w-7 p-0"
-                                                    >
-                                                      <Download className="h-3 w-3" />
-                                                    </Button>
-                                                  </div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  {/* Inline Video Player */}
-                                  {playingVideo &&
-                                    task.files.some(
-                                      (f) => getFileUrl(f) === playingVideo,
-                                    ) && (
-                                      <div className="mt-4 bg-black rounded-lg overflow-hidden">
-                                        <video
-                                          ref={videoRef}
-                                          src={playingVideo}
-                                          controls
-                                          autoPlay
-                                          className="w-full max-h-64"
-                                        />
-                                      </div>
-                                    )}
-                                </div>
-
-                                {/* AI Titles & Details */}
-                                <div>
-                                  <h4 className="font-semibold mb-3 flex items-center gap-2">
-                                    <Sparkles className="h-4 w-4 text-yellow-500" />
-                                    AI Suggested Titles
-                                  </h4>
-                                  {task.suggestedTitles &&
-                                  task.suggestedTitles.length > 0 ? (
-                                    <div className="space-y-2">
-                                      {task.suggestedTitles
-                                        .slice(0, 5)
-                                        .map((title, i) => (
-                                          <div
-                                            key={i}
-                                            className="flex items-center justify-between p-3 bg-white rounded-lg border hover:bg-gray-50"
-                                          >
-                                            <p className="text-sm flex-1 mr-2">
-                                              {getTitleText(title)}
-                                            </p>
-                                            <Button
-                                              size="sm"
-                                              variant="ghost"
-                                              onClick={() => copyTitle(title)}
-                                              className="h-8"
-                                            >
-                                              <Copy className="h-3 w-3" />
-                                            </Button>
-                                          </div>
-                                        ))}
-                                    </div>
-                                  ) : (
-                                    <div className="p-4 bg-white rounded-lg border text-center">
-                                      <p className="text-muted-foreground text-sm">
-                                        {task.titlingStatus === "PROCESSING"
-                                          ? "AI titles are being generated..."
-                                          : "No AI titles generated yet"}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {/* Social Links Summary */}
-                                  {task.socialMediaLinks &&
-                                    task.socialMediaLinks.length > 0 && (
-                                      <div className="mt-4">
-                                        <h4 className="font-semibold mb-2 text-sm">
-                                          Posted Links
-                                        </h4>
-                                        <div className="space-y-2">
-                                          {task.socialMediaLinks.map(
-                                            (link, i) => {
-                                              const platformKey =
-                                                link.platform.toLowerCase() as PlatformKey;
-                                              const platform =
-                                                PLATFORMS[platformKey];
-                                              const Icon =
-                                                platform?.icon || ExternalLink;
-
-                                              return (
-                                                <div
-                                                  key={i}
-                                                  className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group"
-                                                >
-                                                  <div
-                                                    className={`p-1 rounded ${platform?.bgColor || "bg-gray-100"}`}
-                                                  >
-                                                    <Icon
-                                                      className={`h-3.5 w-3.5 ${platform?.color || "text-gray-600"}`}
-                                                    />
-                                                  </div>
-                                                  <div className="flex-1 min-w-0">
-                                                    <a
-                                                      href={link.url}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                      className="text-sm text-blue-600 hover:underline truncate block"
-                                                    >
-                                                      {link.url.length > 50
-                                                        ? link.url.slice(
-                                                            0,
-                                                            50,
-                                                          ) + "..."
-                                                        : link.url}
-                                                    </a>
-                                                    {link.postedAt && (
-                                                      <span className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                                                        <Clock className="h-2.5 w-2.5" />
-                                                        {new Date(
-                                                          link.postedAt,
-                                                        ).toLocaleString(
-                                                          "en-US",
-                                                          {
-                                                            month: "short",
-                                                            day: "numeric",
-                                                            hour: "numeric",
-                                                            minute: "2-digit",
-                                                            hour12: true,
-                                                          },
-                                                        )}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="sm"
-                                                      className="h-7 w-7 p-0"
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setLinkUrl(link.url);
-                                                        if (link.postedAt) {
-                                                          const dt = new Date(
-                                                            link.postedAt,
-                                                          );
-                                                          const local =
-                                                            new Date(
-                                                              dt.getTime() -
-                                                                dt.getTimezoneOffset() *
-                                                                  60000,
-                                                            )
-                                                              .toISOString()
-                                                              .slice(0, 16);
-                                                          setLinkPostedAt(
-                                                            local,
-                                                          );
-                                                        }
-                                                        setLinkDialog({
-                                                          open: true,
-                                                          taskId: task.id,
-                                                          platform: platformKey,
-                                                          mode: "edit",
-                                                          existingUrl: link.url,
-                                                          existingPostedAt:
-                                                            link.postedAt,
-                                                        });
-                                                      }}
-                                                      title="Edit link"
-                                                    >
-                                                      <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                                                    </Button>
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="sm"
-                                                      className="h-7 w-7 p-0 hover:bg-red-50"
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        deleteSocialLink(
-                                                          task.id,
-                                                          link.platform,
-                                                        );
-                                                      }}
-                                                      title="Remove link"
-                                                    >
-                                                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                                                    </Button>
-                                                  </div>
-                                                </div>
-                                              );
-                                            },
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                </div>
-                              </div>
-
-                              {/* Task Deliverable Info */}
-                              {task.clientId && task.deliverable && (
-                                <div className="mt-4 pt-4 border-t">
-                                  <h4 className="font-semibold mb-3 flex items-center gap-2">
-                                    <Package className="h-4 w-4 text-indigo-500" />
-                                    Deliverable Info
-                                    <span className="text-xs font-normal text-muted-foreground">
-                                      —{" "}
-                                      {task.client?.companyName ||
-                                        task.client?.name ||
-                                        "Client"}
-                                    </span>
-                                  </h4>
-
-                                  <div className="p-3 rounded-lg border-2 border-indigo-200 bg-indigo-50">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-semibold text-sm">
-                                          {task.deliverable.type}
-                                        </span>
-                                        {task.deliverable.isOneOff && (
-                                          <Badge
-                                            variant="outline"
-                                            className="text-[10px] h-4 px-1 bg-amber-100 text-amber-700 border-amber-300"
-                                          >
-                                            One-Off
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      {task.deliverable.quantity && (
-                                        <Badge
-                                          variant="secondary"
-                                          className="text-xs font-bold"
-                                        >
-                                          ×{task.deliverable.quantity}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                      {task.deliverable.postingSchedule && (
-                                        <div className="flex items-center gap-1">
-                                          <Calendar className="h-3 w-3" />
-                                          <span className="capitalize">
-                                            {task.deliverable.postingSchedule}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {task.deliverable.postingDays &&
-                                        task.deliverable.postingDays.length >
-                                          0 && (
-                                          <span className="text-gray-500">
-                                            {task.deliverable.postingDays.join(
-                                              ", ",
-                                            )}
-                                          </span>
-                                        )}
-                                      {task.deliverable.postingTimes &&
-                                        task.deliverable.postingTimes.length >
-                                          0 && (
-                                          <div className="flex items-center gap-1">
-                                            <Clock className="h-3 w-3" />
-                                            <span>
-                                              {formatPostingTimes(
-                                                task.deliverable.postingTimes,
-                                              )}
-                                            </span>
-                                          </div>
-                                        )}
-                                      {task.deliverable.videosPerDay && (
-                                        <span>
-                                          {task.deliverable.videosPerDay} video
-                                          {task.deliverable.videosPerDay > 1
-                                            ? "s"
-                                            : ""}
-                                          /day
-                                        </span>
-                                      )}
-                                    </div>
-                                    {task.deliverable.platforms &&
-                                      task.deliverable.platforms.length > 0 && (
-                                        <div className="flex items-center gap-1 mt-2 flex-wrap">
-                                          {task.deliverable.platforms.map(
-                                            (p) => {
-                                              const pKey =
-                                                p.toLowerCase() as PlatformKey;
-                                              const pInfo = PLATFORMS[pKey];
-                                              if (!pInfo)
-                                                return (
-                                                  <Badge
-                                                    key={p}
-                                                    variant="outline"
-                                                    className="text-[10px] h-5 px-1.5"
-                                                  >
-                                                    {p}
-                                                  </Badge>
-                                                );
-                                              const PIcon = pInfo.icon;
-                                              return (
-                                                <div
-                                                  key={p}
-                                                  className={`inline-flex items-center justify-center w-6 h-6 rounded ${pInfo.bgColor}`}
-                                                  title={p}
-                                                >
-                                                  <PIcon
-                                                    className={`h-3.5 w-3.5 ${pInfo.color}`}
-                                                  />
-                                                </div>
-                                              );
-                                            },
-                                          )}
-                                        </div>
-                                      )}
-                                    {task.deliverable.description && (
-                                      <p className="text-xs text-muted-foreground mt-2">
-                                        {task.deliverable.description}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <div className="space-y-4 py-2">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              The editor will be notified and the task will be returned to their queue for revision.
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sendback-feedback">
+                Feedback / Reason <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                id="sendback-feedback"
+                placeholder="Describe what needs to be fixed or changed before this can be scheduled…"
+                className="min-h-[120px] resize-none"
+                value={sendBackFeedback}
+                onChange={(e) => setSendBackFeedback(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                {sendBackFeedback.length}/500 characters
+              </p>
+            </div>
           </div>
 
-          {/* Load More Controls */}
-          <div className="mt-6 flex flex-col items-center gap-4 border-t pt-6 px-2">
-            <div className="text-sm text-muted-foreground">
-              Showing{" "}
-              <span className="font-medium text-foreground">
-                {tasks.length}
-              </span>{" "}
-              of{" "}
-              <span className="font-medium text-foreground">{totalTasks}</span>{" "}
-              tasks
-            </div>
-
-            {hasMore && (
-              <Button
-                variant="outline"
-                onClick={() => loadTasks(currentPage + 1, true)}
-                disabled={loading}
-                className="bg-white hover:bg-indigo-50 border-indigo-100 text-indigo-600 font-medium px-8 h-10 shadow-sm"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  "Load More History"
-                )}
-              </Button>
-            )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSendBackDialog(false);
+                setSendBackFeedback('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!sendBackFeedback.trim() || isSendingBack}
+              onClick={handleSendBack}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isSendingBack ? 'Sending…' : 'Send Back to Editor'}
+            </Button>
           </div>
-        </div>
-
-        {/* Add/Edit Link Dialog */}
-        <Dialog
-          open={linkDialog?.open || false}
-          onOpenChange={(open) => {
-            if (!open) {
-              setLinkDialog(null);
-              setLinkUrl("");
-              setLinkPostedAt("");
-            }
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {linkDialog &&
-                  (() => {
-                    const platform = PLATFORMS[linkDialog.platform];
-                    const Icon = platform.icon;
-                    const isEdit = linkDialog.mode === "edit";
-                    return (
-                      <>
-                        <div className={`p-1.5 rounded-md ${platform.bgColor}`}>
-                          <Icon className={`h-5 w-5 ${platform.color}`} />
-                        </div>
-                        {isEdit ? "Edit" : "Add"}{" "}
-                        {linkDialog.platform.charAt(0).toUpperCase() +
-                          linkDialog.platform.slice(1)}{" "}
-                        Link
-                      </>
-                    );
-                  })()}
-              </DialogTitle>
-              <DialogDescription>
-                {linkDialog?.mode === "edit"
-                  ? "Update the URL for this post"
-                  : "Paste the URL of the published post"}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                  Post URL
-                </label>
-                <Input
-                  placeholder="https://..."
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  disabled={submittingLink}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                  <Clock className="h-3 w-3" />
-                  Posted / Scheduled Time
-                </label>
-                <Input
-                  type="datetime-local"
-                  value={linkPostedAt}
-                  onChange={(e) => setLinkPostedAt(e.target.value)}
-                  disabled={submittingLink}
-                  className="text-sm"
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Leave empty to use the current time
-                </p>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setLinkDialog(null);
-                    setLinkUrl("");
-                    setLinkPostedAt("");
-                  }}
-                  disabled={submittingLink}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={submitSocialLink}
-                  disabled={!linkUrl || submittingLink}
-                >
-                  {submittingLink
-                    ? linkDialog?.mode === "edit"
-                      ? "Updating..."
-                      : "Adding..."
-                    : linkDialog?.mode === "edit"
-                      ? "Update Link"
-                      : "Add Link"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* File Preview Modal */}
-        <FilePreviewModal
-          file={previewFile}
-          open={isPreviewOpen}
-          onOpenChange={setIsPreviewOpen}
-        />
-
-        {/* Send Back to Editor Dialog */}
-        <Dialog open={showSendBackDialog} onOpenChange={setShowSendBackDialog}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-red-600">
-                <AlertTriangle className="h-5 w-5" />
-                Send Back to Editor
-              </DialogTitle>
-              <DialogDescription>
-                {sendBackTaskTitle && (
-                  <span className="block text-xs text-zinc-500 mt-1 truncate">
-                    Task: {sendBackTaskTitle}
-                  </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-2">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                The editor will be notified and the task will be returned to their queue for revision.
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sendback-feedback">
-                  Feedback / Reason <span className="text-red-500">*</span>
-                </Label>
-                <Textarea
-                  id="sendback-feedback"
-                  placeholder="Describe what needs to be fixed or changed before this can be scheduled…"
-                  className="min-h-[120px] resize-none"
-                  value={sendBackFeedback}
-                  onChange={(e) => setSendBackFeedback(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {sendBackFeedback.length}/500 characters
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowSendBackDialog(false);
-                  setSendBackFeedback('');
-                  setSendBackTaskId(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                disabled={!sendBackFeedback.trim() || isSendingBack}
-                onClick={sendBackToEditor}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                {isSendingBack ? 'Sending…' : 'Send Back to Editor'}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

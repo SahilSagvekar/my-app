@@ -44,6 +44,7 @@ const LEAD_FIELDS: FieldDef[] = [
   { key: 'linkedin',   label: 'LinkedIn',     required: false, type: 'boolean', aliases: ['linkedin', 'li'] },
   { key: 'twitter',    label: 'Twitter / X',  required: false, type: 'boolean', aliases: ['twitter', 'x', 'tw'] },
   { key: 'tiktok',     label: 'TikTok',       required: false, type: 'boolean', aliases: ['tiktok', 'tt', 'tik tok'] },
+  { key: 'youtubeUrl', label: 'YouTube URL',  required: false, type: 'text',    aliases: ['youtube', 'youtube url', 'youtube channel', 'yt', 'yt url', 'youtube link'] },
 ];
 
 const SKIP = '-- Skip --';
@@ -83,8 +84,8 @@ interface ImportResult { created: number; skipped: number; failed: number; }
 
 function downloadTemplate() {
   const wb = XLSX.utils.book_new();
-  const headers = ['Name *', 'Company', 'Email', 'Phone', 'Status', 'Source', 'Notes', 'Value', 'Priority', 'Profile URL'];
-  const example = ['John Smith', 'Acme Corp', 'john@acme.com', '+1-555-0100', 'NEW', 'LinkedIn', 'Met at conference', '5000', 'HIGH', 'https://linkedin.com/in/jsmith'];
+  const headers = ['Name *', 'Company', 'Email', 'Phone', 'Status', 'Source', 'Notes', 'Value', 'Priority', 'Profile URL', 'YouTube URL'];
+  const example = ['John Smith', 'Acme Corp', 'john@acme.com', '+1-555-0100', 'NEW', 'LinkedIn', 'Met at conference', '5000', 'HIGH', 'https://linkedin.com/in/jsmith', 'https://youtube.com/@johnsmith'];
   const ws = XLSX.utils.aoa_to_sheet([headers, example]);
   ws['!cols'] = headers.map(() => ({ wch: 20 }));
   XLSX.utils.book_append_sheet(wb, ws, 'Leads');

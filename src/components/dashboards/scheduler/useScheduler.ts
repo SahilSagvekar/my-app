@@ -187,32 +187,83 @@ export function useScheduler() {
 
     const saveLink = async () => {
         if (!linkDialog || !linkUrl) return;
+
+        // Capture values immediately — linkDialog/linkUrl state may change after await
+        const taskId = linkDialog.taskId;
+        const platform = linkDialog.platform;
+        const mode = linkDialog.mode;
+        const url = linkUrl;
+        const postedAt = linkPostedAt;
+
         setSubmittingLink(true);
         try {
-            const res = await fetch(`/api/tasks/${linkDialog.taskId}/social-media-link`, {
-                method: "POST",
+            const method = mode === 'edit' ? 'PATCH' : 'POST';
+            const res = await fetch(`/api/tasks/${taskId}/social-media-link`, {
+                method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ platform: linkDialog.platform, url: linkUrl, postedAt: linkPostedAt || undefined }),
+                credentials: 'include',
+                body: JSON.stringify({ platform, url, postedAt: postedAt || undefined }),
             });
+
             if (res.ok) {
-                const refreshed = await res.json();
-                setTasks(prev => prev.map(t => t.id === linkDialog.taskId ? { ...t, socialMediaLinks: refreshed.socialMediaLinks } : t));
+                const newLink = { platform, url, postedAt: postedAt || new Date().toISOString() };
+                setTasks(prev => prev.map(t => {
+                    if (t.id !== taskId) return t;
+                    const existing = t.socialMediaLinks || [];
+                    if (mode === 'edit') {
+                        return {
+                            ...t,
+                            socialMediaLinks: existing.map(l =>
+                                l.platform.toLowerCase() === platform.toLowerCase()
+                                    ? { ...l, url, postedAt: postedAt || l.postedAt }
+                                    : l
+                            ),
+                        };
+                    }
+                    const withoutDupe = existing.filter(l => l.platform.toLowerCase() !== platform.toLowerCase());
+                    return { ...t, socialMediaLinks: [...withoutDupe, newLink] };
+                }));
                 toast.success('Link saved');
                 setLinkDialog(null);
+                setLinkUrl('');
+                setLinkPostedAt('');
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                console.error('[saveLink] API error:', res.status, errData);
+                toast.error(errData.error || 'Failed to save link');
             }
-        } catch (err) { toast.error('Failed to save'); }
-        finally { setSubmittingLink(false); }
+        } catch (err) {
+            console.error('[saveLink] fetch error:', err);
+            toast.error('Failed to save');
+        } finally {
+            setSubmittingLink(false);
+        }
     };
 
     const deleteSocialLink = async (taskId: string, platform: string) => {
+        // Optimistically remove from state immediately
+        setTasks(prev => prev.map(t => {
+            if (t.id !== taskId) return t;
+            return {
+                ...t,
+                socialMediaLinks: (t.socialMediaLinks || []).filter(
+                    l => l.platform.toLowerCase() !== platform.toLowerCase()
+                ),
+            };
+        }));
         try {
-            const res = await fetch(`/api/tasks/${taskId}/social-media-link?platform=${platform}`, { method: "DELETE" });
-            if (res.ok) {
-                const refreshed = await res.json();
-                setTasks(prev => prev.map(t => t.id === taskId ? { ...t, socialMediaLinks: refreshed.socialMediaLinks } : t));
+            const res = await fetch(`/api/tasks/${taskId}/social-media-link?platform=${platform}`, { method: "DELETE", credentials: 'include' });
+            if (!res.ok) {
+                // Revert on failure by reloading
+                toast.error('Failed to remove link');
+                loadTasks();
+            } else {
                 toast.success('Link removed');
             }
-        } catch (err) { toast.error('Failed to remove'); }
+        } catch (err) {
+            toast.error('Failed to remove link');
+            loadTasks();
+        }
     };
 
     const downloadFile = (file: any) => {
