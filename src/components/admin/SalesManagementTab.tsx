@@ -7,7 +7,8 @@ import {
   Check, Ghost, FileText, X, Loader2, Send,
   History as HistoryIcon, Link as LinkIcon, Info as InfoIcon,
   TrendingUp, DollarSign, Clock, BadgePercent, Wallet,
-  CheckCircle, XCircle, ArrowRight, ShieldCheck, UserCheck
+  CheckCircle, XCircle, ArrowRight, ShieldCheck, UserCheck,
+  UserPlus, Shuffle,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthContext';
 import { Button } from '../ui/button';
@@ -326,12 +327,16 @@ function CommissionManagement() {
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Total Paid Out', value: formatCurrency(summary.totalEarned), color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: Wallet },
-          { label: 'Pending Approval', value: formatCurrency(summary.totalPending), color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock, badge: pendingCount > 0 ? pendingCount : null },
-          { label: 'Approved (Unpaid)', value: formatCurrency(summary.totalApproved), color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: CheckCircle, badge: approvedCount > 0 ? approvedCount : null },
-          { label: 'This Month', value: formatCurrency(summary.thisMonth), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', icon: TrendingUp },
+          { label: 'Total Paid Out', value: formatCurrency(summary.totalEarned), color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: Wallet, filter: 'PAID' as const },
+          { label: 'Pending Approval', value: formatCurrency(summary.totalPending), color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock, badge: pendingCount > 0 ? pendingCount : null, filter: 'PENDING' as const },
+          { label: 'Approved (Unpaid)', value: formatCurrency(summary.totalApproved), color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: CheckCircle, badge: approvedCount > 0 ? approvedCount : null, filter: 'APPROVED' as const },
+          { label: 'This Month', value: formatCurrency(summary.thisMonth), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', icon: TrendingUp, filter: null },
         ].map(s => (
-          <div key={s.label} className={cn('rounded-xl border p-4 relative flex flex-col items-center justify-center text-center transition-all hover:shadow-md cursor-default', s.bg)}>
+          <div
+            key={s.label}
+            onClick={() => s.filter && setStatusFilter(prev => prev === s.filter ? 'all' : s.filter!)}
+            className={cn('rounded-xl border p-4 relative flex flex-col items-center justify-center text-center transition-all hover:shadow-md', s.bg, s.filter ? 'cursor-pointer' : 'cursor-default')}
+          >
             <div className="flex items-center gap-2 mb-1">
               <s.icon className={cn('h-4 w-4', s.color)} />
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{s.label}</p>
@@ -358,18 +363,27 @@ function CommissionManagement() {
           />
         </div>
         <div className="flex bg-gray-100/50 p-1 rounded-lg gap-0.5">
-          {(['all', 'PENDING', 'APPROVED', 'PAID', 'CANCELLED'] as const).map(s => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={cn(
-                'px-3 py-1 text-[11px] font-bold rounded-md transition-all uppercase tracking-wider',
-                statusFilter === s ? 'bg-white text-yellow-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
-              )}
-            >
-              {s === 'all' ? 'All' : s}
-            </button>
-          ))}
+          {(['all', 'PENDING', 'APPROVED', 'PAID', 'CANCELLED'] as const).map(s => {
+            const activeColors: Record<string, string> = {
+              all: 'bg-white text-gray-700 shadow-sm',
+              PENDING: 'bg-white text-amber-600 shadow-sm',
+              APPROVED: 'bg-white text-blue-600 shadow-sm',
+              PAID: 'bg-white text-emerald-600 shadow-sm',
+              CANCELLED: 'bg-white text-red-600 shadow-sm',
+            };
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  'px-3 py-1 text-[11px] font-bold rounded-md transition-all uppercase tracking-wider',
+                  statusFilter === s ? activeColors[s] : 'text-gray-400 hover:text-gray-600'
+                )}
+              >
+                {s === 'all' ? 'All' : s}
+              </button>
+            );
+          })}
         </div>
         <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
           {filtered.length} commission{filtered.length !== 1 ? 's' : ''}
@@ -388,7 +402,8 @@ function CommissionManagement() {
           <p className="text-xs mt-1">When sales reps close deals (mark leads as "Won"), commissions will appear here.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-x-auto no-scrollbar">
+        <div className="relative rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
           <div className="min-w-max">
             <table className="w-full text-sm border-collapse">
               <thead>
@@ -449,7 +464,7 @@ function CommissionManagement() {
                         <td className="px-4 py-3 text-center">
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
                             <BadgePercent className="h-3 w-3" />
-                            {(parseFloat(c.commissionRate) * 100).toFixed(0)}%
+                            {(() => { const raw = parseFloat(c.commissionRate); return (raw > 1 ? raw : raw * 100).toFixed(0) + '%'; })()}
                           </span>
                         </td>
 
@@ -537,6 +552,8 @@ function CommissionManagement() {
             </table>
           </div>
         </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent rounded-r-xl" />
+      </div>
       )}
     </div>
   );
@@ -555,6 +572,13 @@ export function SalesManagementTab() {
   const [convertModal, setConvertModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [view, setView] = useState<'team' | 'personal' | 'commissions'>('team');
+
+  // Assign leads state
+  const [assignDialog, setAssignDialog] = useState<{ open: boolean; leadIds: string[] }>({ open: false, leadIds: [] });
+  const [salesReps, setSalesReps] = useState<{ id: number; name: string; email: string }[]>([]);
+  const [selectedSalesUserId, setSelectedSalesUserId] = useState<number | 'all' | null>(null);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
 
   // ── Role Authorization Check ──
   if (authLoading) {
@@ -593,6 +617,49 @@ export function SalesManagementTab() {
       else next.add(id);
       return next;
     });
+  };
+
+  const openAssignDialog = async (leadIds: string[]) => {
+    setSelectedSalesUserId(null);
+    setAssignDialog({ open: true, leadIds });
+    // Fetch sales reps if not loaded yet
+    if (salesReps.length === 0) {
+      try {
+        const res = await fetch('/api/roles?all=true', { credentials: 'include' });
+        const data = await res.json();
+        const reps = (data.users || []).filter((u: any) => u.role?.toLowerCase() === 'sales');
+        setSalesReps(reps.map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email })));
+      } catch {
+        toast.error('Failed to load sales reps');
+      }
+    }
+  };
+
+  const handleAssign = async () => {
+    if (!selectedSalesUserId) return;
+    setIsAssigning(true);
+    try {
+      const body = selectedSalesUserId === 'all'
+        ? { leadIds: assignDialog.leadIds, distributeToAll: true }
+        : { leadIds: assignDialog.leadIds, targetUserId: selectedSalesUserId };
+
+      const res = await fetch('/api/admin/sales-leads/assign', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.message);
+      toast.success(data.message);
+      setAssignDialog({ open: false, leadIds: [] });
+      setSelectedLeadIds(new Set());
+      fetchLeads();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to assign leads');
+    } finally {
+      setIsAssigning(false);
+    }
   };
 
   // ── Fetch all leads ──
@@ -643,7 +710,7 @@ export function SalesManagementTab() {
     const rows = filtered.map(l => [
       displayName(l.user),
       l.name, l.email, l.socials, l.priority || '—',
-      l.igDm ? 'Yes' : 'No', l.dmPlatform || '—',
+      l.instagram || l.facebook || l.linkedin || l.twitter || l.tiktok ? 'Yes' : 'No', l.dmPlatform || '—',
       l.meetingBooked ? 'Yes' : 'No',
       l.emailed ? 'Yes' : 'No',
       l.called ? 'Yes' : 'No',
@@ -685,12 +752,12 @@ export function SalesManagementTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
-        <div className="flex bg-gray-100/50 p-1 rounded-lg">
+      <div className="flex flex-wrap gap-2 items-center bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
+        <div className="flex overflow-x-auto bg-gray-100/50 p-1 rounded-lg flex-shrink-0">
           <button
             onClick={() => setView('team')}
             className={cn(
-              "px-6 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-2",
+              "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
               view === 'team' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
             )}
           >
@@ -700,17 +767,17 @@ export function SalesManagementTab() {
           <button
             onClick={() => setView('personal')}
             className={cn(
-              "px-6 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-2",
+              "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
               view === 'personal' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
             )}
           >
             <TrendingUp className="h-3.5 w-3.5" />
-            My Personal Sheet
+            My Sheet
           </button>
           <button
             onClick={() => setView('commissions')}
             className={cn(
-              "px-6 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-2",
+              "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
               view === 'commissions' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
             )}
           >
@@ -743,7 +810,7 @@ export function SalesManagementTab() {
                 { label: 'Meetings Booked', value: stats.meetings, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
                 { label: 'High Priority', value: stats.highPriority, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
               ].map(s => (
-                <div key={s.label} className={cn('rounded-xl border p-4 flex flex-col items-center justify-center text-center transition-all hover:shadow-md cursor-default', s.bg)}>
+                <div key={s.label} className={cn('rounded-xl border p-4 flex flex-col items-center justify-center text-center', s.bg)}>
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{s.label}</p>
                   <p className={cn('text-3xl font-black mt-0.5', s.color)}>{s.value}</p>
                 </div>
@@ -752,11 +819,11 @@ export function SalesManagementTab() {
 
             {/* Rep filter pills */}
             {salesUsers.length > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 <button
                   onClick={() => setSelectedUserId('all')}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
+                    'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all flex-shrink-0',
                     selectedUserId === 'all'
                       ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm'
                       : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-300 hover:bg-yellow-50'
@@ -776,7 +843,7 @@ export function SalesManagementTab() {
                       key={u.id}
                       onClick={() => setSelectedUserId(active ? 'all' : u.id)}
                       className={cn(
-                        'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all',
+                        'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all flex-shrink-0',
                         active ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm' : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-300 hover:bg-yellow-50'
                       )}
                     >
@@ -818,6 +885,16 @@ export function SalesManagementTab() {
                   : ''}
               </span>
               <div className="ml-auto flex items-center gap-2">
+                {selectedLeadIds.size > 0 && (
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs gap-1.5 bg-yellow-500 hover:bg-yellow-600 text-white"
+                    onClick={() => openAssignDialog(Array.from(selectedLeadIds))}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Assign {selectedLeadIds.size} selected
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={fetchLeads} className="gap-1.5 h-8 text-xs">
                   <RefreshCw className="h-3.5 w-3.5" /> Refresh
                 </Button>
@@ -849,13 +926,13 @@ export function SalesManagementTab() {
                         <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[160px] w-[160px]">Socials</th>
                         <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 border-r border-gray-100 min-w-[120px] w-[120px]">Activity</th>
                         <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 min-w-[130px] w-[130px]">Added</th>
-                        <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 min-w-[100px] w-[100px]">Convert</th>
+                        <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 min-w-[100px] w-[100px] sticky right-0 bg-[#F5F6F8] z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]">Convert</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filtered.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="py-12 text-center text-gray-400 text-sm">
+                          <td colSpan={10} className="py-12 text-center text-gray-400 text-sm">
                             No leads match your search.
                           </td>
                         </tr>
@@ -880,8 +957,8 @@ export function SalesManagementTab() {
                           return groups.map(group => (
                             <Fragment key={group.id}>
                               {/* Group header */}
-                              <tr>
-                                <td colSpan={9} className="border-b border-gray-100">
+                              <tr className="relative z-30">
+                                <td colSpan={10} className="border-b border-gray-100">
                                   <div
                                     className="flex items-center gap-2 px-3 py-1.5"
                                     style={{ borderLeft: `4px solid ${group.color}` }}
@@ -906,24 +983,41 @@ export function SalesManagementTab() {
                                     )}
                                     style={{ borderLeft: `4px solid ${group.color}` }}
                                   >
-                                    {/* Expand toggle */}
-                                    <td className="w-[40px] px-2 py-2 text-center sticky left-0 bg-inherit z-10">
-                                      <button
-                                        onClick={() => toggleRow(lead.id)}
-                                        className="text-gray-300 hover:text-amber-500 transition-colors"
-                                      >
-                                        <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', expandedRows.has(lead.id) && 'rotate-90')} />
-                                      </button>
+                                    {/* Expand toggle + checkbox */}
+                                    <td className="w-[40px] px-2 py-2 text-center sticky left-0 z-20 bg-white group-[.expanded]:bg-yellow-50/40 group-hover:bg-[#F5F6F8]">
+                                      <div className="flex flex-col items-center gap-1">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedLeadIds.has(lead.id)}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedLeadIds(prev => {
+                                              const next = new Set(prev);
+                                              if (e.target.checked) next.add(lead.id);
+                                              else next.delete(lead.id);
+                                              return next;
+                                            });
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="h-3.5 w-3.5 rounded accent-yellow-500 cursor-pointer"
+                                        />
+                                        <button
+                                          onClick={() => toggleRow(lead.id)}
+                                          className="text-gray-300 hover:text-amber-500 transition-colors"
+                                        >
+                                          <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', expandedRows.has(lead.id) && 'rotate-90')} />
+                                        </button>
+                                      </div>
                                     </td>
 
                                     {/* Lead name */}
-                                    <td className="px-3 py-2 sticky left-[40px] bg-inherit z-10 min-w-[200px]">
+                                    <td className="px-3 py-2 sticky left-[40px] z-20 bg-white group-[.expanded]:bg-yellow-50/40 group-hover:bg-[#F5F6F8] min-w-[200px]">
                                       <div className="flex flex-col gap-0.5">
                                         <span className="text-[13px] font-semibold text-gray-900 truncate max-w-[180px]" title={lead.name}>
                                           {lead.name || <span className="text-gray-300 italic text-xs">Unnamed</span>}
                                         </span>
-                                        {lead.company && (
-                                          <span className="text-[11px] text-gray-400 truncate max-w-[180px]">{lead.company}</span>
+                                        {(lead as any).company && (
+                                          <span className="text-[11px] text-gray-400 truncate max-w-[180px]">{(lead as any).company}</span>
                                         )}
                                       </div>
                                     </td>
@@ -991,7 +1085,7 @@ export function SalesManagementTab() {
                                           ].map(({ key, label, color }) => {
                                             const active = !!(lead as any)[key];
                                             const entry = socialEntries.find(e => e.platform === key);
-                                            const url = entry?.url || lead.profileUrl || '';
+                                            const url = entry?.url || '';
                                             const Tag = active && url ? 'a' : 'span';
                                             return (
                                               <Tag
@@ -1050,34 +1144,43 @@ export function SalesManagementTab() {
                                       </div>
                                     </td>
 
-                                    {/* Convert to Client */}
-                                    <td className="px-3 py-2">
-                                      {(lead as any).convertedToClientId ? (
-                                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full whitespace-nowrap">
-                                          <UserCheck className="h-3 w-3" />
-                                          Client
-                                        </span>
-                                      ) : (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="h-7 text-[11px] px-2 whitespace-nowrap border-green-300 text-green-700 hover:bg-green-50"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setConvertModal({ open: true, lead });
-                                          }}
+                                    {/* Convert to Client + Assign */}
+                                    <td className="px-3 py-2 sticky right-0 bg-white z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]">
+                                      <div className="flex flex-col gap-1 items-center">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); openAssignDialog([lead.id]); }}
+                                          className="flex items-center gap-1 text-[11px] font-semibold text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-1 rounded-full hover:bg-yellow-100 whitespace-nowrap w-full justify-center"
                                         >
-                                          <UserCheck className="h-3 w-3 mr-1" />
-                                          Convert
-                                        </Button>
-                                      )}
+                                          <UserPlus className="h-3 w-3" />
+                                          Assign
+                                        </button>
+                                        {(lead as any).convertedToClientId ? (
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full whitespace-nowrap">
+                                            <UserCheck className="h-3 w-3" />
+                                            Client
+                                          </span>
+                                        ) : (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-[11px] px-2 whitespace-nowrap border-green-300 text-green-700 hover:bg-green-50 w-full"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setConvertModal({ open: true, lead });
+                                            }}
+                                          >
+                                            <UserCheck className="h-3 w-3 mr-1" />
+                                            Convert
+                                          </Button>
+                                        )}
+                                      </div>
                                     </td>
                                   </tr>
 
                                   {/* Expanded detail panel — unchanged */}
                                   {expandedRows.has(lead.id) && (
                                     <tr className="bg-yellow-50/20" style={{ borderLeft: `4px solid ${group.color}` }}>
-                                      <td colSpan={9} className="px-6 py-4 border-b border-gray-200">
+                                      <td colSpan={10} className="px-6 py-4 border-b border-gray-200">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                           {/* Metadata */}
                                           <div className="space-y-4">
@@ -1155,7 +1258,7 @@ export function SalesManagementTab() {
                                               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
                                                 <InfoIcon className="h-3 w-3" /> Lead Notes
                                               </p>
-                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 min-h-[100px] text-xs text-gray-700 whitespace-pre-wrap leading-relaxed shadow-inner italic">
+                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 min-h-[80px] max-h-[200px] overflow-y-auto text-xs text-gray-700 whitespace-pre-wrap leading-relaxed shadow-inner italic">
                                                 {lead.notes || '(No notes provided by rep)'}
                                               </div>
                                             </div>
@@ -1163,7 +1266,7 @@ export function SalesManagementTab() {
                                               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
                                                 <Mail className="h-3 w-3" /> Email Template
                                               </p>
-                                              <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 min-h-[100px] text-xs text-blue-900/70 whitespace-pre-wrap font-mono shadow-inner leading-relaxed">
+                                              <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 min-h-[80px] max-h-[200px] overflow-y-auto text-xs text-blue-900/70 whitespace-pre-wrap font-mono shadow-inner leading-relaxed">
                                                 {lead.emailTemplate || '(No custom template)'}
                                               </div>
                                             </div>
@@ -1176,10 +1279,10 @@ export function SalesManagementTab() {
                               ))}
                               {/* Group summary row */}
                               <tr className="bg-[#F5F6F8] border-b border-gray-200">
-                                <td colSpan={2} className="px-3 py-1.5 sticky left-0 bg-[#F5F6F8]">
+                                <td colSpan={2} className="px-3 py-1.5 sticky left-0 bg-[#F5F6F8] z-10">
                                   <span className="text-[11px] text-gray-400 font-medium">{group.leads.length} item{group.leads.length !== 1 ? 's' : ''}</span>
                                 </td>
-                                <td colSpan={7} className="px-3 py-1.5">
+                                <td colSpan={8} className="px-3 py-1.5">
                                   <span className="text-[11px] text-gray-400">
                                     {group.leads.filter(l => l.meetingBooked).length} meetings ·{' '}
                                     {group.leads.filter(l => l.emailed || l.called || l.texted).length} contacted
@@ -1213,9 +1316,84 @@ export function SalesManagementTab() {
               onOpenChange={(o) => setConvertModal(m => ({ ...m, open: o }))}
               onConverted={() => { fetchLeads(); setConvertModal({ open: false, lead: null }); }}
             />
+
           </div>
         </>
       )}
+
+      {/* Assign Dialog — lives outside view conditional so it always renders */}
+      <Dialog open={assignDialog.open} onOpenChange={(o) => setAssignDialog(d => ({ ...d, open: o }))}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-yellow-500" />
+              Assign {assignDialog.leadIds.length} Lead{assignDialog.leadIds.length !== 1 ? 's' : ''}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <button
+              onClick={() => setSelectedSalesUserId(selectedSalesUserId === 'all' ? null : 'all')}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left',
+                selectedSalesUserId === 'all' ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-white hover:border-yellow-200'
+              )}
+            >
+              <div className="h-9 w-9 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                <Shuffle className="h-4 w-4 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Distribute to all reps</p>
+                <p className="text-xs text-gray-500">Round-robin across all active sales reps</p>
+              </div>
+              {selectedSalesUserId === 'all' && <Check className="h-4 w-4 text-yellow-500 ml-auto" />}
+            </button>
+
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">or pick one</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {salesReps.length === 0 ? (
+                <p className="text-sm text-center text-gray-400 py-4">No sales reps found</p>
+              ) : salesReps.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => setSelectedSalesUserId(selectedSalesUserId === u.id ? null : u.id)}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border-2 transition-all text-left',
+                    selectedSalesUserId === u.id ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-white hover:border-yellow-200'
+                  )}
+                >
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
+                      {initials(u.name, u.email)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{u.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                  </div>
+                  {selectedSalesUserId === u.id && <Check className="h-4 w-4 text-yellow-500 flex-shrink-0" />}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" onClick={() => setAssignDialog(d => ({ ...d, open: false }))}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!selectedSalesUserId || isAssigning}
+              onClick={handleAssign}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white"
+            >
+              {isAssigning ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Assign'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

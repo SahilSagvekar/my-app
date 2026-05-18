@@ -1,16 +1,20 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
     RefreshCw, 
     Check, 
     ArrowUpDown, 
     FileText, 
     Sparkles, 
-    Loader2 
+    Loader2,
+    AlertTriangle,
+    ArrowLeft,
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Checkbox } from '../../ui/checkbox';
+import { Textarea } from '../../ui/textarea';
+import { Label } from '../../ui/label';
 import { FilePreviewModal } from '../../FileViewerModal';
 import {
     Dialog,
@@ -26,6 +30,7 @@ import { SchedulerTask, PlatformKey } from './types';
 import { PLATFORMS } from './icons';
 import { formatPostingTime, formatPostingTimes } from './utils';
 import { LinkDialog } from './LinkDialog';
+import { toast } from 'sonner';
 
 export function SchedulerSpreadsheetView() {
     const {
@@ -78,6 +83,42 @@ export function SchedulerSpreadsheetView() {
         sortDirection,
         displayTasks
     } = useScheduler();
+
+    // Send back to editor state
+    const [showSendBackDialog, setShowSendBackDialog] = useState(false);
+    const [sendBackTask, setSendBackTask] = useState<SchedulerTask | null>(null);
+    const [sendBackFeedback, setSendBackFeedback] = useState('');
+    const [isSendingBack, setIsSendingBack] = useState(false);
+
+    const handleSendBack = async () => {
+        if (!sendBackTask || !sendBackFeedback.trim()) return;
+        setIsSendingBack(true);
+        try {
+            const res = await fetch(`/api/tasks/${sendBackTask.id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    status: 'REJECTED',
+                    schedulerFeedback: sendBackFeedback.trim(),
+                    route: 'editor',
+                }),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to send back');
+            }
+            toast.success('Task sent back to editor with feedback');
+            setShowSendBackDialog(false);
+            setSendBackFeedback('');
+            setSendBackTask(null);
+            loadTasks();
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to send task back');
+        } finally {
+            setIsSendingBack(false);
+        }
+    };
 
     if (loading && isInitialLoad) {
         return (
@@ -240,6 +281,11 @@ export function SchedulerSpreadsheetView() {
                                         }}
                                         onMarkScheduled={() => markAsScheduled(task.id)}
                                         onMarkPending={() => markAsPending(task.id)}
+                                        onSendBack={() => {
+                                            setSendBackTask(task);
+                                            setSendBackFeedback('');
+                                            setTimeout(() => setShowSendBackDialog(true), 50);
+                                        }}
                                         onAddLink={(platform) => setLinkDialog({ open: true, taskId: task.id, platform, mode: 'add' })}
                                         onEditLink={(platform, url, postedAt) => {
                                             setLinkUrl(url);
@@ -321,6 +367,66 @@ export function SchedulerSpreadsheetView() {
                     file={previewFile}
                 />
             )}
+
+            {/* Send Back to Editor Dialog */}
+            <Dialog open={showSendBackDialog} onOpenChange={setShowSendBackDialog}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            Send Back to Editor
+                        </DialogTitle>
+                        <DialogDescription>
+                            {sendBackTask && (
+                                <span className="block text-xs text-zinc-500 mt-1 truncate">
+                                    Task: {sendBackTask.title}
+                                </span>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                            The editor will be notified and the task will be returned to their queue for revision.
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="sendback-feedback">
+                                Feedback / Reason <span className="text-red-500">*</span>
+                            </Label>
+                            <Textarea
+                                id="sendback-feedback"
+                                placeholder="Describe what needs to be fixed or changed before this can be scheduled…"
+                                className="min-h-[120px] resize-none"
+                                value={sendBackFeedback}
+                                onChange={(e) => setSendBackFeedback(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                {sendBackFeedback.length}/500 characters
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowSendBackDialog(false);
+                                setSendBackFeedback('');
+                                setSendBackTask(null);
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            disabled={!sendBackFeedback.trim() || isSendingBack}
+                            onClick={handleSendBack}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {isSendingBack ? 'Sending…' : 'Send Back to Editor'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

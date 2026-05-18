@@ -19,7 +19,8 @@ import {
     Download,
     Package,
     Calendar,
-    RefreshCw
+    RefreshCw,
+    ArrowLeft,
 } from 'lucide-react';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
@@ -42,6 +43,7 @@ interface TaskRowProps {
     onSelect: (checked: boolean) => void;
     onMarkScheduled: () => void;
     onMarkPending: () => void;
+    onSendBack: () => void;
     onAddLink: (platform: PlatformKey) => void;
     onEditLink: (platform: PlatformKey, url: string, postedAt: string) => void;
     onDeleteLink: (platform: PlatformKey, url: string) => void;
@@ -60,6 +62,7 @@ export function TaskRow({
     onSelect,
     onMarkScheduled,
     onMarkPending,
+    onSendBack,
     onAddLink,
     onEditLink,
     onDeleteLink,
@@ -302,6 +305,13 @@ export function TaskRow({
                                     Revert to Pending
                                 </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem
+                                onClick={onSendBack}
+                                className="text-red-600 font-medium"
+                            >
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Send Back to Editor
+                            </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </td>

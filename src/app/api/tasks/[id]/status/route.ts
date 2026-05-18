@@ -46,7 +46,7 @@ export async function PATCH(
     const { role, userId } = decoded;
 
     const body = await req.json();
-    const { status, feedback, qcNotes, route } = body;
+    const { status, feedback, qcNotes, route, schedulerFeedback } = body;
 
     let finalStatus = status;
 
@@ -58,6 +58,9 @@ export async function PATCH(
 
     if (feedback !== undefined) updateData.feedback = feedback;
     if (qcNotes !== undefined) updateData.qcNotes = qcNotes;
+    const schedulerFeedbackText =
+      typeof schedulerFeedback === "string" ? schedulerFeedback.trim() : "";
+    if (schedulerFeedback !== undefined) updateData.feedback = schedulerFeedbackText; // store in feedback field so editor sees it
     if (route !== undefined) updateData.route = route;
 
     let task: any;
@@ -210,6 +213,36 @@ export async function PATCH(
       }
     }
 
+    const isSchedulerSendBack =
+      role.toLowerCase() === "scheduler" &&
+      finalStatus === "REJECTED" &&
+      schedulerFeedbackText.length > 0;
+
+    if (isSchedulerSendBack) {
+      const existingSchedulerFeedback = await prisma.taskFeedback.findFirst({
+        where: {
+          taskId: id,
+          folderType: "scheduler",
+          feedback: schedulerFeedbackText,
+          status: { not: "resolved" },
+        },
+        select: { id: true },
+      });
+
+      if (!existingSchedulerFeedback) {
+        await prisma.taskFeedback.create({
+          data: {
+            taskId: id,
+            folderType: "scheduler",
+            feedback: schedulerFeedbackText,
+            category: "scheduler_sendback",
+            status: "needs_revision",
+            createdBy: Number(userId),
+          },
+        });
+      }
+    }
+
     // ============================================
     // NEW: Trigger AI titling on QC approval
     // ============================================
@@ -221,7 +254,7 @@ export async function PATCH(
 
     if (shouldTriggerTitling) {
       // Check if task has a video file
-      const hasVideoFile = task.files.some(f => f.mimeType?.startsWith('video/'));
+      const hasVideoFile = task.files.some((f: any) => f.mimeType?.startsWith('video/'));
 
       if (hasVideoFile) {
         console.log(`\n🎬 QC approved task ${id} - triggering AI titling`);
@@ -290,13 +323,15 @@ export async function PATCH(
         await notifyUser({
           userId: task.assignedTo,
           type: "task_rejected",
-          title: "Content Needs Revisions",
-          body: `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
+          title: role.toLowerCase() === "scheduler" ? "Content Sent Back by Scheduler" : "Content Needs Revisions",
+          body: role.toLowerCase() === "scheduler"
+            ? `Task "${task.title}" was sent back to you by the scheduler: ${schedulerFeedback || feedback || qcNotes || "Please check the feedback."}`
+            : `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
           payload: {
             taskId: task.id,
             clientId: task.clientId,
             editorId: task.assignedTo,
-            taskTitle: task.title, // ← add this
+            taskTitle: task.title,
           },
         });
       } else if (

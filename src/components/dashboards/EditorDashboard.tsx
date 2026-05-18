@@ -668,7 +668,7 @@ function TaskCard({
               <div className="flex items-center gap-1.5">
                 <AlertCircle className="h-3 w-3 text-destructive" />
                 <span className="text-[10px] font-semibold text-destructive">
-                  QC Feedback ({task.taskFeedback.filter(fb => fb.status === "needs_revision").length})
+                  Revision Feedback ({task.taskFeedback.filter(fb => fb.status === "needs_revision").length})
                 </span>
               </div>
 
@@ -695,7 +695,8 @@ function TaskCard({
                                 fb.folderType === "thumbnails" ? "🖼️ Thumb" :
                                   fb.folderType === "tiles" ? "🎨 Tiles" :
                                     fb.folderType === "music-license" ? "🎵 Music" :
-                                      fb.folderType}
+                                      fb.folderType === "scheduler" ? "Scheduler" :
+                                        fb.folderType}
                             </Badge>
                             {fb.timestamp && (
                               <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">

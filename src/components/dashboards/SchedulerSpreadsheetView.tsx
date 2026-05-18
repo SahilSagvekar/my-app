@@ -6,6 +6,8 @@ import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Checkbox } from '../ui/checkbox';
+import { Textarea } from '../ui/textarea';
+import { Label } from '../ui/label';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import {
     Select,
@@ -53,6 +55,8 @@ import {
     Calendar,
     Loader2,
     Users,
+    ArrowLeft,
+    AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -233,6 +237,13 @@ export function SchedulerSpreadsheetView() {
 
     // Selected rows for bulk actions
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+
+    // Send back to editor state
+    const [showSendBackDialog, setShowSendBackDialog] = useState(false);
+    const [sendBackTaskId, setSendBackTaskId] = useState<string | null>(null);
+    const [sendBackTaskTitle, setSendBackTaskTitle] = useState('');
+    const [sendBackFeedback, setSendBackFeedback] = useState('');
+    const [isSendingBack, setIsSendingBack] = useState(false);
 
     useEffect(() => {
         fetchMetadata();
@@ -562,6 +573,38 @@ export function SchedulerSpreadsheetView() {
             toast.success('Reverted to pending!');
         } catch (err) {
             toast.error('Failed to revert status');
+        }
+    }
+
+    // Send task back to editor with feedback
+    async function sendBackToEditor() {
+        if (!sendBackTaskId || !sendBackFeedback.trim()) return;
+        setIsSendingBack(true);
+        try {
+            const res = await fetch(`/api/tasks/${sendBackTaskId}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    status: 'REJECTED',
+                    schedulerFeedback: sendBackFeedback.trim(),
+                    route: 'editor',
+                }),
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Failed to send back');
+            }
+            toast.success('Task sent back to editor with feedback');
+            setShowSendBackDialog(false);
+            setSendBackFeedback('');
+            setSendBackTaskId(null);
+            // Remove from list
+            setTasks(prev => prev.filter(t => t.id !== sendBackTaskId));
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to send task back');
+        } finally {
+            setIsSendingBack(false);
         }
     }
 
@@ -1359,6 +1402,23 @@ export function SchedulerSpreadsheetView() {
                                     Revert to Pending
                                   </DropdownMenuItem>
                                 )}
+                                {task.status !== "SCHEDULED" && (
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      const id = task.id;
+                                      const title = task.title || '';
+                                      setSendBackTaskId(id);
+                                      setSendBackTaskTitle(title);
+                                      setSendBackFeedback('');
+                                      setTimeout(() => setShowSendBackDialog(true), 50);
+                                    }}
+                                    className="text-red-600 font-medium"
+                                  >
+                                    <ArrowLeft className="h-4 w-4 mr-2" />
+                                    Send Back to Editor
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </td>
@@ -1446,7 +1506,12 @@ export function SchedulerSpreadsheetView() {
                                                     {isVideo ? (
                                                       <Video className="h-4 w-4 text-blue-500 flex-shrink-0" />
                                                     ) : isImage ? (
-                                                      <ImageIcon className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                                                      <img
+                                                        src={file.url}
+                                                        alt={file.name}
+                                                        className="h-10 w-14 object-cover rounded flex-shrink-0 border border-zinc-200"
+                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                      />
                                                     ) : (
                                                       <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
                                                     )}
@@ -1945,6 +2010,66 @@ export function SchedulerSpreadsheetView() {
           open={isPreviewOpen}
           onOpenChange={setIsPreviewOpen}
         />
+
+        {/* Send Back to Editor Dialog */}
+        <Dialog open={showSendBackDialog} onOpenChange={setShowSendBackDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                Send Back to Editor
+              </DialogTitle>
+              <DialogDescription>
+                {sendBackTaskTitle && (
+                  <span className="block text-xs text-zinc-500 mt-1 truncate">
+                    Task: {sendBackTaskTitle}
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                The editor will be notified and the task will be returned to their queue for revision.
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sendback-feedback">
+                  Feedback / Reason <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="sendback-feedback"
+                  placeholder="Describe what needs to be fixed or changed before this can be scheduled…"
+                  className="min-h-[120px] resize-none"
+                  value={sendBackFeedback}
+                  onChange={(e) => setSendBackFeedback(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {sendBackFeedback.length}/500 characters
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSendBackDialog(false);
+                  setSendBackFeedback('');
+                  setSendBackTaskId(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!sendBackFeedback.trim() || isSendingBack}
+                onClick={sendBackToEditor}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isSendingBack ? 'Sending…' : 'Send Back to Editor'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
 }

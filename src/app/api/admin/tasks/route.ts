@@ -224,7 +224,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
         }
 
-        if (!["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
+        if (!["admin", "qc"].includes(user.role?.toLowerCase() || "")) {
             return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 

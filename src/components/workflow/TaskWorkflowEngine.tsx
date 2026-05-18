@@ -33,6 +33,7 @@ export interface WorkflowFile {
   driveFileId?: string;
   mimeType: string;
   size: number;
+  folderType?: string;
 }
 
 export interface TaskWorkflowEngineProps {

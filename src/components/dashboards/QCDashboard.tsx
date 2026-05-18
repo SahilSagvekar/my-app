@@ -222,6 +222,13 @@ export function QCDashboard() {
   const [isSharing, setIsSharing] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // QC Reassign state
+  const [showReassignDialog, setShowReassignDialog] = useState(false);
+  const [reassignTask, setReassignTask] = useState<EnhancedWorkflowTask | null>(null);
+  const [qcUsers, setQcUsers] = useState<{ id: number; name: string }[]>([]);
+  const [selectedQcId, setSelectedQcId] = useState<string>("");
+  const [isReassigning, setIsReassigning] = useState(false);
+
   const { user } = useAuth();
 
   const getMimeType = (file: TaskFile | null) => {
@@ -255,8 +262,6 @@ export function QCDashboard() {
       return () => clearInterval(interval);
     }
   }, [qcTasks.length]); // Only re-evaluate when task count changes
-
-
 
   // Global listener for background task updates
   useEffect(() => {
@@ -654,6 +659,46 @@ export function QCDashboard() {
     setShowFileSelector(true);
   };
 
+  const handleOpenReassign = async (e: React.MouseEvent, task: EnhancedWorkflowTask) => {
+    e.stopPropagation();
+    setReassignTask(task);
+    setSelectedQcId("");
+    try {
+      const res = await fetch("/api/roles?all=true", { credentials: "include" });
+      const data = await res.json();
+      const qcs = (data.users || []).filter(
+        (u: any) => u.role?.toLowerCase() === "qc"
+      );
+      setQcUsers(qcs.map((u: any) => ({ id: u.id, name: u.name })));
+    } catch {
+      setQcUsers([]);
+    }
+    setShowReassignDialog(true);
+  };
+
+  const handleReassign = async () => {
+    if (!reassignTask || !selectedQcId) return;
+    setIsReassigning(true);
+    try {
+      const res = await fetch(`/api/tasks/${reassignTask.id}/reassign-qc`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ newQcSpecialistId: Number(selectedQcId) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Reassign failed");
+      toast.success(data.message || "Task reassigned");
+      setShowReassignDialog(false);
+      setReassignTask(null);
+      setQCTasks((prev) => prev.filter((t) => t.id !== reassignTask.id));
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reassign task");
+    } finally {
+      setIsReassigning(false);
+    }
+  };
+
   const handleShare = async (e: React.MouseEvent, task: EnhancedWorkflowTask) => {
     e.stopPropagation();
     setIsSharing(true);
@@ -753,305 +798,271 @@ export function QCDashboard() {
   const totalPending = qcTasks.length;
 
   return (
-    <div className="flex flex-col h-full space-y-6">
-      {/* <div className="flex items-center justify-between">
-        <div>
-          <h1>Review Queue</h1>
-          <p className="text-muted-foreground mt-2">
-            Review submitted work and approve or reject with feedback
-          </p>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-4 max-w-sm">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 text-center mt-0 pt-0 mb-0 pb-0">
-                <p className="text-sm text-muted-foreground mt-0 pt-0 mb-0 pb-0">Pending Reviews</p>
-                <h3 className="text-2xl mt-1 font-bold">{pendingReviews}</h3>
-              </div>
-              <Clock className="h-10 w-10 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-      </div> */}
-
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
-          <p className="text-muted-foreground mt-1 text-lg">
-            Review submitted work and approve or reject with feedback
-          </p>
-        </div>
-
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-          {/* Dashboard Filters */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 mr-1">
-              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Filter:</span>
-            </div>
-
-            <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-              <SelectTrigger className="h-9 w-[160px] text-xs">
-                <SelectValue placeholder="Deliverable Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Deliverables</SelectItem>
-                {availableDeliverableTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="h-9 w-[160px] text-xs">
-                <SelectValue placeholder="All Clients" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Clients</SelectItem>
-                {availableClients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearAllFilters}
-                className="h-9 px-2 text-xs text-muted-foreground hover:text-primary"
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-
-          {/* Stats Badge */}
-          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
-            <div className="flex flex-col items-center text-center">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
-                {hasActiveFilters ? 'Filtered' : 'Pending'}
-              </span>
-              <span className="text-xl font-bold text-zinc-900 leading-none">
-                {pendingReviews}
-              </span>
-            </div>
-            <div className="ml-4 h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
-              <Clock className="h-4 w-4 text-blue-500" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1">
-        {/* Main QC grid */}
-        {/* <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              Review Queue
-              <Badge variant="secondary" className="font-mono">
-                {pendingReviews}
-              </Badge>
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Click on any card to review its files
+    <>
+      <div className="flex flex-col h-full space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
+            <p className="text-muted-foreground mt-1 text-lg">
+              Review submitted work and approve or reject with feedback
             </p>
           </div>
-        </div> */}
 
-        {loading ? (
-          <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
-            <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
-            <p className="font-medium">Loading QC tasks...</p>
-          </div>
-        ) : filteredTasks.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
-            <Filter className="h-12 w-12 mx-auto mb-4 opacity-40" />
-            <p className="font-medium">No tasks match your filters</p>
-            <Button variant="link" onClick={clearAllFilters} className="mt-2">
-              Clear all filters
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            {filteredTasks.map((task, index) => {
-              const thumbnail = getTaskThumbnail(task);
-              const deliverableColors = getDeliverableTypeColor((task as any).deliverableType);
-              return (
-                <Card
-                  key={task.id}
-                  className={`group cursor-pointer shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full hover:shadow-md ${deliverableColors.bg} ${deliverableColors.border} border hover:${deliverableColors.ring} ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""}`}
-                  onClick={() => handleTaskClick(task)}
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+            {/* Dashboard Filters */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 mr-1">
+                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Filter:</span>
+              </div>
+
+              <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
+                <SelectTrigger className="h-9 w-[160px] text-xs">
+                  <SelectValue placeholder="Deliverable Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Deliverables</SelectItem>
+                  {availableDeliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="h-9 w-[160px] text-xs">
+                  <SelectValue placeholder="All Clients" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {availableClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="h-9 px-2 text-xs text-muted-foreground hover:text-primary"
                 >
-                  {/* Visual Header / Thumbnail Area */}
-                  <div
-                    className={`h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold`}
-                  >
-                    {thumbnail && (
-                      <img
-                        src={thumbnail}
-                        alt={task.title}
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 z-10"
-                        onError={(e) => {
-                          // Hide broken image so fallback shows through
-                          (e.target as HTMLImageElement).style.opacity = '0';
-                        }}
-                      />
-                    )}
-                    {/* No thumbnail text fallback - always rendered behind, visible when no image or image fails */}
-                    <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
-                      No thumbnail
-                    </div>
+                  Clear
+                </Button>
+              )}
+            </div>
 
-                    {/* Darker overlay if thumbnail exists for better icon readability */}
-                    {thumbnail && (
-                      <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
-                    )}
-
-                    {/* Share Button - Top Left */}
-                    <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                      <Button
-                        size="icon"
-                        variant="secondary"
-                        className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-primary"
-                        onClick={(e) => handleShare(e, task)}
-                      >
-                        <Share2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-
-                    {/* File Count - Top Right */}
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm z-20">
-                      <FileText className="h-3 w-3" />
-                      {task.files?.length || 0}
-                    </div>
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="p-4 flex flex-col gap-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
-                        {task.title}
-                      </h4>
-                      <TaskGuidelinesButton
-                        clientId={task.clientId}
-                        clientName={task.client?.companyName || task.client?.name || null}
-                        role="qc"
-                      />
-                    </div>
-
-                    {/* Deliverable Type Badge */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {(task as any).deliverableType && (task as any).deliverableType !== "Other" && (
-                        <Badge 
-                          variant="outline" 
-                          className={`w-fit text-[10px] h-5 px-2 font-medium ${
-                            (() => {
-                              const dt = ((task as any).deliverableType || '').toLowerCase();
-                              if (dt.includes('short form') || dt === 'sf') return 'bg-emerald-100 text-emerald-700 border-emerald-300';
-                              if (dt.includes('beta') || dt === 'bsf') return 'bg-teal-100 text-teal-700 border-teal-300';
-                              if (dt === 'sqf' || dt.includes('sqf') || dt.includes('super quick')) return 'bg-cyan-100 text-cyan-700 border-cyan-300';
-                              if (dt.includes('snapchat') || dt === 'snap') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-                              if (dt.includes('long form') || dt === 'lf') return 'bg-blue-100 text-blue-700 border-blue-300';
-                              if (dt.includes('thumbnail') || dt.includes('image')) return 'bg-purple-100 text-purple-700 border-purple-300';
-                              if (dt.includes('podcast') || dt.includes('audio')) return 'bg-orange-100 text-orange-700 border-orange-300';
-                              return 'bg-zinc-100 text-zinc-600 border-zinc-200';
-                            })()
-                          }`}
-                        >
-                          {(task as any).deliverableType}
-                        </Badge>
-                      )}
-                      {task.oneOffDeliverableId && (
-                        <Badge variant="outline" className="w-fit text-[10px] h-5 px-2 bg-yellow-50 text-yellow-700 border-yellow-200">
-                          One-Off
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Editor & Date Row */}
-                    <div className="flex items-center justify-between text-zinc-500 text-[11px]">
-                      <div className="flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5" />
-                        <span>Editor: {task.user?.name || ""}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>
-                          {new Date(task.dueDate).toLocaleDateString(
-                            undefined,
-                            { month: "short", day: "numeric" },
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Badges Row - Show QC Reviewer */}
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {task.qcResult === "APPROVED" && task.qcReviewer ? (
-                        <Badge className="bg-green-50 text-green-600 hover:bg-green-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                          ✅ Approved by {task.qcReviewer.name}
-                        </Badge>
-                      ) : task.qcResult === "REJECTED" && task.qcReviewer ? (
-                        <Badge className="bg-red-50 text-red-600 hover:bg-red-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                          ❌ Rejected by {task.qcReviewer.name}
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                          Pending
-                        </Badge>
-                      )}
-
-                      {/* 🔥 New: Non-H.264 Badge */}
-                      {(() => {
-                        const latestVideo = task.files
-                          ?.filter(f => f.mimeType?.startsWith('video/'))
-                          .sort((a, b) => {
-                            // Prioritize active file, then highest version
-                            if (a.isActive && !b.isActive) return -1;
-                            if (!a.isActive && b.isActive) return 1;
-                            return (b.version || 1) - (a.version || 1);
-                          })[0];
-
-                        if (latestVideo && latestVideo.codec && !latestVideo.codec.toLowerCase().includes('h.264') && !latestVideo.codec.toLowerCase().includes('avc1')) {
-                          return (
-                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 rounded-full px-2 py-0.5 text-[10px] font-bold animate-pulse">
-                              ⚠️ Non-H.264
-                            </Badge>
-                          );
-                        }
-                        return null;
-                      })()}
-
-                      {/* No Thumbnails Badge */}
-                      {(() => {
-                        const hasThumbnails = task.files?.some(f => f.folderType === 'thumbnails');
-                        if (!hasThumbnails) {
-                          return (
-                            <Badge className="bg-gray-100 text-gray-500 border-gray-200 rounded-full px-2 py-0.5 text-[10px] font-medium">
-                              🖼️ No Thumbnails
-                            </Badge>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
+            {/* Stats Badge */}
+            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
+              <div className="flex flex-col items-center text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
+                  {hasActiveFilters ? 'Filtered' : 'Pending'}
+                </span>
+                <span className="text-xl font-bold text-zinc-900 leading-none">
+                  {pendingReviews}
+                </span>
+              </div>
+              <div className="ml-4 h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+                <Clock className="h-4 w-4 text-blue-500" />
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
 
-      {
-        selectedTask && (
+        <div className="flex-1">
+          {loading ? (
+            <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
+              <Clock className="h-12 w-12 mx-auto mb-4 opacity-40 animate-spin" />
+              <p className="font-medium">Loading QC tasks...</p>
+            </div>
+          ) : filteredTasks.length === 0 ? (
+            <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
+              <Filter className="h-12 w-12 mx-auto mb-4 opacity-40" />
+              <p className="font-medium">No tasks match your filters</p>
+              <Button variant="link" onClick={clearAllFilters} className="mt-2">
+                Clear all filters
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+              {filteredTasks.map((task, index) => {
+                const thumbnail = getTaskThumbnail(task);
+                const deliverableColors = getDeliverableTypeColor((task as any).deliverableType);
+                return (
+                  <Card
+                    key={task.id}
+                    className={`group cursor-pointer shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full hover:shadow-md ${deliverableColors.bg} ${deliverableColors.border} border hover:${deliverableColors.ring} ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""}`}
+                    onClick={() => handleTaskClick(task)}
+                  >
+                    {/* Visual Header / Thumbnail Area */}
+                    <div className="h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold">
+                      {thumbnail && (
+                        <img
+                          src={thumbnail}
+                          alt={task.title}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 z-10"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.opacity = '0';
+                          }}
+                        />
+                      )}
+                      <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
+                        No thumbnail
+                      </div>
+
+                      {thumbnail && (
+                        <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
+                      )}
+
+                      {/* Share + Reassign Buttons - Top Left */}
+                      <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex gap-1.5">
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-primary"
+                          onClick={(e) => handleShare(e, task)}
+                        >
+                          <Share2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          title="Reassign to another QC"
+                          className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-orange-500"
+                          onClick={(e) => handleOpenReassign(e, task)}
+                        >
+                          <UserCheck className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+
+                      {/* File Count - Top Right */}
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm z-20">
+                        <FileText className="h-3 w-3" />
+                        {task.files?.length || 0}
+                      </div>
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-4 flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
+                          {task.title}
+                        </h4>
+                        <TaskGuidelinesButton
+                          clientId={task.clientId}
+                          clientName={task.client?.companyName || task.client?.name || null}
+                          role="qc"
+                        />
+                      </div>
+
+                      {/* Deliverable Type Badge */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {(task as any).deliverableType && (task as any).deliverableType !== "Other" && (
+                          <Badge
+                            variant="outline"
+                            className={`w-fit text-[10px] h-5 px-2 font-medium ${
+                              (() => {
+                                const dt = ((task as any).deliverableType || '').toLowerCase();
+                                if (dt.includes('short form') || dt === 'sf') return 'bg-emerald-100 text-emerald-700 border-emerald-300';
+                                if (dt.includes('beta') || dt === 'bsf') return 'bg-teal-100 text-teal-700 border-teal-300';
+                                if (dt === 'sqf' || dt.includes('sqf') || dt.includes('super quick')) return 'bg-cyan-100 text-cyan-700 border-cyan-300';
+                                if (dt.includes('snapchat') || dt === 'snap') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+                                if (dt.includes('long form') || dt === 'lf') return 'bg-blue-100 text-blue-700 border-blue-300';
+                                if (dt.includes('thumbnail') || dt.includes('image')) return 'bg-purple-100 text-purple-700 border-purple-300';
+                                if (dt.includes('podcast') || dt.includes('audio')) return 'bg-orange-100 text-orange-700 border-orange-300';
+                                return 'bg-zinc-100 text-zinc-600 border-zinc-200';
+                              })()
+                            }`}
+                          >
+                            {(task as any).deliverableType}
+                          </Badge>
+                        )}
+                        {task.oneOffDeliverableId && (
+                          <Badge variant="outline" className="w-fit text-[10px] h-5 px-2 bg-yellow-50 text-yellow-700 border-yellow-200">
+                            One-Off
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Editor & Date Row */}
+                      <div className="flex items-center justify-between text-zinc-500 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5" />
+                          <span>Editor: {task.user?.name || ""}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>
+                            {new Date(task.dueDate).toLocaleDateString(
+                              undefined,
+                              { month: "short", day: "numeric" },
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Badges Row */}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {task.qcResult === "APPROVED" && task.qcReviewer ? (
+                          <Badge className="bg-green-50 text-green-600 hover:bg-green-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                            ✅ Approved by {task.qcReviewer.name}
+                          </Badge>
+                        ) : task.qcResult === "REJECTED" && task.qcReviewer ? (
+                          <Badge className="bg-red-50 text-red-600 hover:bg-red-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                            ❌ Rejected by {task.qcReviewer.name}
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                            Pending
+                          </Badge>
+                        )}
+
+                        {/* Non-H.264 Badge */}
+                        {(() => {
+                          const latestVideo = task.files
+                            ?.filter(f => f.mimeType?.startsWith('video/'))
+                            .sort((a, b) => {
+                              if (a.isActive && !b.isActive) return -1;
+                              if (!a.isActive && b.isActive) return 1;
+                              return (b.version || 1) - (a.version || 1);
+                            })[0];
+
+                          if (latestVideo && latestVideo.codec && !latestVideo.codec.toLowerCase().includes('h.264') && !latestVideo.codec.toLowerCase().includes('avc1')) {
+                            return (
+                              <Badge className="bg-amber-100 text-amber-700 border-amber-200 rounded-full px-2 py-0.5 text-[10px] font-bold animate-pulse">
+                                ⚠️ Non-H.264
+                              </Badge>
+                            );
+                          }
+                          return null;
+                        })()}
+
+                        {/* No Thumbnails Badge */}
+                        {(() => {
+                          const hasThumbnails = task.files?.some(f => f.folderType === 'thumbnails');
+                          if (!hasThumbnails) {
+                            return (
+                              <Badge className="bg-gray-100 text-gray-500 border-gray-200 rounded-full px-2 py-0.5 text-[10px] font-medium">
+                                🖼️ No Thumbnails
+                              </Badge>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selectedTask && (
           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
             <DialogContent className="max-w-4xl max-h-[85vh]">
               <DialogHeader>
@@ -1065,25 +1076,16 @@ export function QCDashboard() {
                 {selectedTask.files && selectedTask.files.length > 0 ? (
                   <div className="space-y-4">
                     {groupFilesByFolderType(selectedTask.files).map((group) => (
-                      <div
-                        key={group.folderType}
-                        className="border rounded-lg overflow-hidden"
-                      >
+                      <div key={group.folderType} className="border rounded-lg overflow-hidden">
                         {/* Section Header */}
-                        <div
-                          className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}
-                        >
+                        <div className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}>
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{group.info.icon}</span>
-                            <h4 className="font-semibold text-sm">
-                              {group.info.label}
-                            </h4>
+                            <h4 className="font-semibold text-sm">{group.info.label}</h4>
                             <Badge variant="secondary" className="text-xs">
-                              {group.files.length} file
-                              {group.files.length !== 1 ? "s" : ""}
+                              {group.files.length} file{group.files.length !== 1 ? "s" : ""}
                             </Badge>
                           </div>
-                          {/* Compare Versions button for thumbnails with multiple versions */}
                           {group.folderType === 'thumbnails' && group.files.length > 1 && (
                             <Button
                               variant="outline"
@@ -1106,7 +1108,7 @@ export function QCDashboard() {
                           )}
                         </div>
 
-                        {/* Files in this section */}
+                        {/* Files */}
                         <div className="divide-y">
                           {group.files.length === 0 ? (
                             <div className="p-6 text-center text-muted-foreground">
@@ -1115,194 +1117,98 @@ export function QCDashboard() {
                               <p className="text-xs mt-1">No files uploaded for this section</p>
                             </div>
                           ) : (
-                          group.files.map((file, index) => (
-                            <div
-                              key={file.id}
-                              className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false
-                                ? "opacity-60 bg-muted/20"
-                                : ""
-                                }`}
-                              onClick={() => handleFileSelect(file)}
-                            >
-                              <div className="flex items-center gap-4">
-                                {/* File Icon */}
-                                <div
-                                  className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith("video/")
-                                    ? "bg-blue-100"
-                                    : file.mimeType?.startsWith("image/")
-                                      ? "bg-green-100"
-                                      : "bg-gray-100"
-                                    }`}
-                                >
-                                  {getFileIcon(file.mimeType)}
-                                </div>
-
-                                {/* File Info */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                    <p className="font-medium text-sm truncate max-w-[300px]">
-                                      {file.name}
-                                    </p>
-
-                                    {/* Version Badge */}
-                                    <Badge
-                                      variant={
-                                        file.isActive !== false
-                                          ? "default"
-                                          : "secondary"
-                                      }
-                                      className="text-xs"
-                                    >
-                                      V{file.version || 1}
-                                    </Badge>
-
-                                    {/* Active/Latest indicator */}
-                                    {file.isActive !== false && index === 0 && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs text-green-600 border-green-300"
-                                      >
-                                        <CheckCircle className="h-3 w-3 mr-1" />
-                                        Latest
-                                      </Badge>
-                                    )}
-
-                                    {/* Inactive indicator */}
-                                    {file.isActive === false && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs text-muted-foreground"
-                                      >
-                                        Replaced
-                                      </Badge>
-                                    )}
-
-                                    {/* File type */}
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      {getFileTypeLabel(file.mimeType)}
-                                    </Badge>
+                            group.files.map((file, index) => (
+                              <div
+                                key={file.id}
+                                className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false ? "opacity-60 bg-muted/20" : ""}`}
+                                onClick={() => handleFileSelect(file)}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith("video/") ? "bg-blue-100" : file.mimeType?.startsWith("image/") ? "bg-green-100" : "bg-gray-100"}`}>
+                                    {getFileIcon(file.mimeType)}
                                   </div>
 
-                                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                                    <span>{formatFileSize(file.size)}</span>
-                                    <span>•</span>
-                                    <span>
-                                      Uploaded{" "}
-                                      {new Date(
-                                        file.uploadedAt,
-                                      ).toLocaleDateString()}
-                                    </span>
-                                    {file.revisionNote && (
-                                      <>
-                                        <span>•</span>
-                                        <span
-                                          className="text-orange-600"
-                                          title={file.revisionNote}
-                                        >
-                                          📝 Has revision note
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  {file.mimeType?.startsWith("video/") ? (
-                                    <div className="flex items-center gap-2">
-                                      {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
-                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
-                                          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                          <span>Optimizing...</span>
-                                        </div>
-                                      ) : (
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <p className="font-medium text-sm truncate max-w-[300px]">{file.name}</p>
+                                      <Badge variant={file.isActive !== false ? "default" : "secondary"} className="text-xs">
+                                        V{file.version || 1}
+                                      </Badge>
+                                      {file.isActive !== false && index === 0 && (
+                                        <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                          Latest
+                                        </Badge>
+                                      )}
+                                      {file.isActive === false && (
+                                        <Badge variant="outline" className="text-xs text-muted-foreground">
+                                          Replaced
+                                        </Badge>
+                                      )}
+                                      <Badge variant="secondary" className="text-xs">
+                                        {getFileTypeLabel(file.mimeType)}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                      <span>{formatFileSize(file.size)}</span>
+                                      <span>•</span>
+                                      <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
+                                      {file.revisionNote && (
                                         <>
-                                          <Button
-                                            size="sm"
-                                            variant="default"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleFileSelect(file);
-                                            }}
-                                          >
-                                            <Play className="h-4 w-4 mr-2" />
-                                            Review
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-9 w-9 p-0"
-                                            title="Download Video"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDownload(file);
-                                            }}
-                                          >
-                                            <Download className="h-4 w-4" />
-                                          </Button>
+                                          <span>•</span>
+                                          <span className="text-orange-600" title={file.revisionNote}>
+                                            📝 Has revision note
+                                          </span>
                                         </>
                                       )}
                                     </div>
-                                  ) : file.mimeType?.startsWith('image/') ? (
-                                    <div className="flex items-center gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="default"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleFileSelect(file);
-                                        }}
-                                      >
-                                        <Eye className="h-4 w-4 mr-2" />
-                                        Review
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-9 w-9 p-0"
-                                        title="Download File"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDownload(file);
-                                        }}
-                                      >
-                                        <Download className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleFileSelect(file);
-                                        }}
-                                      >
-                                        <ExternalLink className="h-4 w-4 mr-2" />
-                                        View
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-9 w-9 p-0"
-                                        title="Download File"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDownload(file);
-                                        }}
-                                      >
-                                        <Download className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  )}
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {file.mimeType?.startsWith("video/") ? (
+                                      <div className="flex items-center gap-2">
+                                        {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
+                                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
+                                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                            <span>Optimizing...</span>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                              <Play className="h-4 w-4 mr-2" />
+                                              Review
+                                            </Button>
+                                            <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download Video" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                              <Download className="h-4 w-4" />
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
+                                    ) : file.mimeType?.startsWith('image/') ? (
+                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                          <Eye className="h-4 w-4 mr-2" />
+                                          Review
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                          <ExternalLink className="h-4 w-4 mr-2" />
+                                          View
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))
+                            ))
                           )}
                         </div>
                       </div>
@@ -1311,24 +1217,16 @@ export function QCDashboard() {
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">
                     <FileText className="h-16 w-16 mx-auto mb-4 opacity-40" />
-                    <p className="text-lg font-medium">
-                      No files found in this task
-                    </p>
-                    <p className="text-sm mt-1">
-                      Files will appear here once they are uploaded by the editor.
-                    </p>
+                    <p className="text-lg font-medium">No files found in this task</p>
+                    <p className="text-sm mt-1">Files will appear here once they are uploaded by the editor.</p>
                   </div>
                 )}
               </div>
             </DialogContent>
           </Dialog>
-        )
-      }
+        )}
 
-      {
-        selectedTask &&
-        selectedFile &&
-        selectedFile.mimeType?.startsWith("video/") && (
+        {selectedTask && selectedFile && selectedFile.mimeType?.startsWith("video/") && (
           <FullScreenReviewModalFrameIO
             open={showVideoReview}
             onOpenChange={(open: boolean) => {
@@ -1344,7 +1242,6 @@ export function QCDashboard() {
             userRole="qc"
             onSendToClient={handleSendToClient}
             onSendBackToEditor={handleSendBackToEditor}
-            // 🔥 Pass file info for version-tracked feedback
             taskId={selectedTask.id}
             requiresClientReview={selectedTask.requiresClientReview}
             currentFileSection={{
@@ -1353,13 +1250,9 @@ export function QCDashboard() {
               version: selectedFile.version || 1,
             }}
           />
-        )
-      }
+        )}
 
-      {/* Fullscreen Thumbnail Review Modal (QC) */}
-      {selectedTask &&
-        selectedFile &&
-        selectedFile.mimeType?.startsWith('image/') && (
+        {selectedTask && selectedFile && selectedFile.mimeType?.startsWith('image/') && (
           <ThumbnailReviewModal
             open={showThumbnailReview}
             onOpenChange={(open: boolean) => {
@@ -1378,30 +1271,20 @@ export function QCDashboard() {
           />
         )}
 
-      {/* Thumbnail Comparison Modal (QC) */}
-      {selectedTask && (
-        <ThumbnailComparisonModal
-          isOpen={showComparison}
-          onOpenChange={setShowComparison}
-          thumbnails={comparisonFiles}
-          taskTitle={selectedTask.title}
-        />
-      )}
+        {selectedTask && (
+          <ThumbnailComparisonModal
+            isOpen={showComparison}
+            onOpenChange={setShowComparison}
+            thumbnails={comparisonFiles}
+            taskTitle={selectedTask.title}
+          />
+        )}
 
-      {/* In-App File Preview Modal - Full Screen Overlay (PDFs / other non-image, non-video) */}
-      {
-        selectedTask &&
-        selectedFile &&
-        !selectedFile.mimeType?.startsWith('video/') &&
-        !selectedFile.mimeType?.startsWith('image/') &&
-        showFilePreview && (
+        {selectedTask && selectedFile && !selectedFile.mimeType?.startsWith('video/') && !selectedFile.mimeType?.startsWith('image/') && showFilePreview && (
           <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col">
-            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/80 to-transparent">
               <div className="flex items-center gap-4">
-                <div
-                  className={`p-3 rounded-xl ${selectedFile.mimeType?.startsWith("image/") ? "bg-green-500/20" : "bg-blue-500/20"}`}
-                >
+                <div className={`p-3 rounded-xl ${selectedFile.mimeType?.startsWith("image/") ? "bg-green-500/20" : "bg-blue-500/20"}`}>
                   {getFileIcon(selectedFile.mimeType)}
                 </div>
                 <div>
@@ -1409,94 +1292,45 @@ export function QCDashboard() {
                     {selectedFile.name}
                   </h3>
                   <p className="text-white/50 text-sm">
-                    {getFileTypeLabel(selectedFile.mimeType)} •{" "}
-                    {formatFileSize(selectedFile.size)} • Uploaded{" "}
-                    {new Date(selectedFile.uploadedAt).toLocaleDateString()}
+                    {getFileTypeLabel(selectedFile.mimeType)} • {formatFileSize(selectedFile.size)} • Uploaded {new Date(selectedFile.uploadedAt).toLocaleDateString()}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/40"
-                  onClick={() => window.open(selectedFile.url, "_blank")}
-                >
+                <Button size="sm" variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/40" onClick={() => window.open(selectedFile.url, "_blank")}>
                   <ExternalLink className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">Open in New Tab</span>
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/40"
-                  onClick={() => handleDownload(selectedFile)}
-                >
+                <Button size="sm" variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/40" onClick={() => handleDownload(selectedFile)}>
                   <Download className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">Download</span>
                 </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="text-white hover:bg-white/20 h-10 w-10"
-                  onClick={() => {
-                    setShowFilePreview(false);
-                    setSelectedFile(null);
-                  }}
-                >
+                <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-10 w-10" onClick={() => { setShowFilePreview(false); setSelectedFile(null); }}>
                   <X className="h-6 w-6" />
                 </Button>
               </div>
             </div>
 
-            {/* Content Area - Full screen image/file view */}
             <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
               {getMimeType(selectedFile).startsWith("image/") ? (
-                <div className="relative">
-                  <img
-                    key={selectedFile.url}
-                    src={selectedFile.url}
-                    alt={selectedFile.name}
-                    className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
-                  />
-                </div>
+                <img key={selectedFile.url} src={selectedFile.url} alt={selectedFile.name} className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl" />
               ) : getMimeType(selectedFile).includes("pdf") ? (
-                <iframe
-                  key={selectedFile.url}
-                  src={selectedFile.url}
-                  className="w-full h-[85vh] bg-white rounded-lg shadow-2xl"
-                  title="PDF Preview"
-                />
+                <iframe key={selectedFile.url} src={selectedFile.url} className="w-full h-[85vh] bg-white rounded-lg shadow-2xl" title="PDF Preview" />
               ) : (
                 <div className="text-center">
                   <div className="p-10 bg-white/5 rounded-3xl backdrop-blur-sm border border-white/10 max-w-lg mx-auto">
                     <div className="p-8 bg-white/10 rounded-2xl inline-block mb-6">
                       {getFileIcon(selectedFile.mimeType)}
                     </div>
-                    <h3 className="text-white text-2xl font-semibold mb-3">
-                      {selectedFile.name}
-                    </h3>
-                    <p className="text-white/60 text-base mb-2">
-                      {getFileTypeLabel(selectedFile.mimeType)} •{" "}
-                      {formatFileSize(selectedFile.size)}
-                    </p>
-                    <p className="text-white/40 text-sm mb-8">
-                      Preview not available for this file type.
-                    </p>
+                    <h3 className="text-white text-2xl font-semibold mb-3">{selectedFile.name}</h3>
+                    <p className="text-white/60 text-base mb-2">{getFileTypeLabel(selectedFile.mimeType)} • {formatFileSize(selectedFile.size)}</p>
+                    <p className="text-white/40 text-sm mb-8">Preview not available for this file type.</p>
                     <div className="flex gap-4 justify-center">
-                      <Button
-                        size="lg"
-                        onClick={() => window.open(selectedFile.url, "_blank")}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                      >
+                      <Button size="lg" onClick={() => window.open(selectedFile.url, "_blank")} className="bg-blue-600 hover:bg-blue-700 text-white">
                         <ExternalLink className="h-5 w-5 mr-2" />
                         Open File
                       </Button>
-                      <Button
-                        size="lg"
-                        onClick={() => handleDownload(selectedFile)}
-                        variant="outline"
-                        className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                      >
+                      <Button size="lg" onClick={() => handleDownload(selectedFile)} variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
                         <Download className="h-5 w-5 mr-2" />
                         Download
                       </Button>
@@ -1506,8 +1340,58 @@ export function QCDashboard() {
               )}
             </div>
           </div>
-        )
-      }
-    </div >
+        )}
+      </div>
+
+      {/* QC Reassign Dialog */}
+      <Dialog open={showReassignDialog} onOpenChange={setShowReassignDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-orange-500" />
+              Reassign to another QC
+            </DialogTitle>
+            <DialogDescription>
+              {reassignTask?.title && (
+                <span className="block text-xs text-zinc-500 mt-1 truncate">
+                  Task: {reassignTask.title}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Select value={selectedQcId} onValueChange={setSelectedQcId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a QC specialist…" />
+              </SelectTrigger>
+              <SelectContent>
+                {qcUsers.filter((u) => u.id !== user?.id).length === 0 && (
+                  <SelectItem value="__none" disabled>No other QC specialists found</SelectItem>
+                )}
+                {qcUsers
+                  .filter((u) => u.id !== user?.id)
+                  .map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowReassignDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!selectedQcId || isReassigning}
+              onClick={handleReassign}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              {isReassigning ? "Reassigning…" : "Reassign"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
