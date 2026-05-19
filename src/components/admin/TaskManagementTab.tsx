@@ -420,10 +420,12 @@ export function TaskManagementTab() {
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isValidating}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />Refresh
               </Button>
-              <CreateTaskDialog
-                onTaskCreated={() => { toast({ title: 'Success', description: 'Task created. Refreshing...' }); setTimeout(() => mutateTasks(), 800); }}
-                trigger={<Button><Plus className="h-4 w-4 mr-2" />Create Task</Button>}
-              />
+              {user?.role?.toLowerCase() !== 'qc' && (
+                <CreateTaskDialog
+                  onTaskCreated={() => { toast({ title: 'Success', description: 'Task created. Refreshing...' }); setTimeout(() => mutateTasks(), 800); }}
+                  trigger={<Button><Plus className="h-4 w-4 mr-2" />Create Task</Button>}
+                />
+              )}
             </div>
           </div>
 
