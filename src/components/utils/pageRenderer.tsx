@@ -2,6 +2,7 @@ import React from "react";
 import { AdminDashboard } from "../dashboards/AdminDashboard";
 import { EditorDashboard } from "../dashboards/EditorDashboard";
 import { EditorUploadHistory } from "../dashboards/EditorUploadHistory";
+import { NasBackupAdmin } from "../admin/NasBackupAdmin";
 import { QCDashboard } from "../dashboards/QCDashboard";
 import { QCCompletedPage } from "../dashboards/QCCompletedPage";
 import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
@@ -215,6 +216,12 @@ export function renderPage(
         );
       case "repair-folders":
         return <FolderRepairTool />;
+      case "nas-backup":
+        return (
+          <div className="p-6">
+            <NasBackupAdmin />
+          </div>
+        );
       // case "activity_logs":
       //   return <ActivityLogReportTab />;
       default:

@@ -48,6 +48,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
+    { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
@@ -63,7 +64,6 @@ export const NAVIGATION_ITEMS = {
   ],
   qc: [
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
-    { id: 'reports', label: 'Task Management', icon: FileSpreadsheet }, 
     { id: 'completed', label: 'Completed', icon: Archive },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
     // { id: 'reports', label: 'Reports', icon: FileSpreadsheet },

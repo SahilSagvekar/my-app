@@ -1793,3 +1793,19 @@ model EditorEodReportItem {
   @@index([reportId])
   @@index([taskId])
 }
+
+// ── NAS Backup Tracking ────────────────────────────────────────────────────
+model NasSyncLog {
+  id            String    @id @default(cuid())
+  status        String    // "success" | "failed"
+  completedAt   DateTime
+  bucketName    String?
+  paths         Json      @default("[]")
+  filesCount    Int?
+  bytesCount    BigInt?
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
+
+  @@index([completedAt])
+  @@index([status])
+}
