@@ -75,6 +75,7 @@ const AdminDailyTargetsPage = dynamic(() => import("../dashboards/Admindailytarg
 });
 
 import { Loader2 } from "lucide-react";
+import { TaskManagementTab } from "../admin/TaskManagementTab";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
   <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 space-y-4">
@@ -259,7 +260,7 @@ export function renderPage(
       case "guidelines":
         return <QCGuidelinesPage />;
       case "reports":
-        return <QCReportsPage />;
+        return <TaskManagementTab />;
       case "rejection-patterns":
         return <QCRejectionPatternsPage />;
       case "resources":

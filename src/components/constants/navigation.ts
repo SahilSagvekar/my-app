@@ -63,9 +63,10 @@ export const NAVIGATION_ITEMS = {
   ],
   qc: [
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
+    { id: 'reports', label: 'Task Management', icon: FileSpreadsheet }, 
     { id: 'completed', label: 'Completed', icon: Archive },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
-    { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    // { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'rejection-patterns', label: 'Rejection Patterns', icon: TrendingUp },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'training', label: 'Training', icon: Layout },
