@@ -1,6 +1,7 @@
 import React from "react";
 import { AdminDashboard } from "../dashboards/AdminDashboard";
 import { EditorDashboard } from "../dashboards/EditorDashboard";
+import { EditorUploadHistory } from "../dashboards/EditorUploadHistory";
 import { QCDashboard } from "../dashboards/QCDashboard";
 import { QCCompletedPage } from "../dashboards/QCCompletedPage";
 import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
@@ -41,7 +42,6 @@ import { CompressionDashboard } from "@/components/admin/CompressionDashboard";
 import { ProductionTracker } from "../dashboards/ProductionTracker";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
 import { FolderRepairTool } from "../admin/Folderrepairtool";
-import { TaskManagementTab } from "../admin/TaskManagementTab";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -239,6 +239,8 @@ export function renderPage(
       //   return <FeedbackSystem currentRole={role} />;
       case "logins":
         return <SocialLogins />;
+      case "upload-history":
+        return <EditorUploadHistory />;
       default:
         return <EditorDashboard />;
     }
@@ -257,7 +259,7 @@ export function renderPage(
       case "guidelines":
         return <QCGuidelinesPage />;
       case "reports":
-        return <TaskManagementTab />;
+        return <QCReportsPage />;
       case "rejection-patterns":
         return <QCRejectionPatternsPage />;
       case "resources":

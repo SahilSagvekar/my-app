@@ -25,7 +25,8 @@ import {
   Instagram,
   Film,
   PenLine,
-  Target
+  Target,
+  History,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -57,14 +58,14 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'upload-history', label: 'Upload History', icon: History },
     // { id: 'feedback', label: 'Feedback', icon: MessageSquare }
   ],
   qc: [
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
-    { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'completed', label: 'Completed', icon: Archive },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
-    // { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
+    { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'rejection-patterns', label: 'Rejection Patterns', icon: TrendingUp },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     { id: 'training', label: 'Training', icon: Layout },
