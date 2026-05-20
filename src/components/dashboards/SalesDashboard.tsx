@@ -1199,7 +1199,7 @@ function GroupHeader({ group, count, collapsed, onToggle, onAddItem, onSelectAll
 }) {
   return (
     <>
-      <td className="w-[40px] px-2 py-2 sticky left-0 z-30 bg-gray-50 border-b border-gray-100" style={{ borderLeft: `3px solid ${group.color}`, transform: 'translateZ(0)' }}>
+      <td className="w-[40px] px-2 py-2 sticky left-0 z-[3] bg-gray-50 border-b border-gray-100" style={{ borderLeft: `3px solid ${group.color}` }}>
         <div className="flex items-center justify-center">
           <input
             type="checkbox"
@@ -1236,13 +1236,13 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
   if (saved.length === 0) return null;
   return (
     <tr className="bg-gray-50/60 border-t-2" style={{ borderTopColor: groupColor + '40' }}>
-      <td className="w-[40px] sticky left-0 z-30 bg-gray-50/60 border-t-2 border-b border-gray-100" style={{ borderLeft: `3px solid ${groupColor}`, transform: 'translateZ(0)' }} />
-      <td className="px-3 py-2 text-[11px] font-semibold text-gray-400 sticky left-[40px] bg-gray-50/60 z-10 border-t-2 border-b border-gray-100"
-        style={{ boxShadow: '1px 0 0 0 #f3f4f6', transform: 'translateZ(0)' }}>
+      <td className="w-[40px] sticky left-0 z-[3] bg-gray-50/60 border-t-2 border-b border-gray-100" style={{ borderLeft: `3px solid ${groupColor}` }} />
+      <td className="px-3 py-2 text-[11px] font-semibold text-gray-400 sticky left-[40px] bg-gray-50/60 z-[2] border-t-2 border-b border-gray-100"
+        style={{ boxShadow: '1px 0 0 0 #f3f4f6' }}>
         {saved.length} {saved.length === 1 ? 'lead' : 'leads'}
       </td>
       {visibleCols.filter(c => c !== 'name').map(colId => (
-        <td key={colId} className={cn("px-2 py-2 text-center text-[11px] text-gray-400", colId === 'company' && 'sticky left-[260px] bg-gray-50/60 z-10')}>
+        <td key={colId} className={cn("px-2 py-2 text-center text-[11px] text-gray-400", colId === 'company' && 'sticky left-[260px] bg-gray-50/60 z-[1]')}>
           {colId === 'value' ? `$${saved.reduce((s, l) => s + (l.value ?? 0), 0).toLocaleString()}` :
             colId === 'activity' ? (() => { const n = saved.reduce((s, l) => s + parseActivities(l.metadata?.__activities).length, 0); return n || ''; })() :
             colId === 'instagram' ? saved.filter(l => l.instagram).length || '' :
@@ -1280,8 +1280,8 @@ const LeadRow = memo(function LeadRow({
   const isWorking = lead._committing;
   return (
     <tr className={cn('group hover:bg-[#F0F7FF] transition-colors', isSelected && 'bg-blue-50/50')}>
-      <td className="w-[40px] px-0 py-0 sticky left-0 z-30 bg-white group-hover:bg-[#F0F7FF] transition-colors border-b border-gray-100"
-        style={{ borderLeft: `3px solid ${groupColor}`, transform: 'translateZ(0)' }}>
+      <td className="w-[40px] px-0 py-0 sticky left-0 z-[3] bg-white group-hover:bg-[#F0F7FF] transition-colors border-b border-gray-100"
+        style={{ borderLeft: `3px solid ${groupColor}` }}>
         <div className="flex items-center justify-center h-[38px]">
           {lead._saved && (
             <input type="checkbox" checked={isSelected} onChange={() => onSelect(lead.id)}
@@ -1289,8 +1289,8 @@ const LeadRow = memo(function LeadRow({
           )}
         </div>
       </td>
-      <td className={cn('px-0 py-0 sticky left-[40px] bg-white group-hover:bg-[#F0F7FF] z-20 transition-colors border-b border-gray-100', CORE_COLUMNS[0].width)}
-        style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #f3f4f6', transform: 'translateZ(0)' }}>
+      <td className={cn('px-0 py-0 sticky left-[40px] bg-white group-hover:bg-[#F0F7FF] z-[2] transition-colors border-b border-gray-100', CORE_COLUMNS[0].width)}
+        style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #f3f4f6' }}>
         <div className="flex items-center h-[38px]">
           <input value={lead.name} onChange={e => onUpdate(lead.id, { name: e.target.value })}
             placeholder="+ Add lead" className="flex-1 h-full px-3 bg-transparent outline-none text-[13px] font-medium placeholder:text-gray-300 placeholder:font-normal" />
@@ -1305,11 +1305,11 @@ const LeadRow = memo(function LeadRow({
         <td key={col.id}
           style={col.minPx ? {
             width: col.minPx, minWidth: col.minPx,
-            ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6', transform: 'translateZ(0)' } : {})
+            ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6' } : {})
           } : undefined}
           className={cn(
             'px-1.5 py-1 border-b border-gray-100 last:border-r-0',
-            col.id === 'company' ? 'sticky left-[260px] bg-white group-hover:bg-[#F0F7FF] z-10' : 'border-r border-gray-100',
+            col.id === 'company' ? 'sticky left-[260px] bg-white group-hover:bg-[#F0F7FF] z-[1]' : 'border-r border-gray-100',
             col.width
           )}>
           {col.id === 'company' && (
@@ -1759,7 +1759,7 @@ export function SalesDashboard() {
   return (
     <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
       {/* ── Top Bar ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="relative z-20 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white">
         <div>
           <h1 className="text-[26px] font-bold text-gray-900 tracking-tight">Sales Pipeline</h1>
           <p className="text-[13px] text-gray-400 flex items-center gap-1.5 mt-0.5">
@@ -1814,7 +1814,7 @@ export function SalesDashboard() {
       </div>
 
       {/* ── Stats Bar ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Total Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
           { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-100/50 border-blue-200' },
@@ -1829,13 +1829,13 @@ export function SalesDashboard() {
       </div>
 
       {/* ── Grouped Table ── */}
-      <div className="rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
+      <div className="relative z-0 isolate rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px] border-separate border-spacing-0">
             {/* Table header */}
             <thead>
-              <tr className="bg-[#F5F6F8] z-30">
-                <th style={{ transform: 'translateZ(0)' }} className="w-[40px] px-2 py-2 bg-[#F5F6F8] sticky left-0 z-40 border-b-2 border-gray-200">
+              <tr className="bg-[#F5F6F8]">
+                <th className="w-[40px] px-2 py-2 bg-[#F5F6F8] sticky left-0 z-[4] border-b-2 border-gray-200">
                   <input
                     type="checkbox"
                     checked={selectedLeads.size === leads.filter(l => l._saved).length && leads.filter(l => l._saved).length > 0}
@@ -1843,7 +1843,7 @@ export function SalesDashboard() {
                     className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
                   />
                 </th>
-                <th style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #e5e7eb', transform: 'translateZ(0)' }} className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider sticky left-[40px] bg-[#F5F6F8] z-30 border-b-2 border-gray-200",
+                <th style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #e5e7eb' }} className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider sticky left-[40px] bg-[#F5F6F8] z-[3] border-b-2 border-gray-200",
                   CORE_COLUMNS[0].width)}>
                   Lead
                 </th>
@@ -1851,11 +1851,11 @@ export function SalesDashboard() {
                   <th key={col.id}
                     style={col.minPx ? {
                       width: col.minPx, minWidth: col.minPx,
-                      ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #e5e7eb', transform: 'translateZ(0)' } : {})
+                      ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #e5e7eb' } : {})
                     } : undefined}
                     className={cn(
                       "px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 last:border-r-0",
-                      col.id === 'company' ? 'sticky left-[260px] bg-[#F5F6F8] z-20' : 'border-r border-gray-200',
+                      col.id === 'company' ? 'sticky left-[260px] bg-[#F5F6F8] z-[2]' : 'border-r border-gray-200',
                       col.width, col.align === 'center' ? 'text-center' : 'text-left'
                     )}>
                     {col.label}
