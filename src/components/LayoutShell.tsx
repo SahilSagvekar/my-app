@@ -70,7 +70,7 @@ function MenuToggleIcon({ isCollapsed, className }: { isCollapsed?: boolean; cla
 }
 
 interface LayoutShellProps {
-  currentRole: string | null;  // UPDATED: Allow null
+  currentRole: string | null;
   currentPage: string;
   onPageChange: (page: string) => void;
   onLogout: () => void;
@@ -100,7 +100,6 @@ export function LayoutShell({
       : currentRole.charAt(0).toUpperCase() + currentRole.slice(1).toLowerCase()
     : 'User';
 
-  // UPDATED: Handle null role
   // UPDATED: Fetch permitted navigation items
   useEffect(() => {
     if (!currentRole) return;
@@ -123,7 +122,10 @@ export function LayoutShell({
     const fetchNavItems = async () => {
       try {
         setNavLoading(true);
-        const res = await fetch(`/api/user/navigation?role=${currentRole}`, { signal: controller.signal });
+        // 🔥 Send x-viewing-as header when role-switching so API returns correct nav
+        const navHeaders: Record<string, string> = {};
+        if (isViewingAsOther) navHeaders['x-viewing-as'] = normalizedRole;
+        const res = await fetch(`/api/user/navigation?role=${currentRole}`, { signal: controller.signal, headers: navHeaders });
         if (!res.ok) { fallback(); return; }
         let data = applyClientFilter(await res.json());
         // Safety: if API returned items that don't belong to this role's nav, fall back to defaults
@@ -141,7 +143,7 @@ export function LayoutShell({
 
     fetchNavItems();
     return () => controller.abort();
-  }, [currentRole, authUser?.hasPostingServices]);
+  }, [currentRole, authUser?.hasPostingServices, isViewingAsOther]);
 
   const items = permittedItems;
 
@@ -149,7 +151,6 @@ export function LayoutShell({
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  // UPDATED: Show message if no role assigned
   if (!currentRole) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -169,7 +170,6 @@ export function LayoutShell({
         <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
           {/* Left Section */}
           <div className="flex items-center gap-4">
-            {/* Mobile menu button */}
             <Button
               variant="ghost"
               size="sm"
@@ -179,7 +179,6 @@ export function LayoutShell({
               {isSidebarOpen ? <X className="h-5 w-5" /> : <MenuToggleIcon className="h-5 w-5" />}
             </Button>
 
-            {/* Logo */}
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
@@ -210,15 +209,11 @@ export function LayoutShell({
 
           {/* Right Section */}
           <div className="flex items-center gap-3">
-            {/* Mobile search */}
             <Button variant="ghost" size="sm" className="md:hidden min-h-[44px] min-w-[44px]">
               <Search className="h-5 w-5" />
             </Button>
 
-            {/* Notifications */}
-            {/* <Notifications currentRole={currentRole} /> */}
-
-            {/* 🔥 Role Switch Dropdown - Styled to match the User/Profile dropdown */}
+            {/* 🔥 Role Switch Dropdown */}
             {canSwitchRole && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -235,7 +230,6 @@ export function LayoutShell({
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent align="end" className="w-56">
-                  {/* User Info Section - matches manage dropdown header */}
                   <div className="px-2 py-3">
                     <div className="flex items-center gap-3">
                       <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -254,7 +248,6 @@ export function LayoutShell({
 
                   <DropdownMenuSeparator />
 
-                  {/* Role Items */}
                   {switchableRoles.map((role) => {
                     const isCurrent = currentRole?.toLowerCase() === role.toLowerCase();
                     const roleLabel = role.toLowerCase() === 'qc' ? 'QC Specialist' : role.charAt(0).toUpperCase() + role.slice(1);
@@ -273,7 +266,6 @@ export function LayoutShell({
                     );
                   })}
 
-                  {/* Reset Option - matches Sign Out style */}
                   {isViewingAsOther && (
                     <>
                       <DropdownMenuSeparator />
@@ -310,17 +302,11 @@ export function LayoutShell({
                     <div className="text-sm font-medium">
                       {authUser?.name || getUserDisplayName(currentRole as UserRole)}
                     </div>
-                    {/* <Badge
-                      className={`text-xs ${ROLE_COLORS[currentRole as UserRole]}`}
-                    >
-                      {roleDisplay}
-                    </Badge> */}
                   </div>
                 </Button>
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end" className="w-56">
-                {/* User Info Section */}
                 <div className="px-2 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
@@ -355,10 +341,7 @@ export function LayoutShell({
 
                 <DropdownMenuSeparator />
 
-                <DropdownMenuItem
-                  onClick={onLogout}
-                  className="text-red-600"
-                >
+                <DropdownMenuItem onClick={onLogout} className="text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign Out
                 </DropdownMenuItem>
@@ -377,14 +360,12 @@ export function LayoutShell({
       `}
       >
         <div className="flex flex-col h-full">
-          {/* Mobile close button */}
           <div className="lg:hidden flex justify-end p-4">
             <Button variant="ghost" size="sm" className="min-h-[44px] min-w-[44px]" onClick={toggleSidebar}>
               <X className="h-5 w-5" />
             </Button>
           </div>
 
-          {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             {navLoading ? (
               <div className="space-y-3 px-3">
@@ -402,7 +383,7 @@ export function LayoutShell({
                   key={item.id}
                   onClick={() => {
                     onPageChange(item.id);
-                    setIsSidebarOpen(false); // Close mobile sidebar
+                    setIsSidebarOpen(false);
                   }}
                   className={`
                     w-full flex items-center gap-3 px-3 py-3 sm:py-2 text-sm rounded-lg transition-colors
@@ -419,7 +400,6 @@ export function LayoutShell({
             })}
           </nav>
 
-          {/* Footer */}
           <div className="p-4 border-t border-gray-200 space-y-4">
             {currentRole.toLowerCase() === 'client' && authUser?.linkedClientId && (
               <SidebarStorage clientId={authUser.linkedClientId} />
@@ -454,7 +434,6 @@ export function LayoutShell({
         </div>
       )}
 
-      {/* Global Upload Manager */}
       <GlobalUploadManager />
     </div>
   );

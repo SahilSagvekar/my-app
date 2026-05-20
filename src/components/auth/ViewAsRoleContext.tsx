@@ -8,6 +8,7 @@ const ROLE_SWITCH_MAP: Record<string, string[]> = {
     // Specific Users - ALWAYS allowed to switch to these
     "eric@e8productions.com": ["qc", "sales", "scheduler"],
     "sahilsagvekar230@gmail.com": ["qc", "sales", "scheduler"],
+    "digitalworkplacedaena@gmail.com": ["qc"],
 };
 
 const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "scheduler"];
@@ -109,10 +110,16 @@ export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRole
     );
 }
 
+const nullContext: ViewAsRoleContextType = {
+    viewingAsRole: null,
+    canSwitchRole: false,
+    switchableRoles: [],
+    isViewingAsOther: false,
+    switchToRole: () => {},
+    resetToOriginal: () => {},
+};
+
 export function useViewAsRole() {
     const context = useContext(ViewAsRoleContext);
-    if (!context) {
-        throw new Error("useViewAsRole must be used within a ViewAsRoleProvider");
-    }
-    return context;
+    return context ?? nullContext;
 }

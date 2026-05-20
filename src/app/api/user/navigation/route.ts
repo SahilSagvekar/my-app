@@ -29,9 +29,15 @@ export async function GET(req: NextRequest) {
 
         let role = (decoded.role as string).toLowerCase() as NavigationRole;
 
-        // 🔥 If user is admin or manager, they can request navigation for other roles (for View As feature)
+        // 🔥 If user is admin/manager, OR switching roles via view-as feature,
+        // allow them to request navigation for the target role
+        const viewingAs = req.headers.get("x-viewing-as")?.toLowerCase() as NavigationRole | null;
+
         if ((role === 'admin' || role === 'manager') && requestedRole && NAVIGATION_ITEMS[requestedRole as NavigationRole]) {
             role = requestedRole as NavigationRole;
+        } else if (viewingAs && requestedRole && viewingAs === requestedRole && NAVIGATION_ITEMS[viewingAs]) {
+            // Any role switching via view-as: header + query param must agree
+            role = viewingAs;
         }
 
         if (!NAVIGATION_ITEMS[role]) {

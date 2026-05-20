@@ -623,13 +623,20 @@ export async function GET(req: any) {
 
     const { role, id: userId } = user;
 
-    const { searchParams } = new URL(req.url);
+// 🔥 Role-switch support: if a scheduler is viewing as QC, treat them like admin
+// so they see ALL QC tasks, not just their own assigned ones
+const viewingAs = req.headers.get("x-viewing-as");
+const effectiveRole = (role?.toLowerCase() === "scheduler" && viewingAs === "qc")
+  ? "admin"
+  : role;
+
+const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status") as string | null;
     const clientIdFilter = searchParams.get("clientId") as string | null;
     const monthFilter = searchParams.get("monthFolder") as string | null;
 
     // Build role-based where query
-    let where: any = await buildRoleWhereQuery(role, Number(userId));
+    let where: any = await buildRoleWhereQuery(effectiveRole, Number(userId));
 
     // 🔥 ADD CLIENT FILTER - For filtering tasks by client
     if (clientIdFilter) {

@@ -19,6 +19,7 @@ import { useAuth } from '../auth/AuthContext';
 import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
+import { useViewAsRole } from '../auth/ViewAsRoleContext';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
 
@@ -85,6 +86,7 @@ interface EnhancedWorkflowTask {
     companyName?: string;
   };
 }
+
 
 // 🔥 Color coding for deliverable types
 const getDeliverableTypeColor = (deliverableType: string): { bg: string; border: string; ring: string } => {
@@ -203,6 +205,8 @@ const persistQCResult = async ({
 };
 
 export function QCDashboard() {
+  const { viewingAsRole } = useViewAsRole();
+
   const [qcTasks, setQCTasks] = useState<EnhancedWorkflowTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<EnhancedWorkflowTask | null>(null);
@@ -280,9 +284,12 @@ export function QCDashboard() {
       setLoading(true);
       // 🔥 Fetch PENDING tasks (READY_FOR_QC status)
       const res = await fetch("/api/tasks?status=READY_FOR_QC", {
-        method: "GET",
-        credentials: "include",
-      });
+  method: "GET",
+  credentials: "include",
+  headers: viewingAsRole && viewingAsRole !== user?.role
+    ? { "x-viewing-as": viewingAsRole }
+    : {},
+});
 
       if (!res.ok) throw new Error("Failed fetching QC tasks");
 
