@@ -42,6 +42,12 @@ export async function GET(req: NextRequest) {
                 companyName: true,
               },
             },
+            monthlyDeliverable: {
+              select: { type: true },
+            },
+            oneOffDeliverable: {
+              select: { type: true },
+            },
           },
         },
       },
@@ -62,7 +68,9 @@ export async function GET(req: NextRequest) {
         version: f.version,
         isActive: f.isActive,
         taskId: f.taskId,
-        taskTitle: f.task?.title || 'Unknown Task',
+        taskTitle: f.task?.monthlyDeliverable?.type?.replace(/_/g, ' ')
+          || f.task?.oneOffDeliverable?.type?.replace(/_/g, ' ')
+          || 'Content',
         taskStatus: f.task?.status || '',
         clientName: f.task?.client?.companyName || f.task?.client?.name || 'Unknown Client',
       })),

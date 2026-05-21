@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +27,8 @@ import {
   FileVideo,
   ChevronRight,
   Play,
-  FolderUp
+  FolderUp,
+  GripVertical
 } from "lucide-react";
 import { uploadStateManager, UploadState } from "@/lib/upload-state-manager";
 import { useUploads } from "./UploadContext";
@@ -290,6 +292,16 @@ export function FileUploadDialog({
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleReorder = (result: DropResult) => {
+    if (!result.destination) return;
+    setSelectedFiles(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(result.source.index, 1);
+      next.splice(result.destination!.index, 0, moved);
+      return next;
+    });
+  };
+
   // 🔥 FIFO: Enqueue all files sequentially instead of parallel
   const handleStart = async () => {
     if (selectedFiles.length === 0) return;
@@ -471,33 +483,66 @@ export function FileUploadDialog({
                     from folder: {folderName}
                   </span>
                 )}
+                {selectedFiles.length > 1 && (
+                  <span className="text-slate-400 font-normal normal-case ml-auto text-[10px]">
+                    drag to reorder
+                  </span>
+                )}
               </Label>
-              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                {selectedFiles.map((sf, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl relative">
-                    <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
-                      <FileVideo className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-gray-900 truncate pr-6">
-                        {sf.relativePath || sf.file.name}
-                      </p>
-                      <p className="text-[10px] font-medium text-gray-500">{formatSize(sf.file.size)}</p>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 text-slate-400 hover:text-red-500 hover:bg-red-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFile(idx);
-                      }}
+              <DragDropContext onDragEnd={handleReorder}>
+                <Droppable droppableId="file-list">
+                  {(provided) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className="space-y-2 max-h-[200px] overflow-y-auto pr-1"
                     >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                      {selectedFiles.map((sf, idx) => (
+                        <Draggable key={String(idx)} draggableId={String(idx)} index={idx}>
+                          {(drag, snapshot) => (
+                            <div
+                              ref={drag.innerRef}
+                              {...drag.draggableProps}
+                              className={`flex items-center gap-3 p-3 border rounded-xl relative transition-shadow ${snapshot.isDragging ? 'bg-blue-50 border-blue-300 shadow-lg' : 'bg-slate-50 border-slate-200'}`}
+                            >
+                              <div
+                                {...drag.dragHandleProps}
+                                className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0"
+                              >
+                                <GripVertical className="h-4 w-4" />
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-400 shrink-0 w-4 text-center">
+                                {idx + 1}
+                              </span>
+                              <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg shrink-0">
+                                <FileVideo className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-gray-900 truncate pr-6">
+                                  {sf.relativePath || sf.file.name}
+                                </p>
+                                <p className="text-[10px] font-medium text-gray-500">{formatSize(sf.file.size)}</p>
+                              </div>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-slate-400 hover:text-red-500 hover:bg-red-50 shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeFile(idx);
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </div>
           )}
 

@@ -482,6 +482,7 @@ function TaskCard({
   onDragStart,
   isDragging,
   onPreview,
+  isQuotaComplete,
 }: {
   task: WorkflowTask;
   onUploadComplete: (taskId: string, files: any[]) => void;
@@ -489,6 +490,7 @@ function TaskCard({
   onDragStart: (e: DragEvent<HTMLDivElement>, task: WorkflowTask) => void;
   isDragging: boolean;
   onPreview: (file: TaskFile) => void;
+  isQuotaComplete?: boolean;
 }) {
   const [showFiles, setShowFiles] = useState(false);
   const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
@@ -578,7 +580,9 @@ function TaskCard({
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
               <h4 className="font-medium text-xs whitespace-normal break-words">
-                {task.title}
+                {task.clientName && task.deliverableType
+                  ? `${task.clientName} · ${task.deliverableType.replace(/_/g, " ")}`
+                  : task.clientName || task.deliverableType || task.title}
               </h4>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -633,6 +637,11 @@ function TaskCard({
                   One-Off
                 </Badge>
               ) : null}
+              {isQuotaComplete && (
+                <Badge className="text-[10px] h-4 px-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                  ✓ Quota complete
+                </Badge>
+              )}
             </div>
             <p className="text-[11px] text-muted-foreground line-clamp-1 flex-1">
               {task.description}
@@ -914,6 +923,7 @@ interface ColumnProps {
   onUploadComplete: (taskId: string, files: any[]) => void;
   onStartTask: (taskId: string) => void;
   onPreview: (file: TaskFile) => void;
+  quotaCompleteTaskIds: Set<string>;
 }
 
 function DroppableColumn({
@@ -932,6 +942,7 @@ function DroppableColumn({
   onUploadComplete,
   onStartTask,
   onPreview,
+  quotaCompleteTaskIds,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -974,6 +985,7 @@ function DroppableColumn({
             onDragStart={onDragStart}
             isDragging={draggingTaskId === task.id}
             onPreview={onPreview}
+            isQuotaComplete={quotaCompleteTaskIds.has(task.id)}
           />
         ))}
 
@@ -1335,6 +1347,27 @@ export function EditorDashboard() {
     return tasks.length - weeklyVisibleTasks.length;
   }, [tasks, weeklyVisibleTasks]);
 
+  // 🔥 Compute which task IDs belong to a fully-submitted deliverable group
+  // A group is complete when every task in it is ready_for_qc / completed / approved
+  const quotaCompleteTaskIds = useMemo(() => {
+    const doneStatuses = new Set(['ready_for_qc', 'completed', 'approved']);
+    const groups: Record<string, WorkflowTask[]> = {};
+    for (const t of tasks) {
+      const key = t.isOneOff
+        ? 'oneoff-' + t.id
+        : t.clientId + '-' + (t.monthlyDeliverableId || t.deliverableType || 'default');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    }
+    const completeIds = new Set<string>();
+    for (const group of Object.values(groups)) {
+      if (group.length > 0 && group.every((t) => doneStatuses.has(t.status))) {
+        group.forEach((t) => completeIds.add(t.id));
+      }
+    }
+    return completeIds;
+  }, [tasks]);
+
   /* ----------------------------- DRAG & DROP ------------------------------- */
 
   // 🔥 WORKFLOW VALIDATION: Define allowed transitions
@@ -1497,6 +1530,9 @@ export function EditorDashboard() {
           )
         );
         setValidationError("Failed to update task status. Please try again.");
+      } else if (toStatus === "ready_for_qc") {
+        // 🔥 Check quota completion after moving to ready_for_qc
+        checkDeliverableQuota(draggingTask);
       }
     } catch (err) {
       // Revert on error
@@ -1510,6 +1546,41 @@ export function EditorDashboard() {
     }
 
     setDraggingTask(null);
+  }
+
+  // 🔥 Check if all tasks for a deliverable+client are done after submitting one for QC
+  function checkDeliverableQuota(completedTask: WorkflowTask) {
+    if (!completedTask.monthlyDeliverableId && !completedTask.deliverableType) return;
+
+    // Get all tasks for the same deliverable group
+    const siblingTasks = tasks.filter((t) => {
+      if (completedTask.monthlyDeliverableId) {
+        return t.monthlyDeliverableId === completedTask.monthlyDeliverableId;
+      }
+      return t.clientId === completedTask.clientId && t.deliverableType === completedTask.deliverableType;
+    });
+
+    // Count tasks that are now "done" from the editor's perspective
+    // (ready_for_qc, completed, approved — i.e. the editor has submitted them all)
+    const doneStatuses = ["ready_for_qc", "completed", "approved"];
+    const doneTasks = siblingTasks.filter((t) =>
+      t.id === completedTask.id
+        ? true // the task we just moved counts as done
+        : doneStatuses.includes(t.status)
+    );
+
+    if (doneTasks.length === siblingTasks.length && siblingTasks.length > 0) {
+      const clientName = completedTask.clientName || "this client";
+      const deliverableLabel = completedTask.deliverableType
+        ? completedTask.deliverableType.replace(/_/g, " ")
+        : "deliverable";
+      const count = siblingTasks.length;
+
+      toast.success(
+        `✅ All ${count} ${deliverableLabel} task${count !== 1 ? "s" : ""} for ${clientName} submitted! Move to your next deliverable or client.`,
+        { duration: 6000 }
+      );
+    }
   }
 
   function handleColumnDragOver(columnStatus: string) {
@@ -1743,6 +1814,7 @@ export function EditorDashboard() {
             onUploadComplete={handleUploadComplete}
             onStartTask={startTask}
             onPreview={handlePreview}
+            quotaCompleteTaskIds={quotaCompleteTaskIds}
           />
         ))}
       </div>

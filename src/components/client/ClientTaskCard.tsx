@@ -110,7 +110,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
       {/* Card Body */}
       <div className="p-4 flex flex-col gap-3">
         {/* Title */}
-        <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">{task.title}</h4>
+        <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">{task.monthlyDeliverable?.type ? task.monthlyDeliverable.type.replace(/_/g, " ") : "Content"}</h4>
 
         {/* Status & Actions Row */}
         <div className="flex items-center justify-between text-zinc-500 text-[11px]">

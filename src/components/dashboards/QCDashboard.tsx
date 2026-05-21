@@ -957,7 +957,9 @@ export function QCDashboard() {
                     <div className="p-4 flex flex-col gap-3">
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
-                          {task.title}
+                          {task.clientName && (task as any).deliverableType
+                            ? `${task.clientName} · ${((task as any).deliverableType as string).replace(/_/g, ' ')}`
+                            : task.clientName || (task as any).deliverableType || task.title}
                         </h4>
                         <TaskGuidelinesButton
                           clientId={task.clientId}
@@ -1271,7 +1273,7 @@ export function QCDashboard() {
             file={selectedFile}
             allFiles={selectedTask.files || []}
             taskId={selectedTask.id}
-            taskTitle={selectedTask.title}
+            taskTitle={(selectedTask as any).clientName && (selectedTask as any).deliverableType ? (selectedTask as any).clientName + " · " + ((selectedTask as any).deliverableType as string).replace(/_/g, " ") : selectedTask.title}
             onApprove={handleThumbnailApprove}
             onRequestRevisions={handleThumbnailRequestRevisions}
             userRole="qc"
@@ -1283,7 +1285,7 @@ export function QCDashboard() {
             isOpen={showComparison}
             onOpenChange={setShowComparison}
             thumbnails={comparisonFiles}
-            taskTitle={selectedTask.title}
+            taskTitle={(selectedTask as any).clientName && (selectedTask as any).deliverableType ? (selectedTask as any).clientName + " · " + ((selectedTask as any).deliverableType as string).replace(/_/g, " ") : selectedTask.title}
           />
         )}
 

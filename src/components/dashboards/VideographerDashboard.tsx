@@ -439,7 +439,7 @@ export function VideographerDashboard({ initialTab }: VideographerDashboardProps
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                       <div className="space-y-3 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-bold text-lg">{task.title || "Untitled Shoot"}</h4>
+                          <h4 className="font-bold text-lg">{(task.client?.companyName || task.client?.name || "Unknown Client") + " · Shoot"}</h4>
                           <Badge className="bg-blue-100 text-blue-800">
                             {task.status.replace(/_/g, " ")}
                           </Badge>
@@ -638,7 +638,7 @@ export function VideographerDashboard({ initialTab }: VideographerDashboardProps
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base">{task.title}</CardTitle>
+                    <CardTitle className="text-base">{task.client?.companyName || task.client?.name || "Unknown Client"} · Shoot</CardTitle>
                     <p className="text-xs text-muted-foreground mt-1">
                       {task.files.length} file{task.files.length !== 1 ? 's' : ''} •
                       {task.client?.companyName || task.client?.name || 'Unknown Client'}
@@ -763,7 +763,7 @@ export function VideographerDashboard({ initialTab }: VideographerDashboardProps
               {tasksForDate.map((task) => (
                 <div key={task.id} className="border rounded-xl p-4 hover:shadow-sm transition-shadow">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold text-sm">{task.title}</h4>
+                    <h4 className="font-semibold text-sm">{(task.client?.companyName || task.client?.name || "Unknown Client") + " · Shoot"}</h4>
                     <Badge className={
                       task.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
                         task.status === 'VIDEOGRAPHER_ASSIGNED' ? 'bg-blue-100 text-blue-800' :

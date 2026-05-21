@@ -694,7 +694,7 @@ export function ClientDashboard() {
 
     return {
       id: selectedTask.id,
-      title: `${selectedTask.title} - ${file.name}`,
+      title: `${selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"} - ${file.name}`,
       subtitle: `Review Request`,
       videoUrl: file.url,
       thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
@@ -1048,7 +1048,7 @@ export function ClientDashboard() {
                   Review Content
                 </DialogTitle>
                 <DialogDescription>
-                  {selectedTask.title} - Review files and approve or request
+                  {selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"} — Review files and approve or request
                   revisions
                 </DialogDescription>
               </DialogHeader>
@@ -1323,7 +1323,7 @@ export function ClientDashboard() {
                   Request Revisions
                 </DialogTitle>
                 <DialogDescription>
-                  Provide feedback for "{selectedTask.title}"
+                  Provide feedback for "{selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"}"
                 </DialogDescription>
               </DialogHeader>
 
@@ -1414,7 +1414,7 @@ export function ClientDashboard() {
             isOpen={showComparison}
             onOpenChange={setShowComparison}
             thumbnails={comparisonFiles}
-            taskTitle={selectedTask.title}
+            taskTitle={selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"}
           />
         )}
 
@@ -1433,7 +1433,7 @@ export function ClientDashboard() {
               file={selectedFile}
               allFiles={selectedTask.files || []}
               taskId={selectedTask.id}
-              taskTitle={selectedTask.title}
+              taskTitle={selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"}
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
               userRole="client"
