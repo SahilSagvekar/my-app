@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Roles with built-in full access (no per-login permission needed)
-    const fullAccessRoles = ["admin", "client", "scheduler"];
+    const fullAccessRoles = ["admin", "client"];
     
     // For other roles, check if the user has been granted access to ANY login
     if (!fullAccessRoles.includes(userRole)) {
@@ -169,33 +169,8 @@ export async function GET(req: NextRequest) {
           { platform: "asc" },
         ],
       });
-    } else if (userRole === "scheduler") {
-      // Schedulers see ALL logins (except adminOnly ones)
-      logins = await prisma.socialLogin.findMany({
-        where: {
-          adminOnly: false,
-        },
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              companyName: true,
-            },
-          },
-          updatedByUser: {
-            select: {
-              name: true,
-            },
-          },
-        },
-        orderBy: [
-          { client: { companyName: "asc" } },
-          { platform: "asc" },
-        ],
-      });
     } else {
-      // Other roles (editor, qc, etc.)
+      // Other roles (editor, qc, scheduler, etc.)
       // They can only see logins where:
       // 1. adminOnly is false AND
       // 2. Their role is in allowedRoles OR their userId is in allowedUserIds

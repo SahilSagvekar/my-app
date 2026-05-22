@@ -69,6 +69,7 @@ import {
 import { SlSocialSteam } from "react-icons/sl";
 import { toast } from "sonner";
 import { useAuth } from "./auth/AuthContext";
+import { useViewAsRole } from "./auth/ViewAsRoleContext";
 
 /* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */
@@ -784,6 +785,7 @@ function LoginFormDialog({
 
 export function SocialLogins() {
   const { user } = useAuth();
+  const { viewingAsRole } = useViewAsRole();
   const [logins, setLogins] = useState<SocialLogin[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -808,14 +810,15 @@ export function SocialLogins() {
   const [loading, setLoading] = useState(false); // changed: don't block initial render
   const [loginsLoading, setLoginsLoading] = useState(false);
 
-  const userRole = (user?.role ?? "").toLowerCase();
+  const userRole = (viewingAsRole || user?.role || "").toLowerCase();
   const isAdmin = userRole === "admin";
   const isClient = userRole === "client";
   const userClientId = user?.linkedClientId || null;
   const userId = user?.id ? Number(user.id) : null;
 
-  // Admin bypasses 2FA lock
-  useEffect(() => { if (isAdmin) setIsUnlocked(true); }, [isAdmin]);
+  // Lock screen is removed — auto-unlock all roles on mount.
+  // Access is enforced server-side by /api/logins (role + allowedRoles/allowedUserIds checks).
+  useEffect(() => { setIsUnlocked(true); }, []);
 
   // Per-login access check
   const canViewLogin = (login: SocialLogin): boolean => {
@@ -1117,9 +1120,14 @@ export function SocialLogins() {
             className="gap-2 text-green-600 border-green-300 bg-green-50 hover:bg-green-100 hover:text-green-700 pointer-events-none">
             <Unlock className="h-4 w-4" />Unlocked
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setIsUnlocked(false)} className="gap-2">
-            <Lock className="h-4 w-4" />Lock
-          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => setIsUnlocked(false)} className="gap-2">
+              <Lock className="h-4 w-4" />Lock
+            </Button>
+          )}
+
+
+
           {canEdit && (
             <Button size="sm" onClick={() => { setEditingLogin(null); setShowLoginDialog(true); }} className="gap-2">
               <Plus className="h-4 w-4" />Add Login

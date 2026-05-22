@@ -307,6 +307,8 @@ export function renderPage(
         return <EmploymentInfo currentRole={role} />;
       // case "feedback":
       //   return <FeedbackSystem currentRole={role} />;
+      case "logins":
+        return <SocialLogins />;
       default:
         return <SchedulerDashboard />;
     }
