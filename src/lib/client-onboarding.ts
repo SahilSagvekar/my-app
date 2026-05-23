@@ -183,60 +183,28 @@ export async function sendClientWelcomeEmail(params: {
     from: `"E8 Productions" <${smtpUser}>`,
     to: params.email,
     bcc: ['sahilsagvekar230@gmail.com', 'eric@e8productions.com'],
-    subject: `Welcome to E8 Productions, ${params.companyName}! 🎬`,
+    subject: `Welcome to E8 Productions`,
     html: `
 <!DOCTYPE html>
 <html>
 <head>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: white; padding: 36px 30px; border-radius: 12px 12px 0 0; text-align: center; }
-    .header h1 { margin: 0 0 8px; font-size: 26px; font-weight: 700; }
-    .header p { margin: 0; opacity: 0.8; font-size: 15px; }
-    .content { background: #f9fafb; padding: 32px 30px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none; }
-    .highlight-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px 24px; margin: 20px 0; }
-    .highlight-box h3 { margin: 0 0 12px; font-size: 15px; color: #111; }
-    .step { display: flex; align-items: flex-start; gap: 12px; margin: 12px 0; }
-    .step-num { background: #0f3460; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; padding-top: 1px; }
-    .button { display: inline-block; background: #0f3460; color: white !important; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; margin: 8px 0; }
-    .footer { text-align: center; margin-top: 28px; color: #9ca3af; font-size: 13px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.7; color: #333; max-width: 560px; margin: 0 auto; padding: 40px 20px; }
+    a { color: #0f3460; }
+    .footer { margin-top: 32px; color: #9ca3af; font-size: 12px; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🎬 Welcome to E8 Productions!</h1>
-    <p>Your content production journey starts here</p>
-  </div>
+  <p>Hi ${params.clientName},</p>
 
-  <div class="content">
-    <p>Hi <strong>${params.clientName}</strong>,</p>
+  <p>Welcome to E8 Productions — we're glad to have ${params.companyName} on board.</p>
 
-    <p>We're thrilled to welcome <strong>${params.companyName}</strong> to E8 Productions! 🎉 Our team is ready to help you create outstanding content.</p>
+  <p>Feel free to reply to this email if you have any questions.</p>
 
-    ${slackNote}
-
-    <div class="highlight-box">
-      <h3>📋 What happens next</h3>
-      <div class="step"><span class="step-num">1</span><span>Our team will reach out within 1 business day to walk you through the onboarding process</span></div>
-      <div class="step"><span class="step-num">2</span><span>You'll receive your login credentials to access our client portal</span></div>
-      <div class="step"><span class="step-num">3</span><span>We'll review your deliverables and content schedule together</span></div>
-      <div class="step"><span class="step-num">4</span><span>Production begins! Track your content in real time from the dashboard</span></div>
-    </div>
-
-    <div style="text-align: center; margin: 28px 0;">
-      <a href="${appUrl}" class="button">Visit Client Portal →</a>
-    </div>
-
-    <p>If you have any questions in the meantime, don't hesitate to reach out — we're here to help.</p>
-
-    <p>Looking forward to creating great content together!</p>
-
-    <p>Warm regards,<br><strong>The E8 Productions Team</strong></p>
-  </div>
+  <p>Talk soon,<br>The E8 Productions Team</p>
 
   <div class="footer">
-    <p>E8 Productions · <a href="${appUrl}" style="color: #6b7280;">e8productions.com</a></p>
-    <p>You're receiving this because you were just onboarded as an E8 Productions client.</p>
+    <p>E8 Productions · <a href="${appUrl}">${appUrl}</a></p>
   </div>
 </body>
 </html>
