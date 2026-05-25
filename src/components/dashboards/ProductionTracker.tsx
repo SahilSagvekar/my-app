@@ -43,6 +43,7 @@ import {
   Shield,
   Calendar,
   Eye,
+  UserCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -167,6 +168,49 @@ interface TrackerData {
   availableMonths: string[];
 }
 
+// ─── Editor breakdown types ───
+
+interface EditorDeliverableProgress {
+  deliverableId: string;
+  type: string;
+  statusCounts: StatusCounts;
+  doneCount: number;
+  totalEditorTasks: number;
+  extraCount: number;
+  extraDoneCount: number;
+  progressPercent: number;
+}
+
+interface EditorClientProgress {
+  clientId: string;
+  clientName: string;
+  deliverables: EditorDeliverableProgress[];
+  totalTasks: number;
+  totalEditorTasks: number;
+  totalDone: number;
+  totalExtraTasks: number;
+  totalExtraDone: number;
+  overallProgress: number;
+}
+
+interface EditorTrackerData {
+  month: string;
+  editor: { id: number; name: string; role: string };
+  summary: {
+    totalClients: number;
+    totalTasks: number;
+    totalEditorTasks: number;
+    totalDone: number;
+    overallProgress: number;
+    pending: number;
+    inProgress: number;
+    readyForQc: number;
+    completed: number;
+  };
+  clientProgress: EditorClientProgress[];
+  availableMonths: string[];
+}
+
 // ─── Deliverable type icons ───
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   'Short Form Videos': <Video className="h-3.5 w-3.5" />,
@@ -244,7 +288,6 @@ function ClientStatusCounts({ client }: { client: ClientProgress }) {
   );
 }
 
-// ─── Health badge ───
 function HealthBadge({ health }: { health: string }) {
   if (health === 'critical')
     return (
@@ -265,7 +308,6 @@ function HealthBadge({ health }: { health: string }) {
   );
 }
 
-// ─── Progress bar with color ───
 function ColorProgress({ value, health }: { value: number; health: string }) {
   return (
     <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
@@ -284,7 +326,6 @@ function ColorProgress({ value, health }: { value: number; health: string }) {
   );
 }
 
-// ─── Stat Card ───
 function StatCard({
   title,
   value,
@@ -346,15 +387,21 @@ export function ProductionTracker() {
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedClients, setExpandedClients] = useState<Set<string>>(
-    new Set()
+    () => new Set()
   );
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'clients' | 'editors' | 'qc' | 'schedulers'
+    'overview' | 'clients' | 'editors' | 'qc' | 'schedulers' | 'editor-breakdown'
   >('overview');
   const [healthFilter, setHealthFilter] = useState<
     'all' | 'critical' | 'warning' | 'healthy'
   >('all');
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
+
+  // Editor breakdown state
+  const [selectedEditorId, setSelectedEditorId] = useState<number | null>(null);
+  const [editorTrackerData, setEditorTrackerData] = useState<EditorTrackerData | null>(null);
+  const [editorTrackerLoading, setEditorTrackerLoading] = useState(false);
+  const [expandedEditorClients, setExpandedEditorClients] = useState<Set<string>>(() => new Set());
 
   const fetchData = async (month?: string) => {
     try {
@@ -374,6 +421,25 @@ export function ProductionTracker() {
     }
   };
 
+  const fetchEditorTracker = async (editorId: number, month?: string) => {
+    try {
+      setEditorTrackerLoading(true);
+      setExpandedEditorClients(new Set());
+      const m = month || selectedMonth;
+      const url = m
+        ? `/api/editor/production-tracker?editorId=${editorId}&month=${encodeURIComponent(m)}`
+        : `/api/editor/production-tracker?editorId=${editorId}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Failed to fetch editor data');
+      const json = await res.json();
+      setEditorTrackerData(json);
+    } catch (err) {
+      console.error('Editor tracker fetch error:', err);
+    } finally {
+      setEditorTrackerLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -381,6 +447,21 @@ export function ProductionTracker() {
   const handleMonthChange = (month: string) => {
     setSelectedMonth(month);
     fetchData(month);
+    if (selectedEditorId) fetchEditorTracker(selectedEditorId, month);
+  };
+
+  const handleSelectEditor = (editorId: number) => {
+    setSelectedEditorId(editorId);
+    fetchEditorTracker(editorId);
+  };
+
+  const toggleEditorClient = (id: string) => {
+    setExpandedEditorClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const toggleClient = (id: string) => {
@@ -392,18 +473,14 @@ export function ProductionTracker() {
     });
   };
 
-  // Filter clients
   const filteredClients = useMemo(() => {
     if (!data) return [];
     return data.clientProgress
-      .filter((c) => c.totalPromised > 0) // only clients with deliverables
+      .filter((c) => c.totalPromised > 0)
       .filter(
         (c) => statusFilter === 'all' || getClientStatusCount(c, statusFilter) > 0
       )
-      .filter(
-        (c) =>
-          healthFilter === 'all' || c.health === healthFilter
-      )
+      .filter((c) => healthFilter === 'all' || c.health === healthFilter)
       .filter(
         (c) =>
           !searchQuery ||
@@ -415,9 +492,7 @@ export function ProductionTracker() {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          Loading production data...
-        </p>
+        <p className="text-sm text-muted-foreground">Loading production data...</p>
       </div>
     );
   }
@@ -440,9 +515,7 @@ export function ProductionTracker() {
               Monthly deliverable progress & employee performance
             </p>
           </div>
-
           <div className="flex items-center gap-3">
-            {/* Month Selector */}
             <Select value={selectedMonth} onValueChange={handleMonthChange}>
               <SelectTrigger className="w-[180px] h-9 text-sm">
                 <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
@@ -450,13 +523,10 @@ export function ProductionTracker() {
               </SelectTrigger>
               <SelectContent>
                 {data.availableMonths.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-
             <Button
               variant="outline"
               size="sm"
@@ -464,52 +534,18 @@ export function ProductionTracker() {
               disabled={loading}
               className="h-9"
             >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
           </div>
         </div>
 
         {/* ─── Summary Cards ─── */}
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4">
-          <StatCard
-            title="Overall Progress"
-            value={`${summary.overallProgress}%`}
-            icon={<TrendingUp className="h-5 w-5 text-indigo-600" />}
-            subtitle={`${summary.totalDone} / ${summary.totalPromised} done`}
-            color="bg-indigo-50"
-          />
-          <StatCard
-            title="Active Clients"
-            value={summary.totalClients}
-            icon={<Users className="h-5 w-5 text-blue-600" />}
-            subtitle={`${summary.atRiskCount} at risk`}
-            color="bg-blue-50"
-          />
-          <StatCard
-            title="Tasks This Month"
-            value={summary.totalTasksThisMonth}
-            icon={<BarChart3 className="h-5 w-5 text-violet-600" />}
-            subtitle={`${summary.totalInProgress} in progress`}
-            color="bg-violet-50"
-          />
-          <StatCard
-            title="Posted"
-            value={summary.totalPosted}
-            icon={<CheckCircle className="h-5 w-5 text-emerald-600" />}
-            subtitle={`${summary.totalPending} pending`}
-            color="bg-emerald-50"
-          />
-          <StatCard
-            title="At Risk"
-            value={summary.atRiskCount}
-            icon={<AlertTriangle className="h-5 w-5 text-red-600" />}
-            subtitle="clients behind schedule"
-            color="bg-red-50"
-          />
+          <StatCard title="Overall Progress" value={`${summary.overallProgress}%`} icon={<TrendingUp className="h-5 w-5 text-indigo-600" />} subtitle={`${summary.totalDone} / ${summary.totalPromised} done`} color="bg-indigo-50" />
+          <StatCard title="Active Clients" value={summary.totalClients} icon={<Users className="h-5 w-5 text-blue-600" />} subtitle={`${summary.atRiskCount} at risk`} color="bg-blue-50" />
+          <StatCard title="Tasks This Month" value={summary.totalTasksThisMonth} icon={<BarChart3 className="h-5 w-5 text-violet-600" />} subtitle={`${summary.totalInProgress} in progress`} color="bg-violet-50" />
+          <StatCard title="Posted" value={summary.totalPosted} icon={<CheckCircle className="h-5 w-5 text-emerald-600" />} subtitle={`${summary.totalPending} pending`} color="bg-emerald-50" />
+          <StatCard title="At Risk" value={summary.atRiskCount} icon={<AlertTriangle className="h-5 w-5 text-red-600" />} subtitle="clients behind schedule" color="bg-red-50" />
         </div>
 
         {/* ─── Tab Navigation ─── */}
@@ -519,6 +555,7 @@ export function ProductionTracker() {
               { id: 'overview', label: 'Overview', icon: Eye },
               { id: 'clients', label: 'Clients', icon: Users },
               { id: 'editors', label: 'Editors', icon: Film },
+              { id: 'editor-breakdown', label: 'Editor Tracker', icon: UserCheck },
               { id: 'qc', label: 'QC', icon: Shield },
               { id: 'schedulers', label: 'Schedulers', icon: Calendar },
             ] as const
@@ -543,9 +580,7 @@ export function ProductionTracker() {
         <Card className="border shadow-sm">
           <CardContent className="p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">
-                Task Status
-              </span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">Task Status</span>
               {STATUS_FILTER_OPTIONS.map((option) => {
                 const isActive = statusFilter === option.key;
                 return (
@@ -556,18 +591,11 @@ export function ProductionTracker() {
                     onClick={() => setStatusFilter(option.key)}
                     className={cn(
                       'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition-all',
-                      isActive
-                        ? option.color
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      isActive ? option.color : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     )}
                   >
                     <span>{option.label}</span>
-                    <span
-                      className={cn(
-                        'rounded-full px-1.5 py-0.5 text-[10px]',
-                        isActive ? 'bg-white/20' : 'bg-gray-100 text-gray-700'
-                      )}
-                    >
+                    <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', isActive ? 'bg-white/20' : 'bg-gray-100 text-gray-700')}>
                       {statusSummary[option.key]}
                     </span>
                   </button>
@@ -580,7 +608,6 @@ export function ProductionTracker() {
         {/* ─── Overview Tab ─── */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* At Risk Clients Alert */}
             {data.atRiskClients.length > 0 && (
               <Card className="border-red-200 bg-red-50/50">
                 <CardHeader className="pb-3">
@@ -592,27 +619,15 @@ export function ProductionTracker() {
                 <CardContent className="pt-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {data.atRiskClients.map((client) => (
-                      <div
-                        key={client.clientId}
-                        className="bg-white rounded-lg border border-red-100 p-3 space-y-2"
-                      >
+                      <div key={client.clientId} className="bg-white rounded-lg border border-red-100 p-3 space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm truncate">
-                            {client.clientName}
-                          </span>
+                          <span className="font-semibold text-sm truncate">{client.clientName}</span>
                           <HealthBadge health={client.health} />
                         </div>
-                        <ColorProgress
-                          value={client.overallProgress}
-                          health={client.health}
-                        />
+                        <ColorProgress value={client.overallProgress} health={client.health} />
                         <div className="flex justify-between text-[11px] text-muted-foreground">
-                          <span>
-                            {client.totalDone}/{client.totalPromised} done
-                          </span>
-                          <span className="font-medium">
-                            {client.overallProgress}%
-                          </span>
+                          <span>{client.totalDone}/{client.totalPromised} done</span>
+                          <span className="font-medium">{client.overallProgress}%</span>
                         </div>
                         <ClientStatusCounts client={client} />
                       </div>
@@ -622,22 +637,14 @@ export function ProductionTracker() {
               </Card>
             )}
 
-            {/* All Clients Quick Grid */}
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-bold">
-                    All Client Progress
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 text-[10px]">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span>On Track</span>
-                      <div className="w-2 h-2 rounded-full bg-amber-500 ml-2" />
-                      <span>Behind</span>
-                      <div className="w-2 h-2 rounded-full bg-red-500 ml-2" />
-                      <span>At Risk</span>
-                    </div>
+                  <CardTitle className="text-sm font-bold">All Client Progress</CardTitle>
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" /><span>On Track</span>
+                    <div className="w-2 h-2 rounded-full bg-amber-500 ml-2" /><span>Behind</span>
+                    <div className="w-2 h-2 rounded-full bg-red-500 ml-2" /><span>At Risk</span>
                   </div>
                 </div>
               </CardHeader>
@@ -646,72 +653,43 @@ export function ProductionTracker() {
                   {filteredClients
                     .sort((a, b) => {
                       const order = { critical: 0, warning: 1, healthy: 2 };
-                      return (
-                        order[a.health] - order[b.health] ||
-                        a.overallProgress - b.overallProgress
-                      );
+                      return order[a.health] - order[b.health] || a.overallProgress - b.overallProgress;
                     })
                     .map((client) => (
                       <div
                         key={client.clientId}
                         className={cn(
                           'rounded-lg border p-3 space-y-2 transition-all cursor-pointer hover:shadow-sm',
-                          client.health === 'critical'
-                            ? 'border-red-200 bg-red-50/30'
-                            : client.health === 'warning'
-                            ? 'border-amber-200 bg-amber-50/30'
+                          client.health === 'critical' ? 'border-red-200 bg-red-50/30'
+                            : client.health === 'warning' ? 'border-amber-200 bg-amber-50/30'
                             : 'border-gray-200'
                         )}
-                        onClick={() => {
-                          setActiveTab('clients');
-                          setExpandedClients(new Set([client.clientId]));
-                        }}
+                        onClick={() => { setActiveTab('clients'); setExpandedClients(new Set([client.clientId])); }}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm truncate pr-2">
-                            {client.clientName}
-                          </span>
-                          {client.isTrial && (
-                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[9px]">
-                              TRIAL
-                            </Badge>
-                          )}
+                          <span className="font-medium text-sm truncate pr-2">{client.clientName}</span>
+                          {client.isTrial && <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[9px]">TRIAL</Badge>}
                         </div>
-                        <ColorProgress
-                          value={client.overallProgress}
-                          health={client.health}
-                        />
+                        <ColorProgress value={client.overallProgress} health={client.health} />
                         <div className="flex justify-between text-[11px] text-muted-foreground">
-                          <span>
-                            {client.totalDone}/{client.totalPromised}
-                          </span>
-                          <span className="font-semibold text-gray-700">
-                            {client.overallProgress}%
-                          </span>
+                          <span>{client.totalDone}/{client.totalPromised}</span>
+                          <span className="font-semibold text-gray-700">{client.overallProgress}%</span>
                         </div>
                         <ClientStatusCounts client={client} />
-                        {/* Mini deliverable breakdown */}
                         <div className="flex flex-wrap gap-1">
                           {client.deliverables.map((d) => (
                             <Tooltip key={d.deliverableId}>
                               <TooltipTrigger asChild>
-                                <span
-                                  className={cn(
-                                    'text-[9px] font-bold px-1.5 py-0.5 rounded',
-                                    d.health === 'critical'
-                                      ? 'bg-red-100 text-red-700'
-                                      : d.health === 'warning'
-                                      ? 'bg-amber-100 text-amber-700'
-                                      : 'bg-emerald-100 text-emerald-700'
-                                  )}
-                                >
-                                  {SHORT_TYPE[d.type] || d.type.slice(0, 3)}{' '}
-                                  {d.doneCount}/{d.promised}
+                                <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded',
+                                  d.health === 'critical' ? 'bg-red-100 text-red-700'
+                                    : d.health === 'warning' ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-emerald-100 text-emerald-700'
+                                )}>
+                                  {SHORT_TYPE[d.type] || d.type.slice(0, 3)} {d.doneCount}/{d.promised}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent className="text-xs">
-                                {d.type}: {d.doneCount}/{d.promised} done (
-                                {d.progressPercent}%)
+                                {d.type}: {d.doneCount}/{d.promised} done ({d.progressPercent}%)
                               </TooltipContent>
                             </Tooltip>
                           ))}
@@ -722,54 +700,33 @@ export function ProductionTracker() {
               </CardContent>
             </Card>
 
-            {/* Editor Summary */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Film className="h-4 w-4 text-violet-600" />
-                    Editor Summary
+                    <Film className="h-4 w-4 text-violet-600" /> Editor Summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="space-y-3">
-                    {data.editorPerformance
-                      .sort((a, b) => b.statusBreakdown.total - a.statusBreakdown.total)
-                      .map((editor) => (
-                        <div
-                          key={editor.id}
-                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 text-xs font-bold">
-                            {(editor.name || '?').charAt(0)}
+                    {data.editorPerformance.sort((a, b) => b.statusBreakdown.total - a.statusBreakdown.total).map((editor) => (
+                      <div key={editor.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+                        <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 text-xs font-bold">
+                          {(editor.name || '?').charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium truncate">{editor.name}</span>
+                            <span className="text-xs font-bold text-gray-700">{editor.statusBreakdown.completed}/{editor.statusBreakdown.total}</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium truncate">
-                                {editor.name}
-                              </span>
-                              <span className="text-xs font-bold text-gray-700">
-                                {editor.statusBreakdown.completed}/
-                                {editor.statusBreakdown.total}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Progress
-                                value={editor.completionRate}
-                                className="h-1.5 flex-1"
-                              />
-                              <span className="text-[10px] text-muted-foreground w-8">
-                                {editor.completionRate}%
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Progress value={editor.completionRate} className="h-1.5 flex-1" />
+                            <span className="text-[10px] text-muted-foreground w-8">{editor.completionRate}%</span>
                           </div>
                         </div>
-                      ))}
-                    {data.editorPerformance.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No editor data
-                      </p>
-                    )}
+                      </div>
+                    ))}
+                    {data.editorPerformance.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No editor data</p>}
                   </div>
                 </CardContent>
               </Card>
@@ -777,48 +734,29 @@ export function ProductionTracker() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-blue-600" />
-                    QC Summary
+                    <Shield className="h-4 w-4 text-blue-600" /> QC Summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="space-y-3">
-                    {data.qcPerformance
-                      .sort((a, b) => b.totalReviewed - a.totalReviewed)
-                      .map((qc) => (
-                        <div
-                          key={qc.id}
-                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
-                            {(qc.name || '?').charAt(0)}
+                    {data.qcPerformance.sort((a, b) => b.totalReviewed - a.totalReviewed).map((qc) => (
+                      <div key={qc.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
+                          {(qc.name || '?').charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium truncate">{qc.name}</span>
+                            <span className="text-xs text-muted-foreground">{qc.totalReviewed} reviewed</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium truncate">
-                                {qc.name}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {qc.totalReviewed} reviewed
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Progress
-                                value={qc.passRate}
-                                className="h-1.5 flex-1"
-                              />
-                              <span className="text-[10px] text-muted-foreground w-12">
-                                {qc.passRate}% pass
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Progress value={qc.passRate} className="h-1.5 flex-1" />
+                            <span className="text-[10px] text-muted-foreground w-12">{qc.passRate}% pass</span>
                           </div>
                         </div>
-                      ))}
-                    {data.qcPerformance.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No QC data
-                      </p>
-                    )}
+                      </div>
+                    ))}
+                    {data.qcPerformance.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No QC data</p>}
                   </div>
                 </CardContent>
               </Card>
@@ -829,24 +767,13 @@ export function ProductionTracker() {
         {/* ─── Clients Tab ─── */}
         {activeTab === 'clients' && (
           <div className="space-y-4">
-            {/* Filters */}
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search clients..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-sm"
-                />
+                <Input placeholder="Search clients..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
               </div>
-              <Select
-                value={healthFilter}
-                onValueChange={(v: any) => setHealthFilter(v)}
-              >
-                <SelectTrigger className="w-[140px] h-9 text-xs">
-                  <SelectValue placeholder="Health" />
-                </SelectTrigger>
+              <Select value={healthFilter} onValueChange={(v: any) => setHealthFilter(v)}>
+                <SelectTrigger className="w-[140px] h-9 text-xs"><SelectValue placeholder="Health" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="critical">At Risk</SelectItem>
@@ -856,176 +783,71 @@ export function ProductionTracker() {
               </Select>
             </div>
 
-            {/* Client Rows */}
             <div className="space-y-2">
-              {filteredClients
-                .sort((a, b) => {
-                  const order = { critical: 0, warning: 1, healthy: 2 };
-                  return order[a.health] - order[b.health];
-                })
-                .map((client) => {
-                  const isExpanded = expandedClients.has(client.clientId);
-                  return (
-                    <Card
-                      key={client.clientId}
-                      className={cn(
-                        'transition-all',
-                        client.health === 'critical' && 'border-red-200',
-                        client.health === 'warning' && 'border-amber-200'
-                      )}
-                    >
-                      {/* Client Header Row */}
-                      <button
-                        onClick={() => toggleClient(client.clientId)}
-                        className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50/50 transition-colors"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
-                        )}
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-semibold text-sm">
-                              {client.clientName}
-                            </span>
-                            {client.isTrial && (
-                              <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[9px]">
-                                TRIAL
-                              </Badge>
-                            )}
-                          </div>
-                          <ClientStatusCounts client={client} />
+              {filteredClients.sort((a, b) => { const order = { critical: 0, warning: 1, healthy: 2 }; return order[a.health] - order[b.health]; }).map((client) => {
+                const isExpanded = expandedClients.has(client.clientId);
+                return (
+                  <Card key={client.clientId} className={cn('transition-all', client.health === 'critical' && 'border-red-200', client.health === 'warning' && 'border-amber-200')}>
+                    <button onClick={() => toggleClient(client.clientId)} className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50/50 transition-colors">
+                      {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-semibold text-sm">{client.clientName}</span>
+                          {client.isTrial && <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[9px]">TRIAL</Badge>}
                         </div>
-
-                        {/* Mini deliverable tags */}
-                        <div className="hidden md:flex items-center gap-1.5">
-                          {client.deliverables.map((d) => (
-                            <span
-                              key={d.deliverableId}
-                              className={cn(
-                                'text-[9px] font-bold px-1.5 py-0.5 rounded',
-                                d.health === 'critical'
-                                  ? 'bg-red-100 text-red-700'
-                                  : d.health === 'warning'
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : 'bg-emerald-100 text-emerald-700'
-                              )}
-                            >
-                              {SHORT_TYPE[d.type] || d.type.slice(0, 3)}{' '}
-                              {d.doneCount}/{d.promised}
-                            </span>
-                          ))}
-                        </div>
-
-                        {/* Progress */}
-                        <div className="flex items-center gap-3 w-48 shrink-0">
-                          <ColorProgress
-                            value={client.overallProgress}
-                            health={client.health}
-                          />
-                          <span className="text-xs font-bold w-10 text-right">
-                            {client.overallProgress}%
+                        <ClientStatusCounts client={client} />
+                      </div>
+                      <div className="hidden md:flex items-center gap-1.5">
+                        {client.deliverables.map((d) => (
+                          <span key={d.deliverableId} className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded',
+                            d.health === 'critical' ? 'bg-red-100 text-red-700' : d.health === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                          )}>
+                            {SHORT_TYPE[d.type] || d.type.slice(0, 3)} {d.doneCount}/{d.promised}
                           </span>
-                        </div>
-
-                        <HealthBadge health={client.health} />
-                      </button>
-
-                      {/* Expanded Detail */}
-                      {isExpanded && (
-                        <div className="px-4 pb-4 border-t bg-gray-50/50">
-                          <div className="pt-4 space-y-3">
-                            {client.deliverables.map((del) => (
-                              <div
-                                key={del.deliverableId}
-                                className="bg-white rounded-lg border p-3"
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    {TYPE_ICONS[del.type] || (
-                                      <Video className="h-3.5 w-3.5" />
-                                    )}
-                                    <span className="text-sm font-medium">
-                                      {del.type}
-                                    </span>
-                                    {del.isTrial && (
-                                      <Badge className="bg-amber-100 text-amber-700 text-[9px]">
-                                        TRIAL
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold">
-                                      {del.doneCount}/{del.promised}
-                                    </span>
-                                    {del.extraCount > 0 && (
-                                      <span className="text-[10px] font-bold text-rose-700">
-                                        +{del.extraDoneCount}/{del.extraCount} extra
-                                      </span>
-                                    )}
-                                    <HealthBadge health={del.health} />
-                                  </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-3 w-48 shrink-0">
+                        <ColorProgress value={client.overallProgress} health={client.health} />
+                        <span className="text-xs font-bold w-10 text-right">{client.overallProgress}%</span>
+                      </div>
+                      <HealthBadge health={client.health} />
+                    </button>
+                    {isExpanded && (
+                      <div className="px-4 pb-4 border-t bg-gray-50/50">
+                        <div className="pt-4 space-y-3">
+                          {client.deliverables.map((del) => (
+                            <div key={del.deliverableId} className="bg-white rounded-lg border p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {TYPE_ICONS[del.type] || <Video className="h-3.5 w-3.5" />}
+                                  <span className="text-sm font-medium">{del.type}</span>
+                                  {del.isTrial && <Badge className="bg-amber-100 text-amber-700 text-[9px]">TRIAL</Badge>}
                                 </div>
-
-                                <ColorProgress
-                                  value={del.progressPercent}
-                                  health={del.health}
-                                />
-
-                                {/* Status breakdown pills */}
-                                <div className="flex flex-wrap gap-1.5 mt-2">
-                                  {del.statusCounts.pending > 0 && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                      {del.statusCounts.pending} Pending
-                                    </span>
-                                  )}
-                                  {del.statusCounts.inProgress > 0 && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">
-                                      {del.statusCounts.inProgress} Editing
-                                    </span>
-                                  )}
-                                  {del.statusCounts.readyForQc > 0 && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">
-                                      {del.statusCounts.readyForQc} In QC
-                                    </span>
-                                  )}
-                                  {del.statusCounts.clientReview > 0 && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">
-                                      {del.statusCounts.clientReview} Client Review
-                                    </span>
-                                  )}
-                                  {del.statusCounts.completed > 0 && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600">
-                                      {del.statusCounts.completed} Done
-                                    </span>
-                                  )}
-                                  {del.statusCounts.scheduled > 0 && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600">
-                                      {del.statusCounts.scheduled} Scheduled
-                                    </span>
-                                  )}
-                                  {del.statusCounts.posted > 0 && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                      {del.statusCounts.posted} Posted
-                                    </span>
-                                  )}
-                                  {del.statusCounts.onHold > 0 && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600">
-                                      {del.statusCounts.onHold} On Hold
-                                    </span>
-                                  )}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold">{del.doneCount}/{del.promised}</span>
+                                  {del.extraCount > 0 && <span className="text-[10px] font-bold text-rose-700">+{del.extraDoneCount}/{del.extraCount} extra</span>}
+                                  <HealthBadge health={del.health} />
                                 </div>
                               </div>
-                            ))}
-                          </div>
+                              <ColorProgress value={del.progressPercent} health={del.health} />
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {del.statusCounts.pending > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{del.statusCounts.pending} Pending</span>}
+                                {del.statusCounts.inProgress > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">{del.statusCounts.inProgress} Editing</span>}
+                                {del.statusCounts.readyForQc > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">{del.statusCounts.readyForQc} In QC</span>}
+                                {del.statusCounts.clientReview > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">{del.statusCounts.clientReview} Client Review</span>}
+                                {del.statusCounts.completed > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600">{del.statusCounts.completed} Done</span>}
+                                {del.statusCounts.scheduled > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600">{del.statusCounts.scheduled} Scheduled</span>}
+                                {del.statusCounts.posted > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">{del.statusCounts.posted} Posted</span>}
+                                {del.statusCounts.onHold > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600">{del.statusCounts.onHold} On Hold</span>}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      )}
-                    </Card>
-                  );
-                })}
-
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
               {filteredClients.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground">
                   <Users className="h-10 w-10 mx-auto mb-3 opacity-40" />
@@ -1040,92 +862,38 @@ export function ProductionTracker() {
         {activeTab === 'editors' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {data.editorPerformance
-                .sort((a, b) => b.statusBreakdown.total - a.statusBreakdown.total)
-                .map((editor) => (
-                  <Card key={editor.id}>
-                    <CardContent className="p-4 space-y-4">
-                      {/* Editor header */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold">
-                          {(editor.name || '?').charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">{editor.name}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {editor.clientCount} clients •{' '}
-                            {editor.avgTurnaroundDays}d avg turnaround
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Completion rate */}
+              {data.editorPerformance.sort((a, b) => b.statusBreakdown.total - a.statusBreakdown.total).map((editor) => (
+                <Card key={editor.id}>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold">{(editor.name || '?').charAt(0)}</div>
                       <div>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">
-                            Completion Rate
-                          </span>
-                          <span className="font-bold">
-                            {editor.completionRate}%
-                          </span>
-                        </div>
-                        <Progress
-                          value={editor.completionRate}
-                          className="h-2"
-                        />
+                        <p className="font-semibold text-sm">{editor.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{editor.clientCount} clients · {editor.avgTurnaroundDays}d avg turnaround</p>
                       </div>
-
-                      {/* Status breakdown */}
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="text-center p-2 rounded-lg bg-gray-50">
-                          <p className="text-lg font-bold">
-                            {editor.statusBreakdown.total}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Total
-                          </p>
-                        </div>
-                        <div className="text-center p-2 rounded-lg bg-emerald-50">
-                          <p className="text-lg font-bold text-emerald-700">
-                            {editor.statusBreakdown.completed}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Done
-                          </p>
-                        </div>
-                        <div className="text-center p-2 rounded-lg bg-blue-50">
-                          <p className="text-lg font-bold text-blue-700">
-                            {editor.statusBreakdown.inProgress}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            In Progress
-                          </p>
-                        </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">Completion Rate</span>
+                        <span className="font-bold">{editor.completionRate}%</span>
                       </div>
-
-                      {/* Extra stats */}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
-                        <span>
-                          {editor.statusBreakdown.readyForQc} in QC
-                        </span>
-                        <span>
-                          {editor.statusBreakdown.pending} pending
-                        </span>
-                        <span>
-                          {editor.statusBreakdown.onHold} on hold
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      <Progress value={editor.completionRate} className="h-2" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center p-2 rounded-lg bg-gray-50"><p className="text-lg font-bold">{editor.statusBreakdown.total}</p><p className="text-[10px] text-muted-foreground">Total</p></div>
+                      <div className="text-center p-2 rounded-lg bg-emerald-50"><p className="text-lg font-bold text-emerald-700">{editor.statusBreakdown.completed}</p><p className="text-[10px] text-muted-foreground">Done</p></div>
+                      <div className="text-center p-2 rounded-lg bg-blue-50"><p className="text-lg font-bold text-blue-700">{editor.statusBreakdown.inProgress}</p><p className="text-[10px] text-muted-foreground">In Progress</p></div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
+                      <span>{editor.statusBreakdown.readyForQc} in QC</span>
+                      <span>{editor.statusBreakdown.pending} pending</span>
+                      <span>{editor.statusBreakdown.onHold} on hold</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-
-            {data.editorPerformance.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">
-                <Film className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p>No editor data for this month</p>
-              </div>
-            )}
+            {data.editorPerformance.length === 0 && <div className="text-center py-12 text-muted-foreground"><Film className="h-10 w-10 mx-auto mb-3 opacity-40" /><p>No editor data for this month</p></div>}
           </div>
         )}
 
@@ -1133,70 +901,27 @@ export function ProductionTracker() {
         {activeTab === 'qc' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {data.qcPerformance
-                .sort((a, b) => b.totalReviewed - a.totalReviewed)
-                .map((qc) => (
-                  <Card key={qc.id}>
-                    <CardContent className="p-4 space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
-                          {(qc.name || '?').charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">{qc.name}</p>
-                          <p className="text-[11px] text-muted-foreground capitalize">
-                            {qc.role}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">
-                            Pass Rate
-                          </span>
-                          <span className="font-bold">{qc.passRate}%</span>
-                        </div>
-                        <Progress value={qc.passRate} className="h-2" />
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="text-center p-2 rounded-lg bg-gray-50">
-                          <p className="text-lg font-bold">
-                            {qc.totalReviewed}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Reviewed
-                          </p>
-                        </div>
-                        <div className="text-center p-2 rounded-lg bg-emerald-50">
-                          <p className="text-lg font-bold text-emerald-700">
-                            {qc.passed}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Passed
-                          </p>
-                        </div>
-                        <div className="text-center p-2 rounded-lg bg-red-50">
-                          <p className="text-lg font-bold text-red-700">
-                            {qc.rejected}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Rejected
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              {data.qcPerformance.sort((a, b) => b.totalReviewed - a.totalReviewed).map((qc) => (
+                <Card key={qc.id}>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">{(qc.name || '?').charAt(0)}</div>
+                      <div><p className="font-semibold text-sm">{qc.name}</p><p className="text-[11px] text-muted-foreground capitalize">{qc.role}</p></div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs mb-1"><span className="text-muted-foreground">Pass Rate</span><span className="font-bold">{qc.passRate}%</span></div>
+                      <Progress value={qc.passRate} className="h-2" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center p-2 rounded-lg bg-gray-50"><p className="text-lg font-bold">{qc.totalReviewed}</p><p className="text-[10px] text-muted-foreground">Reviewed</p></div>
+                      <div className="text-center p-2 rounded-lg bg-emerald-50"><p className="text-lg font-bold text-emerald-700">{qc.passed}</p><p className="text-[10px] text-muted-foreground">Passed</p></div>
+                      <div className="text-center p-2 rounded-lg bg-red-50"><p className="text-lg font-bold text-red-700">{qc.rejected}</p><p className="text-[10px] text-muted-foreground">Rejected</p></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-
-            {data.qcPerformance.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">
-                <Shield className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p>No QC data for this month</p>
-              </div>
-            )}
+            {data.qcPerformance.length === 0 && <div className="text-center py-12 text-muted-foreground"><Shield className="h-10 w-10 mx-auto mb-3 opacity-40" /><p>No QC data for this month</p></div>}
           </div>
         )}
 
@@ -1204,67 +929,205 @@ export function ProductionTracker() {
         {activeTab === 'schedulers' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {data.schedulerPerformance
-                .sort((a, b) => b.totalAssigned - a.totalAssigned)
-                .map((sched) => (
-                  <Card key={sched.id}>
-                    <CardContent className="p-4 space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-bold">
-                          {(sched.name || '?').charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">{sched.name}</p>
-                          <p className="text-[11px] text-muted-foreground capitalize">
-                            {sched.role}
-                          </p>
-                        </div>
-                      </div>
+              {data.schedulerPerformance.sort((a, b) => b.totalAssigned - a.totalAssigned).map((sched) => (
+                <Card key={sched.id}>
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-bold">{(sched.name || '?').charAt(0)}</div>
+                      <div><p className="font-semibold text-sm">{sched.name}</p><p className="text-[11px] text-muted-foreground capitalize">{sched.role}</p></div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs mb-1"><span className="text-muted-foreground">Post Rate</span><span className="font-bold">{sched.postRate}%</span></div>
+                      <Progress value={sched.postRate} className="h-2" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="text-center p-2 rounded-lg bg-gray-50"><p className="text-lg font-bold">{sched.totalAssigned}</p><p className="text-[10px] text-muted-foreground">Assigned</p></div>
+                      <div className="text-center p-2 rounded-lg bg-sky-50"><p className="text-lg font-bold text-sky-700">{sched.scheduled}</p><p className="text-[10px] text-muted-foreground">Scheduled</p></div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
+                      <span>{sched.posted} posted</span><span>{sched.withLinks} with links</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            {data.schedulerPerformance.length === 0 && <div className="text-center py-12 text-muted-foreground"><Calendar className="h-10 w-10 mx-auto mb-3 opacity-40" /><p>No scheduler data for this month</p></div>}
+          </div>
+        )}
 
-                      <div>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">
-                            Post Rate
-                          </span>
-                          <span className="font-bold">{sched.postRate}%</span>
-                        </div>
-                        <Progress value={sched.postRate} className="h-2" />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="text-center p-2 rounded-lg bg-gray-50">
-                          <p className="text-lg font-bold">
-                            {sched.totalAssigned}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Assigned
-                          </p>
-                        </div>
-                        <div className="text-center p-2 rounded-lg bg-sky-50">
-                          <p className="text-lg font-bold text-sky-700">
-                            {sched.scheduled}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Scheduled
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
-                        <span>{sched.posted} posted</span>
-                        <span>{sched.withLinks} with links</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+        {/* ─── Editor Breakdown Tab ─── */}
+        {activeTab === 'editor-breakdown' && (
+          <div className="flex gap-4 min-h-[600px]">
+            <div className="w-56 shrink-0 space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pb-2">Select Editor</p>
+              {data.editorPerformance.sort((a, b) => b.statusBreakdown.total - a.statusBreakdown.total).map((editor) => (
+                <button
+                  key={editor.id}
+                  onClick={() => handleSelectEditor(editor.id)}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all text-sm',
+                    selectedEditorId === editor.id ? 'bg-violet-100 text-violet-900 font-medium' : 'hover:bg-gray-100 text-gray-700'
+                  )}
+                >
+                  <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                    selectedEditorId === editor.id ? 'bg-violet-600 text-white' : 'bg-violet-100 text-violet-700'
+                  )}>
+                    {(editor.name || '?').charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium">{editor.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{editor.completionRate}% done · {editor.statusBreakdown.total} tasks</p>
+                  </div>
+                </button>
+              ))}
+              {data.editorPerformance.length === 0 && <p className="text-xs text-muted-foreground px-2">No editors this month</p>}
             </div>
 
-            {data.schedulerPerformance.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">
-                <Calendar className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p>No scheduler data for this month</p>
-              </div>
-            )}
+            <div className="w-px bg-gray-200 shrink-0" />
+
+            <div className="flex-1 min-w-0">
+              {!selectedEditorId && (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+                  <UserCheck className="h-12 w-12 opacity-20" />
+                  <p className="text-sm font-medium">Select an editor to see their tracker</p>
+                  <p className="text-xs opacity-60">Shows exactly what the editor sees on their screen</p>
+                </div>
+              )}
+
+              {selectedEditorId && editorTrackerLoading && (
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading tracker...</p>
+                </div>
+              )}
+
+              {selectedEditorId && !editorTrackerLoading && editorTrackerData && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold text-sm">
+                        {(editorTrackerData.editor.name || '?').charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">{editorTrackerData.editor.name}</p>
+                        <p className="text-[11px] text-muted-foreground capitalize">{editorTrackerData.editor.role}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => fetchEditorTracker(selectedEditorId)} className="p-1.5 rounded-md hover:bg-gray-100 text-muted-foreground">
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { label: 'Overall', value: `${editorTrackerData.summary.overallProgress}%`, color: 'bg-violet-50 text-violet-700' },
+                      { label: 'Clients', value: editorTrackerData.summary.totalClients, color: 'bg-blue-50 text-blue-700' },
+                      { label: 'In Progress', value: editorTrackerData.summary.inProgress, color: 'bg-amber-50 text-amber-700' },
+                      { label: 'Done', value: editorTrackerData.summary.completed, color: 'bg-emerald-50 text-emerald-700' },
+                    ].map((s) => (
+                      <div key={s.label} className={cn('rounded-lg p-3 text-center', s.color)}>
+                        <p className="text-lg font-bold">{s.value}</p>
+                        <p className="text-[10px] font-medium opacity-70">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Overall completion</span>
+                      <span className="font-bold">{editorTrackerData.summary.overallProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="h-full rounded-full bg-violet-500 transition-all duration-500" style={{ width: `${editorTrackerData.summary.overallProgress}%` }} />
+                    </div>
+                  </div>
+
+                  {editorTrackerData.clientProgress.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">No tasks assigned this month</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {editorTrackerData.clientProgress.sort((a, b) => a.overallProgress - b.overallProgress).map((client) => {
+                        const isExpanded = expandedEditorClients.has(client.clientId);
+                        return (
+                          <Card key={client.clientId} className={cn('transition-all',
+                            client.overallProgress < 40 && 'border-red-200',
+                            client.overallProgress >= 40 && client.overallProgress < 75 && 'border-amber-200'
+                          )}>
+                            <button onClick={() => toggleEditorClient(client.clientId)} className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50/50 transition-colors">
+                              {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm mb-1.5">{client.clientName}</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {client.deliverables.map((d) => (
+                                    <span key={d.deliverableId} className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded',
+                                      d.progressPercent >= 75 ? 'bg-emerald-100 text-emerald-700'
+                                        : d.progressPercent >= 40 ? 'bg-amber-100 text-amber-700'
+                                        : 'bg-red-100 text-red-700'
+                                    )}>
+                                      {SHORT_TYPE[d.type] || d.type.slice(0, 3)} {d.progressPercent}%
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 w-40 shrink-0">
+                                <div className="flex-1">
+                                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                    <div className={cn('h-full rounded-full transition-all duration-500',
+                                      client.overallProgress >= 75 ? 'bg-emerald-500'
+                                        : client.overallProgress >= 40 ? 'bg-amber-500'
+                                        : 'bg-red-500'
+                                    )} style={{ width: `${client.overallProgress}%` }} />
+                                  </div>
+                                </div>
+                                <span className="text-xs font-bold w-9 text-right">{client.overallProgress}%</span>
+                              </div>
+                            </button>
+                            {isExpanded && (
+                              <div className="px-4 pb-4 border-t bg-gray-50/50">
+                                <div className="pt-4 space-y-3">
+                                  {client.deliverables.map((del) => (
+                                    <div key={del.deliverableId} className="bg-white rounded-lg border p-3">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          {TYPE_ICONS[del.type] || <Video className="h-3.5 w-3.5" />}
+                                          <span className="text-sm font-medium">{del.type}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-bold">{del.progressPercent}%</span>
+                                          {del.extraCount > 0 && <span className="text-[10px] font-bold text-rose-700">+{del.extraDoneCount}/{del.extraCount} extra</span>}
+                                        </div>
+                                      </div>
+                                      <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden mb-2">
+                                        <div className={cn('h-full rounded-full transition-all duration-500',
+                                          del.progressPercent >= 75 ? 'bg-emerald-500' : del.progressPercent >= 40 ? 'bg-amber-500' : 'bg-red-500'
+                                        )} style={{ width: `${del.progressPercent}%` }} />
+                                      </div>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {del.statusCounts.pending > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{del.statusCounts.pending} Pending</span>}
+                                        {del.statusCounts.inProgress > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">{del.statusCounts.inProgress} Editing</span>}
+                                        {del.statusCounts.readyForQc > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">{del.statusCounts.readyForQc} In QC</span>}
+                                        {del.statusCounts.clientReview > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">{del.statusCounts.clientReview} Client Review</span>}
+                                        {del.statusCounts.completed > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600">{del.statusCounts.completed} Done</span>}
+                                        {del.statusCounts.scheduled > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600">{del.statusCounts.scheduled} Scheduled</span>}
+                                        {del.statusCounts.posted > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">{del.statusCounts.posted} Posted</span>}
+                                        {del.statusCounts.onHold > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600">{del.statusCounts.onHold} On Hold</span>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

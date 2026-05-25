@@ -449,7 +449,7 @@ function MobileAccordionItem({
     onSelectSub: (subKey: string) => void;
 }) {
     const [expanded, setExpanded] = useState(isActive);
-    const Icon = category.icon;
+    const Icon = ICON_MAP[category.icon as string] || Film;
 
     return (
         <div className="mb-1">
@@ -470,7 +470,7 @@ function MobileAccordionItem({
             {expanded && (
                 <div className="ml-4 pl-4 border-l-2 border-black/5 mt-1 mb-2 space-y-0.5">
                     {category.subcategories.map((sub) => {
-                        const SubIcon = sub.icon;
+                        const SubIcon = ICON_MAP[sub.icon as string] || Video;
                         const isSubActive = activeSubcategory === sub.key;
                         return (
                             <button
@@ -1042,26 +1042,5 @@ function PortfolioContent() {
    MAIN PAGE  — orchestrates gate vs. unlocked state
    ═══════════════════════════════════════════════════════════════════ */
 export default function PortfolioPage() {
-    const [unlocked, setUnlocked] = useState(false);
-    const [checkingSession, setCheckingSession] = useState(true);
-
-    useEffect(() => {
-        const stored = sessionStorage.getItem('portfolio_unlocked');
-        if (stored === '1') setUnlocked(true);
-        setCheckingSession(false);
-    }, []);
-
-    if (checkingSession) {
-        return (
-            <div className="min-h-screen bg-white flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-black/20" />
-            </div>
-        );
-    }
-
-    if (!unlocked) {
-        return <GateForm onUnlock={() => setUnlocked(true)} />;
-    }
-
     return <PortfolioContent />;
 }

@@ -1,3 +1,5 @@
+"use client";
+
 // components/auth/SessionExpiredModal.tsx
 import { useEffect, useState } from 'react';
 import {

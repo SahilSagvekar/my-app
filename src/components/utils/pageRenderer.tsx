@@ -1,5 +1,5 @@
 import React from "react";
-import { AdminDashboard } from "../dashboards/AdminDashboard";
+// import { AdminDashboard } from "../dashboards/AdminDashboard";
 import { EditorDashboard } from "../dashboards/EditorDashboard";
 import { EditorUploadHistory } from "../dashboards/EditorUploadHistory";
 import { NasBackupAdmin } from "../admin/NasBackupAdmin";
@@ -40,15 +40,19 @@ import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 import { CompressionDashboard } from "@/components/admin/CompressionDashboard";
-import { ProductionTracker } from "../dashboards/ProductionTracker";
+// import { ProductionTracker } from "../dashboards/ProductionTracker";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
 import { FolderRepairTool } from "../admin/Folderrepairtool";
+import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
   ssr: false,
   loading: () => <div className="p-8 text-center text-gray-400 font-bold animate-pulse">Loading Contracts...</div>
 });
+
+const AdminDashboard = dynamic(() => import("../dashboards/AdminDashboard").then(m => m.AdminDashboard));
+const ProductionTracker = dynamic(() => import("../dashboards/ProductionTracker").then(m => m.ProductionTracker));
 
 const ClientPortalPage = dynamic(() => import("../Clientportalpage").then(mod => mod.ClientPortalPage), {
   ssr: false,
@@ -235,8 +239,8 @@ export function renderPage(
         return <EditorDashboard />;
       case "projects":
         return <EditorProjects />;
-      // case "resources":
-      //   return <EditorResources />;
+      case "my-tracker":
+        return <EditorProductionTracker />;
       case "training":
         return <TrainingPortalPage />;
       case "guidelines":
