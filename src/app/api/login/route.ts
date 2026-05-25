@@ -39,18 +39,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
     }
 
-    // if (!user.password) {
-    //   console.log("[LOGIN] 5. No password set");
-    //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    // }
+    if (!user.password) {
+      console.log("[LOGIN] 5. No password set");
+      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+    }
 
-    // console.log("[LOGIN] 5. Comparing password...");
-    // const isPasswordValid = await bcrypt.compare(password, user.password);
-    // console.log("[LOGIN] 6. Password valid:", isPasswordValid);
+    console.log("[LOGIN] 5. Comparing password...");
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    console.log("[LOGIN] 6. Password valid:", isPasswordValid);
 
-    // if (!isPasswordValid) {
-    //   return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    // }
+    if (!isPasswordValid) {
+      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+    }
 
     if (!process.env.JWT_SECRET) {
       throw new Error("JWT_SECRET not configured");
