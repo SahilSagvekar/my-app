@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle, XCircle, FileText, ExternalLink, MessageSquare, Play, ArrowRight, UserCheck, Calendar, User } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, ExternalLink, MessageSquare, Play, ArrowRight, UserCheck, Calendar, User, Sparkles, PenLine } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Badge } from '../ui/badge';
@@ -7,7 +7,9 @@ import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
+import { Input } from '../ui/input';
 import { VisuallyHidden } from '../ui/visually-hidden';
+import { cn } from '@/lib/utils';
 import { WorkflowTask, useTaskWorkflow } from './TaskWorkflowEngine';
 import { VideoReviewPlayer } from './VideoReviewPlayer';
 
@@ -18,7 +20,7 @@ interface QCReviewDialogProps {
     taskCategory?: 'design' | 'video' | 'copywriting' | 'review';
     priority?: 'urgent' | 'high' | 'medium' | 'low';
   };
-  onReviewComplete?: (approved: boolean, feedback?: string) => void;
+  onReviewComplete?: (approved: boolean, feedback?: string, qcTitle?: string) => void;
   trigger?: React.ReactNode;
 }
 
@@ -40,22 +42,18 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [videoNotes, setVideoNotes] = useState<VideoNote[]>([]);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const [qcTitle, setQcTitle] = useState('');
   const { approveQCTask, rejectQCTask } = useTaskWorkflow();
 
-  const handleApprove = () => {
-    setReviewDecision('approve');
-  };
-
-  const handleReject = () => {
-    setReviewDecision('reject');
-  };
+  const handleApprove = () => setReviewDecision('approve');
+  const handleReject = () => setReviewDecision('reject');
 
   const handleAddVideoNote = (timestamp: number, comment: string, type: 'feedback' | 'revision') => {
     const newNote: VideoNote = {
       id: `note-${Date.now()}-${Math.random()}`,
       timestamp,
       comment,
-      author: 'Lisa Davis', // Current QC user
+      author: 'Lisa Davis',
       authorAvatar: 'LD',
       createdAt: new Date().toISOString(),
       type,
@@ -65,7 +63,7 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
   };
 
   const handleResolveVideoNote = (noteId: string) => {
-    setVideoNotes(prev => prev.map(note => 
+    setVideoNotes(prev => prev.map(note =>
       note.id === noteId ? { ...note, resolved: true } : note
     ));
   };
@@ -76,16 +74,15 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
 
   const handleSubmitReview = async () => {
     if (!reviewDecision) return;
-    
-    // For video files with notes, include the detailed feedback
+
     let finalFeedback = feedback;
     if (videoNotes.length > 0) {
-      const notesSummary = videoNotes.map(note => 
+      const notesSummary = videoNotes.map(note =>
         `${note.timestamp}s - ${note.type.toUpperCase()}: ${note.comment}`
       ).join('\n');
       finalFeedback = feedback ? `${feedback}\n\nTimestamped Notes:\n${notesSummary}` : `Timestamped Notes:\n${notesSummary}`;
     }
-    
+
     if (reviewDecision === 'reject' && !finalFeedback.trim()) {
       alert('Please provide feedback for rejection');
       return;
@@ -94,21 +91,21 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
     setIsSubmitting(true);
     try {
       if (reviewDecision === 'approve') {
-        await approveQCTask(task, finalFeedback || 'Approved - meets quality standards');
+        await approveQCTask(task, finalFeedback || 'Approved - meets quality standards', qcTitle.trim() || undefined);
         console.log(`✅ Task approved and sent to ${task.nextDestination || 'scheduler'}`);
       } else {
         await rejectQCTask(task, finalFeedback);
         console.log('❌ Task rejected and sent back to editor');
       }
 
-      onReviewComplete?.(reviewDecision === 'approve', finalFeedback);
+      onReviewComplete?.(reviewDecision === 'approve', finalFeedback, qcTitle.trim() || undefined);
       setOpen(false);
-      
-      // Reset state
+
       setFeedback('');
       setReviewDecision(null);
       setVideoNotes([]);
       setSelectedFileIndex(0);
+      setQcTitle('');
     } catch (error) {
       console.error('Error submitting review:', error);
     } finally {
@@ -127,66 +124,41 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase();
     const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv'];
-    
-    if (videoExtensions.includes(ext || '')) {
-      return <Play className="h-4 w-4" />;
-    }
+    if (videoExtensions.includes(ext || '')) return <Play className="h-4 w-4" />;
     return <FileText className="h-4 w-4" />;
-  };
-
-  const isVideoFile = (fileName: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv'];
-    return videoExtensions.includes(ext || '');
   };
 
   const getDestinationIcon = (destination?: string) => {
     switch (destination) {
-      case 'client':
-        return <UserCheck className="h-4 w-4" />;
-      case 'scheduler':
-        return <Calendar className="h-4 w-4" />;
-      case 'editor':
-        return <User className="h-4 w-4" />;
-      default:
-        return <ArrowRight className="h-4 w-4" />;
+      case 'client': return <UserCheck className="h-4 w-4" />;
+      case 'scheduler': return <Calendar className="h-4 w-4" />;
+      case 'editor': return <User className="h-4 w-4" />;
+      default: return <ArrowRight className="h-4 w-4" />;
     }
   };
 
   const getDestinationColor = (destination?: string) => {
     switch (destination) {
-      case 'client':
-        return 'text-purple-600 bg-purple-50 border-purple-200';
-      case 'scheduler':
-        return 'text-green-600 bg-green-50 border-green-200';
-      case 'editor':
-        return 'text-blue-600 bg-blue-50 border-blue-200';
-      default:
-        return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'client': return 'text-purple-600 bg-purple-50 border-purple-200';
+      case 'scheduler': return 'text-green-600 bg-green-50 border-green-200';
+      case 'editor': return 'text-blue-600 bg-blue-50 border-blue-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
     }
   };
 
   const getDestinationName = (destination?: string) => {
     switch (destination) {
-      case 'client':
-        return 'Client Review';
-      case 'scheduler':
-        return 'Scheduler';
-      case 'editor':
-        return 'Editor';
-      default:
-        return 'Next Step';
+      case 'client': return 'Client Review';
+      case 'scheduler': return 'Scheduler';
+      case 'editor': return 'Editor';
+      default: return 'Next Step';
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {trigger || (
-          <Button>
-            Review Task
-          </Button>
-        )}
+        {trigger || <Button>Review Task</Button>}
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto" aria-describedby="qc-dialog-description">
         <DialogHeader>
@@ -197,13 +169,10 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Enhanced Workflow Path Indicator */}
           {task.nextDestination && (
             <div className={`p-4 border rounded-lg ${getDestinationColor(task.nextDestination)}`}>
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-white rounded-lg">
-                  {getDestinationIcon(task.nextDestination)}
-                </div>
+                <div className="p-2 bg-white rounded-lg">{getDestinationIcon(task.nextDestination)}</div>
                 <div>
                   <h4 className="font-medium">Workflow Path</h4>
                   <div className="flex items-center gap-2 mt-1">
@@ -212,9 +181,7 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
                       {getDestinationName(task.nextDestination)}
                     </Badge>
                     {task.requiresClientReview && task.nextDestination === 'client' && (
-                      <Badge variant="secondary" className="text-xs">
-                        Client Review Required
-                      </Badge>
+                      <Badge variant="secondary" className="text-xs">Client Review Required</Badge>
                     )}
                   </div>
                 </div>
@@ -222,76 +189,57 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
             </div>
           )}
 
-          {/* Task Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div>
                 <Label>Original Task</Label>
                 <p className="text-sm">{task.title.replace('QC Review: ', '')}</p>
               </div>
-              
               <div>
                 <Label>Description</Label>
                 <p className="text-sm text-muted-foreground">
                   {task.description.split('\n\nOriginal task description: ')[1] || task.description}
                 </p>
               </div>
-
               <div>
                 <Label>Priority</Label>
-                <Badge variant={
-                  task.priority === 'urgent' ? 'destructive' :
-                  task.priority === 'high' ? 'default' :
-                  'secondary'
-                }>
+                <Badge variant={task.priority === 'urgent' ? 'destructive' : task.priority === 'high' ? 'default' : 'secondary'}>
                   {task.priority || 'medium'}
                 </Badge>
               </div>
-
               {task.taskCategory && (
                 <div>
                   <Label>Category</Label>
-                  <Badge variant="outline" className="capitalize">
-                    {task.taskCategory}
-                  </Badge>
+                  <Badge variant="outline" className="capitalize">{task.taskCategory}</Badge>
                 </div>
               )}
             </div>
-
             <div className="space-y-3">
               <div>
                 <Label>Due Date</Label>
                 <p className="text-sm">{task.dueDate}</p>
               </div>
-              
               <div>
                 <Label>Submitted By</Label>
                 <p className="text-sm">{task.assignedToName}</p>
               </div>
-
               <div>
                 <Label>Project ID</Label>
                 <p className="text-sm text-muted-foreground">{task.projectId || 'N/A'}</p>
               </div>
-
               <div>
                 <Label>Submission Time</Label>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(task.createdAt).toLocaleString()}
-                </p>
+                <p className="text-sm text-muted-foreground">{new Date(task.createdAt).toLocaleString()}</p>
               </div>
             </div>
           </div>
 
           <Separator />
 
-          {/* Files Review */}
           <div className="space-y-4">
             <Label>Submitted Files ({task.files?.length || 0})</Label>
-            
             {task.files && task.files.length > 0 ? (
               <div className="space-y-4">
-                {/* File tabs if multiple files */}
                 {task.files.length > 1 && (
                   <div className="flex gap-2 border-b">
                     {task.files.map((file, index) => (
@@ -308,8 +256,6 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
                     ))}
                   </div>
                 )}
-
-                {/* Current file display */}
                 {task.files[selectedFileIndex] && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-3 bg-accent/50 rounded-lg">
@@ -327,32 +273,6 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
                         Open in Drive
                       </Button>
                     </div>
-
-                    {/* Video Player for video files */}
-                    {/* {isVideoFile(task.files[selectedFileIndex].name) ? (
-                      <VideoReviewPlayer
-                        file={task.files[selectedFileIndex]}
-                        notes={videoNotes}
-                        onAddNote={handleAddVideoNote}
-                        onResolveNote={handleResolveVideoNote}
-                        onDeleteNote={handleDeleteVideoNote}
-                        isReviewer={true}
-                      />
-                    ) : (
-                      <div className="border rounded-lg p-8">
-                        <div className="text-center space-y-4">
-                          <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center mx-auto">
-                            {getFileIcon(task.files[selectedFileIndex].name)}
-                          </div>
-                          <div>
-                            <p className="font-medium">{task.files[selectedFileIndex].name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              Click "Open in Drive" to review this file
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )} */}
                   </div>
                 )}
               </div>
@@ -366,25 +286,15 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
 
           <Separator />
 
-          {/* Review Decision */}
           <div className="space-y-4">
             <Label>Review Decision</Label>
-            
+
             <div className="flex gap-4">
-              <Button
-                variant={reviewDecision === 'approve' ? 'default' : 'outline'}
-                onClick={handleApprove}
-                className="flex-1"
-              >
+              <Button variant={reviewDecision === 'approve' ? 'default' : 'outline'} onClick={handleApprove} className="flex-1">
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Approve
               </Button>
-              
-              <Button
-                variant={reviewDecision === 'reject' ? 'destructive' : 'outline'}
-                onClick={handleReject}
-                className="flex-1"
-              >
+              <Button variant={reviewDecision === 'reject' ? 'destructive' : 'outline'} onClick={handleReject} className="flex-1">
                 <XCircle className="h-4 w-4 mr-2" />
                 Reject
               </Button>
@@ -398,7 +308,7 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
                 <Textarea
                   id="feedback"
                   placeholder={
-                    reviewDecision === 'approve' 
+                    reviewDecision === 'approve'
                       ? "Add any notes about the approved work..."
                       : "Explain what needs to be fixed and provide specific feedback..."
                   }
@@ -406,6 +316,66 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
                   onChange={(e) => setFeedback(e.target.value)}
                   rows={4}
                 />
+              </div>
+            )}
+
+            {/* ─── QC Title Section ─── */}
+            {reviewDecision === 'approve' && (
+              <div className="space-y-3 p-4 rounded-lg border border-violet-200 bg-violet-50/50">
+                <div className="flex items-center gap-2">
+                  <PenLine className="h-4 w-4 text-violet-600" />
+                  <Label className="text-violet-900 font-semibold">
+                    Add Title for Scheduler{' '}
+                    <span className="text-xs font-normal text-violet-500">(optional)</span>
+                  </Label>
+                </div>
+
+                {task.suggestedTitles && Array.isArray(task.suggestedTitles) && (task.suggestedTitles as any[]).length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-amber-500" />
+                      AI Suggested Titles — click to use
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      {(task.suggestedTitles as any[]).map((t: any, i: number) => {
+                        const titleText = typeof t === 'string' ? t : t?.title;
+                        if (!titleText) return null;
+                        const isSelected = qcTitle === titleText;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setQcTitle(isSelected ? '' : titleText)}
+                            className={cn(
+                              'text-left text-xs px-3 py-2 rounded-md border transition-all',
+                              isSelected
+                                ? 'bg-violet-600 text-white border-violet-600'
+                                : 'bg-white border-gray-200 hover:border-violet-400 hover:bg-violet-50 text-gray-700'
+                            )}
+                          >
+                            {titleText}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Or type a custom title</p>
+                  <Input
+                    placeholder="e.g. How We Built a $1M Business in 6 Months"
+                    value={qcTitle}
+                    onChange={(e) => setQcTitle(e.target.value)}
+                    className="text-sm bg-white"
+                  />
+                  {qcTitle.trim() && (
+                    <p className="text-[11px] text-violet-600 font-medium flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Scheduler will see this title as set by QC and cannot edit it
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -454,17 +424,15 @@ export function QCReviewDialog({ task, onReviewComplete, trigger }: QCReviewDial
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button 
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button
             onClick={handleSubmitReview}
             disabled={!reviewDecision || isSubmitting || (reviewDecision === 'reject' && !feedback.trim())}
             className={reviewDecision === 'approve' ? 'bg-green-600 hover:bg-green-700' : reviewDecision === 'reject' ? 'bg-red-600 hover:bg-red-700' : ''}
           >
-            {isSubmitting ? 'Submitting...' : 
-             reviewDecision === 'approve' ? `Approve & Send to ${getDestinationName(task.nextDestination)}` : 
-             'Reject & Send to Editor'}
+            {isSubmitting ? 'Submitting...' :
+              reviewDecision === 'approve' ? `Approve & Send to ${getDestinationName(task.nextDestination)}` :
+              'Reject & Send to Editor'}
           </Button>
         </DialogFooter>
       </DialogContent>

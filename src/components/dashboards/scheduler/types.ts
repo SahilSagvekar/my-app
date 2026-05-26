@@ -3,6 +3,8 @@ export type PlatformKey = 'instagram' | 'youtube' | 'tiktok' | 'facebook' | 'lin
 export interface SchedulerTask {
     id: string;
     title: string;
+    titleSetByQC?: boolean;
+    postingTitle?: string | null;
     description?: string;
     priority: string;
     status: string;
@@ -41,7 +43,6 @@ export interface SchedulerTask {
         isTrial?: boolean;
     };
     socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
-    // AI Titling fields
     suggestedTitles?: Array<{ style?: string; title: string; reasoning?: string }> | string[];
     titlingStatus?: string;
 }
@@ -55,5 +56,4 @@ export interface ClientDeliverable {
     postingTimes: string[];
     platforms: string[];
     description?: string;
-    isOneOff?: boolean;
 }

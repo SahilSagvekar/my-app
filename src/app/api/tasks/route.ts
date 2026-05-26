@@ -896,10 +896,24 @@ const { searchParams } = new URL(req.url);
       .filter(Boolean);
 
     // ✅ Return all tasks without pagination
-    return NextResponse.json({
-      tasks: sanitizeBigInt(tasksWithSignedUrls),
-      availableMonths,
-    }, { status: 200 });
+    // return NextResponse.json({
+    //   tasks: sanitizeBigInt(tasksWithSignedUrls),
+    //   availableMonths,
+    // }, { status: 200 });
+    // ✅ Return all tasks without pagination
+// Strip QC title fields from client responses — clients must not see titles set by QC
+const isClientRole = role?.toLowerCase() === 'client';
+const finalTasks = isClientRole
+  ? sanitizeBigInt(tasksWithSignedUrls).map((t: any) => {
+      const { title, titleSetByQC, suggestedTitles, ...rest } = t;
+      return rest;
+    })
+  : sanitizeBigInt(tasksWithSignedUrls);
+
+return NextResponse.json({
+  tasks: finalTasks,
+  availableMonths,
+}, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
     return NextResponse.json(

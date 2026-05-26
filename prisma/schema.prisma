@@ -114,6 +114,7 @@ model Task {
   status               TaskStatus?         @default(PENDING)
   dueDate              DateTime?
   titleSetByQC  Boolean  @default(false)
+  postingTitle         String?
   clientUserId         Int?
   folderType           String?
   assignedTo           Int

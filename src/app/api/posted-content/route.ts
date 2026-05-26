@@ -7,13 +7,6 @@ import { cached } from "@/lib/redis";
 // GET - Fetch posted content for a client
 export async function GET(req: NextRequest) {
   try {
-    // const authHeader = req.headers.get("authorization");
-    // const token = authHeader?.replace("Bearer ", "") || "";
-    // const verified = await verifyToken(token);
-    // if (!verified) {
-    //   return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    // }
-
     const user = await getCurrentUser2(req);
     if (!user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -28,15 +21,10 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "9999");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    // ── Data isolation: clients can ONLY see their own posted content ──────────
-    // Admins/managers/schedulers can see all or filter by any clientId.
-    // A client user must always be scoped to their own linkedClientId — regardless
-    // of what clientId param they pass in the request.
     const isClient = user.role?.toLowerCase() === "client";
     let clientId = requestedClientId;
 
     if (isClient) {
-      // Enforce their own clientId — ignore whatever was in the query param
       if (!user.linkedClientId) {
         return NextResponse.json({ message: "No client account linked to your user." }, { status: 403 });
       }
@@ -56,7 +44,6 @@ export async function GET(req: NextRequest) {
 
     if (dateFrom || dateTo) {
       where.postedAt = {};
-      // Parse date strings as EST day boundaries, not UTC midnight
       if (dateFrom) {
         const d = new Date(dateFrom + 'T00:00:00');
         const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false, timeZoneName: 'shortOffset' }).formatToParts(d);
@@ -73,14 +60,36 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Only return content linked to tasks that are SCHEDULED or POSTED
+    // This prevents links added to in-progress tasks from appearing on the client screen
+    const scheduledTaskIds = await prisma.task.findMany({
+      where: { status: { in: ['SCHEDULED', 'POSTED'] } },
+      select: { id: true },
+    });
+    const validTaskIds = scheduledTaskIds.map(t => t.id);
+    // Include content with no taskId (manually created) OR with a valid scheduled/posted task
+    const taskStatusFilter = {
+      OR: [
+        { taskId: null },
+        { taskId: { in: validTaskIds } },
+      ],
+    };
+
     if (search) {
-      where.OR = [
-        { title: { contains: search, mode: "insensitive" } },
-        { url: { contains: search, mode: "insensitive" } },
+      where.AND = [
+        taskStatusFilter,
+        {
+          OR: [
+            { title: { contains: search, mode: "insensitive" } },
+            { url: { contains: search, mode: "insensitive" } },
+          ],
+        },
       ];
+    } else {
+      where.AND = [taskStatusFilter];
     }
 
-    // Cache simple clientId-only reads for 60s — stable data, no search/date filters
+    // Cache simple clientId-only reads for 60s
     const isSimpleRead = !!(clientId && !search && !dateFrom && !dateTo && !platform);
     const cacheKey = `posted-content:${clientId}:${offset}:${limit}`;
 

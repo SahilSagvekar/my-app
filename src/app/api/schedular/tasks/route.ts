@@ -173,6 +173,8 @@ export async function GET(req: Request) {
         return {
           id: t.id,
           title: t.title,
+          postingTitle: (t as any).postingTitle || null,
+          titleSetByQC: (t as any).titleSetByQC ?? false,
           description: t.description,
           status: t.status,
           editor: t.user ? { name: t.user.name } : null,

@@ -860,7 +860,8 @@ export function ClientDashboard() {
   /* ----------------------------- STATS (memoized) -------------------------- */
 
   const { pendingReviews, approvedCount, postedCount, overdueReviews } = useMemo(() => ({
-    pendingReviews: tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length,
+    // pendingReviews: tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length,
+    pendingReviews: tasks.filter(task => task.status === 'CLIENT_REVIEW').length,
     approvedCount: tasks.filter(task => task.status === 'COMPLETED').length,
     postedCount: tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length,
     overdueReviews: tasks.filter(task => isOverdue(task)).length,
@@ -869,8 +870,12 @@ export function ClientDashboard() {
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
       if (currentFilter === 'all') return true;
-      if (currentFilter === 'pending') {
-        return !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED');
+      // if (currentFilter === 'pending') {
+      //   return !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED');
+      // }
+
+      if (currentFilter === "pending") {
+        return task.status === "CLIENT_REVIEW";
       }
       if (currentFilter === 'approved') {
         return task.status === 'COMPLETED';

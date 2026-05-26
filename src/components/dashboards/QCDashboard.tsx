@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw } from 'lucide-react';
+// import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw } from 'lucide-react';
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
@@ -20,6 +20,8 @@ import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
+import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine } from 'lucide-react';
+import { Input } from '../ui/input';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
 
@@ -161,11 +163,13 @@ const persistQCResult = async ({
   approved,
   feedback,
   requiresClientReview,
+  qcTitle,
 }: {
   taskId: string;
   approved: boolean;
   feedback?: string;
   requiresClientReview?: boolean;
+  qcTitle?: string;
 }) => {
   const newStatus = approved ? "COMPLETED" : "REJECTED";
   const metaBody: any = {};
@@ -189,6 +193,12 @@ const persistQCResult = async ({
   }
 
   metaBody.status = newStatus;
+
+  // Pass the QC-set title so the scheduler sees it
+ if (qcTitle?.trim()) {
+  metaBody.postingTitle = qcTitle.trim();
+  metaBody.titleSetByQC = true;
+}
 
   const metaRes = await fetch(`/api/tasks/${taskId}/status`, {
     method: "PATCH",
@@ -225,6 +235,11 @@ export function QCDashboard() {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [copied, setCopied] = useState(false);
+  // QC Title state
+const [showTitlePrompt, setShowTitlePrompt] = useState(false);
+const [qcTitle, setQcTitle] = useState("");
+const [pendingApprovalAsset, setPendingApprovalAsset] = useState<any>(null);
+const [pendingApprovalType, setPendingApprovalType] = useState<"client" | "scheduler" | "thumbnail" | null>(null);
 
   // QC Reassign state
   const [showReassignDialog, setShowReassignDialog] = useState(false);
@@ -329,31 +344,13 @@ export function QCDashboard() {
   }, []);
 
   const handleSendToClient = async (asset: any) => {
-    if (!selectedTask) return;
-
-    try {
-      await persistQCResult({
-        taskId: selectedTask.id,
-        approved: true,
-        requiresClientReview: true,
-      });
-
-      setQCTasks((prev) =>
-        prev.filter((task) => task.id !== selectedTask.id)
-      );
-
-      toast("✅ Approved – Sent to Client", {
-        description: "Content has been sent to client for review.",
-      });
-
-      setShowVideoReview(false);
-      setSelectedFile(null);
-      setSelectedTask(null);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to update task status");
-    }
-  };
+  if (!selectedTask) return;
+  setShowVideoReview(false);
+  setPendingApprovalAsset({ asset, task: selectedTask });
+  setPendingApprovalType("client");
+  setQcTitle("");
+  setShowTitlePrompt(true);
+};
 
   const handleSendBackToEditor = async (asset: any, revisionData: any) => {
     if (!selectedTask) return;
@@ -401,24 +398,75 @@ export function QCDashboard() {
   };
 
   // QC: Approve thumbnail — mark task as COMPLETED and send to scheduler/client
-  const handleThumbnailApprove = async (file: TaskFile) => {
-    if (!selectedTask) return;
-    try {
+  // const handleThumbnailApprove = async (file: TaskFile) => {
+  //   if (!selectedTask) return;
+  //   try {
+  //     await persistQCResult({
+  //       taskId: selectedTask.id,
+  //       approved: true,
+  //       requiresClientReview: selectedTask.requiresClientReview,
+  //     });
+  //     setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
+  //     toast('✅ Thumbnail Approved', { description: 'Task has been moved to the next stage.' });
+  //     setShowThumbnailReview(false);
+  //     setSelectedFile(null);
+  //     setSelectedTask(null);
+  //   } catch (err) {
+  //     console.error(err);
+  //     toast.error('Failed to approve thumbnail');
+  //   }
+  // };
+
+ const handleThumbnailApprove = async (file: TaskFile) => {
+  if (!selectedTask) return;
+  setShowThumbnailReview(false);
+  setPendingApprovalAsset({ file, task: selectedTask });
+  setPendingApprovalType("thumbnail");
+  setQcTitle("");
+  setShowTitlePrompt(true);
+};
+
+const handleConfirmApproval = async () => {
+  if (!pendingApprovalType || !pendingApprovalAsset) return;
+
+  const task = pendingApprovalAsset.task;
+  if (!task) return;
+
+  setShowTitlePrompt(false);
+
+  try {
+    if (pendingApprovalType === "thumbnail") {
       await persistQCResult({
-        taskId: selectedTask.id,
+        taskId: task.id,
         approved: true,
-        requiresClientReview: selectedTask.requiresClientReview,
+        requiresClientReview: task.requiresClientReview,
+        qcTitle: qcTitle.trim() || undefined,
       });
-      setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
-      toast('✅ Thumbnail Approved', { description: 'Task has been moved to the next stage.' });
-      setShowThumbnailReview(false);
-      setSelectedFile(null);
-      setSelectedTask(null);
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to approve thumbnail');
+      setQCTasks(prev => prev.filter(t => t.id !== task.id));
+      toast("✅ Thumbnail Approved", { description: "Task has been moved to the next stage." });
+    } else {
+      await persistQCResult({
+        taskId: task.id,
+        approved: true,
+        requiresClientReview: pendingApprovalType === "client",
+        qcTitle: qcTitle.trim() || undefined,
+      });
+      setQCTasks(prev => prev.filter(t => t.id !== task.id));
+      toast("✅ Approved – Sent to " + (pendingApprovalType === "client" ? "Client" : "Scheduler"), {
+        description: "Content has been moved to the next stage.",
+      });
     }
-  };
+    setSelectedFile(null);
+    setSelectedTask(null);
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to update task status");
+  } finally {
+    setPendingApprovalAsset(null);
+    setPendingApprovalType(null);
+    setQcTitle("");
+  }
+};
 
   // QC: Request revisions on thumbnail — mark task as REJECTED and send back to editor
   const handleThumbnailRequestRevisions = async (file: TaskFile, feedbackItems: any[]) => {
@@ -1237,14 +1285,14 @@ export function QCDashboard() {
 
         {selectedTask && selectedFile && selectedFile.mimeType?.startsWith("video/") && (
           <FullScreenReviewModalFrameIO
-            open={showVideoReview}
-            onOpenChange={(open: boolean) => {
-              setShowVideoReview(open);
-              if (!open) {
-                setSelectedFile(null);
-                setSelectedTask(null);
-              }
-            }}
+    open={showVideoReview}
+    onOpenChange={(open: boolean) => {
+      setShowVideoReview(open);
+      if (!open && !showTitlePrompt) {
+        setSelectedFile(null);
+        setSelectedTask(null);
+      }
+    }}
             asset={getVideoAssetFromFile(selectedFile)}
             onApprove={() => { }}
             onRequestRevisions={() => { }}
@@ -1351,6 +1399,89 @@ export function QCDashboard() {
           </div>
         )}
       </div>
+
+      {/* QC Title Prompt Dialog */}
+<Dialog open={showTitlePrompt} onOpenChange={(open) => { if (!open) { setShowTitlePrompt(false); setPendingApprovalAsset(null); setPendingApprovalType(null); setQcTitle(""); } }}>
+  <DialogContent className="max-w-md">
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2">
+        <PenLine className="h-5 w-5 text-violet-600" />
+        Add Title Before Approving
+      </DialogTitle>
+      <DialogDescription>
+        Optionally set a title for the scheduler. If you set one, the scheduler can only view it — not edit it.
+      </DialogDescription>
+    </DialogHeader>
+
+    <div className="space-y-4 py-2">
+      {selectedTask && (selectedTask as any).suggestedTitles && Array.isArray((selectedTask as any).suggestedTitles) && (selectedTask as any).suggestedTitles.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-amber-500" />
+            AI Suggested Titles — click to select
+          </p>
+          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+            {((selectedTask as any).suggestedTitles as any[]).map((t: any, i: number) => {
+              const titleText = typeof t === 'string' ? t : t?.title;
+              if (!titleText) return null;
+              const isSelected = qcTitle === titleText;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setQcTitle(isSelected ? '' : titleText)}
+                  className={`text-left text-xs px-3 py-2 rounded-md border transition-all ${
+                    isSelected
+                      ? 'bg-violet-600 text-white border-violet-600'
+                      : 'bg-white border-gray-200 hover:border-violet-400 hover:bg-violet-50 text-gray-700'
+                  }`}
+                >
+                  {titleText}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <p className="text-xs text-muted-foreground">Or type a custom title</p>
+        <Input
+          placeholder="e.g. How We Built a $1M Business in 6 Months"
+          value={qcTitle}
+          onChange={(e) => setQcTitle(e.target.value)}
+          className="text-sm"
+          autoFocus
+        />
+        {qcTitle.trim() && (
+          <p className="text-[11px] text-violet-600 font-medium flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Scheduler will see this as a QC-set title and cannot edit it
+          </p>
+        )}
+      </div>
+    </div>
+
+    <div className="flex gap-2 justify-end">
+      <Button
+        variant="outline"
+        onClick={() => { setShowTitlePrompt(false); setPendingApprovalAsset(null); setPendingApprovalType(null); setQcTitle(""); }}
+      >
+        Cancel
+      </Button>
+      <Button variant="outline" onClick={() => { setQcTitle(""); handleConfirmApproval(); }}>
+        Approve Without Title
+      </Button>
+      <Button
+        className="bg-green-600 hover:bg-green-700"
+        onClick={handleConfirmApproval}
+      >
+        <CheckCircle className="h-4 w-4 mr-1.5" />
+        {qcTitle.trim() ? 'Approve with Title' : 'Approve'}
+      </Button>
+    </div>
+  </DialogContent>
+</Dialog>
 
       {/* QC Reassign Dialog */}
       <Dialog open={showReassignDialog} onOpenChange={setShowReassignDialog}>

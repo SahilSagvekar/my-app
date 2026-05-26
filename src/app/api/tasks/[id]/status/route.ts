@@ -46,7 +46,7 @@ export async function PATCH(
     const { role, userId } = decoded;
 
     const body = await req.json();
-    const { status, feedback, qcNotes, route, schedulerFeedback } = body;
+    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC } = body;
 
     let finalStatus = status;
 
@@ -62,6 +62,17 @@ export async function PATCH(
       typeof schedulerFeedback === "string" ? schedulerFeedback.trim() : "";
     if (schedulerFeedback !== undefined) updateData.feedback = schedulerFeedbackText; // store in feedback field so editor sees it
     if (route !== undefined) updateData.route = route;
+    // Save QC-set posting title to dedicated field — never overwrites the task name (title)
+const incomingPostingTitle = postingTitle ?? qcTitle;
+if (incomingPostingTitle?.trim() && titleSetByQC) {
+  updateData.postingTitle = incomingPostingTitle.trim();
+  updateData.titleSetByQC = true;
+}
+// Save QC-set title
+if (qcTitle?.trim() && titleSetByQC) {
+  updateData.title = qcTitle.trim();
+  updateData.titleSetByQC = true;
+}
 
     let task: any;
     try {

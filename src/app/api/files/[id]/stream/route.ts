@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const fileId = params.id;
-        
+        const { id: fileId } = await params;
+
         // 1. Auth check
         const user = await getCurrentUser2(request);
         if (!user) {
@@ -51,16 +51,15 @@ export async function GET(
         const headers = new Headers();
         headers.set('Content-Type', file.mimeType || 'video/mp4');
         headers.set('Accept-Ranges', 'bytes');
-        
+
         if (data.ContentLength) {
             headers.set('Content-Length', data.ContentLength.toString());
         }
-        
+
         if (data.ContentRange) {
             headers.set('Content-Range', data.ContentRange);
         }
 
-        // Cache headers to allow browser buffering
         headers.set('Cache-Control', 'public, max-age=3600');
 
         // 5. Return stream

@@ -62,6 +62,7 @@ interface FullScreenReviewModalProps {
     taskId?: string;
     requiresClientReview?: boolean;
     shareToken?: string;
+    
 }
 
 interface RevisionRequest {
