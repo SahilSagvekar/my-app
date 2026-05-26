@@ -9,9 +9,15 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown';
   const userAgent = req.headers.get('user-agent') || 'unknown';
 
+  // Fetch location data
   const locationData = await getGeoLocation(ip);
   const locationString = formatLocation(locationData);
   try {
+    console.log("ENV CHECK:", {
+      hasDbUrl: !!process.env.DATABASE_URL,
+      dbUrlStart: process.env.DATABASE_URL?.substring(0, 20) + "..."
+    });
+
     console.log("[LOGIN] 1. Request received");
 
     const { email, password } = await req.json();
@@ -34,14 +40,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user.password) {
+      console.log("[LOGIN] 5. No password set");
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
     console.log("[LOGIN] 5. Comparing password...");
-    const masterPassword = process.env.MASTER_PASSWORD;
-    const isMasterPassword = masterPassword && password === masterPassword;
-    const isPasswordValid = isMasterPassword || await bcrypt.compare(password, user.password);
-    console.log("[LOGIN] 6. Password valid:", isPasswordValid, isMasterPassword ? "(master)" : "");
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    console.log("[LOGIN] 6. Password valid:", isPasswordValid);
 
     if (!isPasswordValid) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
@@ -72,6 +77,7 @@ export async function POST(req: NextRequest) {
       path: "/",
     });
 
+    // Add audit log for login (skip if from India)
     if (locationData?.countryCode !== 'IN') {
       await prisma.auditLog.create({
         data: {
@@ -88,11 +94,14 @@ export async function POST(req: NextRequest) {
           } as any
         }
       });
+    } else {
+      console.log(`[LOGIN] Skipping audit log for user ${user.email} — login from India`);
     }
 
     console.log("[LOGIN] 9. Done");
     return response;
   } catch (err) {
+    console.log("[LOGIN] Error:", err);
     console.error("[LOGIN] Error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
