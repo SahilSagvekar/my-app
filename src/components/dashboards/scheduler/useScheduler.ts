@@ -15,17 +15,14 @@ export function useScheduler() {
     const [deliverableFilter, setDeliverableFilter] = useState('all');
     const [allClients, setAllClients] = useState<any[]>([]);
     const [uniqueDeliverables, setUniqueDeliverables] = useState<string[]>([]);
-    
-    // Pagination & Search
+
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
     const [totalTasks, setTotalTasks] = useState(0);
 
-    // Filtered / Sorted State
     const [sortColumn, setSortColumn] = useState('dueDate');
     const [sortDirection, setSortDirection] = useState('asc');
 
-    // UI state
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
@@ -63,16 +60,16 @@ export function useScheduler() {
 
             const res = await fetch(`/api/schedular/tasks?${params}`, { cache: 'no-store' });
             if (!res.ok) throw new Error("Failed to load");
-            
+
             const data = await res.json();
-            
+
             if (append) {
                 setTasks(prev => [...prev, ...data.tasks]);
             } else {
                 setTasks(data.tasks);
                 setIsInitialLoad(false);
             }
-            
+
             setHasMore(data.hasMore);
             setTotalTasks(data.total);
             setCurrentPage(page);
@@ -84,13 +81,8 @@ export function useScheduler() {
         }
     }, [debouncedSearch, dateRange, statusFilter, clientFilter, deliverableFilter]);
 
-    useEffect(() => {
-        fetchMetadata();
-    }, [fetchMetadata]);
-
-    useEffect(() => {
-        loadTasks();
-    }, [loadTasks]);
+    useEffect(() => { fetchMetadata(); }, [fetchMetadata]);
+    useEffect(() => { loadTasks(); }, [loadTasks]);
 
     const handleSort = (column: string) => {
         if (sortColumn === column) {
@@ -116,7 +108,7 @@ export function useScheduler() {
     const fetchSignedUrls = async (taskId: string) => {
         const task = tasks.find(t => t.id === taskId);
         if (!task || task.files.length === 0) return;
-        
+
         const fileIds = task.files
             .filter(f => f.id && !signedUrls[String(f.id)])
             .map(f => String(f.id));
@@ -138,12 +130,13 @@ export function useScheduler() {
 
     const getFileUrl = (file: any) => signedUrls[String(file.id)] || file.url || '';
 
-    const markAsScheduled = async (taskId: string) => {
+    const markAsScheduled = async (taskId: string, precomputedLinks?: string[]) => {
         const task = tasks.find(t => t.id === taskId);
         if (task) {
             const requiredPlatforms = task.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
             if (requiredPlatforms.length > 0) {
-                const existingLinks = (task.socialMediaLinks || []).map(l => l.platform.toLowerCase());
+                // Use precomputedLinks if provided — avoids stale state when called from auto-schedule
+                const existingLinks = precomputedLinks ?? (task.socialMediaLinks || []).map(l => l.platform.toLowerCase());
                 const missingPlatforms = requiredPlatforms.filter(p => !existingLinks.includes(p));
                 if (missingPlatforms.length > 0) {
                     const platformNames = missingPlatforms.map(p => {
@@ -176,11 +169,7 @@ export function useScheduler() {
 
     const bulkMarkAsScheduled = async () => {
         const selected = tasks.filter(t => selectedRows.has(t.id));
-        if (!selected.length) {
-            toast.error('No tasks selected');
-            return;
-        }
-        // markAsScheduled already validates links per task
+        if (!selected.length) { toast.error('No tasks selected'); return; }
         for (const t of selected) await markAsScheduled(t.id);
         setSelectedRows(new Set());
     };
@@ -188,7 +177,6 @@ export function useScheduler() {
     const saveLink = async () => {
         if (!linkDialog || !linkUrl) return;
 
-        // Capture values immediately — linkDialog/linkUrl state may change after await
         const taskId = linkDialog.taskId;
         const platform = linkDialog.platform;
         const mode = linkDialog.mode;
@@ -207,11 +195,13 @@ export function useScheduler() {
 
             if (res.ok) {
                 const newLink = { platform, url, postedAt: postedAt || new Date().toISOString() };
+                let updatedTask: typeof tasks[0] | undefined;
                 setTasks(prev => prev.map(t => {
                     if (t.id !== taskId) return t;
                     const existing = t.socialMediaLinks || [];
+                    let updated: typeof t;
                     if (mode === 'edit') {
-                        return {
+                        updated = {
                             ...t,
                             socialMediaLinks: existing.map(l =>
                                 l.platform.toLowerCase() === platform.toLowerCase()
@@ -219,14 +209,31 @@ export function useScheduler() {
                                     : l
                             ),
                         };
+                    } else {
+                        const withoutDupe = existing.filter(l => l.platform.toLowerCase() !== platform.toLowerCase());
+                        updated = { ...t, socialMediaLinks: [...withoutDupe, newLink] };
                     }
-                    const withoutDupe = existing.filter(l => l.platform.toLowerCase() !== platform.toLowerCase());
-                    return { ...t, socialMediaLinks: [...withoutDupe, newLink] };
+                    updatedTask = updated;
+                    return updated;
                 }));
                 toast.success('Link saved');
                 setLinkDialog(null);
                 setLinkUrl('');
                 setLinkPostedAt('');
+
+                // Auto-mark as scheduled when all required platform links are present
+                // Use updatedTask captured inside setTasks — tasks[] is stale here
+                if (mode !== 'edit' && updatedTask && updatedTask.status !== 'SCHEDULED') {
+                    const requiredPlatforms = updatedTask.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
+                    if (requiredPlatforms.length > 0) {
+                        const allLinks = (updatedTask.socialMediaLinks || []).map(l => l.platform.toLowerCase());
+                        const allCovered = requiredPlatforms.every(p => allLinks.includes(p));
+                        if (allCovered) {
+                            // Pass allLinks to markAsScheduled to bypass stale state check
+                            setTimeout(() => markAsScheduled(taskId, allLinks), 300);
+                        }
+                    }
+                }
             } else {
                 const errData = await res.json().catch(() => ({}));
                 console.error('[saveLink] API error:', res.status, errData);
@@ -241,7 +248,6 @@ export function useScheduler() {
     };
 
     const deleteSocialLink = async (taskId: string, platform: string) => {
-        // Optimistically remove from state immediately
         setTasks(prev => prev.map(t => {
             if (t.id !== taskId) return t;
             return {
@@ -254,7 +260,6 @@ export function useScheduler() {
         try {
             const res = await fetch(`/api/tasks/${taskId}/social-media-link?platform=${platform}`, { method: "DELETE", credentials: 'include' });
             if (!res.ok) {
-                // Revert on failure by reloading
                 toast.error('Failed to remove link');
                 loadTasks();
             } else {
@@ -277,6 +282,18 @@ export function useScheduler() {
         toast.success('Copied to clipboard!');
     };
 
+    const toggleTrial = async (taskId: string, isTrial: boolean) => {
+        try {
+            await fetch(`/api/tasks/${taskId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ isTrial }),
+            });
+            setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isTrial } : t));
+        } catch (err) { toast.error('Failed to update trial status'); }
+    };
+
     const displayTasks = [...tasks].sort((a, b) => {
         let aVal: any, bVal: any;
         switch (sortColumn) {
@@ -292,10 +309,10 @@ export function useScheduler() {
     const uniqueClientsFormatted = allClients.map(c => [c.id, c.companyName || c.name] as [string, string]);
 
     return {
-        tasks, loading, isInitialLoad, searchTerm, setSearchTerm, dateRange, setDateRange,
+        tasks, loading, isInitialLoad, searchTerm, setSearchTerm,
         dateRange, setDateRange: (v: string) => { setDateRange(v); setCurrentPage(1); },
-        statusFilter, setStatusFilter: (v: string) => { setStatusFilter(v); setCurrentPage(1); }, 
-        clientFilter, setClientFilter, 
+        statusFilter, setStatusFilter: (v: string) => { setStatusFilter(v); setCurrentPage(1); },
+        clientFilter, setClientFilter,
         handleClientFilterChange: (v: string) => { setClientFilter(v); setCurrentPage(1); },
         deliverableFilter, setDeliverableFilter,
         handleDeliverableFilterChange: (v: string) => { setDeliverableFilter(v); setCurrentPage(1); },
@@ -304,7 +321,7 @@ export function useScheduler() {
         isPreviewOpen, setIsPreviewOpen, previewFile, setPreviewFile, linkDialog, setLinkDialog,
         linkUrl, setLinkUrl, linkPostedAt, setLinkPostedAt, submittingLink,
         loadTasks, handleSort, toggleRow, markAsScheduled, markAsPending, bulkMarkAsScheduled,
-        downloadFile, copyTitle, saveLink, deleteSocialLink, getFileUrl,
+        toggleTrial, downloadFile, copyTitle, saveLink, deleteSocialLink, getFileUrl,
         sortColumn, sortDirection, displayTasks
     };
 }

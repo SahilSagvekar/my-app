@@ -282,6 +282,21 @@ export function SchedulerSpreadsheetView() {
             }));
             toast.success(`${PLATFORMS[linkDialog.platform].label} link ${isEdit ? 'updated' : 'added'}!`);
             setLinkDialog(null); setLinkUrl(''); setLinkPostedAt('');
+            // Auto-mark as scheduled if all required platform links are now present
+if (!isEdit) {
+    const task = tasks.find(t => t.id === linkDialog.taskId);
+    if (task && task.status !== 'SCHEDULED') {
+        const requiredPlatforms = task.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
+        if (requiredPlatforms.length > 0) {
+            const existingLinks = (task.socialMediaLinks || []).map(l => l.platform.toLowerCase());
+            const allLinks = [...new Set([...existingLinks, linkDialog.platform.toLowerCase()])];
+            const allCovered = requiredPlatforms.every(p => allLinks.includes(p));
+            if (allCovered) {
+                setTimeout(() => markAsScheduled(task.id), 300);
+            }
+        }
+    }
+}
         } catch (err) { toast.error(`Failed to ${linkDialog.mode === 'edit' ? 'update' : 'add'} link`); }
         finally { setSubmittingLink(false); }
     }
