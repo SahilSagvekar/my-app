@@ -365,15 +365,54 @@ if (qcTitle?.trim() && titleSetByQC) {
             payload: { taskId: task.id, clientId: task.clientId },
           });
         }
+      // } else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
+      //   // Notify Editor that it's approved
+      //   await notifyUser({
+      //     userId: task.assignedTo,
+      //     type: "qc_approval",
+      //     title: "Task Approved",
+      //     body: `Your task "${task.title}" has been approved.`,
+      //     payload: { taskId: task.id, clientId: task.clientId },
+      //   });
+
       } else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
-        // Notify Editor that it's approved
-        await notifyUser({
-          userId: task.assignedTo,
-          type: "qc_approval",
-          title: "Task Approved",
-          body: `Your task "${task.title}" has been approved.`,
-          payload: { taskId: task.id, clientId: task.clientId },
-        });
+  // Notify Editor that it's approved
+  await notifyUser({
+    userId: task.assignedTo,
+    type: "qc_approval",
+    title: "Task Approved",
+    body: `Your task "${task.title}" has been approved.`,
+    payload: { taskId: task.id, clientId: task.clientId },
+  });
+
+  // 🔥 If client approved, delete Drive mirror files (no longer needed)
+  if (role.toLowerCase() === "client") {
+    const filesWithDrive = await prisma.file.findMany({
+      where: { taskId: id, reviewDriveUrl: { not: null } },
+      select: { id: true, reviewDriveUrl: true },
+    });
+
+    if (filesWithDrive.length > 0) {
+      const { deleteFileFromDrive, extractGoogleDriveFileId } = await import("@/lib/googleDrive");
+      for (const file of filesWithDrive) {
+        if (file.reviewDriveUrl) {
+          const driveFileId = extractGoogleDriveFileId(file.reviewDriveUrl);
+          if (driveFileId) {
+            // Fire-and-forget — don't block the response
+            deleteFileFromDrive(driveFileId).catch(err =>
+              console.error(`⚠️ Drive cleanup failed for file ${file.id}:`, err)
+            );
+          }
+          // Clear the reviewDriveUrl from DB
+          await prisma.file.update({
+            where: { id: file.id },
+            data: { reviewDriveUrl: null },
+          });
+        }
+      }
+      console.log(`🗑️ Queued Drive cleanup for ${filesWithDrive.length} file(s) on task ${id}`);
+    }
+  }
 
         // Notify Scheduler
         if (task.scheduler) {

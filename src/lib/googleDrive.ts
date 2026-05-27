@@ -28,8 +28,36 @@ function getOAuthClient() {
   return client;
 }
 
+// ─── Drive instances ───
+const drive = google.drive({ version: "v3", auth: serviceAccountAuth });
+
 function getOAuthDrive() {
   return google.drive({ version: "v3", auth: getOAuthClient() });
+}
+
+// ✅ Extract Drive file ID from a Drive URL
+export function extractGoogleDriveFileId(url: string): string | null {
+  const patterns = [
+    /drive\.google\.com\/file\/d\/([^\/\?]+)/,
+    /drive\.google\.com\/open\?id=([^&]+)/,
+    /drive\.google\.com\/uc\?id=([^&]+)/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+// ✅ Delete a file from Drive by file ID (called after client approves)
+export async function deleteFileFromDrive(driveFileId: string): Promise<void> {
+  try {
+    const oauthDrive = getOAuthDrive();
+    await oauthDrive.files.delete({ fileId: driveFileId });
+    console.log(`🗑️ Drive file deleted: ${driveFileId}`);
+  } catch (err: any) {
+    console.error(`⚠️ Failed to delete Drive file ${driveFileId}:`, err.message || err);
+  }
 }
 
 // ✅ Get or create a review folder for a client
