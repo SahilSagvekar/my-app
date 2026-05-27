@@ -1,43 +1,156 @@
 import { google } from "googleapis";
-// import * as fs from "fs";
 import fs from "fs";
 import path from "path";
-// import { getOAuthClient } from "../lib/googleAuth";
-import { getDriveClient } from "./googleAuth";
-// import { drive } from "./googleClient"; // your initialized Drive client
 import { Readable } from "stream";
 
-
-console.log("🔍 Checking env key format...");
-const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-if (!key) {
-  console.error("❌ Missing GOOGLE_SERVICE_ACCOUNT_KEY");
-} else {
-  console.log("Raw key starts with:", JSON.stringify(key.slice(0, 50)));
-  console.log("Raw key ends with:", JSON.stringify(key.slice(-50)));
-  console.log("Contains \\n sequences?", key.includes("\\n"));
+// ─── Service account auth (for folder operations, metadata) ───
+function getServiceAccountKey(): string {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "";
+  return raw.replace(/\\n/g, "\n");
 }
 
-
-// ✅ Create the Google Auth client using env variables
-const auth = new google.auth.JWT({
+const serviceAccountAuth = new google.auth.JWT({
   email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-  // Important: must use single quotes for actual newline replacement
-  key: process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, '\n'),
+  key: getServiceAccountKey(),
   scopes: ["https://www.googleapis.com/auth/drive"],
 });
 
-// ✅ Initialize Drive API
-const drive = google.drive({ version: "v3", auth });
+// ─── OAuth2 auth (for file uploads — uses personal quota) ───
+function getOAuthClient() {
+  const client = new google.auth.OAuth2(
+    process.env.GOOGLE_OAUTH_CLIENT_ID,
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/oauth2callback"
+  );
+  client.setCredentials({
+    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+  });
+  return client;
+}
 
-// ✅ Function to create client folder and subfolders
+function getOAuthDrive() {
+  return google.drive({ version: "v3", auth: getOAuthClient() });
+}
+
+// ✅ Get or create a review folder for a client
+export async function getOrCreateReviewFolder(clientName: string): Promise<string> {
+  const parentId = process.env.GOOGLE_DRIVE_PARENT_ID;
+  if (!parentId) throw new Error("Missing GOOGLE_DRIVE_PARENT_ID env var");
+
+  const oauthDrive = getOAuthDrive();
+
+  const search = await oauthDrive.files.list({
+    q: `name='${clientName.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields: "files(id, name)",
+    spaces: "drive",
+  });
+
+  if (search.data.files && search.data.files.length > 0) {
+    return search.data.files[0].id!;
+  }
+
+  const folder = await oauthDrive.files.create({
+    requestBody: {
+      name: clientName,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId],
+    },
+    fields: "id",
+  });
+
+  if (!folder.data.id) throw new Error("Failed to create review folder");
+  return folder.data.id;
+}
+
+// ✅ Upload buffer to Drive using OAuth (personal quota)
+export async function uploadBufferToDrive({
+  buffer,
+  folderId,
+  filename,
+  mimeType,
+}: {
+  buffer: Buffer;
+  folderId: string;
+  filename: string;
+  mimeType: string;
+}) {
+  const oauthDrive = getOAuthDrive();
+
+  const res = await oauthDrive.files.create({
+    requestBody: {
+      name: filename,
+      parents: [folderId],
+    },
+    media: {
+      mimeType,
+      body: bufferToStream(buffer),
+    },
+    fields: "id, webViewLink",
+  });
+
+  if (res.data.id) {
+    await oauthDrive.permissions.create({
+      fileId: res.data.id,
+      requestBody: { role: "reader", type: "anyone" },
+    });
+  }
+
+  return res.data;
+}
+
+// ✅ Upload from file path
+export async function uploadFileToDrive(
+  filePath: string,
+  folderId: string,
+  fileName: string,
+  mimeType: string
+) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      throw new Error("File does not exist at path: " + filePath);
+    }
+
+    const oauthDrive = getOAuthDrive();
+
+    const res = await oauthDrive.files.create({
+      requestBody: {
+        name: fileName || path.basename(filePath),
+        parents: [folderId],
+      },
+      media: {
+        mimeType: mimeType || "application/octet-stream",
+        body: fs.createReadStream(filePath),
+      },
+      fields: "id, name, webViewLink, webContentLink",
+    });
+
+    if (res.data.id) {
+      await oauthDrive.permissions.create({
+        fileId: res.data.id,
+        requestBody: { role: "reader", type: "anyone" },
+      });
+    }
+
+    return res.data;
+  } catch (err: any) {
+    console.error("❌ Google Drive Upload Error:", err.message || err);
+    throw new Error("Failed to upload file to Google Drive");
+  } finally {
+    if (fs.existsSync(filePath)) {
+      fs.unlink(filePath, () => {});
+    }
+  }
+}
+
+// ✅ Create client folder and subfolders
 export async function createClientFolders2(clientName: string) {
   try {
     const parentId = process.env.GOOGLE_DRIVE_PARENT_ID;
     if (!parentId) throw new Error("Missing GOOGLE_DRIVE_PARENT_ID env var");
 
-    // --- Create main client folder
-    const mainFolder = await drive.files.create({
+    const oauthDrive = getOAuthDrive();
+
+    const mainFolder = await oauthDrive.files.create({
       requestBody: {
         name: clientName,
         mimeType: "application/vnd.google-apps.folder",
@@ -49,9 +162,8 @@ export async function createClientFolders2(clientName: string) {
     const mainFolderId = mainFolder.data.id;
     if (!mainFolderId) throw new Error("Failed to create main folder");
 
-    // --- Create subfolders
     const [rawFolder, essentialsFolder] = await Promise.all([
-      drive.files.create({
+      oauthDrive.files.create({
         requestBody: {
           name: "Raw Footage",
           mimeType: "application/vnd.google-apps.folder",
@@ -59,7 +171,7 @@ export async function createClientFolders2(clientName: string) {
         },
         fields: "id",
       }),
-      drive.files.create({
+      oauthDrive.files.create({
         requestBody: {
           name: "Elements",
           mimeType: "application/vnd.google-apps.folder",
@@ -80,123 +192,9 @@ export async function createClientFolders2(clientName: string) {
   }
 }
 
-// const auth = new google.auth.GoogleAuth({
-//   credentials: {
-//     client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-//     private_key: process.env.GOOGLE_SERVICE_ACCOUNT_KEY?.replace(/\\n/g, "\n"),
-//   },
-//   scopes: ["https://www.googleapis.com/auth/drive.file"],
-// });
-
-// const drive = google.drive({ version: "v3", auth });
-
-export async function uploadFileToDrive(
-  filePath: string,
-  folderId: string,
-  fileName: string,
-  mimeType: string
-) {
-  try {
-    // Safety: ensure file exists
-    if (!fs.existsSync(filePath)) {
-      throw new Error("File does not exist at path: " + filePath);
-    }
-
-    const realMime = mimeType || "application/octet-stream";
-
-    const res = await drive.files.create({
-      requestBody: {
-        name: fileName || path.basename(filePath),
-        parents: [folderId],
-      },
-      media: {
-        mimeType: realMime,
-        body: fs.createReadStream(filePath),
-      },
-      fields: "id, name, webViewLink, webContentLink",
-    });
-
-    // Always make file readable
-    await drive.permissions.create({
-      fileId: res.data.id!,
-      requestBody: {
-        role: "reader",
-        type: "anyone",
-      },
-    });
-
-    return res.data;
-  } catch (err: any) {
-    console.error("❌ Google Drive Upload Error:", err.message || err);
-    throw new Error("Failed to upload file to Google Drive");
-  } finally {
-    // Cleanup: remove temp file
-    if (fs.existsSync(filePath)) {
-      fs.unlink(filePath, () => {});
-    }
-  }
-}
-
-export async function uploadBufferToDrive({
-  buffer,
-  folderId,
-  filename,
-  mimeType,
-}: {
-  buffer: Buffer;
-  folderId: string;
-  filename: string;
-  mimeType: string;
-}) {
-  // const drive = google.drive({ version: "v3", auth });
-  const drive = getDriveClient();
-
-  const res = await drive.files.create({
-    requestBody: {
-      name: filename,
-      parents: [folderId],
-    },
-    media: {
-      mimeType,
-      body: BufferToStream(buffer),
-    },
-    fields: "id, webViewLink",
-  });
-
-  return res.data;
-}
-
-// export async function uploadBufferToDrive({
-//   buffer,
-//   folderId,
-//   filename,
-//   mimeType,
-// }: {
-//   buffer: Buffer;
-//   folderId: string;
-//   filename: string;
-//   mimeType: string;
-// }) {
-//   const res = await drive.files.create({
-//     requestBody: {
-//       name: filename,
-//       parents: [folderId],
-//     },
-//     media: {
-//       mimeType,
-//       body: BufferToStream(buffer),
-//     },
-//     fields: "id, webViewLink",
-//   });
-
-//   return res.data;
-// }
-
-
-function BufferToStream(buffer: Buffer) {
+function bufferToStream(buffer: Buffer) {
   const stream = new Readable();
   stream.push(buffer);
   stream.push(null);
   return stream;
 }
-

@@ -689,14 +689,18 @@ export function ClientDashboard() {
         uploadDate: new Date(file.uploadedAt).toLocaleDateString(),
         status: 'client_review' as const,
         url: file.url,
+        proxyUrl: file.proxyUrl || null,
+        reviewDriveUrl: file.reviewDriveUrl || null,
         sizeBytes: file.size,
       }];
 
     return {
       id: selectedTask.id,
-      title: `${selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"} - ${file.name}`,
+      title: `${selectedTask.title} - ${file.name}`,
       subtitle: `Review Request`,
       videoUrl: file.url,
+      proxyUrl: file.proxyUrl || null,
+      reviewDriveUrl: file.reviewDriveUrl || null,
       thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
       runtime: '2:30',
       status: 'client_review' as const,
@@ -1053,7 +1057,7 @@ export function ClientDashboard() {
                   Review Content
                 </DialogTitle>
                 <DialogDescription>
-                  {selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"} — Review files and approve or request
+                  {selectedTask.title} - Review files and approve or request
                   revisions
                 </DialogDescription>
               </DialogHeader>
@@ -1328,7 +1332,7 @@ export function ClientDashboard() {
                   Request Revisions
                 </DialogTitle>
                 <DialogDescription>
-                  Provide feedback for "{selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"}"
+                  Provide feedback for "{selectedTask.title}"
                 </DialogDescription>
               </DialogHeader>
 
@@ -1419,7 +1423,7 @@ export function ClientDashboard() {
             isOpen={showComparison}
             onOpenChange={setShowComparison}
             thumbnails={comparisonFiles}
-            taskTitle={selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"}
+            taskTitle={selectedTask.title}
           />
         )}
 
@@ -1438,7 +1442,7 @@ export function ClientDashboard() {
               file={selectedFile}
               allFiles={selectedTask.files || []}
               taskId={selectedTask.id}
-              taskTitle={selectedTask.monthlyDeliverable?.type?.replace(/_/g, " ") || "Content"}
+              taskTitle={selectedTask.title}
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
               userRole="client"

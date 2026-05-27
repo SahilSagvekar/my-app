@@ -505,6 +505,8 @@ const handleConfirmApproval = async () => {
         uploadDate: new Date(f.uploadedAt).toLocaleDateString(),
         status: 'in_qc' as 'in_qc',
         url: f.url,
+        proxyUrl: f.proxyUrl || null,
+        reviewDriveUrl: f.reviewDriveUrl || null,
         sizeBytes: f.size,
       }));
 
@@ -513,6 +515,8 @@ const handleConfirmApproval = async () => {
       title: `${selectedTask.title}`,
       subtitle: `Project: ${selectedTask.clientId}`,
       videoUrl: file.url,
+      proxyUrl: file.proxyUrl || null,
+      reviewDriveUrl: file.reviewDriveUrl || null,
       thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
       runtime: '2:30',
       status: 'in_qc' as const,
@@ -1005,9 +1009,7 @@ const handleConfirmApproval = async () => {
                     <div className="p-4 flex flex-col gap-3">
                       <div className="flex items-start justify-between gap-2">
                         <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
-                          {task.clientName && (task as any).deliverableType
-                            ? `${task.clientName} · ${((task as any).deliverableType as string).replace(/_/g, ' ')}`
-                            : task.clientName || (task as any).deliverableType || task.title}
+                          {task.title}
                         </h4>
                         <TaskGuidelinesButton
                           clientId={task.clientId}
@@ -1321,7 +1323,7 @@ const handleConfirmApproval = async () => {
             file={selectedFile}
             allFiles={selectedTask.files || []}
             taskId={selectedTask.id}
-            taskTitle={(selectedTask as any).clientName && (selectedTask as any).deliverableType ? (selectedTask as any).clientName + " · " + ((selectedTask as any).deliverableType as string).replace(/_/g, " ") : selectedTask.title}
+            taskTitle={selectedTask.title}
             onApprove={handleThumbnailApprove}
             onRequestRevisions={handleThumbnailRequestRevisions}
             userRole="qc"
@@ -1333,7 +1335,7 @@ const handleConfirmApproval = async () => {
             isOpen={showComparison}
             onOpenChange={setShowComparison}
             thumbnails={comparisonFiles}
-            taskTitle={(selectedTask as any).clientName && (selectedTask as any).deliverableType ? (selectedTask as any).clientName + " · " + ((selectedTask as any).deliverableType as string).replace(/_/g, " ") : selectedTask.title}
+            taskTitle={selectedTask.title}
           />
         )}
 

@@ -1,16 +1,41 @@
 export const dynamic = "force-dynamic";
 // app/api/upload/complete/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { CompleteMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { CompleteMultipartUploadCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
 import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
-import { optimizeVideo } from "@/lib/video-optimizer";
 import { queueVideoForCompression } from "@/lib/video-compression/worker";
 import { updateClientStorageAfterUpload } from "@/lib/storage-service";
 import { sendUploadNotification } from "@/lib/upload-notifications";
-import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
+import { getCurrentUser2 } from "@/lib/auth";
 
 const s3Client = getS3();
+
+function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
+  return !!value && !value.includes("/") && !value.includes("\\");
+}
+
+async function getCompletedObjectWithRetry(key: string) {
+  const maxAttempts = 6;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+      return await s3Client.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+    } catch (err) {
+      if (attempt === maxAttempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+    }
+  }
+  throw new Error(`File not found after upload completion: ${key}`);
+}
+
+function describeDriveMirrorError(err: any): string {
+  const message = err?.message || String(err);
+  if (message.includes("Service Accounts do not have storage quota")) {
+    return `${message} Configure GOOGLE_REFRESH_TOKEN/GOOGLE_OAUTH_CLIENT_ID/GOOGLE_OAUTH_CLIENT_SECRET for OAuth-owned uploads, or set GOOGLE_DRIVE_PARENT_ID to a Shared Drive folder that the service account can access.`;
+  }
+  return message;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,7 +83,6 @@ export async function POST(request: NextRequest) {
       });
 
       const s3Response = await s3Client.send(command);
-
       const fileUrl = getFileUrl(key);
 
       console.log("✅ S3 upload completed:", fileUrl);
@@ -66,50 +90,31 @@ export async function POST(request: NextRequest) {
       // 🔥 Track storage for raw-footage uploads
       const isRawFootageUpload = key.includes("raw-footage");
       if (isRawFootageUpload && fileSize) {
-        // Extract client ID from the S3 key path (CompanyName/raw-footage/...)
         const pathParts = key.split("/");
         const companyName = pathParts[0];
-
-        // Find client by company name
         const client = await prisma.client.findFirst({
-          where: {
-            OR: [{ companyName: companyName }, { name: companyName }],
-          },
+          where: { OR: [{ companyName }, { name: companyName }] },
           select: { id: true },
         });
-
         if (client) {
-          const storageResult = await updateClientStorageAfterUpload(
-            client.id,
-            fileSize,
-          );
-          console.log(
-            `📊 Storage updated for ${companyName}: ${storageResult.storageInfo.usedFormatted} / ${storageResult.storageInfo.limitFormatted} (${storageResult.storageInfo.percentage.toFixed(1)}%)`,
-          );
+          const storageResult = await updateClientStorageAfterUpload(client.id, fileSize);
+          console.log(`📊 Storage updated for ${companyName}: ${storageResult.storageInfo.usedFormatted} / ${storageResult.storageInfo.limitFormatted} (${storageResult.storageInfo.percentage.toFixed(1)}%)`);
         }
       }
 
       if (taskId === "drive-upload") {
         console.log("📂 Drive upload completed, skipping DB updates");
-        console.log("🔍 S3 Response:", userId);
-        // 🔥 SEND SLACK NOTIFICATION for drive uploads
-
         if (userId) {
           const pathParts = key.split("/").filter(Boolean);
           const companyName = pathParts[0];
-
-          // Find client by company name
           let clientIdForNotification: string | undefined;
           if (companyName) {
             const client = await prisma.client.findFirst({
-              where: {
-                OR: [{ companyName: companyName }, { name: companyName }],
-              },
+              where: { OR: [{ companyName }, { name: companyName }] },
               select: { id: true },
             });
             clientIdForNotification = client?.id;
           }
-
           sendUploadNotification({
             fileName,
             fileSize: fileSize || 0,
@@ -121,7 +126,6 @@ export async function POST(request: NextRequest) {
             console.error(`[DriveUpload] Slack notification failed:`, err);
           });
         }
-
         return NextResponse.json({
           success: true,
           fileUrl,
@@ -132,32 +136,21 @@ export async function POST(request: NextRequest) {
       }
 
       // 🔥 Determine folderType based on subfolder
-      const folderType =
-        !subfolder || subfolder === "main" ? "main" : subfolder;
+      const folderType = !subfolder || subfolder === "main" ? "main" : subfolder;
 
       // 1. Find the current active file for this task + folderType
       const existingActiveFile = await prisma.file.findFirst({
-        where: {
-          taskId: taskId,
-          folderType: folderType,
-          isActive: true,
-        },
-        orderBy: {
-          version: "desc", // Get highest version
-        },
+        where: { taskId, folderType, isActive: true },
+        orderBy: { version: "desc" },
       });
 
       let newVersion = 1;
-
-      // 2. If active file exists, mark it as inactive
       if (existingActiveFile) {
         newVersion = existingActiveFile.version + 1;
-        console.log(
-          `📦 Found existing v${existingActiveFile.version}, creating v${newVersion}`,
-        );
+        console.log(`📦 Found existing v${existingActiveFile.version}, creating v${newVersion}`);
       }
 
-      // 3. Create new file record with version
+      // 2. Create new file record with version
       const fileRecord = await prisma.file.create({
         data: {
           name: fileName,
@@ -165,12 +158,12 @@ export async function POST(request: NextRequest) {
           s3Key: key,
           mimeType: fileType,
           size: fileSize,
-          taskId: taskId,
+          taskId,
           uploadedBy: userId,
-          folderType: folderType,
+          folderType,
           version: newVersion,
           isActive: true,
-          codec: codec,
+          codec,
           proxyUrl: fileType.startsWith("video/")
             ? `/api/files/NEW_ID_PLACEHOLDER/stream`
             : null,
@@ -187,7 +180,91 @@ export async function POST(request: NextRequest) {
 
       console.log(`💾 File v${newVersion} saved:`, fileRecord.id);
 
-      // 4. Now update old file with replacedBy reference
+      // 🔥 Mirror video to Google Drive for lag-free client review playback
+      if (fileType.startsWith("video/")) {
+        const taskForDrive = await prisma.task.findUnique({
+          where: { id: taskId },
+          select: {
+            requiresClientReview: true,
+            outputFolderId: true,
+            driveFolderId: true,
+            client: { select: { companyName: true, name: true } },
+          },
+        });
+
+        const needsDriveMirror = taskForDrive?.requiresClientReview === true;
+        console.log("needsDriveMirror:", needsDriveMirror);
+
+        if (needsDriveMirror) {
+          const _key = fileRecord.s3Key || key;
+          const _fileName = fileName;
+          const _fileType = fileType;
+          const _fileRecordId = fileRecord.id;
+          const _driveFolderId = isLikelyGoogleDriveFolderId(taskForDrive?.driveFolderId)
+            ? taskForDrive.driveFolderId
+            : null;
+          const _clientName = taskForDrive?.client?.companyName || taskForDrive?.client?.name || "Unknown Client";
+
+          // Fire-and-forget — don't block the upload response
+          (async () => {
+            try {
+              if (_key.endsWith("/") || _key.endsWith("/.")) {
+                console.warn(`⚠️ Drive mirror skipped — key looks like a folder: "${_key}"`);
+                return;
+              }
+
+              // Wait for R2 eventual consistency after multipart complete
+              await new Promise(resolve => setTimeout(resolve, 1500));
+
+              console.log(`☁️ Mirroring ${_fileName} to Google Drive for client review...`);
+
+              // Resolve Drive folder
+              let targetFolderId = _driveFolderId;
+              if (!targetFolderId) {
+                console.log(`📁 No Drive folder on task — using fallback folder for "${_clientName}"`);
+                const { getOrCreateReviewFolder } = await import("@/lib/googleDrive");
+                targetFolderId = await getOrCreateReviewFolder(_clientName);
+                console.log(`📁 Resolved target Drive folder: ${targetFolderId}`);
+              }
+
+              // Stream from R2
+              console.log(`⬇️ Streaming from R2 → Drive | key: "${_key}"`);
+              const r2Object = await getCompletedObjectWithRetry(_key);
+              if (!r2Object.Body) throw new Error("Empty response from R2");
+
+              // Collect into buffer
+              const chunks: Uint8Array[] = [];
+              for await (const chunk of r2Object.Body as any) {
+                chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+              }
+              const buf = Buffer.concat(chunks);
+
+              // Upload to Drive using service account
+              const { uploadBufferToDrive } = await import("@/lib/googleDrive");
+              const driveRes = await uploadBufferToDrive({
+                buffer: buf,
+                folderId: targetFolderId,
+                filename: _fileName,
+                mimeType: _fileType,
+              });
+
+              const driveFileId = driveRes.id;
+              if (driveFileId) {
+                const reviewDriveUrl = `https://drive.google.com/file/d/${driveFileId}/view`;
+                await prisma.file.update({
+                  where: { id: _fileRecordId },
+                  data: { reviewDriveUrl },
+                });
+                console.log(`✅ Drive mirror complete: ${reviewDriveUrl}`);
+              }
+            } catch (driveErr: any) {
+              console.error(`⚠️ Drive mirror failed (R2 fallback active): ${describeDriveMirrorError(driveErr)} | key was: "${_key}" | fileName: "${_fileName}" | errorCode: ${driveErr.Code || driveErr.code || driveErr.name} | httpStatus: ${driveErr.$metadata?.httpStatusCode}`);
+            }
+          })();
+        }
+      }
+
+      // 3. Mark old file as inactive
       if (existingActiveFile) {
         await prisma.file.update({
           where: { id: existingActiveFile.id },
@@ -197,53 +274,41 @@ export async function POST(request: NextRequest) {
             replacedBy: fileRecord.id,
           },
         });
-        console.log(
-          `📁 v${existingActiveFile.version} marked inactive, replaced by v${newVersion}`,
-        );
+        console.log(`📁 v${existingActiveFile.version} marked inactive, replaced by v${newVersion}`);
       }
 
-      // Add file URL to task.driveLinks (only if not already there)
+      // Add file URL to task.driveLinks
       await prisma.task.update({
         where: { id: taskId },
-        data: {
-          driveLinks: { push: fileUrl },
-        },
+        data: { driveLinks: { push: fileUrl } },
       });
 
       console.log("🔗 File URL added to task driveLinks");
 
+      // Queue for compression if > 100MB
       if (fileType.startsWith("video/") && fileSize > 100 * 1024 * 1024) {
-        // Queue for spot compression if > 100MB
         queueVideoForCompression({
           videoKey: key,
           sizeBytes: fileSize,
-          clientId: taskId, // or actual clientId if available
-          taskId: taskId,
+          clientId: taskId,
+          taskId,
         }).catch((err) => {
           console.error(`❌ Failed to queue compression: ${err}`);
         });
       }
 
       // 🔥 LOG ACTIVITY
-      const { createAuditLog, AuditAction } =
-        await import("@/lib/audit-logger");
+      const { createAuditLog, AuditAction } = await import("@/lib/audit-logger");
       await createAuditLog({
-        userId: userId,
+        userId,
         action: AuditAction.FILE_UPLOADED,
         entity: "File",
         entityId: fileRecord.id,
         details: `Uploaded file: ${fileName} (v${newVersion}) to folder: ${folderType}`,
-        metadata: {
-          taskId,
-          fileName,
-          fileSize,
-          version: newVersion,
-          folderType,
-        },
+        metadata: { taskId, fileName, fileSize, version: newVersion, folderType },
       });
 
       // 🔥 SEND SLACK NOTIFICATION
-      // Get the task to find clientId
       const taskForNotification = await prisma.task.findUnique({
         where: { id: taskId },
         select: { clientId: true },
@@ -273,44 +338,27 @@ export async function POST(request: NextRequest) {
         etag: s3Response.ETag,
         location: s3Response.Location,
       });
-    } catch (s3Error: any) {
-      // Handle NoSuchUpload error specifically
-      if (s3Error.Code === "NoSuchUpload" || s3Error.name === "NoSuchUpload") {
-        console.error("❌ Upload session expired or aborted:", {
-          uploadId,
-          key,
-          fileName,
-          error: s3Error.message,
-        });
 
+    } catch (s3Error: any) {
+      if (s3Error.Code === "NoSuchUpload" || s3Error.name === "NoSuchUpload") {
+        console.error("❌ Upload session expired or aborted:", { uploadId, key, fileName, error: s3Error.message });
         return NextResponse.json(
           {
             error: "Upload session expired",
-            message:
-              "The upload session has expired or was aborted. Please restart the upload.",
+            message: "The upload session has expired or was aborted. Please restart the upload.",
             code: "UPLOAD_EXPIRED",
-            details: {
-              uploadId,
-              fileName,
-              reason: s3Error.message,
-            },
+            details: { uploadId, fileName, reason: s3Error.message },
           },
           { status: 410 },
         );
       }
 
       if (s3Error.Code === "InvalidPart" || s3Error.name === "InvalidPart") {
-        console.error("❌ Invalid part error:", {
-          uploadId,
-          key,
-          error: s3Error.message,
-        });
-
+        console.error("❌ Invalid part error:", { uploadId, key, error: s3Error.message });
         return NextResponse.json(
           {
             error: "Invalid upload part",
-            message:
-              "One or more upload parts are invalid. Please restart the upload.",
+            message: "One or more upload parts are invalid. Please restart the upload.",
             code: "INVALID_PART",
           },
           { status: 400 },
@@ -325,7 +373,6 @@ export async function POST(request: NextRequest) {
       code: error.Code || error.name,
       stack: error.stack,
     });
-
     return NextResponse.json(
       {
         error: "Failed to complete upload",

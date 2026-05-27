@@ -730,6 +730,7 @@ const { searchParams } = new URL(req.url);
               isActive: true,
               codec: true,
               proxyUrl: true,
+              reviewDriveUrl: true,
             },
           },
           driveLinks: true,

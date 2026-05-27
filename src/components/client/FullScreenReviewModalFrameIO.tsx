@@ -20,6 +20,7 @@ interface Version {
     status: 'draft' | 'in_qc' | 'client_review' | 'approved';
     url?: string;
     proxyUrl?: string | null;
+    reviewDriveUrl?: string | null;
     sizeBytes?: number;
 }
 
@@ -45,6 +46,7 @@ interface ReviewAsset {
     downloadEnabled: boolean;
     approvalLocked: boolean;
     proxyUrl?: string | null;
+    reviewDriveUrl?: string | null;
     taskFeedback?: any[];
 }
 
@@ -249,7 +251,8 @@ export function FullScreenReviewModalFrameIO({
         const source = getVideoSource({
             url: currentVideoUrl || asset.videoUrl || '',
             id: fileId,
-            proxyUrl: v?.proxyUrl || asset.proxyUrl
+            proxyUrl: v?.proxyUrl || asset.proxyUrl,
+            reviewDriveUrl: v?.reviewDriveUrl || asset.reviewDriveUrl,
         });
 
         // Append cache-busting param on retries to avoid stale/failed responses

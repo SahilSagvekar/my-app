@@ -8,7 +8,7 @@ import { getCurrentUser2 } from "@/lib/auth";
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 
 // Only this admin email can delete tasks
-const SUPER_ADMIN_EMAIL = "sahilsagvekar230@gmail.com";
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL;
 
 export async function GET(
   request: NextRequest,
@@ -39,6 +39,7 @@ export async function GET(
             isActive: true,
             codec: true,
             proxyUrl: true,
+            reviewDriveUrl: true,
           },
           orderBy: {
             uploadedAt: "desc",

@@ -43,6 +43,7 @@ interface Version {
   status: 'draft' | 'in_qc' | 'client_review' | 'approved';
   url?: string;
   proxyUrl?: string | null;
+  reviewDriveUrl?: string | null;
 }
 
 interface ReviewAsset {
@@ -64,6 +65,7 @@ interface ReviewAsset {
   downloadEnabled: boolean;
   approvalLocked: boolean;
   proxyUrl?: string | null;
+  reviewDriveUrl?: string | null;
 }
 
 interface FullScreenReviewModalProps {
@@ -170,7 +172,8 @@ export function FullScreenReviewModal({
     return getVideoSource({ 
       url: v?.url || asset.videoUrl, 
       id: currentVersion || asset.currentVersion,
-      proxyUrl: v?.proxyUrl || asset.proxyUrl 
+      proxyUrl: v?.proxyUrl || asset.proxyUrl,
+      reviewDriveUrl: v?.reviewDriveUrl || asset.reviewDriveUrl,
     });
   }, [asset, currentVersion]);
 

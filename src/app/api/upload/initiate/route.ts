@@ -9,6 +9,14 @@ import { getClientStorageInfo, DEFAULT_STORAGE_LIMIT } from "@/lib/storage-servi
 
 const s3Client = getS3();
 
+function normalizeUploadPathSegment(value: string): string {
+  return value
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((part) => part && part !== ".")
+    .join("/");
+}
+
 // 🔥 Helper: Ensure folder exists in S3 (creates all intermediate folders)
 async function ensureS3FolderExists(folderPath: string) {
   if (!folderPath || folderPath === "" || folderPath === "/") return;
@@ -222,17 +230,18 @@ export async function POST(req: NextRequest) {
       s3Key = `${elementsFolderPath}${Date.now()}-${fileName}`;
     } else if (folderType === "drive") {
       // Direct drive upload - subfolder contains the full path
-      let drivePath = subfolder || "";
+      let drivePath = normalizeUploadPathSegment(subfolder || "");
       if (drivePath !== "" && !drivePath.endsWith("/")) {
         drivePath += "/";
       }
       // 🔥 Folder upload: relativePath preserves the sub-folder structure
       // e.g. relativePath = "shoot-day-1/raw/clip.mp4" → key = basePath/shoot-day-1/raw/clip.mp4
       if (relativePath) {
-        const dirPart = relativePath.split('/').slice(0, -1).join('/');
+        const safeRelativePath = normalizeUploadPathSegment(relativePath);
+        const dirPart = safeRelativePath.split('/').slice(0, -1).join('/');
         if (dirPart) {
           await ensureS3FolderExists(`${drivePath}${dirPart}`);
-          s3Key = `${drivePath}${relativePath}`;
+          s3Key = `${drivePath}${safeRelativePath}`;
         } else {
           await ensureS3FolderExists(drivePath);
           s3Key = `${drivePath}${fileName}`;

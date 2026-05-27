@@ -276,6 +276,7 @@ class UploadService {
                     folderType,
                     taskTitle: taskData?.title || "",
                     subfolder,
+                    relativePath,
                 }),
             });
 

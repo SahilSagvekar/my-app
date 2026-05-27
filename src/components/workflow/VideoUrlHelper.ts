@@ -15,7 +15,6 @@ export interface VideoUrlInfo {
  * Analyzes a video URL and returns information about how to display it
  */
 export function analyzeVideoUrl(url: string | null | undefined): VideoUrlInfo {
-  // Handle null/undefined/empty URLs
   if (!url || url.trim() === '') {
     return {
       isGoogleDrive: false,
@@ -89,35 +88,46 @@ export function extractGoogleDriveFileId(url: string): string | null {
 export function convertToGoogleDrivePreview(url: string): string | null {
   const fileId = extractGoogleDriveFileId(url);
   if (!fileId) return null;
-
   return `https://drive.google.com/file/d/${fileId}/preview`;
 }
 
 /**
  * Gets the appropriate video source for a video element or iframe.
  * Priority:
- * 1. proxyUrl - If a lower-quality version exists, use it for speed.
- * 2. streamProxy - If it's an S3/R2 file, use the byte-range streaming proxy.
- * 3. original - Fallback to the original URL.
- * 
- * @param file - The file object containing url and optional proxyUrl/id
+ * 0. reviewDriveUrl — Drive mirror for lag-free client review playback
+ * 1. proxyUrl — lower-quality compressed version for speed
+ * 2. streamProxy — S3/R2 byte-range streaming proxy
+ * 3. original — fallback
  */
-export function getVideoSource(file: { url: string; id?: string; proxyUrl?: string | null }): { type: 'video' | 'iframe', src: string } {
-  const { url, id, proxyUrl } = file;
+export function getVideoSource(file: {
+  url: string;
+  id?: string;
+  proxyUrl?: string | null;
+  reviewDriveUrl?: string | null;
+}): { type: 'video' | 'iframe'; src: string } {
+  const { url, id, proxyUrl, reviewDriveUrl } = file;
 
-  // 1. Use proxyUrl if available (Priority 1)
+  // 0. Drive mirror — lag-free streaming for client review
+  if (reviewDriveUrl) {
+    const fileId = extractGoogleDriveFileId(reviewDriveUrl);
+    if (fileId) {
+      return { type: 'iframe', src: `https://drive.google.com/file/d/${fileId}/preview` };
+    }
+  }
+
+  // 1. proxyUrl (compressed version)
   if (proxyUrl) {
     return { type: 'video', src: proxyUrl };
   }
 
   const info = analyzeVideoUrl(url);
 
-  // 2. Iframe (YouTube/Drive)
+  // 2. Iframe (YouTube/Drive direct URL)
   if (info.requiresIframe && info.embedUrl) {
     return { type: 'iframe', src: info.embedUrl };
   }
 
-  // 3. Streaming proxy for S3/R2-hosted files (supports HTTP Range requests)
+  // 3. Streaming proxy for S3/R2-hosted files
   const isObjectStorage = url && (
     url.includes('amazonaws.com') ||
     url.includes('r2.cloudflarestorage.com') ||
@@ -127,6 +137,6 @@ export function getVideoSource(file: { url: string; id?: string; proxyUrl?: stri
     return { type: 'video', src: `/api/files/${id}/stream` };
   }
 
-  // 4. Fallback to original URL
+  // 4. Fallback
   return { type: 'video', src: url };
 }

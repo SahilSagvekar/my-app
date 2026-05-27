@@ -423,6 +423,7 @@ model File {
   proxyUrl           String?
   optimizationError  String?
   optimizationStatus String         @default("NONE")
+  reviewDriveUrl     String?        // Google Drive URL for lag-free client review playback
   task               Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   feedback           TaskFeedback[]
 
