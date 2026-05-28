@@ -126,7 +126,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
 
     return (
         <div
-            className="relative w-full h-full flex flex-col overflow-hidden"
+            className="relative w-full min-h-full flex flex-col"
             style={{ background: 'var(--review-bg-primary)' }}
         >
             {/* ── Success overlays ── */}
@@ -555,11 +555,11 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
             </div>
 
             {/* ── TAB CONTENT (scrollable) ── */}
-            <div className="flex-1 overflow-y-auto review-scrollbar min-h-0" style={{ background: 'var(--review-bg-primary)' }}>
+            <div className="w-full" style={{ background: 'var(--review-bg-primary)' }}>
 
                 {/* ─── Comments ─── */}
                 {activeMobileTab === 'comments' && (
-                    <div className="flex flex-col h-full">
+                    <div className="flex flex-col">
                         {/* Comment input */}
                         <div className="p-3 border-b border-[var(--review-border)] shrink-0">
                             <CommentInput
@@ -578,7 +578,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                         </div>
 
                         {/* List */}
-                        <div className="flex-1 p-3 space-y-2">
+                        <div className="p-3 space-y-2">
                             {p.comments.length === 0 ? (
                                 <div className="text-center py-12 text-[var(--review-text-muted)]">
                                     <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-20" />

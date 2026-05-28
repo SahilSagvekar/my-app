@@ -64,7 +64,6 @@ interface FullScreenReviewModalProps {
     taskId?: string;
     requiresClientReview?: boolean;
     shareToken?: string;
-    
 }
 
 interface RevisionRequest {
@@ -988,7 +987,7 @@ export function FullScreenReviewModalFrameIO({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !overflow-hidden !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog review-modal">
+            <DialogContent className={`!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog review-modal ${viewMode === 'mobile' ? '!overflow-y-auto' : '!overflow-hidden'}`}>
                 {/* Accessibility */}
                 <div className="sr-only">
                     <DialogTitle>{asset.title ? `Review ${asset.title}` : 'Asset Review'}</DialogTitle>
