@@ -39,6 +39,9 @@ export function Footer() {
             <a href="#terms" className="text-black/60 transition-colors hover:text-black text-sm">
               Terms
             </a>
+            <a href="/legal" className="text-black/60 transition-colors hover:text-black text-sm">
+              Legal
+            </a>
           </div>
 
           {/* Social Icons */}

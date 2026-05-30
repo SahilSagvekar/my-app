@@ -1021,6 +1021,9 @@ function PortfolioContent() {
                     <p className="text-black/40 text-sm">
                         © {new Date().getFullYear()} E8 Productions. All rights reserved.
                     </p>
+                    <Link href="/legal" className="text-black/40 hover:text-black/70 text-sm transition-colors">
+                        Legal
+                    </Link>
                 </div>
             </footer>
 

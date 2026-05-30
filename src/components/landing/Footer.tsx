@@ -151,6 +151,9 @@ export function Footer() {
               <Link href="#" className="text-white/60 hover:text-white text-sm transition-colors">
                 Cookies
               </Link>
+              <Link href="/legal" className="text-white/60 hover:text-white text-sm transition-colors">
+                Legal
+              </Link>
             </div>
           </div>
         </div>
