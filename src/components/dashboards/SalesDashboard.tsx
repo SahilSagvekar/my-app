@@ -53,7 +53,6 @@ interface Lead {
   textedAt?: string;
   createdAt?: string;
   updatedAt?: string;
-  // Local UI-only fields
   _saved?: boolean;
   _dirty?: boolean;
   _committing?: boolean;
@@ -79,21 +78,6 @@ interface ColumnDef {
   minPx?: number;
 }
 
-interface LinkedinLeadGenerationJob {
-  id: string;
-  status: string;
-  totalLeads: number;
-  importedLeads: number;
-  duplicateLeads: number;
-  errorMessage?: string | null;
-  providerMessage?: string | null;
-  metadata?: Record<string, unknown> | null;
-  createdAt?: string;
-  updatedAt?: string;
-  completedAt?: string | null;
-  importedAt?: string | null;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function tempId() {
@@ -115,11 +99,10 @@ function emptyDraftLead(status = 'NEW'): Lead {
 }
 
 function dbLeadToLocal(l: any): Lead {
-  const linkedinLead = l.metadata?.linkedinLead || {};
   return {
     id: l.id, name: l.name, company: l.company || '', email: l.email,
-    phone: l.phone || '', profileUrl: l.profileUrl || l.externalUrl || linkedinLead.profileUrl || '',
-    postUrl: l.postUrl || linkedinLead.postUrl || '', socials: l.socials || '',
+    phone: l.phone || '', profileUrl: l.profileUrl || l.externalUrl || '',
+    postUrl: l.postUrl || '', socials: l.socials || '',
     instagram: !!l.instagram, facebook: !!l.facebook,
     linkedin: !!l.linkedin, twitter: !!l.twitter, tiktok: !!l.tiktok,
     status: l.status || 'NEW',
@@ -142,45 +125,6 @@ function formatToEST(iso: string) {
       hour: 'numeric', minute: '2-digit', hour12: true,
     });
   } catch { return iso; }
-}
-
-function isLinkedinLeadJobActive(job: LinkedinLeadGenerationJob | null) {
-  return !!job && (job.status === 'QUEUED' || job.status === 'RUNNING');
-}
-
-function getLinkedinStatusText(job: LinkedinLeadGenerationJob | null, startingLinkedinJob: boolean) {
-  if (startingLinkedinJob) {
-    return 'Starting LinkedIn lead generation...';
-  }
-
-  if (!job) {
-    return 'Ready to generate LinkedIn leads';
-  }
-
-  if (job.providerMessage) {
-    return job.providerMessage;
-  }
-
-  switch (job.status) {
-    case 'QUEUED':
-      return 'Waiting for LinkedIn lead service...';
-    case 'RUNNING':
-      return 'Generating LinkedIn leads...';
-    case 'COMPLETED':
-      return `Last run imported ${job.importedLeads || 0} leads`;
-    case 'PARTIAL_SUCCESS':
-      return `Imported ${job.importedLeads || 0} leads with some recoverable issues`;
-    case 'NO_RESULTS':
-      return 'Last run completed with no qualified LinkedIn leads';
-    case 'PLATFORM_DRIFT':
-      return 'LinkedIn layout changed and the scraper paused for repair';
-    case 'ANTI_BOT':
-      return 'LinkedIn blocked the run with a verification challenge';
-    case 'FAILED':
-      return job.errorMessage || 'Last LinkedIn run failed';
-    default:
-      return 'Ready to generate LinkedIn leads';
-  }
 }
 
 // ─── Monday.com Constants ─────────────────────────────────────────────────────
@@ -227,7 +171,7 @@ const CORE_COLUMNS: ColumnDef[] = [
   { id: 'notes', label: 'Notes', width: 'min-w-[120px] w-[120px]', align: 'center', minPx: 120 },
 ];
 
-const ALL_COLUMNS = CORE_COLUMNS; // For backward compatibility in some utility parts
+const ALL_COLUMNS = CORE_COLUMNS;
 
 const DEFAULT_EMAIL_TEMPLATES = [
   {
@@ -242,28 +186,22 @@ const DEFAULT_EMAIL_TEMPLATES = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-/* Status Pill — Monday.com style colored dropdown */
 function StatusPill({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const current = STATUS_GROUPS.find(s => s.id === value) || STATUS_GROUPS[0];
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          className="w-full h-[30px] rounded-[3px] text-[13px] font-medium transition-opacity hover:opacity-90 flex items-center justify-center"
-          style={{ backgroundColor: current.color, color: '#fff' }}
-        >
+        <button className="w-full h-[30px] rounded-[3px] text-[13px] font-medium transition-opacity hover:opacity-90 flex items-center justify-center"
+          style={{ backgroundColor: current.color, color: '#fff' }}>
           {current.label}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[160px] p-1.5 space-y-0.5" align="center" sideOffset={4}>
         {STATUS_GROUPS.map(s => (
-          <button
-            key={s.id}
-            onClick={() => { onChange(s.id); setOpen(false); }}
+          <button key={s.id} onClick={() => { onChange(s.id); setOpen(false); }}
             className="w-full h-[30px] rounded-[3px] text-[13px] font-medium text-white transition-opacity hover:opacity-90 flex items-center justify-center"
-            style={{ backgroundColor: s.color }}
-          >
+            style={{ backgroundColor: s.color }}>
             {s.label}
           </button>
         ))}
@@ -272,29 +210,23 @@ function StatusPill({ value, onChange }: { value: string; onChange: (v: string) 
   );
 }
 
-/* Priority Pill — Monday.com flag style */
 function PriorityPill({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const current = PRIORITY_OPTIONS.find(p => p.id === value) || PRIORITY_OPTIONS[PRIORITY_OPTIONS.length - 1];
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          className="w-full h-[30px] rounded-[3px] text-[13px] font-medium transition-opacity hover:opacity-90 flex items-center justify-center gap-1"
-          style={{ backgroundColor: current.color, color: '#fff' }}
-        >
+        <button className="w-full h-[30px] rounded-[3px] text-[13px] font-medium transition-opacity hover:opacity-90 flex items-center justify-center gap-1"
+          style={{ backgroundColor: current.color, color: '#fff' }}>
           {current.id && <Flag className="h-3 w-3" />}
           {current.label}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[160px] p-1.5 space-y-0.5" align="center" sideOffset={4}>
         {PRIORITY_OPTIONS.map(p => (
-          <button
-            key={p.id}
-            onClick={() => { onChange(p.id); setOpen(false); }}
+          <button key={p.id} onClick={() => { onChange(p.id); setOpen(false); }}
             className="w-full h-[30px] rounded-[3px] text-[13px] font-medium text-white transition-opacity hover:opacity-90 flex items-center justify-center gap-1"
-            style={{ backgroundColor: p.color }}
-          >
+            style={{ backgroundColor: p.color }}>
             {p.id && <Flag className="h-3 w-3" />}{p.label}
           </button>
         ))}
@@ -303,37 +235,25 @@ function PriorityPill({ value, onChange }: { value: string; onChange: (v: string
   );
 }
 
-/* Monday.com style check mark */
 function MondayTick({ checked, onChange, color = '#00C875' }: { checked: boolean; onChange: (v: boolean) => void; color?: string }) {
   return (
-    <button
-      onClick={() => onChange(!checked)}
+    <button onClick={() => onChange(!checked)}
       className="w-[30px] h-[30px] rounded-[3px] flex items-center justify-center transition-all mx-auto"
-      style={{
-        backgroundColor: checked ? color : '#F5F6F8',
-        border: checked ? 'none' : '1px solid #E6E9EF',
-      }}
-    >
+      style={{ backgroundColor: checked ? color : '#F5F6F8', border: checked ? 'none' : '1px solid #E6E9EF' }}>
       {checked && <Check className="h-4 w-4 text-white" strokeWidth={3} />}
     </button>
   );
 }
 
-/* Platform selector */
 function PlatformSelect({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled: boolean }) {
   if (disabled) return <span className="text-[12px] text-gray-300">—</span>;
   const current = DM_PLATFORMS.find(p => p.id === value);
   return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
+    <select value={value} onChange={e => onChange(e.target.value)}
       className="h-[26px] text-[11px] font-medium bg-transparent border-none outline-none cursor-pointer px-1 rounded"
-      style={{ color: current?.color || '#6B7280' }}
-    >
+      style={{ color: current?.color || '#6B7280' }}>
       <option value="">Select</option>
-      {DM_PLATFORMS.map(p => (
-        <option key={p.id} value={p.id}>{p.label}</option>
-      ))}
+      {DM_PLATFORMS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
     </select>
   );
 }
@@ -366,7 +286,6 @@ function SocialCell({ value, onUpdate }: {
   const [open, setOpen] = useState(false);
   const [newPlatform, setNewPlatform] = useState('instagram');
   const [newUrl, setNewUrl] = useState('');
-
   const entries = parseSocials(value);
 
   const commit = (newEntries: Array<{ platform: string; url: string }>) => {
@@ -386,9 +305,7 @@ function SocialCell({ value, onUpdate }: {
     setNewUrl('');
   };
 
-  const removeEntry = (idx: number) => {
-    commit(entries.filter((_, i) => i !== idx));
-  };
+  const removeEntry = (idx: number) => commit(entries.filter((_, i) => i !== idx));
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -401,28 +318,20 @@ function SocialCell({ value, onUpdate }: {
               {entries.slice(0, 4).map((e, i) => {
                 const p = SOCIAL_PLATFORMS.find(p => p.id === e.platform);
                 return (
-                  <span key={i}
-                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
-                    style={{ backgroundColor: p?.color || '#6B7280' }}
-                    title={e.url}>
+                  <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
+                    style={{ backgroundColor: p?.color || '#6B7280' }} title={e.url}>
                     {p?.label || '?'}
                   </span>
                 );
               })}
-              {entries.length > 4 && (
-                <span className="text-[10px] text-gray-400 ml-0.5">+{entries.length - 4}</span>
-              )}
+              {entries.length > 4 && <span className="text-[10px] text-gray-400 ml-0.5">+{entries.length - 4}</span>}
             </>
           )}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-3 space-y-2.5" align="start" sideOffset={4}>
         <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Social Links</p>
-
-        {entries.length === 0 && (
-          <p className="text-[12px] text-gray-400 italic">No socials added yet.</p>
-        )}
-
+        {entries.length === 0 && <p className="text-[12px] text-gray-400 italic">No socials added yet.</p>}
         {entries.map((e, i) => {
           const p = SOCIAL_PLATFORMS.find(p => p.id === e.platform);
           return (
@@ -431,38 +340,25 @@ function SocialCell({ value, onUpdate }: {
                 style={{ backgroundColor: p?.color || '#6B7280' }}>
                 {p?.label || '?'}
               </span>
-              <input
-                value={e.url}
-                onChange={ev => {
-                  const updated = entries.map((entry, idx) => idx === i ? { ...entry, url: ev.target.value } : entry);
-                  commit(updated);
-                }}
-                className="flex-1 h-7 text-[12px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA] min-w-0"
-              />
-              <button
-                onClick={() => removeEntry(i)}
-                className="shrink-0 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+              <input value={e.url}
+                onChange={ev => { const updated = entries.map((entry, idx) => idx === i ? { ...entry, url: ev.target.value } : entry); commit(updated); }}
+                className="flex-1 h-7 text-[12px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA] min-w-0" />
+              <button onClick={() => removeEntry(i)} className="shrink-0 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
           );
         })}
-
         <div className="flex items-center gap-1.5 pt-1.5 border-t border-gray-100">
           <select value={newPlatform} onChange={e => setNewPlatform(e.target.value)}
             className="h-7 text-[11px] border border-gray-200 rounded px-1 bg-white w-[90px] shrink-0">
-            {SOCIAL_PLATFORMS.map(p => (
-              <option key={p.id} value={p.id}>{p.fullLabel}</option>
-            ))}
+            {SOCIAL_PLATFORMS.map(p => <option key={p.id} value={p.id}>{p.fullLabel}</option>)}
           </select>
-          <input
-            value={newUrl}
-            onChange={e => setNewUrl(e.target.value)}
+          <input value={newUrl} onChange={e => setNewUrl(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEntry(); } }}
             placeholder="URL or @handle"
             className="flex-1 h-7 text-[12px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA] min-w-0" />
-          <button onClick={addEntry}
-            className="h-7 w-7 flex items-center justify-center bg-[#0073EA] hover:bg-[#0060C0] text-white rounded shrink-0">
+          <button onClick={addEntry} className="h-7 w-7 flex items-center justify-center bg-[#0073EA] hover:bg-[#0060C0] text-white rounded shrink-0">
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -471,27 +367,13 @@ function SocialCell({ value, onUpdate }: {
   );
 }
 
-function LeadLinkCell({
-  href,
-  label,
-}: {
-  href?: string;
-  label: string;
-}) {
-  if (!href) {
-    return <span className="block px-2 text-[11px] text-gray-300">—</span>;
-  }
-
+function LeadLinkCell({ href, label }: { href?: string; label: string }) {
+  if (!href) return <span className="block px-2 text-[11px] text-gray-300">—</span>;
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
+    <a href={href} target="_blank" rel="noreferrer"
       className="inline-flex h-[30px] items-center gap-1.5 rounded px-2 text-[12px] font-medium text-[#0073EA] hover:bg-[#F5F6F8]"
-      title={href}
-    >
-      <LinkIcon className="h-3.5 w-3.5" />
-      {label}
+      title={href}>
+      <LinkIcon className="h-3.5 w-3.5" />{label}
     </a>
   );
 }
@@ -500,14 +382,14 @@ function LeadLinkCell({
 
 const ACTIVITY_TYPES = [
   { id: 'meeting', label: 'Mtg', fullLabel: 'Meeting', color: '#00C875', icon: '🤝' },
-  { id: 'email',   label: 'Email', fullLabel: 'Email',   color: '#579BFC', icon: '✉️' },
-  { id: 'call',    label: 'Call', fullLabel: 'Call',    color: '#FDAB3D', icon: '📞' },
-  { id: 'text',    label: 'Text', fullLabel: 'Text',    color: '#A25DDC', icon: '💬' },
+  { id: 'email', label: 'Email', fullLabel: 'Email', color: '#579BFC', icon: '✉️' },
+  { id: 'call', label: 'Call', fullLabel: 'Call', color: '#FDAB3D', icon: '📞' },
+  { id: 'text', label: 'Text', fullLabel: 'Text', color: '#A25DDC', icon: '💬' },
 ];
 
 interface ActivityEntry {
   type: string;
-  time: string;   // ISO string
+  time: string;
   location: string;
 }
 
@@ -521,28 +403,24 @@ function parseActivities(raw?: string | ActivityEntry[]): ActivityEntry[] {
   return [];
 }
 
-function ActivityCell({ value, onUpdate }: {
-  value: ActivityEntry[];
-  onUpdate: (patch: Partial<Lead>) => void;
-}) {
+function ActivityCell({ value, onUpdate }: { value: ActivityEntry[]; onUpdate: (patch: Partial<Lead>) => void }) {
   const [open, setOpen] = useState(false);
   const [newType, setNewType] = useState('call');
   const [newTime, setNewTime] = useState(() => new Date().toISOString().slice(0, 16));
   const [newLocation, setNewLocation] = useState('');
-
   const entries = value;
 
   const commit = (next: ActivityEntry[]) => {
     onUpdate({
       metadata: { __activities: next },
       meetingBooked: next.some(e => e.type === 'meeting'),
-      emailed:       next.some(e => e.type === 'email'),
-      called:        next.some(e => e.type === 'call'),
-      texted:        next.some(e => e.type === 'text'),
-      meetingAt:     next.filter(e => e.type === 'meeting').at(-1)?.time,
-      emailedAt:     next.filter(e => e.type === 'email').at(-1)?.time,
-      calledAt:      next.filter(e => e.type === 'call').at(-1)?.time,
-      textedAt:      next.filter(e => e.type === 'text').at(-1)?.time,
+      emailed: next.some(e => e.type === 'email'),
+      called: next.some(e => e.type === 'call'),
+      texted: next.some(e => e.type === 'text'),
+      meetingAt: next.filter(e => e.type === 'meeting').at(-1)?.time,
+      emailedAt: next.filter(e => e.type === 'email').at(-1)?.time,
+      calledAt: next.filter(e => e.type === 'call').at(-1)?.time,
+      textedAt: next.filter(e => e.type === 'text').at(-1)?.time,
     });
   };
 
@@ -553,8 +431,6 @@ function ActivityCell({ value, onUpdate }: {
   };
 
   const removeEntry = (idx: number) => commit(entries.filter((_, i) => i !== idx));
-
-  // Show up to 3 type pills in the cell
   const typeCounts = ACTIVITY_TYPES.map(at => ({ ...at, count: entries.filter(e => e.type === at.id).length })).filter(a => a.count > 0);
 
   return (
@@ -566,8 +442,7 @@ function ActivityCell({ value, onUpdate }: {
           ) : (
             <>
               {typeCounts.slice(0, 3).map((a) => (
-                <span key={a.id}
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
+                <span key={a.id} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
                   style={{ backgroundColor: a.color }}>
                   {a.label}{a.count > 1 ? ` ×${a.count}` : ''}
                 </span>
@@ -579,11 +454,7 @@ function ActivityCell({ value, onUpdate }: {
       </PopoverTrigger>
       <PopoverContent className="w-[320px] p-3 space-y-2.5" align="start" sideOffset={4}>
         <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Activity Log</p>
-
-        {entries.length === 0 && (
-          <p className="text-[12px] text-gray-400 italic">No activity logged yet.</p>
-        )}
-
+        {entries.length === 0 && <p className="text-[12px] text-gray-400 italic">No activity logged yet.</p>}
         <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
           {entries.map((e, i) => {
             const at = ACTIVITY_TYPES.find(a => a.id === e.type);
@@ -599,15 +470,13 @@ function ActivityCell({ value, onUpdate }: {
                   </div>
                   {e.location && <div className="text-gray-400 text-[11px] truncate">{e.location}</div>}
                 </div>
-                <button onClick={() => removeEntry(i)}
-                  className="shrink-0 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors mt-0.5">
+                <button onClick={() => removeEntry(i)} className="shrink-0 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors mt-0.5">
                   <X className="h-3 w-3" />
                 </button>
               </div>
             );
           })}
         </div>
-
         <div className="pt-2 border-t border-gray-100 space-y-1.5">
           <div className="flex gap-1.5">
             <select value={newType} onChange={e => setNewType(e.target.value)}
@@ -622,8 +491,7 @@ function ActivityCell({ value, onUpdate }: {
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEntry(); } }}
               placeholder="Location or notes (optional)"
               className="flex-1 h-7 text-[12px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA]" />
-            <button onClick={addEntry}
-              className="h-7 w-7 flex items-center justify-center bg-[#0073EA] hover:bg-[#0060C0] text-white rounded shrink-0">
+            <button onClick={addEntry} className="h-7 w-7 flex items-center justify-center bg-[#0073EA] hover:bg-[#0060C0] text-white rounded shrink-0">
               <Plus className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -633,7 +501,6 @@ function ActivityCell({ value, onUpdate }: {
   );
 }
 
-/* Manual time cell for expanded view */
 function ManualTimeCell({ label, value, onChange }: { label: string; value?: string; onChange: (v: string) => void }) {
   const [date, setDate] = useState('');
   const [time, setTime] = useState('12:00');
@@ -649,7 +516,7 @@ function ManualTimeCell({ label, value, onChange }: { label: string; value?: str
         setAmpm(h >= 12 ? 'PM' : 'AM');
         h = h % 12 || 12;
         setTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-      } catch { /* ignore */ }
+      } catch { }
     }
   }, [value]);
 
@@ -700,12 +567,10 @@ function EmailTemplateModal({ open, lead, onClose, onSave }: {
               </Button>
             ))}
           </div>
-          <Textarea value={body} onChange={e => setBody(e.target.value)} rows={10}
-            className="font-mono text-xs" placeholder="Write your email template..." />
+          <Textarea value={body} onChange={e => setBody(e.target.value)} rows={10} className="font-mono text-xs" placeholder="Write your email template..." />
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={() => { onSave(lead.id, body); onClose(); }}
-              className="bg-[#0073EA] hover:bg-[#0060C0] text-white">Save Template</Button>
+            <Button size="sm" onClick={() => { onSave(lead.id, body); onClose(); }} className="bg-[#0073EA] hover:bg-[#0060C0] text-white">Save Template</Button>
           </div>
         </div>
       </DialogContent>
@@ -726,12 +591,10 @@ function NotesModal({ open, lead, onClose, onSave }: {
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader><DialogTitle className="text-lg">Notes — {lead.name || 'Untitled'}</DialogTitle></DialogHeader>
-        <Textarea value={text} onChange={e => setText(e.target.value)} rows={8}
-          className="text-sm" placeholder="Add notes about this lead..." />
+        <Textarea value={text} onChange={e => setText(e.target.value)} rows={8} className="text-sm" placeholder="Add notes about this lead..." />
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" onClick={() => { onSave(lead.id, text); onClose(); }}
-            className="bg-[#0073EA] hover:bg-[#0060C0] text-white">Save Notes</Button>
+          <Button size="sm" onClick={() => { onSave(lead.id, text); onClose(); }} className="bg-[#0073EA] hover:bg-[#0060C0] text-white">Save Notes</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -741,52 +604,31 @@ function NotesModal({ open, lead, onClose, onSave }: {
 // ─── Mass Email Modal ─────────────────────────────────────────────────────────
 
 function MassEmailModal({ open, selectedLeads, leads, onClose, onSent }: {
-  open: boolean;
-  selectedLeads: Set<string>;
-  leads: Lead[];
-  onClose: () => void;
-  onSent: () => void;
+  open: boolean; selectedLeads: Set<string>; leads: Lead[]; onClose: () => void; onSent: () => void;
 }) {
   const [subject, setSubject] = useState('Checking in - E8 Productions');
   const [body, setBody] = useState('Hi {name},\n\nHope you are doing well!\n\nBest,\nYour Name');
   const [sending, setSending] = useState(false);
-
   const selectedCount = selectedLeads.size;
 
   const handleSend = async () => {
-    if (!subject.trim() || !body.trim()) {
-      toast.error('Subject and body are required');
-      return;
-    }
-
+    if (!subject.trim() || !body.trim()) { toast.error('Subject and body are required'); return; }
     setSending(true);
     try {
       const res = await fetch('/api/sales-leads/bulk-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadIds: Array.from(selectedLeads),
-          subject,
-          body
-        })
+        body: JSON.stringify({ leadIds: Array.from(selectedLeads), subject, body })
       });
       const data = await res.json();
       if (data.ok) {
         toast.success(`Sent ${data.results.success} emails successfully!`);
-        if (data.results.failed > 0) {
-          toast.warning(`${data.results.failed} emails failed. Check console for details.`);
-          console.error('Bulk email errors:', data.results.errors);
-        }
-        onSent();
-        onClose();
-      } else {
-        throw new Error(data.message || 'Failed to send bulk emails');
-      }
+        if (data.results.failed > 0) { toast.warning(`${data.results.failed} emails failed.`); }
+        onSent(); onClose();
+      } else throw new Error(data.message || 'Failed to send bulk emails');
     } catch (err: any) {
       toast.error(err.message || 'Failed to send bulk emails');
-    } finally {
-      setSending(false);
-    }
+    } finally { setSending(false); }
   };
 
   return (
@@ -794,51 +636,33 @@ function MassEmailModal({ open, selectedLeads, leads, onClose, onSent }: {
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
-              <Mail className="h-5 w-5" />
-            </div>
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600"><Mail className="h-5 w-5" /></div>
             Send Mass Email
           </DialogTitle>
         </DialogHeader>
-
         <div className="space-y-4 py-4">
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-800 flex items-start gap-3">
             <InfoIcon className="h-4 w-4 mt-0.5 shrink-0" />
             <div>
               <p className="font-semibold">Recipients: {selectedCount} leads selected</p>
-              <p className="text-blue-600/80 text-[12px]">Use <code className="bg-blue-100 px-1 rounded">{"{name}"}</code> or <code className="bg-blue-100 px-1 rounded">{"{company}"}</code> to personalize your message.</p>
+              <p className="text-blue-600/80 text-[12px]">Use <code className="bg-blue-100 px-1 rounded">{"{name}"}</code> or <code className="bg-blue-100 px-1 rounded">{"{company}"}</code> to personalize.</p>
             </div>
           </div>
-
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Subject Line</label>
             <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Email Subject..." className="h-10" />
           </div>
-
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Message Body</label>
-            <Textarea
-              value={body}
-              onChange={e => setBody(e.target.value)}
-              rows={12}
-              className="font-sans text-[13px] leading-relaxed resize-none p-4"
-              placeholder="Write your message here..."
-            />
+            <Textarea value={body} onChange={e => setBody(e.target.value)} rows={12}
+              className="font-sans text-[13px] leading-relaxed resize-none p-4" placeholder="Write your message here..." />
           </div>
         </div>
-
         <div className="flex justify-between items-center bg-gray-50 -mx-6 -mb-6 p-4 rounded-b-lg border-t">
-          <div className="text-[11px] text-gray-400 font-medium whitespace-nowrap overflow-hidden text-ellipsis mr-4">
-            Emails sent via professional SMTP.
-          </div>
+          <div className="text-[11px] text-gray-400 font-medium">Emails sent via professional SMTP.</div>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" size="sm" onClick={onClose} disabled={sending}>Cancel</Button>
-            <Button
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-500 text-white gap-2 font-bold min-w-[120px]"
-              onClick={handleSend}
-              disabled={sending}
-            >
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-500 text-white gap-2 font-bold min-w-[120px]" onClick={handleSend} disabled={sending}>
               {sending ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</> : <><Send className="h-4 w-4" /> Send Now</>}
             </Button>
           </div>
@@ -855,9 +679,8 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
   onUpdate: (id: string, patch: Partial<Lead>) => void;
 }) {
   if (!lead) return null;
-  const linkedinLead = lead.metadata?.linkedinLead;
-  const profileUrl = lead.profileUrl || linkedinLead?.profileUrl || '';
-  const postUrl = lead.postUrl || linkedinLead?.postUrl || '';
+  const profileUrl = lead.profileUrl || '';
+  const postUrl = lead.postUrl || '';
   return (
     <Sheet open={!!lead} onOpenChange={v => !v && onClose()}>
       <SheetContent className="w-[420px] sm:w-[480px] overflow-y-auto p-0 border-l-4"
@@ -868,78 +691,57 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
               <div className="w-2 h-8 rounded-full" style={{ backgroundColor: STATUS_GROUPS.find(s => s.id === lead.status)?.color }} />
               Lead Profile
             </SheetTitle>
-            {lead._committing && (
-              <div className="flex items-center gap-1.5 text-[#0073EA] text-xs font-medium">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
-              </div>
-            )}
-            {lead._dirty && !lead._committing && (
-              <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 animate-pulse text-xs">Saving soon…</Badge>
-            )}
-            {!lead._dirty && !lead._committing && lead._saved && (
-              <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-xs"><Check className="h-3 w-3 mr-1" />Saved</Badge>
-            )}
+            {lead._committing && <div className="flex items-center gap-1.5 text-[#0073EA] text-xs font-medium"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</div>}
+            {lead._dirty && !lead._committing && <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 animate-pulse text-xs">Saving soon…</Badge>}
+            {!lead._dirty && !lead._committing && lead._saved && <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-xs"><Check className="h-3 w-3 mr-1" />Saved</Badge>}
           </div>
         </SheetHeader>
-
         <div className="p-6 space-y-6">
-          {/* Identity */}
           <div className="space-y-3">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Details</h3>
             <div className="space-y-2 bg-gray-50/50 p-4 rounded-lg border border-gray-100">
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Full Name</label>
-                <Input value={lead.name} onChange={e => onUpdate(lead.id, { name: e.target.value })}
-                  className="h-9 text-sm bg-white" placeholder="John Doe" />
+                <Input value={lead.name} onChange={e => onUpdate(lead.id, { name: e.target.value })} className="h-9 text-sm bg-white" placeholder="John Doe" />
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Company</label>
-                <Input value={lead.company} onChange={e => onUpdate(lead.id, { company: e.target.value })}
-                  className="h-9 text-sm bg-white" placeholder="Acme Inc." />
+                <Input value={lead.company} onChange={e => onUpdate(lead.id, { company: e.target.value })} className="h-9 text-sm bg-white" placeholder="Acme Inc." />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-gray-500">Email</label>
-                  <Input value={lead.email} onChange={e => onUpdate(lead.id, { email: e.target.value })}
-                    className="h-9 text-sm bg-white" placeholder="email@example.com" />
+                  <Input value={lead.email} onChange={e => onUpdate(lead.id, { email: e.target.value })} className="h-9 text-sm bg-white" placeholder="email@example.com" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-gray-500">Phone</label>
-                  <Input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })}
-                    className="h-9 text-sm bg-white" placeholder="+1 ..." />
+                  <Input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })} className="h-9 text-sm bg-white" placeholder="+1 ..." />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-gray-500">Social Handles</label>
-                  <Input value={lead.socials} onChange={e => onUpdate(lead.id, { socials: e.target.value })}
-                    className="h-9 text-sm bg-white" placeholder="@instagram, facebook.com/..." />
+                  <Input value={lead.socials} onChange={e => onUpdate(lead.id, { socials: e.target.value })} className="h-9 text-sm bg-white" placeholder="@instagram, facebook.com/..." />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-gray-500">Source</label>
-                  <Input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })}
-                    className="h-9 text-sm bg-white" placeholder="Referral, Ads..." />
+                  <Input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })} className="h-9 text-sm bg-white" placeholder="Referral, Ads..." />
                 </div>
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Deal Value ($)</label>
-                  <Input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
-                  className="h-9 text-sm bg-white" placeholder="0" />
+                <Input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })} className="h-9 text-sm bg-white" placeholder="0" />
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Profile Link</label>
-                <Input value={profileUrl} onChange={e => onUpdate(lead.id, { profileUrl: e.target.value })}
-                  className="h-9 text-sm bg-white" placeholder="https://www.linkedin.com/in/..." />
+                <Input value={profileUrl} onChange={e => onUpdate(lead.id, { profileUrl: e.target.value })} className="h-9 text-sm bg-white" placeholder="https://..." />
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Post Link</label>
-                <Input value={postUrl} onChange={e => onUpdate(lead.id, { postUrl: e.target.value })}
-                  className="h-9 text-sm bg-white" placeholder="https://www.linkedin.com/feed/update/..." />
+                <Input value={postUrl} onChange={e => onUpdate(lead.id, { postUrl: e.target.value })} className="h-9 text-sm bg-white" placeholder="https://..." />
               </div>
             </div>
           </div>
-
-          {/* Pipeline */}
           <div className="space-y-3">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Pipeline</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -953,82 +755,6 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
               </div>
             </div>
           </div>
-
-          {linkedinLead && (
-            <div className="space-y-3">
-              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">LinkedIn Context</h3>
-              <div className="space-y-3 bg-cyan-50/60 p-4 rounded-lg border border-cyan-100">
-                <div className="flex flex-wrap gap-2">
-                  {linkedinLead.keyword && (
-                    <Badge variant="outline" className="bg-white border-cyan-200 text-cyan-700">
-                      Keyword: {linkedinLead.keyword}
-                    </Badge>
-                  )}
-                  {linkedinLead.confidence && (
-                    <Badge variant="outline" className="bg-white border-cyan-200 text-cyan-700">
-                      Confidence: {linkedinLead.confidence}
-                    </Badge>
-                  )}
-                  {linkedinLead.niche && (
-                    <Badge variant="outline" className="bg-white border-cyan-200 text-cyan-700">
-                      Niche: {linkedinLead.niche}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {profileUrl ? (
-                    <a
-                      href={profileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-cyan-700 hover:text-cyan-800"
-                    >
-                      <LinkIcon className="h-3.5 w-3.5" />
-                      Open profile
-                    </a>
-                  ) : (
-                    <span className="text-gray-400">No profile URL</span>
-                  )}
-                  {postUrl ? (
-                    <a
-                      href={postUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-cyan-700 hover:text-cyan-800"
-                    >
-                      <LinkIcon className="h-3.5 w-3.5" />
-                      Open source post
-                    </a>
-                  ) : (
-                    <span className="text-gray-400">No source post URL</span>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-gray-500">Detected Need</label>
-                  <Textarea value={linkedinLead.detectedNeed || '—'} readOnly rows={2} className="text-sm bg-white resize-none" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-gray-500">Matched Service</label>
-                  <Textarea value={linkedinLead.matchedService || '—'} readOnly rows={2} className="text-sm bg-white resize-none" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-gray-500">Suggested Outreach</label>
-                  <Textarea value={linkedinLead.suggestedMessage || '—'} readOnly rows={4} className="text-sm bg-white resize-none" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-gray-500">Source Post</label>
-                  <Textarea value={linkedinLead.postText || '—'} readOnly rows={5} className="text-sm bg-white resize-none" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Contact Actions */}
           <div className="space-y-3">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contact Actions</h3>
             <div className="grid grid-cols-3 gap-y-4 gap-x-2 text-center p-3 bg-gray-50 rounded-lg border">
@@ -1050,15 +776,10 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
               ))}
             </div>
           </div>
-
-          {/* Notes preview */}
           <div className="space-y-3">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Notes</h3>
-            <Textarea value={lead.notes} onChange={e => onUpdate(lead.id, { notes: e.target.value })}
-              rows={4} className="text-sm" placeholder="Add notes..." />
+            <Textarea value={lead.notes} onChange={e => onUpdate(lead.id, { notes: e.target.value })} rows={4} className="text-sm" placeholder="Add notes..." />
           </div>
-
-          {/* Timestamps */}
           {lead._saved && (
             <div className="space-y-3">
               <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Timestamps</h3>
@@ -1076,9 +797,7 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
 
 // ─── Column Visibility Toggle ─────────────────────────────────────────────────
 
-function ColumnToggle({
-  visible, setVisible, allCols, onAdd, onDelete
-}: {
+function ColumnToggle({ visible, setVisible, allCols, onAdd, onDelete }: {
   visible: string[]; setVisible: (v: string[]) => void;
   allCols: any[]; onAdd: (name: string, label: string, type: string) => void;
   onDelete: (id: string, name: string) => void;
@@ -1088,7 +807,7 @@ function ColumnToggle({
 
   const handleAdd = () => {
     if (!newCol.label.trim()) return;
-    const name = newCol.label.toLowerCase().replace(/[^a-z0-0]/g, '_') + '_' + Math.random().toString(36).substr(2, 4);
+    const name = newCol.label.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Math.random().toString(36).substr(2, 4);
     onAdd(name, newCol.label, newCol.type);
     setNewCol({ label: '', type: 'text' });
     setIsAdding(false);
@@ -1098,29 +817,20 @@ function ColumnToggle({
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5 text-xs border-gray-200 text-gray-600 hover:bg-gray-50 h-8">
-          <Columns3 className="h-3.5 w-3.5" />
-          Columns
+          <Columns3 className="h-3.5 w-3.5" />Columns
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[240px] p-0 overflow-hidden shadow-xl border-gray-200" align="end">
         <div className="p-3 bg-gray-50 border-b">
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Dashboard Columns</p>
         </div>
-
         <div className="max-h-[300px] overflow-y-auto p-2 space-y-0.5">
           {allCols.map(col => (
             <div key={col.id} className="flex items-center justify-between group/col px-2 py-1.5 rounded hover:bg-gray-50 transition-colors">
               <label className="flex items-center gap-2 flex-1 cursor-pointer text-[13px]">
-                <input
-                  type="checkbox"
-                  checked={visible.includes(col.id)}
-                  onChange={() => {
-                    setVisible(visible.includes(col.id)
-                      ? visible.filter(c => c !== col.id)
-                      : [...visible, col.id]);
-                  }}
-                  className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA]"
-                />
+                <input type="checkbox" checked={visible.includes(col.id)}
+                  onChange={() => setVisible(visible.includes(col.id) ? visible.filter(c => c !== col.id) : [...visible, col.id])}
+                  className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA]" />
                 <span className={cn(col.isCustom ? "text-[#0073EA] font-medium" : "text-gray-700")}>{col.label}</span>
               </label>
               {col.isCustom && (
@@ -1132,7 +842,6 @@ function ColumnToggle({
             </div>
           ))}
         </div>
-
         <div className="p-3 border-t bg-white">
           {!isAdding ? (
             <button onClick={() => setIsAdding(true)}
@@ -1169,20 +878,14 @@ function BulkActionToolbar({ count, onClear, onMassEmail }: { count: number; onC
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="flex items-center gap-4 bg-gray-900 text-white px-6 py-3 rounded-2xl shadow-2xl border border-white/20 backdrop-blur-md">
         <div className="flex items-center gap-2 border-r border-white/20 pr-4">
-          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white shadow-lg shadow-blue-500/30">
-            {count}
-          </div>
+          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white shadow-lg shadow-blue-500/30">{count}</div>
           <span className="text-sm font-bold tracking-tight">SELECTED</span>
         </div>
-
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={onMassEmail} className="bg-blue-600 hover:bg-blue-500 text-white gap-2 font-bold px-4 h-9 shadow-lg shadow-blue-600/20">
-            <Mail className="h-4 w-4" />
-            Send Mass Email
+            <Mail className="h-4 w-4" />Send Mass Email
           </Button>
-          <button onClick={onClear} className="text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider px-2 transition-colors">
-            Cancel
-          </button>
+          <button onClick={onClear} className="text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider px-2 transition-colors">Cancel</button>
         </div>
       </div>
     </div>
@@ -1201,26 +904,18 @@ function GroupHeader({ group, count, collapsed, onToggle, onAddItem, onSelectAll
     <>
       <td className="w-[40px] px-2 py-2 sticky left-0 z-[3] bg-gray-50 border-b border-gray-100" style={{ borderLeft: `3px solid ${group.color}` }}>
         <div className="flex items-center justify-center">
-          <input
-            type="checkbox"
-            checked={isAllSelected}
-            onChange={e => { e.stopPropagation(); onSelectAll(); }}
-            className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
-          />
+          <input type="checkbox" checked={isAllSelected} onChange={e => { e.stopPropagation(); onSelectAll(); }}
+            className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer" />
         </div>
       </td>
       <td colSpan={colCount + 1} className="px-3 py-2 bg-gray-50 select-none group/gh">
         <div className="flex items-center gap-2">
-          <button onClick={onToggle} className="flex items-center gap-1.5 font-semibold text-[15px] hover:opacity-80 transition-opacity"
-            style={{ color: group.color }}>
+          <button onClick={onToggle} className="flex items-center gap-1.5 font-semibold text-[15px] hover:opacity-80 transition-opacity" style={{ color: group.color }}>
             <ChevronRight className={cn("h-4 w-4 transition-transform", !collapsed && "rotate-90")} />
             {group.label}
-            <span className="text-[12px] font-normal text-gray-400 ml-1">
-              {count} {count === 1 ? 'item' : 'items'}
-            </span>
+            <span className="text-[12px] font-normal text-gray-400 ml-1">{count} {count === 1 ? 'item' : 'items'}</span>
           </button>
-          <button onClick={onAddItem}
-            className="opacity-0 group-hover/gh:opacity-100 transition-opacity h-5 w-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
+          <button onClick={onAddItem} className="opacity-0 group-hover/gh:opacity-100 transition-opacity h-5 w-5 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center">
             <Plus className="h-3 w-3 text-gray-500" />
           </button>
         </div>
@@ -1237,8 +932,7 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
   return (
     <tr className="bg-gray-50/60 border-t-2" style={{ borderTopColor: groupColor + '40' }}>
       <td className="w-[40px] sticky left-0 z-[3] bg-gray-50/60 border-t-2 border-b border-gray-100" style={{ borderLeft: `3px solid ${groupColor}` }} />
-      <td className="px-3 py-2 text-[11px] font-semibold text-gray-400 sticky left-[40px] bg-gray-50/60 z-[2] border-t-2 border-b border-gray-100"
-        style={{ boxShadow: '1px 0 0 0 #f3f4f6' }}>
+      <td className="px-3 py-2 text-[11px] font-semibold text-gray-400 sticky left-[40px] bg-gray-50/60 z-[2] border-t-2 border-b border-gray-100" style={{ boxShadow: '1px 0 0 0 #f3f4f6' }}>
         {saved.length} {saved.length === 1 ? 'lead' : 'leads'}
       </td>
       {visibleCols.filter(c => c !== 'name').map(colId => (
@@ -1246,11 +940,10 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
           {colId === 'value' ? `$${saved.reduce((s, l) => s + (l.value ?? 0), 0).toLocaleString()}` :
             colId === 'activity' ? (() => { const n = saved.reduce((s, l) => s + parseActivities(l.metadata?.__activities).length, 0); return n || ''; })() :
             colId === 'instagram' ? saved.filter(l => l.instagram).length || '' :
-              colId === 'facebook' ? saved.filter(l => l.facebook).length || '' :
-                colId === 'linkedin' ? saved.filter(l => l.linkedin).length || '' :
-                  colId === 'twitter' ? saved.filter(l => l.twitter).length || '' :
-                    colId === 'tiktok' ? saved.filter(l => l.tiktok).length || '' :
-                      ''}
+            colId === 'facebook' ? saved.filter(l => l.facebook).length || '' :
+            colId === 'linkedin' ? saved.filter(l => l.linkedin).length || '' :
+            colId === 'twitter' ? saved.filter(l => l.twitter).length || '' :
+            colId === 'tiktok' ? saved.filter(l => l.tiktok).length || '' : ''}
         </td>
       ))}
       <td />
@@ -1258,7 +951,7 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
   );
 }
 
-// ─── Lead Row (memoized — only re-renders when THIS lead changes) ─────────────
+// ─── Lead Row ─────────────────────────────────────────────────────────────────
 
 interface LeadRowProps {
   lead: Lead;
@@ -1273,20 +966,13 @@ interface LeadRowProps {
   onOpenDrawer: (lead: Lead) => void;
 }
 
-const LeadRow = memo(function LeadRow({
-  lead, isSelected, activeColumns, customColumns,
-  groupColor, onUpdate, onDelete, onSelect, onOpenNotes, onOpenDrawer,
-}: LeadRowProps) {
+const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customColumns, groupColor, onUpdate, onDelete, onSelect, onOpenNotes, onOpenDrawer }: LeadRowProps) {
   const isWorking = lead._committing;
   return (
     <tr className={cn('group hover:bg-[#F0F7FF] transition-colors', isSelected && 'bg-blue-50/50')}>
-      <td className="w-[40px] px-0 py-0 sticky left-0 z-[3] bg-white group-hover:bg-[#F0F7FF] transition-colors border-b border-gray-100"
-        style={{ borderLeft: `3px solid ${groupColor}` }}>
+      <td className="w-[40px] px-0 py-0 sticky left-0 z-[3] bg-white group-hover:bg-[#F0F7FF] transition-colors border-b border-gray-100" style={{ borderLeft: `3px solid ${groupColor}` }}>
         <div className="flex items-center justify-center h-[38px]">
-          {lead._saved && (
-            <input type="checkbox" checked={isSelected} onChange={() => onSelect(lead.id)}
-              className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer" />
-          )}
+          {lead._saved && <input type="checkbox" checked={isSelected} onChange={() => onSelect(lead.id)} className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer" />}
         </div>
       </td>
       <td className={cn('px-0 py-0 sticky left-[40px] bg-white group-hover:bg-[#F0F7FF] z-[2] transition-colors border-b border-gray-100', CORE_COLUMNS[0].width)}
@@ -1294,8 +980,7 @@ const LeadRow = memo(function LeadRow({
         <div className="flex items-center h-[38px]">
           <input value={lead.name} onChange={e => onUpdate(lead.id, { name: e.target.value })}
             placeholder="+ Add lead" className="flex-1 h-full px-3 bg-transparent outline-none text-[13px] font-medium placeholder:text-gray-300 placeholder:font-normal" />
-          <button onClick={() => onOpenDrawer(lead)}
-            className="opacity-0 group-hover:opacity-100 transition-opacity px-1.5 mr-1 text-gray-400 hover:text-[#0073EA]">
+          <button onClick={() => onOpenDrawer(lead)} className="opacity-0 group-hover:opacity-100 transition-opacity px-1.5 mr-1 text-gray-400 hover:text-[#0073EA]">
             <InfoIcon className="h-3.5 w-3.5" />
           </button>
           {isWorking && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0073EA] mr-2" />}
@@ -1303,56 +988,22 @@ const LeadRow = memo(function LeadRow({
       </td>
       {activeColumns.filter(c => c.id !== 'name').map(col => (
         <td key={col.id}
-          style={col.minPx ? {
-            width: col.minPx, minWidth: col.minPx,
-            ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6' } : {})
-          } : undefined}
-          className={cn(
-            'px-1.5 py-1 border-b border-gray-100 last:border-r-0',
-            col.id === 'company' ? 'sticky left-[260px] bg-white group-hover:bg-[#F0F7FF] z-[1]' : 'border-r border-gray-100',
-            col.width
-          )}>
-          {col.id === 'company' && (
-            <input value={lead.company} onChange={e => onUpdate(lead.id, { company: e.target.value })}
-              placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
+          style={col.minPx ? { width: col.minPx, minWidth: col.minPx, ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6' } : {}) } : undefined}
+          className={cn('px-1.5 py-1 border-b border-gray-100 last:border-r-0',
+            col.id === 'company' ? 'sticky left-[260px] bg-white group-hover:bg-[#F0F7FF] z-[1]' : 'border-r border-gray-100', col.width)}>
+          {col.id === 'company' && <input value={lead.company} onChange={e => onUpdate(lead.id, { company: e.target.value })} placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
           {col.id === 'status' && <StatusPill value={lead.status} onChange={v => onUpdate(lead.id, { status: v })} />}
           {col.id === 'priority' && <PriorityPill value={lead.priority} onChange={v => onUpdate(lead.id, { priority: v })} />}
-          {col.id === 'email' && (
-            <input value={lead.email} onChange={e => onUpdate(lead.id, { email: e.target.value })}
-              placeholder="—" type="email" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'phone' && (
-            <input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })}
-              placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'socials' && (
-            <SocialCell value={lead.socials} onUpdate={patch => onUpdate(lead.id, patch)} />
-          )}
-          {col.id === 'profileUrl' && (
-            <LeadLinkCell href={lead.profileUrl} label="Profile" />
-          )}
-          {col.id === 'postUrl' && (
-            <LeadLinkCell href={lead.postUrl} label="Post" />
-          )}
-          {col.id === 'value' && (
-            <input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })}
-              placeholder="$0" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] text-center placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'source' && (
-            <input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })}
-              placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />
-          )}
-          {col.id === 'activity' && (
-            <ActivityCell
-              value={parseActivities(lead.metadata?.__activities)}
-              onUpdate={patch => onUpdate(lead.id, { ...patch, metadata: { ...lead.metadata, ...(patch.metadata as any) } })}
-            />
-          )}
+          {col.id === 'email' && <input value={lead.email} onChange={e => onUpdate(lead.id, { email: e.target.value })} placeholder="—" type="email" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
+          {col.id === 'phone' && <input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })} placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
+          {col.id === 'socials' && <SocialCell value={lead.socials} onUpdate={patch => onUpdate(lead.id, patch)} />}
+          {col.id === 'profileUrl' && <LeadLinkCell href={lead.profileUrl} label="Profile" />}
+          {col.id === 'postUrl' && <LeadLinkCell href={lead.postUrl} label="Post" />}
+          {col.id === 'value' && <input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })} placeholder="$0" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] text-center placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
+          {col.id === 'source' && <input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })} placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
+          {col.id === 'activity' && <ActivityCell value={parseActivities(lead.metadata?.__activities)} onUpdate={patch => onUpdate(lead.id, { ...patch, metadata: { ...lead.metadata, ...(patch.metadata as any) } })} />}
           {col.id === 'notes' && (
-            <button onClick={() => onOpenNotes(lead)}
-              className={cn('w-full text-left text-[11px] px-2 py-1.5 rounded transition-colors truncate max-w-[120px]',
-                lead.notes ? 'text-[#323338] bg-[#F5F6F8] hover:bg-gray-200' : 'text-gray-300 hover:bg-[#F5F6F8]')}>
+            <button onClick={() => onOpenNotes(lead)} className={cn('w-full text-left text-[11px] px-2 py-1.5 rounded transition-colors truncate max-w-[120px]', lead.notes ? 'text-[#323338] bg-[#F5F6F8] hover:bg-gray-200' : 'text-gray-300 hover:bg-[#F5F6F8]')}>
               {lead.notes ? lead.notes.slice(0, 30) : '+ Add'}
             </button>
           )}
@@ -1361,22 +1012,16 @@ const LeadRow = memo(function LeadRow({
               {customColumns.find(cc => cc.name === col.id)?.type === 'checkbox' ? (
                 <MondayTick checked={!!lead.metadata?.[col.id]} onChange={v => onUpdate(lead.id, { metadata: { ...lead.metadata, [col.id]: v } })} />
               ) : (
-                <input
-                  type={customColumns.find(cc => cc.name === col.id)?.type === 'number' ? 'number' : 'text'}
-                  value={lead.metadata?.[col.id] ?? ''}
-                  onChange={e => onUpdate(lead.id, { metadata: { ...lead.metadata, [col.id]: e.target.value } })}
-                  placeholder="—"
-                  className={cn('w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded',
-                    customColumns.find(cc => cc.name === col.id)?.type === 'number' && 'text-center')}
-                />
+                <input type={customColumns.find(cc => cc.name === col.id)?.type === 'number' ? 'number' : 'text'}
+                  value={lead.metadata?.[col.id] ?? ''} onChange={e => onUpdate(lead.id, { metadata: { ...lead.metadata, [col.id]: e.target.value } })}
+                  placeholder="—" className={cn('w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded', customColumns.find(cc => cc.name === col.id)?.type === 'number' && 'text-center')} />
               )}
             </div>
           )}
         </td>
       ))}
       <td className="px-1 py-1">
-        <button onClick={() => onDelete(lead.id)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-[#E2445C] rounded hover:bg-red-50">
+        <button onClick={() => onDelete(lead.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-[#E2445C] rounded hover:bg-red-50">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </td>
@@ -1400,44 +1045,29 @@ export function SalesDashboard() {
   const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [massEmailModal, setMassEmailModal] = useState(false);
-  const [linkedinJob, setLinkedinJob] = useState<LinkedinLeadGenerationJob | null>(null);
-  const [startingLinkedinJob, setStartingLinkedinJob] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
   const openNotes = useCallback((lead: Lead) => setNotesModal({ open: true, lead }), []);
   const openDrawer = useCallback((lead: Lead) => setDrawerLead(lead), []);
 
-  // ── Selection Logic ──
   const toggleSelect = useCallback((id: string) => {
-    setSelectedLeads(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedLeads(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }, []);
 
   const selectAllGlobal = () => {
     const saved = leads.filter(l => l._saved);
-    if (selectedLeads.size === saved.length) {
-      setSelectedLeads(new Set());
-    } else {
-      setSelectedLeads(new Set(saved.map(l => l.id)));
-    }
+    if (selectedLeads.size === saved.length) setSelectedLeads(new Set());
+    else setSelectedLeads(new Set(saved.map(l => l.id)));
   };
 
   const selectAllInGroup = (groupId: string) => {
-    const groupLeads = leads.filter(l => l.status === groupId && l._saved);
-    const groupIds = groupLeads.map(l => l.id);
+    const groupIds = leads.filter(l => l.status === groupId && l._saved).map(l => l.id);
     setSelectedLeads(prev => {
       const next = new Set(prev);
       const allSelected = groupIds.every(id => next.has(id));
-      if (allSelected) {
-        groupIds.forEach(id => next.delete(id));
-      } else {
-        groupIds.forEach(id => next.add(id));
-      }
+      if (allSelected) groupIds.forEach(id => next.delete(id));
+      else groupIds.forEach(id => next.add(id));
       return next;
     });
   };
@@ -1445,25 +1075,16 @@ export function SalesDashboard() {
   const leadsRef = useRef<Lead[]>([]);
   leadsRef.current = leads;
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const lastObservedLinkedinJob = useRef<{ id: string; status: string } | null>(null);
-  const refreshedCompletedJobId = useRef<string | null>(null);
 
   const loadDashboardData = useCallback(async ({ signal, silent = false }: { signal?: AbortSignal; silent?: boolean } = {}) => {
     try {
       const res = await fetch('/api/sales-leads', { signal });
       const data = await res.json();
       if (data.ok) {
-        const pendingLocal = new Map(
-          leadsRef.current
-            .filter(l => !l._saved || l._dirty || l._committing)
-            .map(l => [l.id, l] as const),
-        );
-        const saved = data.leads
-          .map(dbLeadToLocal)
-          .map((lead: Lead) => pendingLocal.get(lead.id) ?? lead);
+        const pendingLocal = new Map(leadsRef.current.filter(l => !l._saved || l._dirty || l._committing).map(l => [l.id, l] as const));
+        const saved = data.leads.map(dbLeadToLocal).map((lead: Lead) => pendingLocal.get(lead.id) ?? lead);
         const drafts = Array.from(pendingLocal.values()).filter(lead => !lead._saved);
         const nextLeads = drafts.length > 0 ? [...saved, ...drafts] : [...saved, emptyDraftLead()];
-
         setLeads(nextLeads.length > 0 ? nextLeads : [emptyDraftLead()]);
         setCustomColumns(data.columns || []);
         if (data.columns) {
@@ -1479,72 +1100,12 @@ export function SalesDashboard() {
     }
   }, []);
 
-  const loadLinkedinJob = useCallback(async ({ quiet = false }: { quiet?: boolean } = {}) => {
-    try {
-      const res = await fetch('/api/sales-leads/linkedin/generate', { cache: 'no-store' });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.message || 'Failed to load LinkedIn lead job');
-
-      const nextJob = data.job as LinkedinLeadGenerationJob | null;
-      const previousJob = lastObservedLinkedinJob.current;
-
-      if (
-        (nextJob?.status === 'COMPLETED' || nextJob?.status === 'PARTIAL_SUCCESS') &&
-        nextJob.id !== refreshedCompletedJobId.current
-      ) {
-        refreshedCompletedJobId.current = nextJob.id;
-        await loadDashboardData({ silent: true });
-      }
-
-      if (nextJob && previousJob && previousJob.id === nextJob.id && previousJob.status !== nextJob.status) {
-        if (nextJob.status === 'COMPLETED') {
-          toast.success(
-            `LinkedIn leads ready: ${nextJob.importedLeads || 0} imported, ${nextJob.duplicateLeads || 0} skipped as duplicates.`,
-          );
-        } else if (nextJob.status === 'PARTIAL_SUCCESS') {
-          toast.message(
-            nextJob.providerMessage ||
-              `LinkedIn imported ${nextJob.importedLeads || 0} leads, but some searches need review.`,
-          );
-        } else if (nextJob.status === 'NO_RESULTS') {
-          toast.message(
-            nextJob.providerMessage || 'LinkedIn search finished, but there were no qualified leads to import.',
-          );
-        } else if (nextJob.status === 'PLATFORM_DRIFT' || nextJob.status === 'ANTI_BOT') {
-          toast.error(nextJob.providerMessage || nextJob.errorMessage || 'LinkedIn lead generation needs attention');
-        } else if (nextJob.status === 'FAILED') {
-          toast.error(nextJob.errorMessage || 'LinkedIn lead generation failed');
-        }
-      }
-
-      lastObservedLinkedinJob.current = nextJob ? { id: nextJob.id, status: nextJob.status } : null;
-      setLinkedinJob(nextJob);
-    } catch (err: any) {
-      if (!quiet) toast.error(err.message || 'Failed to load LinkedIn lead status');
-    }
-  }, [loadDashboardData]);
-
-  // ── Load leads & columns ──
   useEffect(() => {
     const controller = new AbortController();
-    (async () => {
-      await loadDashboardData({ signal: controller.signal });
-      await loadLinkedinJob({ quiet: true });
-    })();
+    loadDashboardData({ signal: controller.signal });
     return () => controller.abort();
-  }, [loadDashboardData, loadLinkedinJob]);
+  }, [loadDashboardData]);
 
-  useEffect(() => {
-    if (!isLinkedinLeadJobActive(linkedinJob)) return;
-
-    const interval = setInterval(() => {
-      void loadLinkedinJob({ quiet: true });
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [linkedinJob, loadLinkedinJob]);
-
-  // Keep drawer synced
   useEffect(() => {
     if (drawerLead) {
       const live = leadsRef.current.find(l => l.id === drawerLead.id);
@@ -1552,7 +1113,6 @@ export function SalesDashboard() {
     }
   }, [leads]);
 
-  // ── Persist lead ──
   const persistLead = useCallback(async (lead: Lead) => {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, _committing: true } : l));
     const body = {
@@ -1575,9 +1135,7 @@ export function SalesDashboard() {
         const res = await fetch('/api/sales-leads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();
         if (!data.ok) throw new Error(data.message || 'Failed');
-        setLeads(prev => prev.map(l => l.id === lead.id
-          ? { ...l, id: data.lead.id, _saved: true, _dirty: false, _committing: false, createdAt: data.lead.createdAt, updatedAt: data.lead.updatedAt }
-          : l));
+        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, id: data.lead.id, _saved: true, _dirty: false, _committing: false, createdAt: data.lead.createdAt, updatedAt: data.lead.updatedAt } : l));
       } else {
         const res = await fetch(`/api/sales-leads/${lead.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();
@@ -1590,7 +1148,6 @@ export function SalesDashboard() {
     }
   }, []);
 
-  // ── Auto-save debounce ──
   const scheduleAutoSave = useCallback((id: string) => {
     if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
     saveTimers.current[id] = setTimeout(() => {
@@ -1606,9 +1163,7 @@ export function SalesDashboard() {
     scheduleAutoSave(id);
   }, [scheduleAutoSave]);
 
-  const addRow = useCallback((status = 'NEW') => {
-    setLeads(prev => [...prev, emptyDraftLead(status)]);
-  }, []);
+  const addRow = useCallback((status = 'NEW') => setLeads(prev => [...prev, emptyDraftLead(status)]), []);
 
   const deleteRow = useCallback(async (id: string) => {
     const lead = leadsRef.current.find(l => l.id === id);
@@ -1619,47 +1174,13 @@ export function SalesDashboard() {
     catch { toast.error('Failed to delete'); }
   }, []);
 
-  const handleGenerateLinkedinLeads = useCallback(async () => {
-    try {
-      setStartingLinkedinJob(true);
-      const res = await fetch('/api/sales-leads/linkedin/generate', { method: 'POST' });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.message || 'Failed to start LinkedIn lead generation');
+  const toggleGroup = (id: string) => setCollapsedGroups(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
-      const job = data.job as LinkedinLeadGenerationJob;
-      setLinkedinJob(job);
-      lastObservedLinkedinJob.current = job ? { id: job.id, status: job.status } : null;
-
-      if (data.alreadyRunning) {
-        toast.message('LinkedIn lead generation is already running');
-      } else {
-        toast.success('LinkedIn lead generation started');
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to start LinkedIn lead generation');
-    } finally {
-      setStartingLinkedinJob(false);
-    }
-  }, []);
-
-  const toggleGroup = (id: string) => {
-    setCollapsedGroups(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
-  };
-
-  // ── Column Management ──
   const addColumn = async (name: string, label: string, type: string) => {
     try {
-      const res = await fetch('/api/sales-columns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, label, type })
-      });
+      const res = await fetch('/api/sales-columns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, label, type }) });
       const data = await res.json();
-      if (data.ok) {
-        setCustomColumns(prev => [...prev, data.column]);
-        setVisibleCols(prev => [...prev, data.column.name]);
-        toast.success(`Column "${label}" added`);
-      }
+      if (data.ok) { setCustomColumns(prev => [...prev, data.column]); setVisibleCols(prev => [...prev, data.column.name]); toast.success(`Column "${label}" added`); }
     } catch { toast.error('Failed to add column'); }
   };
 
@@ -1667,16 +1188,10 @@ export function SalesDashboard() {
     if (!confirm(`Are you sure you want to PERMANENTLY delete the "${colName}" column and all its data?`)) return;
     try {
       const res = await fetch(`/api/sales-columns/${colId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setCustomColumns(prev => prev.filter(c => c.id !== colId));
-        setVisibleCols(prev => prev.filter(c => c !== colName));
-        // Also clean up local lead metadata if you want, or just let it be
-        toast.success('Column deleted');
-      }
+      if (res.ok) { setCustomColumns(prev => prev.filter(c => c.id !== colId)); setVisibleCols(prev => prev.filter(c => c !== colName)); toast.success('Column deleted'); }
     } catch { toast.error('Failed to delete column'); }
   };
 
-  // ── Export CSV ──
   const exportCSV = () => {
     const saved = leads.filter(l => l._saved);
     const headers = ['Name', 'Company', 'Status', 'Priority', 'Email', 'Phone', 'Profile Link', 'Post Link', 'Social Handles', 'Insta', 'FB', 'LI', 'X', 'TT', 'Value ($)', 'Source', 'Activity Log', 'Notes'];
@@ -1696,23 +1211,13 @@ export function SalesDashboard() {
     toast.success('Exported to CSV');
   };
 
-  // ── Filtered + grouped ──
   const filtered = useMemo(() => {
     const q = deferredSearch.toLowerCase();
-    return leads.filter(l =>
-      l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q) ||
-      l.company.toLowerCase().includes(q) || l.socials.toLowerCase().includes(q)
-    );
+    return leads.filter(l => l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q) || l.company.toLowerCase().includes(q) || l.socials.toLowerCase().includes(q));
   }, [leads, deferredSearch]);
 
-  const grouped = useMemo(() => {
-    return STATUS_GROUPS.map(g => ({
-      ...g,
-      leads: filtered.filter(l => l.status === g.id),
-    }));
-  }, [filtered]);
+  const grouped = useMemo(() => STATUS_GROUPS.map(g => ({ ...g, leads: filtered.filter(l => l.status === g.id) })), [filtered]);
 
-  // ── Stats ──
   const saved = leads.filter(l => l._saved);
   const stats = {
     total: saved.length,
@@ -1723,24 +1228,11 @@ export function SalesDashboard() {
   };
 
   const allAvailableColumns = useMemo(() => {
-    const custom = customColumns.map(c => ({
-      id: c.name,
-      label: c.label,
-      width: c.width || 'min-w-[150px] w-[150px]',
-      minPx: undefined,
-      align: (c.type === 'number' || c.type === 'checkbox') ? 'center' as const : 'left' as const,
-      isCustom: true,
-      dbId: c.id
-    }));
+    const custom = customColumns.map(c => ({ id: c.name, label: c.label, width: c.width || 'min-w-[150px] w-[150px]', minPx: undefined, align: (c.type === 'number' || c.type === 'checkbox') ? 'center' as const : 'left' as const, isCustom: true, dbId: c.id }));
     return [...CORE_COLUMNS, ...custom];
   }, [customColumns]);
 
-  const activeColumns = useMemo(() => {
-    return allAvailableColumns.filter(c => visibleCols.includes(c.id));
-  }, [allAvailableColumns, visibleCols]);
-
-  const linkedinJobActive = isLinkedinLeadJobActive(linkedinJob);
-  const linkedinStatusText = getLinkedinStatusText(linkedinJob, startingLinkedinJob);
+  const activeColumns = useMemo(() => allAvailableColumns.filter(c => visibleCols.includes(c.id)), [allAvailableColumns, visibleCols]);
 
   if (loading) {
     return (
@@ -1753,25 +1245,14 @@ export function SalesDashboard() {
     );
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // RENDER
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   return (
     <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
-      {/* ── Top Bar ── */}
+      {/* Top Bar */}
       <div className="relative z-20 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white">
         <div>
           <h1 className="text-[26px] font-bold text-gray-900 tracking-tight">Sales Pipeline</h1>
           <p className="text-[13px] text-gray-400 flex items-center gap-1.5 mt-0.5">
             <Check className="h-3.5 w-3.5 text-[#00C875]" /> Auto-saves 1.5s after changes
-            <span className="text-gray-300">•</span>
-            <span className={cn(
-              'inline-flex items-center gap-1',
-              linkedinJob?.status === 'FAILED' ? 'text-red-500' : 'text-cyan-600'
-            )}>
-              <Sparkles className="h-3.5 w-3.5" />
-              {linkedinStatusText}
-            </span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1781,31 +1262,8 @@ export function SalesDashboard() {
               className="h-8 pl-8 pr-3 rounded-md border border-gray-200 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-[#0073EA]/30 focus:border-[#0073EA] w-[200px]" />
           </div>
           <ColumnToggle visible={visibleCols} setVisible={setVisibleCols} allCols={allAvailableColumns} onAdd={addColumn} onDelete={deleteColumn} />
-          {/* <Button variant="outline" size="sm" onClick={exportCSV} className="gap-1.5 text-xs border-gray-200 text-gray-600 h-8">
-            <Download className="h-3.5 w-3.5" /> Export
-          </Button> */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowImportDialog(true)}
-            className="gap-1.5 text-xs border-green-200 text-green-700 hover:bg-green-50 h-8"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            Import Excel
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleGenerateLinkedinLeads}
-            disabled={startingLinkedinJob || linkedinJobActive}
-            className="gap-1.5 text-xs border-cyan-200 text-cyan-700 hover:bg-cyan-50 h-8"
-          >
-            {startingLinkedinJob || linkedinJobActive ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-            {startingLinkedinJob ? 'Starting...' : linkedinJobActive ? 'Generating...' : 'Generate Leads'}
+          <Button size="sm" variant="outline" onClick={() => setShowImportDialog(true)} className="gap-1.5 text-xs border-green-200 text-green-700 hover:bg-green-50 h-8">
+            <FileSpreadsheet className="h-3.5 w-3.5" />Import Excel
           </Button>
           <Button size="sm" onClick={() => addRow()} className="gap-1.5 text-xs bg-[#0073EA] hover:bg-[#0060C0] text-white h-8">
             <Plus className="h-3.5 w-3.5" /> New Lead
@@ -1813,7 +1271,7 @@ export function SalesDashboard() {
         </div>
       </div>
 
-      {/* ── Stats Bar ── */}
+      {/* Stats Bar */}
       <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Total Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
@@ -1828,36 +1286,26 @@ export function SalesDashboard() {
         ))}
       </div>
 
-      {/* ── Grouped Table ── */}
+      {/* Grouped Table */}
       <div className="relative z-0 isolate rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px] border-separate border-spacing-0">
-            {/* Table header */}
             <thead>
               <tr className="bg-[#F5F6F8]">
                 <th className="w-[40px] px-2 py-2 bg-[#F5F6F8] sticky left-0 z-[4] border-b-2 border-gray-200">
-                  <input
-                    type="checkbox"
-                    checked={selectedLeads.size === leads.filter(l => l._saved).length && leads.filter(l => l._saved).length > 0}
-                    onChange={selectAllGlobal}
-                    className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer"
-                  />
+                  <input type="checkbox" checked={selectedLeads.size === leads.filter(l => l._saved).length && leads.filter(l => l._saved).length > 0}
+                    onChange={selectAllGlobal} className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer" />
                 </th>
-                <th style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #e5e7eb' }} className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider sticky left-[40px] bg-[#F5F6F8] z-[3] border-b-2 border-gray-200",
-                  CORE_COLUMNS[0].width)}>
+                <th style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #e5e7eb' }}
+                  className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider sticky left-[40px] bg-[#F5F6F8] z-[3] border-b-2 border-gray-200", CORE_COLUMNS[0].width)}>
                   Lead
                 </th>
                 {activeColumns.filter(c => c.id !== 'name').map(col => (
                   <th key={col.id}
-                    style={col.minPx ? {
-                      width: col.minPx, minWidth: col.minPx,
-                      ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #e5e7eb' } : {})
-                    } : undefined}
-                    className={cn(
-                      "px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 last:border-r-0",
+                    style={col.minPx ? { width: col.minPx, minWidth: col.minPx, ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #e5e7eb' } : {}) } : undefined}
+                    className={cn("px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 last:border-r-0",
                       col.id === 'company' ? 'sticky left-[260px] bg-[#F5F6F8] z-[2]' : 'border-r border-gray-200',
-                      col.width, col.align === 'center' ? 'text-center' : 'text-left'
-                    )}>
+                      col.width, col.align === 'center' ? 'text-center' : 'text-left')}>
                     {col.label}
                   </th>
                 ))}
@@ -1868,36 +1316,22 @@ export function SalesDashboard() {
               {grouped.map(group => {
                 const isCollapsed = collapsedGroups.has(group.id);
                 if (group.leads.length === 0) return null;
-
                 const groupSavedLeads = group.leads.filter(l => l._saved);
                 const isAllGroupSelected = groupSavedLeads.length > 0 && groupSavedLeads.every(l => selectedLeads.has(l.id));
-
                 return (
                   <Fragment key={group.id}>
-                    {/* Group header row */}
                     <tr className="bg-gray-50 border-b border-gray-100">
                       <GroupHeader group={group} count={group.leads.length} collapsed={isCollapsed}
                         onToggle={() => toggleGroup(group.id)} onAddItem={() => addRow(group.id)}
                         onSelectAll={() => selectAllInGroup(group.id)} isAllSelected={isAllGroupSelected}
                         colCount={activeColumns.length} />
                     </tr>
-                    {/* Group items */}
-                    {!isCollapsed && group.leads.map((lead) => (
-                      <LeadRow
-                        key={lead.id}
-                        lead={lead}
-                        isSelected={selectedLeads.has(lead.id)}
-                        activeColumns={activeColumns}
-                        customColumns={customColumns}
-                        groupColor={group.color}
-                        onUpdate={updateLead}
-                        onDelete={deleteRow}
-                        onSelect={toggleSelect}
-                        onOpenNotes={openNotes}
-                        onOpenDrawer={openDrawer}
-                      />
+                    {!isCollapsed && group.leads.map(lead => (
+                      <LeadRow key={lead.id} lead={lead} isSelected={selectedLeads.has(lead.id)}
+                        activeColumns={activeColumns} customColumns={customColumns} groupColor={group.color}
+                        onUpdate={updateLead} onDelete={deleteRow} onSelect={toggleSelect}
+                        onOpenNotes={openNotes} onOpenDrawer={openDrawer} />
                     ))}
-                    {/* Summary row */}
                     {!isCollapsed && <SummaryRow leads={group.leads} visibleCols={activeColumns.filter(c => c.id !== 'name').map(c => c.id)} groupColor={group.color} />}
                   </Fragment>
                 );
@@ -1912,8 +1346,6 @@ export function SalesDashboard() {
             </tbody>
           </table>
         </div>
-
-        {/* Footer */}
         <div className="border-t border-gray-200 bg-[#F5F6F8] px-4 py-2 flex items-center justify-between">
           <button onClick={() => addRow()} className="flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-[#0073EA] transition-colors">
             <Plus className="h-3.5 w-3.5" /> New Lead
@@ -1926,43 +1358,31 @@ export function SalesDashboard() {
         </div>
       </div>
 
-      {/* ── Modals ── */}
+      {/* Modals */}
       <EmailTemplateModal open={emailModal.open} lead={emailModal.lead}
         onClose={() => setEmailModal({ open: false, lead: null })}
-        onSave={(id, body) => { updateLead(id, { emailTemplate: body }); }} />
+        onSave={(id, body) => updateLead(id, { emailTemplate: body })} />
       <NotesModal open={notesModal.open} lead={notesModal.lead}
         onClose={() => setNotesModal({ open: false, lead: null })}
-        onSave={(id, notes) => { updateLead(id, { notes }); }} />
+        onSave={(id, notes) => updateLead(id, { notes })} />
       <LeadProfileDrawer lead={drawerLead} onClose={() => setDrawerLead(null)} onUpdate={updateLead} />
-      <BulkActionToolbar
-        count={selectedLeads.size}
-        onClear={() => setSelectedLeads(new Set())}
-        onMassEmail={() => setMassEmailModal(true)}
-      />
-      <MassEmailModal
-        open={massEmailModal}
-        selectedLeads={selectedLeads}
-        leads={leads}
+      <BulkActionToolbar count={selectedLeads.size} onClear={() => setSelectedLeads(new Set())} onMassEmail={() => setMassEmailModal(true)} />
+      <MassEmailModal open={massEmailModal} selectedLeads={selectedLeads} leads={leads}
         onClose={() => setMassEmailModal(false)}
         onSent={() => {
           setSelectedLeads(new Set());
-          // Refresh leads to show updated 'emailed' status
           (async () => {
             const res = await fetch('/api/sales-leads');
             const data = await res.json();
             if (data.ok) setLeads(data.leads.map(dbLeadToLocal).concat([emptyDraftLead()]));
           })();
-        }}
-      />
-      <ImportLeadsDialog
-        open={showImportDialog}
-        onOpenChange={setShowImportDialog}
+        }} />
+      <ImportLeadsDialog open={showImportDialog} onOpenChange={setShowImportDialog}
         onImported={async () => {
           const res = await fetch('/api/sales-leads', { credentials: 'include' });
           const data = await res.json();
           if (data.ok) setLeads(data.leads.map(dbLeadToLocal).concat([emptyDraftLead()]));
-        }}
-      />
+        }} />
     </div>
   );
 }
