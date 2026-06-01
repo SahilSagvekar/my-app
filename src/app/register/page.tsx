@@ -89,7 +89,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-         {/* Phone Field */}
+        {/* Phone Field */}
         <div className="mb-3 sm:mb-4">
           <label className="block text-xs sm:text-sm font-medium mb-1">Phone Number</label>
           <input
@@ -101,7 +101,6 @@ export default function RegisterPage() {
             required
           />
         </div>
-
 
         {/* Email Field */}
         <div className="mb-3 sm:mb-4">
@@ -140,8 +139,12 @@ export default function RegisterPage() {
           />
           <span className="text-xs sm:text-sm">
             I agree to the{" "}
-            <a href="/terms" className="text-primary hover:underline">
+            <a href="/terms" className="text-primary underline hover:underline">
               Terms and Conditions
+            </a>{" "}
+            and{" "}
+            <a href="/privacy" className="text-primary underline hover:underline">
+              Privacy Policy
             </a>
           </span>
         </div>

@@ -397,12 +397,29 @@ export function TaskManagementTab() {
       <Card>
         <CardContent className="pt-4">
           <div className="flex items-center justify-between mb-4">
+            {/* <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                <Filter className="h-4 w-4 mr-2" />{showFilters ? 'Hide Filters' : 'Show Filters'}
+                {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
+              </Button>
+              {activeFilterCount > 0 && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
+            </div> */}
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
                 <Filter className="h-4 w-4 mr-2" />{showFilters ? 'Hide Filters' : 'Show Filters'}
                 {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
               </Button>
               {activeFilterCount > 0 && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
+              {/* Search — always visible */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10 h-9 w-48" />
+              </div>
+              {/* Due Date Range — always visible */}
+              <DateRangePicker
+                date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
+                setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
+              />
             </div>
             <div className="flex items-center gap-2">
               {selectedTasks.size > 0 && (
@@ -495,7 +512,7 @@ export function TaskManagementTab() {
                 </div>
               </div>
 
-              <div className="flex items-end gap-4">
+              {/* <div className="flex items-end gap-4">
                 <div className="relative flex-1 max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10" />
@@ -507,7 +524,7 @@ export function TaskManagementTab() {
                     setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
                   />
                 </div>
-              </div>
+              </div> */}
             </>
           )}
         </CardContent>

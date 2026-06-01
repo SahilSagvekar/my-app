@@ -373,7 +373,20 @@ function GateForm({ onUnlock }: { onUnlock: () => void }) {
                                 <ArrowRight className="w-5 h-5" />
                             </>
                         )}
-                    </button>
+                    {/* </button>
+                </div>
+            </div> */}
+
+            </button>
+
+                    {/* Privacy notice */}
+                    <p className="mt-3 text-center text-[11px] text-black/40 leading-relaxed">
+                        By submitting, you agree to our{" "}
+                        <a href="/privacy" className="underline hover:text-black/60 transition-colors">
+                            Privacy Policy
+                        </a>
+                        . We may contact you about our services.
+                    </p>
                 </div>
             </div>
 

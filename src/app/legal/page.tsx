@@ -122,6 +122,15 @@ export default function LegalPage() {
           <p className="text-gray-400 text-sm">Effective Date: May 29, 2026 · Version 1.0</p>
         </div>
 
+        {/* Contractor-only notice */}
+        <div className="border border-amber-200 rounded-lg p-4 mb-8 bg-amber-50">
+          <p className="text-amber-800 text-sm leading-relaxed">
+            <span className="font-semibold">For Contractors, Talent & Vendors Only —</span> This document is an internal legal agreement intended solely for individuals and entities entering into a business relationship with E8 Productions (e.g. contractors, freelancers, talent, vendors). It is <span className="font-semibold">not</span> a general Terms of Service for app users. If you are a client or app user, please refer to our{" "}
+            <Link href="/terms" className="underline hover:text-amber-900">Terms of Service</Link> and{" "}
+            <Link href="/privacy" className="underline hover:text-amber-900">Privacy Policy</Link>.
+          </p>
+        </div>
+
         {/* Legal Notice */}
         <div className="border border-gray-200 rounded-lg p-5 mb-12 bg-gray-50">
           <p className="text-gray-600 text-sm leading-relaxed">

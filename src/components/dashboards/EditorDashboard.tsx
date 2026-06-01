@@ -492,9 +492,14 @@ function TaskCard({
   onPreview: (file: TaskFile) => void;
   isQuotaComplete?: boolean;
 }) {
+  // const [showFiles, setShowFiles] = useState(false);
+  // const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
+  // const [showGuidelines, setShowGuidelines] = useState(false);
+
   const [showFiles, setShowFiles] = useState(false);
-  const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
-  const [showGuidelines, setShowGuidelines] = useState(false);
+const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
+const [selectedFeedback, setSelectedFeedback] = useState<TaskFeedbackItem | null>(null);
+const [showGuidelines, setShowGuidelines] = useState(false);
   const [guidelinesLoading, setGuidelinesLoading] = useState(false);
   const [guidelines, setGuidelines] = useState<{
     id: string;
@@ -688,10 +693,17 @@ function TaskCard({
                     const isExpanded = expandedFeedbackIds.has(fb.id);
                     const isLong = fb.feedback && fb.feedback.length > 120;
                     return (
+                      // <Alert
+                      //   key={fb.id}
+                      //   variant="destructive"
+                      //   className="py-1.5 overflow-hidden w-full min-w-0"
+                      // >
+
                       <Alert
                         key={fb.id}
                         variant="destructive"
-                        className="py-1.5 overflow-hidden w-full min-w-0"
+                        className="py-1.5 overflow-hidden w-full min-w-0 cursor-pointer hover:bg-destructive/10 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setSelectedFeedback(fb); }}
                       >
                         <AlertDescription className="text-[10px] overflow-hidden min-w-0">
                           {/* Version and Section badges */}
@@ -843,6 +855,68 @@ function TaskCard({
           )}
         </CardContent>
       </Card>
+
+      {/* Revision Comment Detail Popup */}
+<Dialog open={!!selectedFeedback} onOpenChange={(open) => !open && setSelectedFeedback(null)}>
+  <DialogContent className="max-w-md">
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2 text-base text-destructive">
+        <AlertCircle className="h-4 w-4" />
+        Revision Feedback
+      </DialogTitle>
+    </DialogHeader>
+    {selectedFeedback && (
+      <div className="space-y-3 pt-1">
+        {/* Badges row */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge variant="outline" className="text-xs px-2">
+            V{selectedFeedback.fileVersion || 1}
+          </Badge>
+          <Badge variant="secondary" className="text-xs px-2 capitalize">
+            {selectedFeedback.folderType === "main" ? "📁 Main" :
+              selectedFeedback.folderType === "thumbnails" ? "🖼️ Thumbnail" :
+                selectedFeedback.folderType === "tiles" ? "🎨 Tiles" :
+                  selectedFeedback.folderType === "music-license" ? "🎵 Music" :
+                    selectedFeedback.folderType === "scheduler" ? "📅 Scheduler" :
+                      selectedFeedback.folderType}
+          </Badge>
+          {selectedFeedback.timestamp && (
+            <Badge variant="outline" className="text-xs px-2 bg-blue-50 text-blue-700">
+              ⏱️ {selectedFeedback.timestamp}
+            </Badge>
+          )}
+          {selectedFeedback.category && (
+            <Badge variant="outline" className="text-xs px-2 capitalize">
+              {selectedFeedback.category}
+            </Badge>
+          )}
+        </div>
+
+        {/* Feedback text */}
+        <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3">
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+            {selectedFeedback.feedback}
+          </p>
+        </div>
+
+        {/* File reference */}
+        {selectedFeedback.fileName && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            📎 <span className="truncate">{selectedFeedback.fileName}</span>
+          </p>
+        )}
+
+        {/* Submitted date */}
+        <p className="text-[11px] text-muted-foreground">
+          Submitted {new Date(selectedFeedback.createdAt).toLocaleDateString("en-US", {
+            month: "short", day: "numeric", year: "numeric",
+            hour: "2-digit", minute: "2-digit"
+          })}
+        </p>
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
 
       {/* Guidelines Dialog */}
       <Dialog open={showGuidelines} onOpenChange={setShowGuidelines}>

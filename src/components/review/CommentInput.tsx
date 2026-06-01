@@ -72,9 +72,17 @@ export function CommentInput({
     const [useEndTimestamp, setUseEndTimestamp] = useState(false);
     const [endTimestampInput, setEndTimestampInput] = useState('');
     const [endTimestampError, setEndTimestampError] = useState<string | null>(null);
+    const [rangeStartSeconds, setRangeStartSeconds] = useState<number | null>(null);
+    const [isEndTracking, setIsEndTracking] = useState(false); // true = end follows video live
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    
+
+    // Live-track end timestamp as video plays
+    useEffect(() => {
+        if (!isEndTracking || !useEndTimestamp) return;
+        setEndTimestampInput(formatSecondsToTimestamp(currentTime));
+    }, [currentTime, isEndTracking, useEndTimestamp]);
+
     // Validate end timestamp when it changes
     useEffect(() => {
         if (!useEndTimestamp || !endTimestampInput) {
@@ -83,16 +91,17 @@ export function CommentInput({
         }
         
         const endSeconds = parseTimestampToSeconds(endTimestampInput);
+        const startSecs = rangeStartSeconds ?? currentTime;
         if (endSeconds === null) {
             setEndTimestampError('Invalid format (use M:SS)');
-        } else if (endSeconds <= currentTime) {
+        } else if (endSeconds <= startSecs) {
             setEndTimestampError('Must be after start time');
         } else if (duration > 0 && endSeconds > duration) {
             setEndTimestampError('Exceeds video length');
         } else {
             setEndTimestampError(null);
         }
-    }, [endTimestampInput, useEndTimestamp, currentTime, duration]);
+    }, [endTimestampInput, useEndTimestamp, currentTime, duration, rangeStartSeconds]);
 
     useEffect(() => {
         if (isExpanded && textareaRef.current) {
@@ -224,10 +233,14 @@ export function CommentInput({
     const handleSubmit = async () => {
         if (!content.trim()) return;
         
+        // Use frozen start if range mode, otherwise current time
+        const startSecs = (useEndTimestamp && rangeStartSeconds !== null) ? rangeStartSeconds : currentTime;
+        const startTimestamp = formatSecondsToTimestamp(startSecs);
+
         // Validate end timestamp if enabled
         if (useEndTimestamp && endTimestampInput) {
             const endSeconds = parseTimestampToSeconds(endTimestampInput);
-            if (endSeconds === null || endSeconds <= currentTime) {
+            if (endSeconds === null || endSeconds <= startSecs) {
                 return; // Don't submit with invalid end timestamp
             }
         }
@@ -243,8 +256,8 @@ export function CommentInput({
             taskId,
             authorId,
             authorName,
-            timestamp: currentTimestamp,
-            timestampSeconds: currentTime,
+            timestamp: useEndTimestamp ? startTimestamp : currentTimestamp,
+            timestampSeconds: startSecs,
             endTimestamp: endSeconds ? endTimestampInput : undefined,
             endTimestampSeconds: endSeconds ?? undefined,
             content: content.trim(),
@@ -260,6 +273,8 @@ export function CommentInput({
         setScreenshotUrl(null);
         setUseEndTimestamp(false);
         setEndTimestampInput('');
+        setIsEndTracking(false);
+        setRangeStartSeconds(null);
         setIsSubmitting(false);
 
         onCancel?.();
@@ -295,26 +310,41 @@ export function CommentInput({
                     {/* Timestamp display with optional range */}
                     <div className="flex items-center gap-1">
                         <span className="review-comment-timestamp flex items-center gap-1">
-                            {currentTimestamp}
+                            {useEndTimestamp && rangeStartSeconds !== null ? formatSecondsToTimestamp(rangeStartSeconds) : currentTimestamp}
                         </span>
                         {useEndTimestamp && (
                             <>
                                 <span className="text-[var(--review-text-muted)]">–</span>
                                 <div className="relative">
-                                    <Input
-                                        type="text"
-                                        value={endTimestampInput}
-                                        onChange={(e) => setEndTimestampInput(e.target.value)}
-                                        placeholder="M:SS"
-                                        className={`w-16 h-6 px-1.5 text-xs bg-[var(--review-bg-elevated)] border rounded text-center font-mono ${
-                                            endTimestampError 
-                                                ? 'border-red-500 text-red-400' 
-                                                : 'border-[var(--review-border)] text-white'
-                                        }`}
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            type="text"
+                                            value={endTimestampInput}
+                                            onChange={(e) => {
+                                                setIsEndTracking(false); // manual edit stops live tracking
+                                                setEndTimestampInput(e.target.value);
+                                            }}
+                                            placeholder="M:SS"
+                                            className={`w-16 h-6 px-1.5 text-xs bg-[var(--review-bg-elevated)] border rounded text-center font-mono ${
+                                                endTimestampError 
+                                                    ? 'border-red-500 text-red-400' 
+                                                    : isEndTracking
+                                                        ? 'border-[var(--review-accent-purple)] text-[var(--review-accent-purple)]'
+                                                        : 'border-[var(--review-border)] text-white'
+                                            }`}
+                                        />
+                                        {isEndTracking && (
+                                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--review-accent-purple)] animate-pulse" title="Tracking live" />
+                                        )}
+                                    </div>
                                     {endTimestampError && (
                                         <div className="absolute top-full left-0 mt-1 text-[10px] text-red-400 whitespace-nowrap">
                                             {endTimestampError}
+                                        </div>
+                                    )}
+                                    {isEndTracking && !endTimestampError && (
+                                        <div className="absolute top-full left-0 mt-1 text-[10px] text-[var(--review-accent-purple)] whitespace-nowrap">
+                                            Live • click to lock
                                         </div>
                                     )}
                                 </div>
@@ -324,6 +354,8 @@ export function CommentInput({
                                     onClick={() => {
                                         setUseEndTimestamp(false);
                                         setEndTimestampInput('');
+                                        setIsEndTracking(false);
+                                        setRangeStartSeconds(null);
                                     }}
                                     className="h-5 w-5 p-0 text-[var(--review-text-muted)] hover:text-red-400"
                                     title="Remove end time"
@@ -338,9 +370,9 @@ export function CommentInput({
                                 size="sm"
                                 onClick={() => {
                                     setUseEndTimestamp(true);
-                                    // Pre-fill with current time + 10 seconds as suggestion
-                                    const suggestedEnd = Math.min(currentTime + 10, duration || currentTime + 30);
-                                    setEndTimestampInput(formatSecondsToTimestamp(suggestedEnd));
+                                    setRangeStartSeconds(currentTime); // freeze start at this moment
+                                    setEndTimestampInput(formatSecondsToTimestamp(currentTime));
+                                    setIsEndTracking(true); // end follows video live
                                 }}
                                 className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
                                 title="Add end time for a range (e.g., 1:00 - 1:28)"
