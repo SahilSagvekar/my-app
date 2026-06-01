@@ -454,10 +454,39 @@ export function TaskRow({
 
                 {/* AI Titles & Details */}
                 <div>
+                  {/* <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm text-gray-700">
+                    <Sparkles className="h-4 w-4 text-yellow-500" />
+                    AI Suggested Titles
+                  </h4>
+                  {task.suggestedTitles && task.suggestedTitles.length > 0 ? ( */}
+
                   <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm text-gray-700">
                     <Sparkles className="h-4 w-4 text-yellow-500" />
                     AI Suggested Titles
                   </h4>
+
+                  {/* QC Passed Title — shown first if available */}
+                  {task.titleSetByQC && task.postingTitle && (
+                    <div className="mb-3 flex items-center justify-between p-3 bg-violet-50 rounded-lg border border-violet-200">
+                      <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                        <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-700 border border-violet-300 rounded">
+                          QC
+                        </span>
+                        <p className="text-sm font-medium text-violet-900 truncate">
+                          {task.postingTitle}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onCopyTitle(task.postingTitle!)}
+                        className="h-8 text-violet-600 hover:text-violet-800 hover:bg-violet-100"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+
                   {task.suggestedTitles && task.suggestedTitles.length > 0 ? (
                     <div className="space-y-2">
                       {task.suggestedTitles.slice(0, 5).map((title, i) => (
