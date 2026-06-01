@@ -7,11 +7,10 @@ module.exports = {
             instances: 1,
             exec_mode: 'fork',
 
-            max_memory_restart: '1G',
-            restart_delay: 5000,
-            max_restarts: 10,
-
-            // cron_restart: '*/15 * * * *', // Restarting every 15 mins causes 502s when cron jobs run!
+            max_memory_restart: '2G',   // was 1G — was causing restarts, server has 30GB
+            restart_delay: 10000,
+            max_restarts: 20,
+            min_uptime: '30s',
 
             env: {
                 NODE_ENV: 'production',
@@ -29,10 +28,10 @@ module.exports = {
 
             kill_timeout: 10000,
             wait_ready: true,
-            listen_timeout: 10000,
+            listen_timeout: 15000,
 
             node_args: [
-                '--max-old-space-size=1024',
+                '--max-old-space-size=2048',  // was 1024
             ],
         },
         {
@@ -58,7 +57,7 @@ module.exports = {
             merge_logs: true,
 
             watch: false,
-            kill_timeout: 300000,  // 5 min for long video processing
+            kill_timeout: 300000,
         },
         {
             name: 'cron-master',
@@ -88,6 +87,7 @@ module.exports = {
             node_args: '--import tsx',
             instances: 1,
             exec_mode: 'fork',
+            autorestart: false,         // don't auto-restart, start manually when needed
 
             max_memory_restart: '256M',
             restart_delay: 5000,
