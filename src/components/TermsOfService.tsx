@@ -388,9 +388,7 @@ const TermsOfService = () => {
           </p>
           <ul>
             <li>Notify affected users as required by applicable law</li>
-            <li>
-              Notify relevant regulatory authorities where required
-            </li>
+            <li>Notify relevant regulatory authorities where required</li>
             <li>
               Notify applicable platform providers (including Google and Meta)
               in accordance with their developer policies
@@ -546,14 +544,14 @@ const TermsOfService = () => {
         <>
           <p>
             These Terms shall be governed by and construed in accordance with
-            the laws of the State of Florida, United States, without regard to
-            its conflict of law provisions.
+            the laws of the State of South Carolina, United States, without
+            regard to its conflict of law provisions.
           </p>
           <p>
             Any legal suit, action, or proceeding arising out of or related to
             these Terms or the Service shall be instituted exclusively in the
             federal courts of the United States or the courts of the State of
-            Florida, in each case located in Broward County. You waive any
+            South Carolina, in each case located in Horry County. You waive any
             objections to jurisdiction or venue in such courts.
           </p>
         </>
@@ -564,8 +562,8 @@ const TermsOfService = () => {
       content: (
         <p>
           We reserve the right, at our sole discretion, to modify or replace
-          these Terms at any time. If a revision is material, we will provide
-          at least 30 days&apos; notice prior to any new terms taking effect. By
+          these Terms at any time. If a revision is material, we will provide at
+          least 30 days&apos; notice prior to any new terms taking effect. By
           continuing to use the Service after revisions become effective, you
           agree to be bound by the updated terms.
         </p>
