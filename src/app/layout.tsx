@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "./../components/auth/AuthContext";
 import { Toaster } from 'sonner';
 import { buildMetadata } from "@/lib/seo";
+import CookieConsent from "@/components/CookieConsent";
+
+const GA_MEASUREMENT_ID = "G-E7HJLKVEPQ";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -15,12 +18,14 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   display: 'swap',
 });
+
 export const metadata: Metadata = buildMetadata({
   title: "E8 Productions",
   description:
     "Video production, social media content and digital marketing that helps brands grow.",
   image: "/image.png",
 });
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,21 +36,12 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} antialiased`}
       >
-     
         <AuthProvider>
           {children}
           <Toaster position="bottom-right" />
+          {/* GA is NOT loaded unconditionally — CookieConsent handles opt-in */}
+          <CookieConsent measurementId={GA_MEASUREMENT_ID} />
         </AuthProvider>
-       <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-E7HJLKVEPQ"
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-gtag('config', 'G-E7HJLKVEPQ');`}
-        </Script>
       </body>
     </html>
   );

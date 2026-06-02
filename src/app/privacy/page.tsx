@@ -836,9 +836,19 @@ const PrivacyPolicy = () => {
       {/* Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <div className="space-y-12">
+          {/* {sections.map((section, index) => (
+            <section
+              key={index}
+              className="pb-12 border-b border-white/10 last:border-0"
+            > */}
           {sections.map((section, index) => (
             <section
               key={index}
+              id={
+                section.title.toLowerCase().includes("california")
+                  ? "do-not-sell"
+                  : undefined
+              }
               className="pb-12 border-b border-white/10 last:border-0"
             >
               <h2 className="text-xl md:text-2xl font-semibold text-white mb-6">
