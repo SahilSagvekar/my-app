@@ -6,7 +6,7 @@ import Link from "next/link";
 const TermsOfService = () => {
   const lastUpdated = "March 31, 2026";
   const companyName = "E8 Productions";
-  const companyAddress = "Fort Lauderdale, Florida, United States";
+  const companyAddress = "Horry County, South Carolina, United States";
   const contactEmail = "legal@e8productions.com";
   const websiteUrl = "https://e8productions.com";
 
