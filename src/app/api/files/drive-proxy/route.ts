@@ -4,9 +4,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { getDriveProxyStream } from '@/lib/file-server';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 async function getAccessToken(): Promise<string> {
   const auth = new google.auth.JWT({
@@ -28,16 +28,31 @@ export async function GET(request: NextRequest) {
     }
 
     const range = request.headers.get('range') || undefined;
-    const fsRes = await getDriveProxyStream(0, 'admin', fileId, range);
+    const accessToken = await getAccessToken();
+    const driveRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...(range ? { Range: range } : {}),
+        },
+      },
+    );
 
-    if (!fsRes.ok && fsRes.status !== 206) {
-      return new NextResponse('Failed to fetch from Drive', { status: fsRes.status });
+    if (!driveRes.ok && driveRes.status !== 206) {
+      const body = await driveRes.text().catch(() => '');
+      console.error('Drive proxy upstream error:', driveRes.status, body.slice(0, 500));
+      return new NextResponse('Failed to fetch from Drive', { status: driveRes.status });
+    }
+
+    if (!driveRes.body) {
+      return new NextResponse('Drive response was empty', { status: 502 });
     }
 
     const headers = new Headers();
-    const ct = fsRes.headers.get('content-type');
-    const cl = fsRes.headers.get('content-length');
-    const cr = fsRes.headers.get('content-range');
+    const ct = driveRes.headers.get('content-type');
+    const cl = driveRes.headers.get('content-length');
+    const cr = driveRes.headers.get('content-range');
 
     headers.set('Content-Type', ct?.startsWith('video/') ? ct : 'video/mp4');
     headers.set('Accept-Ranges', 'bytes');
@@ -45,12 +60,13 @@ export async function GET(request: NextRequest) {
     if (cl) headers.set('Content-Length', cl);
     if (cr) headers.set('Content-Range', cr);
 
-    return new NextResponse(fsRes.body, {
-      status: range ? 206 : 200,
+    return new NextResponse(driveRes.body, {
+      status: driveRes.status === 206 ? 206 : 200,
       headers,
     });
-  } catch (error: any) {
-    console.error('Drive proxy error:', error?.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Drive proxy error:', message);
     return new NextResponse('Stream failed', { status: 500 });
   }
 }
