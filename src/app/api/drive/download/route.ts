@@ -1,33 +1,20 @@
 export const dynamic = 'force-dynamic';
-// src/app/api/drive/download/route.ts
-// Generates a presigned S3 download URL for Drive Explorer files.
-// Returns the URL as JSON (instead of redirecting) so the client can open it.
+import { NextRequest, NextResponse } from 'next/server';
+import { getCurrentUser2 } from '@/lib/auth';
+import { presignDownload } from '@/lib/file-server';
 
-import { NextResponse } from 'next/server';
-import { generateDownloadUrl } from '@/lib/s3';
+export async function POST(req: NextRequest) {
+  try {
+    const user = await getCurrentUser2(req);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-export async function POST(req: Request) {
-    try {
-        const { s3Key, fileName } = await req.json();
+    const { s3Key, fileName } = await req.json();
+    if (!s3Key) return NextResponse.json({ error: 'Missing s3Key' }, { status: 400 });
 
-        if (!s3Key) {
-            return NextResponse.json(
-                { error: 'Missing s3Key' },
-                { status: 400 }
-            );
-        }
-
-        const downloadUrl = await generateDownloadUrl(
-            s3Key,
-            fileName || s3Key.split('/').pop() || 'download'
-        );
-
-        return NextResponse.json({ downloadUrl });
-    } catch (err: any) {
-        console.error('❌ Drive download URL error:', err.message);
-        return NextResponse.json(
-            { error: 'Failed to generate download URL' },
-            { status: 500 }
-        );
-    }
+    const { downloadUrl } = await presignDownload(user.id, user.role, s3Key, fileName);
+    return NextResponse.json({ downloadUrl });
+  } catch (err: any) {
+    console.error('Drive download error:', err);
+    return NextResponse.json({ error: 'Failed to generate download URL' }, { status: 500 });
+  }
 }

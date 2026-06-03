@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
+import { getDriveProxyStream } from '@/lib/file-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,42 +27,30 @@ export async function GET(request: NextRequest) {
       return new NextResponse('Invalid fileId', { status: 400 });
     }
 
-    const accessToken = await getAccessToken();
-    const range = request.headers.get('range');
+    const range = request.headers.get('range') || undefined;
+    const fsRes = await getDriveProxyStream(0, 'admin', fileId, range);
 
-    const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-    const fetchHeaders: Record<string, string> = {
-      Authorization: `Bearer ${accessToken}`,
-    };
-    if (range) fetchHeaders['Range'] = range;
-
-    const driveRes = await fetch(driveUrl, { headers: fetchHeaders });
-
-    if (!driveRes.ok && driveRes.status !== 206) {
-      console.error(`Drive proxy fetch failed: ${driveRes.status}`);
-      return new NextResponse('Failed to fetch from Drive', { status: driveRes.status });
+    if (!fsRes.ok && fsRes.status !== 206) {
+      return new NextResponse('Failed to fetch from Drive', { status: fsRes.status });
     }
 
     const headers = new Headers();
-    const ct = driveRes.headers.get('content-type');
-    const cl = driveRes.headers.get('content-length');
-    const cr = driveRes.headers.get('content-range');
+    const ct = fsRes.headers.get('content-type');
+    const cl = fsRes.headers.get('content-length');
+    const cr = fsRes.headers.get('content-range');
 
-    headers.set('Content-Type', (ct && ct.startsWith('video/')) ? ct : 'video/mp4');
-    if (cl) headers.set('Content-Length', cl);
-    if (cr) headers.set('Content-Range', cr);
+    headers.set('Content-Type', ct?.startsWith('video/') ? ct : 'video/mp4');
     headers.set('Accept-Ranges', 'bytes');
     headers.set('Cache-Control', 'public, max-age=3600');
+    if (cl) headers.set('Content-Length', cl);
+    if (cr) headers.set('Content-Range', cr);
 
-    console.log(`🎬 Drive proxy | fileId: ${fileId} | status: ${driveRes.status} | content-type: ${ct} | content-length: ${cl}`);
-
-    return new NextResponse(driveRes.body, {
+    return new NextResponse(fsRes.body, {
       status: range ? 206 : 200,
       headers,
     });
-
   } catch (error: any) {
-    console.error('Drive proxy error:', error?.message || error);
-    return new NextResponse('Failed to stream from Drive', { status: 500 });
+    console.error('Drive proxy error:', error?.message);
+    return new NextResponse('Stream failed', { status: 500 });
   }
 }
