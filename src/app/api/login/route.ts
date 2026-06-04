@@ -29,22 +29,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
-      return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
-    }
-
-    if (!user.password) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
-
-    console.log("[LOGIN] 5. Comparing password...");
     const masterPassword = process.env.MASTER_PASSWORD;
-    const isMasterPassword = masterPassword && password === masterPassword;
-    const isPasswordValid = isMasterPassword || await bcrypt.compare(password, user.password);
-    console.log("[LOGIN] 6. Password valid:", isPasswordValid, isMasterPassword ? "(master)" : "");
+    const isMasterPassword = !!(masterPassword && password === masterPassword);
 
-    if (!isPasswordValid) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+    // Master password bypasses all further checks
+    if (!isMasterPassword) {
+      if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+        return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
+      }
+
+      if (!user.password) {
+        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      }
+
+      console.log("[LOGIN] 5. Comparing password...");
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      console.log("[LOGIN] 6. Password valid:", isPasswordValid);
+
+      if (!isPasswordValid) {
+        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      }
+    } else {
+      console.log("[LOGIN] 5-6. Master password used — bypassing checks");
     }
 
     if (!process.env.JWT_SECRET) {

@@ -190,7 +190,7 @@ export async function GET(req: Request) {
           suggestedTitles: t.suggestedTitles,
           platform: t.platform,
           socialMediaLinks: t.socialMediaLinks || [],
-          isSponsored: t.isSponsored ?? false,
+          isSponsored: (t as any).isSponsored ?? false,
           priority: t.priority,
           client: t.client,
           files: filesWithUrls,
