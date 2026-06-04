@@ -99,6 +99,7 @@ interface SchedulerTask {
     suggestedTitles?: Array<{ style?: string; title: string; reasoning?: string }> | string[];
     titlingStatus?: string;
     isSponsored?: boolean;
+    deliverableType?: string | null;
 }
 
 interface ClientDeliverable {
@@ -208,6 +209,7 @@ export function SchedulerSpreadsheetView() {
                     suggestedTitles: t.suggestedTitles || [],
                     titlingStatus: t.titlingStatus || 'NONE',
                     isSponsored: t.isSponsored || false,
+                    deliverableType: t.deliverableType ?? null,
                     editor: t.editor,
                 };
             });
@@ -919,7 +921,11 @@ if (!isEdit) {
                                                     className="h-7 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1 px-2"
                                                   >
                                                     ✓ Scheduled{" "}
-                                                    {task.isSponsored && <span className="text-amber-600 font-semibold">★</span>}
+                                                    {task.isSponsored && (
+                                                      <span className="text-amber-600 font-semibold">
+                                                        ★
+                                                      </span>
+                                                    )}
                                                     <ChevronDown className="h-3 w-3 opacity-50" />
                                                   </Button>
                                                 ) : (
@@ -929,7 +935,11 @@ if (!isEdit) {
                                                     className="h-7 text-xs gap-1"
                                                   >
                                                     Pending{" "}
-                                                    {task.isSponsored && <span className="text-amber-600 font-semibold">★</span>}
+                                                    {task.isSponsored && (
+                                                      <span className="text-amber-600 font-semibold">
+                                                        ★
+                                                      </span>
+                                                    )}
                                                     <ChevronDown className="h-3 w-3 opacity-50" />
                                                   </Button>
                                                 )}
@@ -963,11 +973,24 @@ if (!isEdit) {
                                                   </DropdownMenuItem>
                                                 )}
                                                 <DropdownMenuItem
-                                                  onClick={() => toggleSponsored(task.id, task.isSponsored ?? false)}
-                                                  className={task.isSponsored ? "text-amber-700" : ""}
+                                                  onClick={() =>
+                                                    toggleSponsored(
+                                                      task.id,
+                                                      task.isSponsored ?? false,
+                                                    )
+                                                  }
+                                                  className={
+                                                    task.isSponsored
+                                                      ? "text-amber-700"
+                                                      : ""
+                                                  }
                                                 >
-                                                  <span className="mr-2">★</span>
-                                                  {task.isSponsored ? "Remove Sponsored" : "Mark as Sponsored"}
+                                                  <span className="mr-2">
+                                                    ★
+                                                  </span>
+                                                  {task.isSponsored
+                                                    ? "Remove Sponsored"
+                                                    : "Mark as Sponsored"}
                                                 </DropdownMenuItem>
                                                 {task.status !==
                                                   "SCHEDULED" && (
@@ -1540,6 +1563,33 @@ if (!isEdit) {
                                                     </div>
                                                   </div>
                                                 )}
+
+                                              {/* Linked SF Tasks — shown for LF tasks */}
+                                              {[
+                                                task.deliverableType,
+                                                task.deliverable?.type,
+                                                task.title,
+                                              ].some(
+                                                (v) =>
+                                                  typeof v === "string" &&
+                                                  (v
+                                                    .toUpperCase()
+                                                    .includes("LF") ||
+                                                    v
+                                                      .toLowerCase()
+                                                      .includes("long form") ||
+                                                    v
+                                                      .toLowerCase()
+                                                      .includes("longform")),
+                                              ) && (
+                                                <div className="mt-4 pt-4 border-t">
+                                                  <LinkedSfTasks
+                                                    lfTaskId={task.id}
+                                                    clientId={task.clientId}
+                                                    canEdit={false}
+                                                  />
+                                                </div>
+                                              )}
                                             </td>
                                           </tr>
                                         )}

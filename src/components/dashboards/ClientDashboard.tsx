@@ -49,6 +49,7 @@ import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
 import { useClientTasks } from '../../lib/hooks/useClientTasks';
 import { ClientTaskCard } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
+import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 
 interface TaskFile {
   id: string;
@@ -1312,6 +1313,18 @@ export function ClientDashboard() {
                   <div className="flex items-center justify-center gap-2 text-green-600 py-1">
                     <CheckCircle className="h-4 w-4" />
                     <span className="text-sm font-medium">Content Posted</span>
+                  </div>
+                )}
+
+                {/* Linked SF Tasks — visible for LF content */}
+                {(selectedTask.monthlyDeliverable?.type?.toUpperCase().includes('LF') ||
+                  selectedTask.monthlyDeliverable?.type?.toLowerCase().includes('long')) && (
+                  <div className="mt-4 pt-4 border-t">
+                    <LinkedSfTasks
+                      lfTaskId={selectedTask.id}
+                      clientId={selectedTask.clientId}
+                      canEdit={false}
+                    />
                   </div>
                 )}
               </div>

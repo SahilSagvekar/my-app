@@ -433,16 +433,6 @@ export function TaskUploadSections({
                             >
                               <Eye className="h-3 w-3 text-gray-600" />
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteFile(file.id, section.folderType);
-                              }}
-                              className="p-1 hover:bg-red-100 rounded"
-                              title="Delete file"
-                            >
-                              <Trash2 className="h-3 w-3 text-red-500" />
-                            </button>
                           </div>
                         </div>
                       ))}

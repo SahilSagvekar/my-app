@@ -68,9 +68,7 @@ export async function GET(req: NextRequest) {
         version: f.version,
         isActive: f.isActive,
         taskId: f.taskId,
-        taskTitle: f.task?.monthlyDeliverable?.type?.replace(/_/g, ' ')
-          || f.task?.oneOffDeliverable?.type?.replace(/_/g, ' ')
-          || 'Content',
+        taskTitle: f.task?.title || 'Untitled Task', // ← changed: was deliverable type
         taskStatus: f.task?.status || '',
         clientName: f.task?.client?.companyName || f.task?.client?.name || 'Unknown Client',
       })),

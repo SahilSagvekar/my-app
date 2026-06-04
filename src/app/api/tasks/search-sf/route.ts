@@ -25,6 +25,10 @@ export async function GET(req: NextRequest) {
               { deliverableType: { contains: 'SF', mode: 'insensitive' } },
               { deliverableType: { contains: 'SHORT', mode: 'insensitive' } },
               { taskType: { contains: 'SF', mode: 'insensitive' } },
+              { monthlyDeliverable: { type: { contains: 'SF', mode: 'insensitive' } } },
+              { monthlyDeliverable: { type: { contains: 'SHORT', mode: 'insensitive' } } },
+              { oneOffDeliverable: { type: { contains: 'SF', mode: 'insensitive' } } },
+              { oneOffDeliverable: { type: { contains: 'SHORT', mode: 'insensitive' } } },
             ],
           },
           query.length > 1
@@ -46,12 +50,19 @@ export async function GET(req: NextRequest) {
         relatedTaskId: true,
         client: { select: { name: true } },
         user: { select: { name: true } },
+        monthlyDeliverable: { select: { type: true } },
+        oneOffDeliverable: { select: { type: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 20,
+      take: 100,
     });
 
-    return NextResponse.json({ tasks });
+    const mapped = tasks.map(t => ({
+      ...t,
+      deliverableType: t.deliverableType || t.monthlyDeliverable?.type || t.oneOffDeliverable?.type || null,
+    }));
+
+    return NextResponse.json({ tasks: mapped });
   } catch (err: any) {
     console.error('[search-sf]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -834,7 +834,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
               <LinkedSfTasks
                 lfTaskId={task.id}
                 clientId={task.clientId}
-                canEdit={false}
+                canEdit={true}
               />
             </div>
           )}

@@ -191,6 +191,7 @@ export async function GET(req: Request) {
           platform: t.platform,
           socialMediaLinks: t.socialMediaLinks || [],
           isSponsored: (t as any).isSponsored ?? false,
+          deliverableType: t.deliverableType ?? null,
           priority: t.priority,
           client: t.client,
           files: filesWithUrls,

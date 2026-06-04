@@ -60,11 +60,10 @@ export async function DELETE(
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    // Check permission: admin, manager, or assigned editor
+    // Check permission: admin and manager only (editors cannot delete)
     const canDelete =
       user.role === "admin" ||
-      user.role === "manager" ||
-      file.task.assignedTo === user.id;
+      user.role === "manager";
 
     if (!canDelete) {
       return NextResponse.json({ error: "Not authorized to delete this file" }, { status: 403 });
