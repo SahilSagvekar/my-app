@@ -98,6 +98,7 @@ interface SchedulerTask {
     socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
     suggestedTitles?: Array<{ style?: string; title: string; reasoning?: string }> | string[];
     titlingStatus?: string;
+    isSponsored?: boolean;
 }
 
 interface ClientDeliverable {
@@ -169,6 +170,8 @@ export function SchedulerSpreadsheetView() {
             });
             const res = await fetch(`/api/schedular/tasks?${queryParams.toString()}`, { cache: "no-store" });
             const data = await res.json();
+
+            console.log(data.tasks);
             if (!data.tasks) {
                 if (!isLoadMore) setTasks([]);
                 setTotalTasks(0); setHasMore(false); return;
@@ -204,6 +207,7 @@ export function SchedulerSpreadsheetView() {
                     socialMediaLinks: t.socialMediaLinks || [],
                     suggestedTitles: t.suggestedTitles || [],
                     titlingStatus: t.titlingStatus || 'NONE',
+                    isSponsored: t.isSponsored || false,
                     editor: t.editor,
                 };
             });
@@ -340,6 +344,24 @@ if (!isEdit) {
             setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'PENDING' } : t));
             toast.success('Reverted to pending!');
         } catch (err) { toast.error('Failed to revert status'); }
+    }
+
+    async function toggleSponsored(taskId: string, current: boolean) {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isSponsored: !current } : t));
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/sponsored`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isSponsored: !current }),
+            });
+            if (!res.ok) {
+                setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isSponsored: current } : t));
+                toast.error('Failed to update sponsored status');
+            }
+        } catch {
+            setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isSponsored: current } : t));
+            toast.error('Network error');
+        }
     }
 
     async function sendBackToEditor() {
@@ -707,6 +729,11 @@ if (!isEdit) {
                                                   QC
                                                 </span>
                                               )}
+                                              {task.isSponsored && (
+                                                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded">
+                                                  ★ Sponsored
+                                                </span>
+                                              )}
                                               {task.deliverable?.isTrial && (
                                                 <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded">
                                                   TRIAL
@@ -892,6 +919,7 @@ if (!isEdit) {
                                                     className="h-7 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1 px-2"
                                                   >
                                                     ✓ Scheduled{" "}
+                                                    {task.isSponsored && <span className="text-amber-600 font-semibold">★</span>}
                                                     <ChevronDown className="h-3 w-3 opacity-50" />
                                                   </Button>
                                                 ) : (
@@ -901,6 +929,7 @@ if (!isEdit) {
                                                     className="h-7 text-xs gap-1"
                                                   >
                                                     Pending{" "}
+                                                    {task.isSponsored && <span className="text-amber-600 font-semibold">★</span>}
                                                     <ChevronDown className="h-3 w-3 opacity-50" />
                                                   </Button>
                                                 )}
@@ -933,6 +962,13 @@ if (!isEdit) {
                                                     Revert to Pending
                                                   </DropdownMenuItem>
                                                 )}
+                                                <DropdownMenuItem
+                                                  onClick={() => toggleSponsored(task.id, task.isSponsored ?? false)}
+                                                  className={task.isSponsored ? "text-amber-700" : ""}
+                                                >
+                                                  <span className="mr-2">★</span>
+                                                  {task.isSponsored ? "Remove Sponsored" : "Mark as Sponsored"}
+                                                </DropdownMenuItem>
                                                 {task.status !==
                                                   "SCHEDULED" && (
                                                   <DropdownMenuItem

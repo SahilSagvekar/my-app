@@ -324,6 +324,7 @@ interface WorkflowTask {
   taskNumber?: number; // Task number (extracted from title)
   clientName?: string; // 🔥 Added client name for filtering
   isOneOff?: boolean; // 🔥 Added for visibility logic
+  isSponsored?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -483,6 +484,7 @@ function TaskCard({
   isDragging,
   onPreview,
   isQuotaComplete,
+  onToggleSponsored,
 }: {
   task: WorkflowTask;
   onUploadComplete: (taskId: string, files: any[]) => void;
@@ -491,6 +493,7 @@ function TaskCard({
   isDragging: boolean;
   onPreview: (file: TaskFile) => void;
   isQuotaComplete?: boolean;
+  onToggleSponsored: (taskId: string, value: boolean) => void;
 }) {
   // const [showFiles, setShowFiles] = useState(false);
   // const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
@@ -585,9 +588,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
               <h4 className="font-medium text-xs whitespace-normal break-words">
-                {task.clientName && task.deliverableType
-                  ? `${task.clientName} · ${task.deliverableType.replace(/_/g, " ")}`
-                  : task.clientName || task.deliverableType || task.title}
+                {task.title || task.clientName || task.deliverableType}
               </h4>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -647,6 +648,21 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                   ✓ Quota complete
                 </Badge>
               )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSponsored(task.id, !task.isSponsored);
+                }}
+                className={`text-[10px] h-4 px-1.5 rounded border font-medium transition-colors ${
+                  task.isSponsored
+                    ? "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200"
+                    : "bg-transparent text-muted-foreground border-dashed border-muted-foreground/40 hover:border-amber-300 hover:text-amber-600"
+                }`}
+                title={task.isSponsored ? "Sponsored — click to unmark" : "Mark as sponsored"}
+              >
+                {task.isSponsored ? "★ Sponsored" : "Sponsored?"}
+              </button>
             </div>
             <p className="text-[11px] text-muted-foreground line-clamp-1 flex-1">
               {task.description}
@@ -998,6 +1014,7 @@ interface ColumnProps {
   onStartTask: (taskId: string) => void;
   onPreview: (file: TaskFile) => void;
   quotaCompleteTaskIds: Set<string>;
+  onToggleSponsored: (taskId: string, value: boolean) => void;
 }
 
 function DroppableColumn({
@@ -1017,6 +1034,7 @@ function DroppableColumn({
   onStartTask,
   onPreview,
   quotaCompleteTaskIds,
+  onToggleSponsored,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -1060,6 +1078,7 @@ function DroppableColumn({
             isDragging={draggingTaskId === task.id}
             onPreview={onPreview}
             isQuotaComplete={quotaCompleteTaskIds.has(task.id)}
+            onToggleSponsored={onToggleSponsored}
           />
         ))}
 
@@ -1171,6 +1190,7 @@ export function EditorDashboard() {
             deliverableType: t.monthlyDeliverable?.type || t.oneOffDeliverable?.type,
             taskNumber: extractTaskNumber(t.title),
             isOneOff: !!t.oneOffDeliverable,
+            isSponsored: t.isSponsored || false,
             clientName: t.client?.companyName || t.client?.name || "Unknown Client",
             // 🔥 NEW: Monthly deliverable info for weekly distribution
             monthlyDeliverableId: t.monthlyDeliverableId || null,
@@ -1675,6 +1695,32 @@ export function EditorDashboard() {
     return validation.valid;
   }
 
+  /* ----------------------------- SPONSORED TOGGLE -------------------------- */
+
+  const handleToggleSponsored = useCallback(async (taskId: string, value: boolean) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, isSponsored: value } : t))
+    );
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/sponsored`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isSponsored: value }),
+      });
+      if (!res.ok) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, isSponsored: !value } : t))
+        );
+        toast.error("Failed to update sponsored status");
+      }
+    } catch {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, isSponsored: !value } : t))
+      );
+      toast.error("Network error");
+    }
+  }, []);
+
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
   const startTask = useCallback(async (taskId: string) => {
@@ -1889,6 +1935,7 @@ export function EditorDashboard() {
             onStartTask={startTask}
             onPreview={handlePreview}
             quotaCompleteTaskIds={quotaCompleteTaskIds}
+            onToggleSponsored={handleToggleSponsored}
           />
         ))}
       </div>

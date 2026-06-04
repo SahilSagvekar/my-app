@@ -32,6 +32,7 @@ type SchedulerTask = {
     [key: string]: any;
   };
   socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
+  isSponsored?: boolean;
 };
 
 // All available social media platforms with labels
@@ -65,6 +66,7 @@ export function SchedulerApprovedQueuePage() {
   const [tasks, setTasks] = useState<SchedulerTask[]>([]);
   const [selectedTask, setSelectedTask] = useState<SchedulerTask | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sponsoredOnly, setSponsoredOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -135,6 +137,7 @@ export function SchedulerApprovedQueuePage() {
           projectId: t.clientId,
           deliverable: t.monthlyDeliverable || t.oneOffDeliverable,
           socialMediaLinks: t.socialMediaLinks || [],
+          isSponsored: t.isSponsored || false,
         };
       });
 
@@ -287,7 +290,8 @@ export function SchedulerApprovedQueuePage() {
   const filtered = tasks.filter(t => {
     const matchText = t.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.id?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchText;
+    const matchSponsored = !sponsoredOnly || t.isSponsored;
+    return matchText && matchSponsored;
   });
   const pendingTasks = filtered.filter(t => t.status === "PENDING");
   const scheduledTasks = filtered.filter(t => t.status === "SCHEDULED");
@@ -351,7 +355,7 @@ export function SchedulerApprovedQueuePage() {
         </div>
 
         <Card>
-          <CardContent className="p-4 flex gap-4">
+          <CardContent className="p-4 flex gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -361,6 +365,17 @@ export function SchedulerApprovedQueuePage() {
                 className="pl-9"
               />
             </div>
+            <button
+              type="button"
+              onClick={() => setSponsoredOnly((v) => !v)}
+              className={`px-3 py-2 rounded-md border text-sm font-medium transition-colors whitespace-nowrap ${
+                sponsoredOnly
+                  ? "bg-amber-100 text-amber-700 border-amber-300"
+                  : "bg-transparent text-muted-foreground border-input hover:border-amber-300 hover:text-amber-600"
+              }`}
+            >
+              ★ Sponsored
+            </button>
           </CardContent>
         </Card>
 
@@ -400,6 +415,11 @@ export function SchedulerApprovedQueuePage() {
                           <Badge variant="outline" className="text-xs">
                             {task.files.length} files
                           </Badge>
+                          {task.isSponsored && (
+                            <Badge className="text-xs bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-100">
+                              ★ Sponsored
+                            </Badge>
+                          )}
                           {task.socialMediaLinks && task.socialMediaLinks.length > 0 ? (
                             <Badge variant="default" className="text-xs bg-green-600">
                               <LinkIcon className="h-3 w-3 mr-1" />

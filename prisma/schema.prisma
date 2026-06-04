@@ -163,6 +163,7 @@ model Task {
   invoiceId            String?
   isTrial              Boolean             @default(false)
   isExtra              Boolean             @default(false)
+  isSponsored          Boolean             @default(false)
   extraSequence        Int?
   invoice              Invoice?  @relation(fields: [invoiceId], references: [id])
   files                File[]
