@@ -8,6 +8,9 @@ import { queueVideoForCompression } from "@/lib/video-compression/worker";
 import { updateClientStorageAfterUpload } from "@/lib/storage-service";
 import { sendUploadNotification } from "@/lib/upload-notifications";
 import { getCurrentUser2 } from "@/lib/auth";
+import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
+import { completeMultipart } from '@/lib/file-server';
 
 const s3Client = getS3();
 
