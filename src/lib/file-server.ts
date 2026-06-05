@@ -136,7 +136,7 @@ export async function initiateMultipart(
   key: string,
   fileType: string
 ): Promise<{ uploadId: string; key: string }> {
-  const token = generateFileServerToken(userId, role);
+  const token = makeToken(userId, role);
   const res = await fetch(`${FILE_SERVER_URL}/multipart/initiate`, {
     method: 'POST',
     headers: {
@@ -159,7 +159,7 @@ export async function getPartUrl(
   uploadId: string,
   partNumber: number
 ): Promise<{ presignedUrl: string }> {
-  const token = generateFileServerToken(userId, role);
+  const token = makeToken(userId, role);
   const res = await fetch(`${FILE_SERVER_URL}/multipart/part-url`, {
     method: 'POST',
     headers: {
@@ -182,7 +182,7 @@ export async function completeMultipart(
   uploadId: string,
   parts: Array<{ ETag: string; PartNumber: number }>
 ): Promise<{ success: boolean; etag?: string; location?: string }> {
-  const token = generateFileServerToken(userId, role);
+  const token = makeToken(userId, role);
   const res = await fetch(`${FILE_SERVER_URL}/multipart/complete`, {
     method: 'POST',
     headers: {
@@ -208,7 +208,7 @@ export async function abortMultipart(
   key: string,
   uploadId: string
 ): Promise<void> {
-  const token = generateFileServerToken(userId, role);
+  const token = makeToken(userId, role);
   const res = await fetch(`${FILE_SERVER_URL}/multipart/abort`, {
     method: 'POST',
     headers: {
