@@ -39,31 +39,50 @@ import { useUploads } from "../workflow/UploadContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-// ─── Folder traversal helpers for drag-and-drop ───
-async function getFileFromEntryRaw(entry: FileSystemFileEntry): Promise<File> {
+// ─── Selected file with optional relative path ────────────────────────────────
+interface SelectedFile {
+  file: File;
+  relativePath?: string; // e.g. "sahil/sf/clip1.mp4"
+}
+
+// ─── Folder traversal helpers ─────────────────────────────────────────────────
+async function getFileFromEntry(entry: FileSystemFileEntry): Promise<File> {
   return new Promise((resolve, reject) => { entry.file(resolve, reject); });
 }
 
-async function readAllEntriesRaw(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+async function readAllEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
   const entries: FileSystemEntry[] = [];
   let batch: FileSystemEntry[];
   do {
-    batch = await new Promise((resolve, reject) => { reader.readEntries(resolve as any, reject); });
+    batch = await new Promise((resolve, reject) => {
+      reader.readEntries(resolve as any, reject);
+    });
     entries.push(...batch);
   } while (batch.length > 0);
   return entries;
 }
 
-async function traverseEntryRaw(entry: FileSystemEntry, result: File[]): Promise<void> {
+async function traverseEntry(
+  entry: FileSystemEntry,
+  path: string,
+  result: SelectedFile[]
+): Promise<void> {
   if (entry.isFile) {
-    const file = await getFileFromEntryRaw(entry as FileSystemFileEntry);
-    result.push(file);
+    const file = await getFileFromEntry(entry as FileSystemFileEntry);
+    result.push({
+      file,
+      relativePath: path ? `${path}/${entry.name}` : undefined,
+    });
   } else if (entry.isDirectory) {
     const dirEntry = entry as FileSystemDirectoryEntry;
     const reader = dirEntry.createReader();
-    const entries = await readAllEntriesRaw(reader);
+    const entries = await readAllEntries(reader);
     for (const child of entries) {
-      await traverseEntryRaw(child, result);
+      await traverseEntry(
+        child,
+        path ? `${path}/${entry.name}` : entry.name,
+        result
+      );
     }
   }
 }
@@ -82,20 +101,17 @@ interface RawFootageUploadDialogProps {
   trigger?: React.ReactNode;
 }
 
-// Helper to generate month options (current + next 2 months)
 function getMonthOptions(): { value: string; label: string; isCurrent: boolean }[] {
   const months: { value: string; label: string; isCurrent: boolean }[] = [];
   const now = new Date();
-  
   for (let i = 0; i < 3; i++) {
     const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
     const monthName = date.toLocaleDateString('en-US', { month: 'long' });
     const year = date.getFullYear();
-    const value = `${monthName}-${year}`; // "April-2026"
+    const value = `${monthName}-${year}`;
     const label = i === 0 ? `${monthName} ${year} (current)` : `${monthName} ${year}`;
     months.push({ value, label, isCurrent: i === 0 });
   }
-  
   return months;
 }
 
@@ -106,20 +122,16 @@ export function RawFootageUploadDialog({
   trigger,
 }: RawFootageUploadDialogProps) {
   const [open, setOpen] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  
-  // New selectors
+
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedDeliverable, setSelectedDeliverable] = useState<string>("");
   const [subfolderName, setSubfolderName] = useState<string>("");
-  
-  // Deliverables from API
+
   const [deliverables, setDeliverables] = useState<DeliverableType[]>([]);
   const [loadingDeliverables, setLoadingDeliverables] = useState(false);
-  
-  // Upload state
-  const [resumableUploads, setResumableUploads] = useState<UploadState[]>([]);
+
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,34 +140,29 @@ export function RawFootageUploadDialog({
 
   const { enqueueUpload, getUploadState } = useUploads();
   const currentUpload = currentUploadId ? getUploadState(currentUploadId) : null;
-  
   const monthOptions = getMonthOptions();
 
-  // Set default month on open
   useEffect(() => {
     if (open && !selectedMonth && monthOptions.length > 0) {
       setSelectedMonth(monthOptions[0].value);
     }
   }, [open, selectedMonth, monthOptions]);
 
-  // Fetch deliverables when dialog opens
   useEffect(() => {
-    if (open && clientId) {
-      fetchDeliverables();
-    }
+    if (open && clientId) fetchDeliverables();
   }, [open, clientId]);
 
-  // Handle upload completion
   useEffect(() => {
-    if (currentUpload?.status === 'completed' && !notifiedUploadsRef.current.has(currentUpload.id)) {
+    if (
+      currentUpload?.status === 'completed' &&
+      !notifiedUploadsRef.current.has(currentUpload.id)
+    ) {
       notifiedUploadsRef.current.add(currentUpload.id);
       onUploadComplete();
-
       if (selectedFiles.length === 0) {
         setTimeout(() => {
           setOpen(false);
           setCurrentUploadId(null);
-          // Reset form
           setSubfolderName("");
         }, 2000);
       }
@@ -167,13 +174,9 @@ export function RawFootageUploadDialog({
     try {
       const res = await fetch(`/api/clients/${clientId}/deliverables`);
       if (!res.ok) throw new Error('Failed to fetch deliverables');
-      
       const data = await res.json();
-      
-      // Extract unique types from monthly deliverables
       const types: DeliverableType[] = [];
       const seenTypes = new Set<string>();
-      
       for (const d of (data.deliverables || data.monthlyDeliverables || [])) {
         if (!seenTypes.has(d.type)) {
           seenTypes.add(d.type);
@@ -185,10 +188,7 @@ export function RawFootageUploadDialog({
           });
         }
       }
-      
       setDeliverables(types);
-      
-      // Auto-select first deliverable if only one
       if (types.length === 1 && !selectedDeliverable) {
         setSelectedDeliverable(types[0].type);
       }
@@ -218,77 +218,78 @@ export function RawFootageUploadDialog({
     setIsDragging(false);
   };
 
+  // ─── Drop handler — preserves full folder structure ───────────────────────
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
 
     const items = Array.from(e.dataTransfer.items);
-    const newFiles: File[] = [];
+    const newFiles: SelectedFile[] = [];
 
-    // Check if any items are directories
     let hasDirectories = false;
     for (const item of items) {
       const entry = item.webkitGetAsEntry?.();
-      if (entry?.isDirectory) {
-        hasDirectories = true;
-        break;
-      }
+      if (entry?.isDirectory) { hasDirectories = true; break; }
     }
 
     if (hasDirectories) {
-      // Traverse all entries (files + folders)
       for (const item of items) {
         const entry = item.webkitGetAsEntry?.();
-        if (entry) {
-          await traverseEntryRaw(entry, newFiles);
-        }
+        if (entry) await traverseEntry(entry, '', newFiles);
       }
     } else {
-      // Simple file drop
-      newFiles.push(...Array.from(e.dataTransfer.files));
+      for (const file of Array.from(e.dataTransfer.files)) {
+        newFiles.push({ file });
+      }
     }
 
     if (newFiles.length > 0) {
       setSelectedFiles(prev => [...prev, ...newFiles]);
+      const folderCount = newFiles.filter(f => f.relativePath?.includes('/')).length;
+      if (folderCount > 0) {
+        toast.success(`${newFiles.length} files added (folder structure preserved)`);
+      }
     }
   };
 
+  // ─── File picker — no relative path ──────────────────────────────────────
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
+      const newFiles = Array.from(e.target.files).map(file => ({ file }));
       setSelectedFiles(prev => [...prev, ...newFiles]);
     }
+    if (e.target) e.target.value = '';
+  };
+
+  // ─── Folder picker — preserves webkitRelativePath ────────────────────────
+  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files).map(file => ({
+        file,
+        relativePath: file.webkitRelativePath || undefined,
+      }));
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+      toast.success(`${newFiles.length} files selected (folder structure preserved)`);
+    }
+    if (e.target) e.target.value = '';
   };
 
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Build the target folder path
   const getTargetPath = (): string => {
-    // Structure: CompanyName/raw-footage/April-2026/LF/subfolder-name/
     let path = `${companyName}/raw-footage/`;
-    
-    if (selectedMonth) {
-      path += `${selectedMonth}/`;
-    }
-    
-    if (selectedDeliverable) {
-      path += `${selectedDeliverable}/`;
-    }
-    
+    if (selectedMonth) path += `${selectedMonth}/`;
+    if (selectedDeliverable) path += `${selectedDeliverable}/`;
     if (subfolderName.trim()) {
-      // Sanitize subfolder name (replace spaces with hyphens, remove special chars)
       const sanitized = subfolderName.trim()
         .toLowerCase()
         .replace(/\s+/g, '-')
         .replace(/[^a-z0-9-_]/g, '');
-      if (sanitized) {
-        path += `${sanitized}/`;
-      }
+      if (sanitized) path += `${sanitized}/`;
     }
-    
     return path;
   };
 
@@ -307,25 +308,26 @@ export function RawFootageUploadDialog({
     console.log('📁 Uploading to:', targetPath);
 
     try {
-      // 🔥 FIFO: Enqueue all files — they upload one at a time
       const firstId = await enqueueUpload(
-        filesToUpload[0], 
+        filesToUpload[0].file,
         { clientId },
         targetPath,
-        'drive'
+        'drive',
+        filesToUpload[0].relativePath  // ← folder structure preserved
       );
       setCurrentUploadId(firstId);
       setIsStarting(false);
 
-      // Enqueue remaining files (they won't start until the previous finishes)
-      if (filesToUpload.length > 1) {
-        for (const file of filesToUpload.slice(1)) {
-          enqueueUpload(file, { clientId }, targetPath, 'drive').catch(err =>
-            console.error("Queue initiation failed:", file.name, err)
-          );
-        }
+      for (const sf of filesToUpload.slice(1)) {
+        enqueueUpload(
+          sf.file,
+          { clientId },
+          targetPath,
+          'drive',
+          sf.relativePath  // ← folder structure preserved
+        ).catch(err => console.error("Queue initiation failed:", sf.file.name, err));
       }
-      
+
       toast.success(`Uploading ${filesToUpload.length} file(s) to ${selectedDeliverable}/${selectedMonth}`);
     } catch (err) {
       console.error("Upload initiation failed:", err);
@@ -334,17 +336,14 @@ export function RawFootageUploadDialog({
     }
   };
 
-  // 🔥 Folder upload handler
-  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...newFiles]);
-      toast.success(`${newFiles.length} files selected from folder`);
-    }
-  };
-
-  const progress = currentUpload ? Math.round((currentUpload.uploadedBytes / currentUpload.fileSize) * 100) : 0;
+  const progress = currentUpload
+    ? Math.round((currentUpload.uploadedBytes / currentUpload.fileSize) * 100)
+    : 0;
   const canUpload = selectedFiles.length > 0 && selectedMonth && selectedDeliverable;
+
+  // Get the top-level folder name for display (if folder was dropped)
+  const droppedFolderName = selectedFiles.find(sf => sf.relativePath)
+    ?.relativePath?.split('/')[0];
 
   return (
     <Dialog open={open} onOpenChange={(v) => {
@@ -408,7 +407,7 @@ export function RawFootageUploadDialog({
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  No deliverables configured for this client. Please contact your account manager.
+                  No deliverables configured for this client.
                 </AlertDescription>
               </Alert>
             ) : (
@@ -434,7 +433,7 @@ export function RawFootageUploadDialog({
             )}
           </div>
 
-          {/* Subfolder Name (Optional) */}
+          {/* Subfolder Name */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2 text-sm">
               <Folder className="h-4 w-4 text-muted-foreground" />
@@ -479,11 +478,17 @@ export function RawFootageUploadDialog({
                     </span>
                   </>
                 )}
+                {droppedFolderName && (
+                  <>
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-purple-600 font-medium">{droppedFolderName}/ ...</span>
+                  </>
+                )}
               </div>
             </div>
           )}
 
-          {/* Current Upload Progress */}
+          {/* Upload Progress */}
           {currentUpload && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between text-sm">
@@ -515,8 +520,7 @@ export function RawFootageUploadDialog({
                           ? `~${Math.round(currentUpload.estimatedTimeLeft)} sec left`
                           : currentUpload.estimatedTimeLeft < 3600
                             ? `~${Math.ceil(currentUpload.estimatedTimeLeft / 60)} min left`
-                            : `~${Math.floor(currentUpload.estimatedTimeLeft / 3600)}h ${Math.round((currentUpload.estimatedTimeLeft % 3600) / 60)}m left`
-                        }
+                            : `~${Math.floor(currentUpload.estimatedTimeLeft / 3600)}h ${Math.round((currentUpload.estimatedTimeLeft % 3600) / 60)}m left`}
                       </span>
                     )}
                   </span>
@@ -559,17 +563,17 @@ export function RawFootageUploadDialog({
                   type="file"
                   className="hidden"
                   onChange={handleFolderSelect}
-                  /* @ts-expect-error webkitdirectory is non-standard but widely supported */
+                  /* @ts-expect-error webkitdirectory is non-standard */
                   webkitdirectory=""
                   directory=""
                   multiple
                 />
                 <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  Drop files here or click to browse
+                  Drop files or folders here, or click to browse
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Video and image files
+                  Folder structure is preserved automatically
                 </p>
               </div>
               <Button
@@ -592,18 +596,25 @@ export function RawFootageUploadDialog({
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
               <p className="text-xs font-medium text-muted-foreground">
                 {selectedFiles.length} file(s) selected
+                {droppedFolderName && (
+                  <span className="text-purple-600 ml-1">
+                    from folder: {droppedFolderName}
+                  </span>
+                )}
               </p>
-              {selectedFiles.map((file, index) => (
+              {selectedFiles.map((sf, index) => (
                 <div
-                  key={`${file.name}-${index}`}
+                  key={`${sf.file.name}-${index}`}
                   className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <FileVideo className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{file.name}</p>
+                      <p className="text-sm font-medium truncate">
+                        {sf.relativePath || sf.file.name}
+                      </p>
                       <p className="text-[11px] text-muted-foreground">
-                        {formatSize(file.size)}
+                        {formatSize(sf.file.size)}
                       </p>
                     </div>
                   </div>
