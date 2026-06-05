@@ -1,30 +1,17 @@
 export const dynamic = 'force-dynamic';
-// app/api/upload/abort/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { AbortMultipartUploadCommand } from '@aws-sdk/client-s3';
-import { getS3, BUCKET } from '@/lib/s3';
+// src/app/api/upload/abort/route.ts
+// Thin proxy — delegates AbortMultipartUpload to file server
 
-const s3Client = getS3();
+import { NextRequest, NextResponse } from 'next/server';
+import { abortMultipart } from '@/lib/file-server';
 
 export async function POST(request: NextRequest) {
   try {
     const { key, uploadId } = await request.json();
-
     if (!key || !uploadId) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-
-    const command = new AbortMultipartUploadCommand({
-      Bucket: BUCKET,
-      Key: key,
-      UploadId: uploadId,
-    });
-
-    await s3Client.send(command);
-
+    await abortMultipart('system', 'uploader', key, uploadId);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error aborting upload:', error);

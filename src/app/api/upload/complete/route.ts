@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 // app/api/upload/complete/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { CompleteMultipartUploadCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+// import { CompleteMultipartUploadCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
-import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
+// import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
 import { queueVideoForCompression } from "@/lib/video-compression/worker";
 import { updateClientStorageAfterUpload } from "@/lib/storage-service";
 import { sendUploadNotification } from "@/lib/upload-notifications";
@@ -75,14 +75,19 @@ export async function POST(request: NextRequest) {
 
     try {
       // Complete the multipart upload on S3
-      const command = new CompleteMultipartUploadCommand({
-        Bucket: BUCKET,
-        Key: key,
-        UploadId: uploadId,
-        MultipartUpload: { Parts: parts },
-      });
+      // const command = new CompleteMultipartUploadCommand({
+      //   Bucket: BUCKET,
+      //   Key: key,
+      //   UploadId: uploadId,
+      //   MultipartUpload: { Parts: parts },
+      // });
 
-      const s3Response = await s3Client.send(command);
+      // const s3Response = await s3Client.send(command);
+      // const fileUrl = getFileUrl(key);
+
+      // Complete the multipart upload via file server
+      const { completeMultipart } = await import('@/lib/file-server');
+      const s3Response = await completeMultipart(userId, user.role || 'admin', key, uploadId, parts);
       const fileUrl = getFileUrl(key);
 
       console.log("✅ S3 upload completed:", fileUrl);

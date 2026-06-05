@@ -127,3 +127,98 @@ export async function invalidateCache(userId: number | string, role: string, pre
   const res = await fsRequest('POST', '/cache/invalidate', userId, role, { prefix });
   return res.ok;
 }
+
+// ─── Multipart Upload Proxies ─────────────────────────────────────────────────
+
+export async function initiateMultipart(
+  userId: number | string,
+  role: string,
+  key: string,
+  fileType: string
+): Promise<{ uploadId: string; key: string }> {
+  const token = generateFileServerToken(userId, role);
+  const res = await fetch(`${FILE_SERVER_URL}/multipart/initiate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ key, fileType }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `File server initiate failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getPartUrl(
+  userId: number | string,
+  role: string,
+  key: string,
+  uploadId: string,
+  partNumber: number
+): Promise<{ presignedUrl: string }> {
+  const token = generateFileServerToken(userId, role);
+  const res = await fetch(`${FILE_SERVER_URL}/multipart/part-url`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ key, uploadId, partNumber }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `File server part-url failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function completeMultipart(
+  userId: number | string,
+  role: string,
+  key: string,
+  uploadId: string,
+  parts: Array<{ ETag: string; PartNumber: number }>
+): Promise<{ success: boolean; etag?: string; location?: string }> {
+  const token = generateFileServerToken(userId, role);
+  const res = await fetch(`${FILE_SERVER_URL}/multipart/complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ key, uploadId, parts }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    // Preserve S3 error codes for upstream handling
+    const err: any = new Error(data.error || `File server complete failed: ${res.status}`);
+    err.Code = data.code;
+    err.name = data.code;
+    throw err;
+  }
+  return res.json();
+}
+
+export async function abortMultipart(
+  userId: number | string,
+  role: string,
+  key: string,
+  uploadId: string
+): Promise<void> {
+  const token = generateFileServerToken(userId, role);
+  const res = await fetch(`${FILE_SERVER_URL}/multipart/abort`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ key, uploadId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `File server abort failed: ${res.status}`);
+  }
+}
