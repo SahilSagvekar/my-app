@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { toast } from 'sonner';
@@ -13,6 +14,7 @@ export function useScheduler() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [clientFilter, setClientFilter] = useState('all');
     const [deliverableFilter, setDeliverableFilter] = useState('all');
+    const [sponsoredOnly, setSponsoredOnly] = useState(false);
     const [allClients, setAllClients] = useState<any[]>([]);
     const [uniqueDeliverables, setUniqueDeliverables] = useState<string[]>([]);
 
@@ -294,12 +296,36 @@ export function useScheduler() {
         } catch (err) { toast.error('Failed to update trial status'); }
     };
 
-    const displayTasks = [...tasks].sort((a, b) => {
+    const updatePostingDate = async (taskId: string, postedAt: string) => {
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/posting-date`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ postedAt }),
+            });
+            if (!res.ok) throw new Error('Failed');
+            // Update local state — set postingDate and sync all socialMediaLinks dates
+            setTasks(prev => prev.map(t => {
+                if (t.id !== taskId) return t;
+                const updatedLinks = (t.socialMediaLinks || []).map(l => ({ ...l, postedAt }));
+                return { ...t, postingDate: postedAt, socialMediaLinks: updatedLinks };
+            }));
+            toast.success('Posting date updated');
+        } catch (err) {
+            toast.error('Failed to update posting date');
+        }
+    };
+
+    const displayTasks = [...tasks]
+        .filter(t => !sponsoredOnly || t.isSponsored)
+        .sort((a, b) => {
         let aVal: any, bVal: any;
         switch (sortColumn) {
             case 'title': aVal = a.title; bVal = b.title; break;
             case 'client': aVal = a.client?.name || ''; bVal = b.client?.name || ''; break;
             case 'dueDate': aVal = new Date(a.dueDate || 0); bVal = new Date(b.dueDate || 0); break;
+            case 'postingDate': aVal = new Date(a.postingDate || 0); bVal = new Date(b.postingDate || 0); break;
             case 'status': aVal = a.status; bVal = b.status; break;
             default: aVal = a.dueDate; bVal = b.dueDate;
         }
@@ -316,12 +342,14 @@ export function useScheduler() {
         handleClientFilterChange: (v: string) => { setClientFilter(v); setCurrentPage(1); },
         deliverableFilter, setDeliverableFilter,
         handleDeliverableFilterChange: (v: string) => { setDeliverableFilter(v); setCurrentPage(1); },
+        sponsoredOnly, setSponsoredOnly,
         uniqueClients: uniqueClientsFormatted, uniqueDeliverables,
         hasMore, totalTasks, currentPage, expandedRows, selectedRows, setSelectedRows,
         isPreviewOpen, setIsPreviewOpen, previewFile, setPreviewFile, linkDialog, setLinkDialog,
         linkUrl, setLinkUrl, linkPostedAt, setLinkPostedAt, submittingLink,
         loadTasks, handleSort, toggleRow, markAsScheduled, markAsPending, bulkMarkAsScheduled,
         toggleTrial, downloadFile, copyTitle, saveLink, deleteSocialLink, getFileUrl,
+        updatePostingDate,
         sortColumn, sortDirection, displayTasks
     };
 }

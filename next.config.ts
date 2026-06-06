@@ -90,9 +90,33 @@ const nextConfig = {
     ];
   },
   transpilePackages: ['react-pdf'],
-  webpack: (config: any) => {
+  webpack: (config: any, { isServer }: { isServer: boolean }) => {
     // pdfjs-dist uses canvas for node.js — alias to false for browser builds
     config.resolve.alias.canvas = false;
+    if (!isServer) {
+      // Node built-ins — tell webpack to treat as empty in browser bundle
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        dns: false,
+        child_process: false,
+        crypto: false,
+        stream: false,
+        path: false,
+        os: false,
+      };
+      // Server-only packages — exclude entirely from client bundle
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        '@prisma/client',
+        'prisma',
+        'bcrypt',
+        'nodemailer',
+        'jsonwebtoken',
+      ];
+    }
     return config;
   },
 };

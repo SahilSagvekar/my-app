@@ -25,6 +25,8 @@ interface FilterBarProps {
     handleDeliverableFilterChange: (val: string) => void;
     uniqueClients: [string, string][];
     uniqueDeliverables: string[];
+    sponsoredOnly: boolean;
+    setSponsoredOnly: (val: boolean) => void;
 }
 
 export function FilterBar({
@@ -40,6 +42,8 @@ export function FilterBar({
     handleDeliverableFilterChange,
     uniqueClients,
     uniqueDeliverables,
+    sponsoredOnly,
+    setSponsoredOnly,
 }: FilterBarProps) {
     return (
         <div className="flex flex-wrap items-center gap-4 bg-white border rounded-lg p-3 shadow-sm">
@@ -137,6 +141,21 @@ export function FilterBar({
                         ))}
                     </SelectContent>
                 </Select>
+            </div>
+
+            {/* Sponsored Filter */}
+            <div className="border-l pl-4">
+                <button
+                    type="button"
+                    onClick={() => setSponsoredOnly(!sponsoredOnly)}
+                    className={`h-9 px-3 text-xs font-medium rounded-md border transition-colors whitespace-nowrap ${
+                        sponsoredOnly
+                            ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                            : 'bg-transparent text-muted-foreground border-input hover:border-yellow-300 hover:text-yellow-700'
+                    }`}
+                >
+                    ★ Sponsored
+                </button>
             </div>
         </div>
     );

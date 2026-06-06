@@ -158,6 +158,16 @@ export async function GET(req: Request) {
       return d?.type;
     }).filter(Boolean)));
 
+    // Fetch isSponsored via raw query to bypass stale Prisma client
+    const taskIds = tasks.map(t => t.id);
+    const sponsoredRows = taskIds.length > 0
+      ? await prisma.$queryRawUnsafe<{ id: string; isSponsored: boolean }[]>(
+          `SELECT id, "isSponsored" FROM "Task" WHERE id = ANY($1::text[])`,
+          taskIds
+        )
+      : [];
+    const sponsoredMap = new Map(sponsoredRows.map((r: any) => [r.id, r.isSponsored]));
+
     // Map and add signed URLs
     const payload = await Promise.all(
       tasks.map(async (t) => {
@@ -190,7 +200,14 @@ export async function GET(req: Request) {
           suggestedTitles: t.suggestedTitles,
           platform: t.platform,
           socialMediaLinks: t.socialMediaLinks || [],
-          isSponsored: (t as any).isSponsored ?? false,
+          postingDate: (() => {
+            const links = Array.isArray(t.socialMediaLinks) ? t.socialMediaLinks as any[] : [];
+            if (!links.length) return null;
+            const dates = links.map((l: any) => new Date(l.postedAt).getTime()).filter(d => !isNaN(d));
+            if (!dates.length) return null;
+            return new Date(Math.min(...dates)).toISOString();
+          })(),
+          isSponsored: sponsoredMap.get(t.id) ?? false,
           deliverableType: t.deliverableType ?? null,
           priority: t.priority,
           client: t.client,

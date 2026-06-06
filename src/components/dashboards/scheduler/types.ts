@@ -9,6 +9,7 @@ export interface SchedulerTask {
     priority: string;
     status: string;
     dueDate?: string;
+    postingDate?: string; // earliest postedAt across all social links — what client sees
     files: {
         id: string | number;
         name: string;
@@ -45,6 +46,9 @@ export interface SchedulerTask {
     socialMediaLinks?: Array<{ platform: string; url: string; postedAt: string }>;
     suggestedTitles?: Array<{ style?: string; title: string; reasoning?: string }> | string[];
     titlingStatus?: string;
+    isSponsored?: boolean;
+    isTrial?: boolean;
+    deliverableType?: string | null;
 }
 
 export interface ClientDeliverable {

@@ -48,6 +48,8 @@ export function SchedulerSpreadsheetView() {
         deliverableFilter,
         handleDeliverableFilterChange,
         setDeliverableFilter,
+        sponsoredOnly,
+        setSponsoredOnly,
         uniqueClients,
         uniqueDeliverables,
         hasMore,
@@ -79,6 +81,7 @@ export function SchedulerSpreadsheetView() {
         saveLink,
         deleteSocialLink,
         getFileUrl,
+        updatePostingDate,
         sortColumn,
         sortDirection,
         displayTasks
@@ -165,6 +168,8 @@ export function SchedulerSpreadsheetView() {
                 handleDeliverableFilterChange={handleDeliverableFilterChange}
                 uniqueClients={uniqueClients}
                 uniqueDeliverables={uniqueDeliverables}
+                sponsoredOnly={sponsoredOnly}
+                setSponsoredOnly={setSponsoredOnly}
             />
 
             {/* Spreadsheet Table */}
@@ -210,10 +215,10 @@ export function SchedulerSpreadsheetView() {
                                 </th>
                                 <th
                                     className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
-                                    onClick={() => handleSort('dueDate')}
+                                    onClick={() => handleSort('postingDate')}
                                 >
                                     <div className="flex items-center gap-1">
-                                        Due
+                                        Posted
                                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                     </div>
                                 </th>
@@ -304,6 +309,7 @@ export function SchedulerSpreadsheetView() {
                                         onDownloadFile={downloadFile}
                                         onCopyTitle={copyTitle}
                                         onToggleTrial={(isTrial) => toggleTrial(task.id, isTrial)}
+                                        onUpdatePostingDate={(date) => updatePostingDate(task.id, date)}
                                         getFileUrl={getFileUrl}
                                     />
                                 ))
