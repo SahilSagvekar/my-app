@@ -210,7 +210,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // ─── FEATURE 2: Path restoration ref ───
   const pendingPathRef = useRef<string>("");
   const hasRestoredRef = useRef(false);
-// -------------------------------------------------------------------------------------------------------------------
+
   // ─── Footage Links ───
   interface FootageLink { id: string; url: string; label?: string; addedByName: string; addedByRole: string; addedAt: string; folderPath?: string; }
   const [footageLinks, setFootageLinks] = useState<FootageLink[]>([]);
@@ -218,7 +218,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [showAddLinkInput, setShowAddLinkInput] = useState(false);
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [addingLink, setAddingLink] = useState(false);
-// -------------------------------------------------------------------------------------------------------------------
+
   // ─── Admin browsing context: resolve clientId from company name ───
   const [browsingClientId, setBrowsingClientId] = useState<string | null>(null);
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
@@ -363,13 +363,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       loadDriveStructure();
     }
   }, [user]);
-  // -------------------------------------------------------------------------------------------------------------------
 
   // Load footage links when inside a deliverable folder
   useEffect(() => {
     if (!effectiveClientId) { setFootageLinks([]); return; }
-    const path = breadcrumb.map(b => b.name).filter(n => n !== 'Root').join('/');
-    const parts = path.split('/').filter(Boolean);
+    const parts = breadcrumb.map(b => b.name).filter(n => n !== 'Root');
+    const path = parts.join('/') + '/'; // trailing slash matches getCurrentFolderS3Path()
     const rfIdx = parts.findIndex(p => p === 'raw-footage');
     const depth = rfIdx >= 0 ? parts.length - rfIdx - 1 : -1;
     const inDeliverable = path.includes('raw-footage') && depth >= 2;
@@ -383,7 +382,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       })
       .catch(() => setFootageLinks([]))
       .finally(() => setLoadingLinks(false));
-  }, [effectiveClientId, currentFolder, breadcrumb]);
+  }, [effectiveClientId, breadcrumb]);
 
   const handleAddFootageLink = async () => {
     if (!newLinkUrl.trim() || !effectiveClientId) return;
@@ -423,7 +422,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   };
 
   const canAddFootageLinks = ['admin', 'manager', 'editor', 'client'].includes(role?.toLowerCase() ?? '');
-// -------------------------------------------------------------------------------------------------------------------
+
   // ─── FEATURE 2: Navigate to folder by path string ───
   const navigateToPathInTree = useCallback((tree: DriveItem, targetPath: string) => {
     if (!targetPath || targetPath === "/") return;
@@ -1502,7 +1501,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 <span className="hidden sm:inline font-medium">New Folder</span>
               </Button>
             )}
-            {/* ------------------------------------------------------------------------------------------------------------------- */}
 
             {/* Add External Link Button */}
             {isClientInDeliverableFolder && canAddFootageLinks && (
@@ -1515,7 +1513,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 <span className="hidden sm:inline font-medium">Add Link</span>
               </Button>
             )}
-            {/* ------------------------------------------------------------------------------------------------------------------- */}
 
             {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
             {deliverableTypes.length > 0 && (
@@ -1774,7 +1771,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 <p className="text-sm">{error}</p>
               </div>
             )}
-{/* ------------------------------------------------------------------------------------------------------------------- */}
+
             {/* ── External Footage Links — shown at deliverable folder depth ── */}
             {isClientInDeliverableFolder && (footageLinks.length > 0 || canAddFootageLinks) && (
               <div className="mb-5 border rounded-xl bg-card overflow-hidden">
@@ -1874,7 +1871,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 )}
               </div>
             )}
-{/* ------------------------------------------------------------------------------------------------------------------- */}
+
             {filteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
                 <Folder className="h-16 w-16 mb-4 opacity-20" />
