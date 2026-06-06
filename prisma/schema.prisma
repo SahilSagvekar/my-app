@@ -317,6 +317,7 @@ model Client {
   isTrial                 Boolean                  @default(false)
   rawFootageStorageUsed   BigInt?                  @default(0)
   rawFootageStorageLimit  BigInt?                  @default(3298534883328)
+  rawFootageLinks         Json                     @default("[]")
   storageAlert90Sent      Boolean?                 @default(false)
   storageAlert95Sent      Boolean?                 @default(false)
   storageLastCalculated   DateTime?                @db.Timestamp(6)

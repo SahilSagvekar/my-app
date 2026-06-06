@@ -210,7 +210,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // ─── FEATURE 2: Path restoration ref ───
   const pendingPathRef = useRef<string>("");
   const hasRestoredRef = useRef(false);
-
+// -------------------------------------------------------------------------------------------------------------------
+  // ─── Footage Links ───
+  interface FootageLink { id: string; url: string; label?: string; addedByName: string; addedByRole: string; addedAt: string; folderPath?: string; }
+  const [footageLinks, setFootageLinks] = useState<FootageLink[]>([]);
+  const [loadingLinks, setLoadingLinks] = useState(false);
+  const [showAddLinkInput, setShowAddLinkInput] = useState(false);
+  const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [addingLink, setAddingLink] = useState(false);
+// -------------------------------------------------------------------------------------------------------------------
   // ─── Admin browsing context: resolve clientId from company name ───
   const [browsingClientId, setBrowsingClientId] = useState<string | null>(null);
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
@@ -355,7 +363,67 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       loadDriveStructure();
     }
   }, [user]);
+  // -------------------------------------------------------------------------------------------------------------------
 
+  // Load footage links when inside a deliverable folder
+  useEffect(() => {
+    if (!effectiveClientId) { setFootageLinks([]); return; }
+    const path = breadcrumb.map(b => b.name).filter(n => n !== 'Root').join('/');
+    const parts = path.split('/').filter(Boolean);
+    const rfIdx = parts.findIndex(p => p === 'raw-footage');
+    const depth = rfIdx >= 0 ? parts.length - rfIdx - 1 : -1;
+    const inDeliverable = path.includes('raw-footage') && depth >= 2;
+    if (!inDeliverable) { setFootageLinks([]); return; }
+    setLoadingLinks(true);
+    fetch(`/api/clients/${effectiveClientId}/footage-links`)
+      .then(r => r.json())
+      .then(d => {
+        const links = (d.links ?? []) as FootageLink[];
+        setFootageLinks(links.filter((l: FootageLink) => l.folderPath === path));
+      })
+      .catch(() => setFootageLinks([]))
+      .finally(() => setLoadingLinks(false));
+  }, [effectiveClientId, currentFolder, breadcrumb]);
+
+  const handleAddFootageLink = async () => {
+    if (!newLinkUrl.trim() || !effectiveClientId) return;
+    setAddingLink(true);
+    try {
+      const folderPath = getCurrentFolderS3Path();
+      const res = await fetch(`/api/clients/${effectiveClientId}/footage-links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: newLinkUrl.trim(), folderPath }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setFootageLinks(prev => [...prev, data.link]);
+      setNewLinkUrl('');
+      setShowAddLinkInput(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to add link');
+    } finally {
+      setAddingLink(false);
+    }
+  };
+
+  const handleDeleteFootageLink = async (linkId: string) => {
+    if (!effectiveClientId) return;
+    try {
+      const res = await fetch(`/api/clients/${effectiveClientId}/footage-links`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkId }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setFootageLinks(prev => prev.filter(l => l.id !== linkId));
+    } catch {
+      alert('Failed to remove link');
+    }
+  };
+
+  const canAddFootageLinks = ['admin', 'manager', 'editor', 'client'].includes(role?.toLowerCase() ?? '');
+// -------------------------------------------------------------------------------------------------------------------
   // ─── FEATURE 2: Navigate to folder by path string ───
   const navigateToPathInTree = useCallback((tree: DriveItem, targetPath: string) => {
     if (!targetPath || targetPath === "/") return;
@@ -1434,6 +1502,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 <span className="hidden sm:inline font-medium">New Folder</span>
               </Button>
             )}
+            {/* ------------------------------------------------------------------------------------------------------------------- */}
+
+            {/* Add External Link Button */}
+            {isClientInDeliverableFolder && canAddFootageLinks && (
+              <Button
+                variant="outline"
+                className="gap-2 shrink-0 h-10 px-4"
+                onClick={() => { setShowAddLinkInput(true); }}
+              >
+                <LinkIcon className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Add Link</span>
+              </Button>
+            )}
+            {/* ------------------------------------------------------------------------------------------------------------------- */}
 
             {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
             {deliverableTypes.length > 0 && (
@@ -1692,7 +1774,107 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 <p className="text-sm">{error}</p>
               </div>
             )}
+{/* ------------------------------------------------------------------------------------------------------------------- */}
+            {/* ── External Footage Links — shown at deliverable folder depth ── */}
+            {isClientInDeliverableFolder && (footageLinks.length > 0 || canAddFootageLinks) && (
+              <div className="mb-5 border rounded-xl bg-card overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/40">
+                  <div className="flex items-center gap-2">
+                    <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">External Links</span>
+                    {footageLinks.length > 0 && (
+                      <span className="text-[10px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">{footageLinks.length}</span>
+                    )}
+                  </div>
+                  {canAddFootageLinks && !showAddLinkInput && (
+                    <button
+                      onClick={() => setShowAddLinkInput(true)}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                    >
+                      <span className="text-base leading-none">+</span> Add Link
+                    </button>
+                  )}
+                </div>
 
+                {/* Add link input */}
+                {showAddLinkInput && (
+                  <div className="px-4 py-3 border-b bg-muted/20 flex items-center gap-2">
+                    <Input
+                      autoFocus
+                      placeholder="Paste Google Drive, Dropbox, Frame.io link..."
+                      value={newLinkUrl}
+                      onChange={e => setNewLinkUrl(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleAddFootageLink();
+                        if (e.key === 'Escape') { setShowAddLinkInput(false); setNewLinkUrl(''); }
+                      }}
+                      className="h-8 text-xs flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs px-3"
+                      disabled={!newLinkUrl.trim() || addingLink}
+                      onClick={handleAddFootageLink}
+                    >
+                      {addingLink ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Add'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 text-xs px-2"
+                      onClick={() => { setShowAddLinkInput(false); setNewLinkUrl(''); }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Links list */}
+                {loadingLinks ? (
+                  <div className="flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading links...
+                  </div>
+                ) : footageLinks.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-muted-foreground">
+                    No external links yet. {canAddFootageLinks ? 'Click "+ Add Link" to attach a Google Drive, Dropbox, or Frame.io link.' : ''}
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {footageLinks.map(link => (
+                      <div key={link.id} className="flex items-center gap-3 px-4 py-2.5 group hover:bg-muted/30 transition-colors">
+                        <LinkIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline truncate block font-medium"
+                          >
+                            {link.label || link.url}
+                          </a>
+                          {link.label && (
+                            <p className="text-[10px] text-muted-foreground truncate">{link.url}</p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Added by {link.addedByName} · {new Date(link.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        </div>
+                        {canAddFootageLinks && (
+                          <button
+                            onClick={() => handleDeleteFootageLink(link.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500"
+                            title="Remove link"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+{/* ------------------------------------------------------------------------------------------------------------------- */}
             {filteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
                 <Folder className="h-16 w-16 mb-4 opacity-20" />
