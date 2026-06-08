@@ -573,6 +573,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const depthFromRawFootage = rawFootageIndex >= 0 ? pathParts.length - rawFootageIndex - 1 : -1;
 
   const isInRawFootage = currentPath.includes('raw-footage');
+  const isInElements = currentPath.includes('elements');
 
   const shouldShowRawFootageDialog =
     !!effectiveClientId &&
@@ -580,15 +581,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     depthFromRawFootage >= 0 &&
     depthFromRawFootage <= 2;
 
+  const shouldShowElementsDialog =
+    !!effectiveClientId &&
+    isInElements;
+
   const isClientInDeliverableFolder =
     isInRawFootage &&
     depthFromRawFootage >= 2;
 
-  const canUpload = role !== 'client' || isClientInDeliverableFolder;
+  const canUpload = role !== 'client' || isClientInDeliverableFolder || isInElements;
   const isClientStorageLocked = role === 'client' && !!storageInfo?.isAtLimit;
 
-  // Clients can only modify (delete/rename) items when inside a deliverable folder (depth 2+ from raw-footage)
-  const clientCanModify = role !== 'client' || isClientInDeliverableFolder;
+  // Clients can only modify (delete/rename) items when inside a deliverable folder (depth 2+ from raw-footage) or elements
+  const clientCanModify = role !== 'client' || isClientInDeliverableFolder || isInElements;
 
   const closeUploadDialog = () => { };
 
@@ -1458,6 +1463,21 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     <Button className="gap-2 shrink-0 h-10 px-4">
                       <Upload className="h-4 w-4" />
                       <span className="hidden sm:inline font-medium">Upload Raw Footage</span>
+                    </Button>
+                  }
+                />
+              ) : shouldShowElementsDialog ? (
+                <RawFootageUploadDialog
+                  clientId={effectiveClientId!}
+                  companyName={effectiveCompanyName}
+                  mode="elements"
+                  onUploadComplete={() => {
+                    setTimeout(loadDriveStructure, 1000);
+                  }}
+                  trigger={
+                    <Button className="gap-2 shrink-0 h-10 px-4">
+                      <Upload className="h-4 w-4" />
+                      <span className="hidden sm:inline font-medium">Upload to Elements</span>
                     </Button>
                   }
                 />

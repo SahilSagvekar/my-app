@@ -99,6 +99,7 @@ interface RawFootageUploadDialogProps {
   companyName: string;
   onUploadComplete: () => void;
   trigger?: React.ReactNode;
+  mode?: 'rawFootage' | 'elements';
 }
 
 function getMonthOptions(): { value: string; label: string; isCurrent: boolean }[] {
@@ -120,7 +121,9 @@ export function RawFootageUploadDialog({
   companyName,
   onUploadComplete,
   trigger,
+  mode = 'rawFootage',
 }: RawFootageUploadDialogProps) {
+  const isElementsMode = mode === 'elements';
   const [open, setOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -280,6 +283,9 @@ export function RawFootageUploadDialog({
   };
 
   const getTargetPath = (): string => {
+    if (isElementsMode) {
+      return `${companyName}/elements/`;
+    }
     let path = `${companyName}/raw-footage/`;
     if (selectedMonth) path += `${selectedMonth}/`;
     if (selectedDeliverable) path += `${selectedDeliverable}/`;
@@ -295,7 +301,7 @@ export function RawFootageUploadDialog({
 
   const handleStart = async () => {
     if (selectedFiles.length === 0) return;
-    if (!selectedMonth || !selectedDeliverable) {
+    if (!isElementsMode && (!selectedMonth || !selectedDeliverable)) {
       toast.error('Please select month and deliverable type');
       return;
     }
@@ -328,7 +334,11 @@ export function RawFootageUploadDialog({
         ).catch(err => console.error("Queue initiation failed:", sf.file.name, err));
       }
 
-      toast.success(`Uploading ${filesToUpload.length} file(s) to ${selectedDeliverable}/${selectedMonth}`);
+      toast.success(
+        isElementsMode
+          ? `Uploading ${filesToUpload.length} file(s) to elements`
+          : `Uploading ${filesToUpload.length} file(s) to ${selectedDeliverable}/${selectedMonth}`
+      );
     } catch (err) {
       console.error("Upload initiation failed:", err);
       setIsStarting(false);
@@ -339,7 +349,7 @@ export function RawFootageUploadDialog({
   const progress = currentUpload
     ? Math.round((currentUpload.uploadedBytes / currentUpload.fileSize) * 100)
     : 0;
-  const canUpload = selectedFiles.length > 0 && selectedMonth && selectedDeliverable;
+  const canUpload = selectedFiles.length > 0 && (isElementsMode || (selectedMonth && selectedDeliverable));
 
   // Get the top-level folder name for display (if folder was dropped)
   const droppedFolderName = selectedFiles.find(sf => sf.relativePath)
@@ -367,117 +377,142 @@ export function RawFootageUploadDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FolderOpen className="h-5 w-5 text-primary" />
-            Upload Raw Footage
+            {isElementsMode ? 'Upload to Elements' : 'Upload Raw Footage'}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Month Selector */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-sm">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              Month
-            </Label>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select month" />
-              </SelectTrigger>
-              <SelectContent>
-                {monthOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Deliverable Type Selector */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-sm">
-              <Package className="h-4 w-4 text-muted-foreground" />
-              Deliverable Type
-            </Label>
-            {loadingDeliverables ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading deliverables...
+          {/* Month / Deliverable / Subfolder — rawFootage mode only */}
+          {!isElementsMode && (
+            <>
+              {/* Month Selector */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  Month
+                </Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            ) : deliverables.length === 0 ? (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  No deliverables configured for this client.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Select value={selectedDeliverable} onValueChange={setSelectedDeliverable}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select deliverable type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {deliverables.map((d) => (
-                    <SelectItem key={d.type} value={d.type}>
-                      <div className="flex items-center gap-2">
-                        <span>{d.type}</span>
-                        {d.isOneOff && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
-                            One-off
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
 
-          {/* Subfolder Name */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-sm">
-              <Folder className="h-4 w-4 text-muted-foreground" />
-              Folder Name
-              <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <Input
-              placeholder="e.g., beach-shoot, product-launch"
-              value={subfolderName}
-              onChange={(e) => setSubfolderName(e.target.value)}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Leave empty to upload directly to the deliverable folder
-            </p>
-          </div>
+              {/* Deliverable Type Selector */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  Deliverable Type
+                </Label>
+                {loadingDeliverables ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading deliverables...
+                  </div>
+                ) : deliverables.length === 0 ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      No deliverables configured for this client.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Select value={selectedDeliverable} onValueChange={setSelectedDeliverable}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select deliverable type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {deliverables.map((d) => (
+                        <SelectItem key={d.type} value={d.type}>
+                          <div className="flex items-center gap-2">
+                            <span>{d.type}</span>
+                            {d.isOneOff && (
+                              <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
+                                One-off
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-          {/* Path Preview */}
-          {(selectedMonth || selectedDeliverable) && (
+              {/* Subfolder Name */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <Folder className="h-4 w-4 text-muted-foreground" />
+                  Folder Name
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <Input
+                  placeholder="e.g., beach-shoot, product-launch"
+                  value={subfolderName}
+                  onChange={(e) => setSubfolderName(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Leave empty to upload directly to the deliverable folder
+                </p>
+              </div>
+
+              {/* Path Preview */}
+              {(selectedMonth || selectedDeliverable) && (
+                <div className="bg-muted/50 rounded-lg p-3 border">
+                  <p className="text-[11px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                    Files will be uploaded to:
+                  </p>
+                  <div className="font-mono text-xs flex items-center gap-1 flex-wrap">
+                    <span className="text-muted-foreground">📁 {companyName}/raw-footage/</span>
+                    {selectedMonth && (
+                      <>
+                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-blue-600 font-medium">{selectedMonth}/</span>
+                      </>
+                    )}
+                    {selectedDeliverable && (
+                      <>
+                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-amber-600 font-medium">{selectedDeliverable}/</span>
+                      </>
+                    )}
+                    {subfolderName.trim() && (
+                      <>
+                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-green-600 font-medium">
+                          {subfolderName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, '')}/
+                        </span>
+                      </>
+                    )}
+                    {droppedFolderName && (
+                      <>
+                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-purple-600 font-medium">{droppedFolderName}/ ...</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Elements path preview */}
+          {isElementsMode && (
             <div className="bg-muted/50 rounded-lg p-3 border">
               <p className="text-[11px] font-medium text-muted-foreground mb-2 uppercase tracking-wider">
                 Files will be uploaded to:
               </p>
               <div className="font-mono text-xs flex items-center gap-1 flex-wrap">
-                <span className="text-muted-foreground">📁 {companyName}/raw-footage/</span>
-                {selectedMonth && (
-                  <>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-blue-600 font-medium">{selectedMonth}/</span>
-                  </>
-                )}
-                {selectedDeliverable && (
-                  <>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-amber-600 font-medium">{selectedDeliverable}/</span>
-                  </>
-                )}
-                {subfolderName.trim() && (
-                  <>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-green-600 font-medium">
-                      {subfolderName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, '')}/
-                    </span>
-                  </>
-                )}
+                <span className="text-muted-foreground">📁 {companyName}/</span>
+                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                <span className="text-blue-600 font-medium">elements/</span>
                 {droppedFolderName && (
                   <>
                     <ChevronRight className="h-3 w-3 text-muted-foreground" />

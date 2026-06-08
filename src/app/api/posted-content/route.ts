@@ -62,31 +62,38 @@ export async function GET(req: NextRequest) {
 
     // Only return content linked to tasks that are SCHEDULED or POSTED
     // This prevents links added to in-progress tasks from appearing on the client screen
-    const scheduledTaskIds = await prisma.task.findMany({
-      where: { status: { in: ['SCHEDULED', 'POSTED'] } },
-      select: { id: true },
-    });
-    const validTaskIds = scheduledTaskIds.map(t => t.id);
+    // const scheduledTaskIds = await prisma.task.findMany({
+    //   where: { status: { in: ['SCHEDULED', 'POSTED'] } },
+    //   select: { id: true },
+    // });
+    // const validTaskIds = scheduledTaskIds.map(t => t.id);
     // Include content with no taskId (manually created) OR with a valid scheduled/posted task
-    const taskStatusFilter = {
-      OR: [
-        { taskId: null },
-        { taskId: { in: validTaskIds } },
-      ],
-    };
+    // const taskStatusFilter = {
+    //   OR: [
+    //     { taskId: null },
+    //     { taskId: { in: validTaskIds } },
+    //   ],
+    // };
+
+    // if (search) {
+    //   where.AND = [
+    //     taskStatusFilter,
+    //     {
+    //       OR: [
+    //         { title: { contains: search, mode: "insensitive" } },
+    //         { url: { contains: search, mode: "insensitive" } },
+    //       ],
+    //     },
+    //   ];
+    // } else {
+    //   where.AND = [taskStatusFilter];
+    // }
 
     if (search) {
-      where.AND = [
-        taskStatusFilter,
-        {
-          OR: [
-            { title: { contains: search, mode: "insensitive" } },
-            { url: { contains: search, mode: "insensitive" } },
-          ],
-        },
+      where.OR = [
+        { title: { contains: search, mode: "insensitive" } },
+        { url: { contains: search, mode: "insensitive" } },
       ];
-    } else {
-      where.AND = [taskStatusFilter];
     }
 
     // Cache simple clientId-only reads for 60s

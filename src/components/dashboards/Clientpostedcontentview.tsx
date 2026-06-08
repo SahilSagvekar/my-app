@@ -167,7 +167,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                     cache: 'no-store',
                     credentials: 'include',
                 }),
-                fetch(`/api/tasks?clientId=${clientId}&status=POSTED`, {
+                fetch(`/api/tasks?clientId=${clientId}&status=POSTED,COMPLETED,SCHEDULED`, {
                     cache: 'no-store',
                     credentials: 'include',
                 }),
