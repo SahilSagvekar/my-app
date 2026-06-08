@@ -288,7 +288,16 @@ cron.schedule('0 3 * * *', () => {
 }, { timezone: 'America/New_York' });
 
 // ==========================================
-// 6. Stuck Uploads / Drive Maintenance (Every 2 hours)
+// 6. Auto-Invoice Generation (Daily at 9 AM)
+// Creates DRAFT invoices for clients whose billingDay = today,
+// then emails admin to review before anything is sent to clients.
+// ==========================================
+cron.schedule('0 9 * * *', () => {
+    triggerJob('Auto Invoice', '/api/cron/auto-invoice', 'POST');
+}, { timezone: 'America/New_York' });
+
+// ==========================================
+// 7. Stuck Uploads / Drive Maintenance (Every 2 hours)
 // ==========================================
 cron.schedule('0 */2 * * *', () => {
     // Placeholder - add endpoint if you have one for drive sync/cleanup
@@ -307,6 +316,7 @@ console.log('📦 Jobs Scheduled:');
 console.log(' - Monthly Tasks: Daily at 1 AM');
 console.log(' - Meta Sync: Daily at 2 AM');
 console.log(' - YouTube Sync: Daily at 3 AM');
+console.log(' - Auto Invoice: Daily at 9 AM (drafts → admin review)');
 console.log(' - Activity Report: Daily at 7 PM');
 console.log(' - Team Summary Report: Daily at 7:05 PM');
 console.log(' - Maintenance: Every 2 hours');
