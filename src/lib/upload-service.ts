@@ -117,9 +117,6 @@ class UploadService {
                 };
             } catch (err: any) {
                 lastError = err;
-                if (err.message?.includes('Failed to get presigned URL')) {
-                    throw err;
-                }
                 const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                 console.warn(`⚠️ Upload error on part ${partNumber}, attempt ${attempt + 1}/${maxRetries}: ${err.message}. Retrying in ${Math.round(backoffMs)}ms...`);
                 await this.sleep(backoffMs);
