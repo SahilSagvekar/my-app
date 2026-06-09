@@ -15,6 +15,10 @@ function makeToken(userId: number | string, role: string): string {
   return jwt.sign({ userId: String(userId), role }, FILE_SERVER_SECRET, { expiresIn: '5m' });
 }
 
+export function generateFileServerToken(userId: number | string, role: string): string {
+  return makeToken(userId, role);
+}
+
 async function fsRequest(
   method: string,
   path: string,

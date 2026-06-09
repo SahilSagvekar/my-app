@@ -10,7 +10,7 @@ import { sendUploadNotification } from "@/lib/upload-notifications";
 import { getCurrentUser2 } from "@/lib/auth";
 import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
-import { completeMultipart } from '@/lib/file-server';
+import { completeMultipart, generateFileServerToken } from '@/lib/file-server';
 
 const s3Client = getS3();
 
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       // const fileUrl = getFileUrl(key);
 
       // Complete the multipart upload via file server
-      const { completeMultipart } = await import('@/lib/file-server');
+      // completeMultipart already statically imported at top
       const s3Response = await completeMultipart(userId, user.role || 'admin', key, uploadId, parts);
       const fileUrl = getFileUrl(key);
 
@@ -214,7 +214,6 @@ export async function POST(request: NextRequest) {
           const APP_URL = process.env.BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
           // Generate a short-lived token for the file server call
-          const { generateFileServerToken } = await import("@/lib/file-server");
           const token = generateFileServerToken(userId, user.role || 'editor');
 
           // Fire-and-forget — file server handles the long-running stream
