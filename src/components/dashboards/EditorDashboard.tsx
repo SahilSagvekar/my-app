@@ -874,7 +874,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
 
       {/* Revision Comment Detail Popup */}
 <Dialog open={!!selectedFeedback} onOpenChange={(open) => !open && setSelectedFeedback(null)}>
-  <DialogContent className="max-w-md">
+  <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
     <DialogHeader>
       <DialogTitle className="flex items-center gap-2 text-base text-destructive">
         <AlertCircle className="h-4 w-4" />
@@ -882,7 +882,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
       </DialogTitle>
     </DialogHeader>
     {selectedFeedback && (
-      <div className="space-y-3 pt-1">
+      <div className="space-y-3 pt-1 overflow-y-auto min-h-0">
         {/* Badges row */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <Badge variant="outline" className="text-xs px-2">
@@ -909,8 +909,8 @@ const [showGuidelines, setShowGuidelines] = useState(false);
         </div>
 
         {/* Feedback text */}
-        <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3">
-          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+        <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3 overflow-y-auto max-h-64">
+          <p className="text-sm whitespace-pre-wrap leading-relaxed break-words">
             {selectedFeedback.feedback}
           </p>
         </div>
