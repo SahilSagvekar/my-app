@@ -211,7 +211,9 @@ export async function POST(request: NextRequest) {
           const _clientName = taskForDrive?.client?.companyName || taskForDrive?.client?.name || "Unknown Client";
 
           const FILE_SERVER_URL = process.env.FILE_SERVER_URL || 'http://localhost:4000';
-          const APP_URL = process.env.BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+          // INTERNAL_APP_URL should be set to http://127.0.0.1:3000 on same-machine setups
+          // Falls back to BASE_URL/NEXTAUTH_URL for cross-machine setups
+          const APP_URL = process.env.INTERNAL_APP_URL || process.env.BASE_URL || process.env.NEXTAUTH_URL || 'http://127.0.0.1:3000';
 
           // Generate a short-lived token for the file server call
           const token = generateFileServerToken(userId, user.role || 'editor');
