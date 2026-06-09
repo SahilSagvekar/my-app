@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
 
       console.log(`💾 File v${newVersion} saved:`, fileRecord.id);
 
-      // 🔥 Mirror video to Google Drive for lag-free client review playback
+      // 🔥 Mirror video to Google Drive — offloaded to file server (survives deploys)
       if (fileType.startsWith("video/")) {
         const taskForDrive = await prisma.task.findUnique({
           where: { id: taskId },
@@ -205,70 +205,40 @@ export async function POST(request: NextRequest) {
 
         if (needsDriveMirror) {
           const _key = fileRecord.s3Key || key;
-          const _fileName = fileName;
-          const _fileType = fileType;
-          const _fileRecordId = fileRecord.id;
           const _driveFolderId = isLikelyGoogleDriveFolderId(taskForDrive?.driveFolderId)
             ? taskForDrive.driveFolderId
             : null;
           const _clientName = taskForDrive?.client?.companyName || taskForDrive?.client?.name || "Unknown Client";
 
-          // Fire-and-forget — don't block the upload response
-          (async () => {
-            try {
-              if (_key.endsWith("/") || _key.endsWith("/.")) {
-                console.warn(`⚠️ Drive mirror skipped — key looks like a folder: "${_key}"`);
-                return;
-              }
+          const FILE_SERVER_URL = process.env.FILE_SERVER_URL || 'http://localhost:4000';
+          const APP_URL = process.env.BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
-              // Wait for R2 eventual consistency after multipart complete
-              await new Promise(resolve => setTimeout(resolve, 1500));
+          // Generate a short-lived token for the file server call
+          const { generateFileServerToken } = await import("@/lib/file-server");
+          const token = generateFileServerToken(userId, user.role || 'editor');
 
-              console.log(`☁️ Mirroring ${_fileName} to Google Drive for client review...`);
-
-              // Resolve Drive folder
-              let targetFolderId = _driveFolderId;
-              if (!targetFolderId) {
-                console.log(`📁 No Drive folder on task — using fallback folder for "${_clientName}"`);
-                const { getOrCreateReviewFolder } = await import("@/lib/googleDrive");
-                targetFolderId = await getOrCreateReviewFolder(_clientName);
-                console.log(`📁 Resolved target Drive folder: ${targetFolderId}`);
-              }
-
-              // Stream from R2
-              console.log(`⬇️ Streaming from R2 → Drive | key: "${_key}"`);
-              const r2Object = await getCompletedObjectWithRetry(_key);
-              if (!r2Object.Body) throw new Error("Empty response from R2");
-
-              // Collect into buffer
-              const chunks: Uint8Array[] = [];
-              for await (const chunk of r2Object.Body as any) {
-                chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-              }
-              const buf = Buffer.concat(chunks);
-
-              // Upload to Drive using service account
-              const { uploadBufferToDrive } = await import("@/lib/googleDrive");
-              const driveRes = await uploadBufferToDrive({
-                buffer: buf,
-                folderId: targetFolderId,
-                filename: _fileName,
-                mimeType: _fileType,
-              });
-
-              const driveFileId = driveRes.id;
-              if (driveFileId) {
-                const reviewDriveUrl = `https://drive.google.com/file/d/${driveFileId}/view`;
-                await prisma.file.update({
-                  where: { id: _fileRecordId },
-                  data: { reviewDriveUrl },
-                });
-                console.log(`✅ Drive mirror complete: ${reviewDriveUrl}`);
-              }
-            } catch (driveErr: any) {
-              console.error(`⚠️ Drive mirror failed (R2 fallback active): ${describeDriveMirrorError(driveErr)} | key was: "${_key}" | fileName: "${_fileName}" | errorCode: ${driveErr.Code || driveErr.code || driveErr.name} | httpStatus: ${driveErr.$metadata?.httpStatusCode}`);
-            }
-          })();
+          // Fire-and-forget — file server handles the long-running stream
+          fetch(`${FILE_SERVER_URL}/drive-mirror`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              key: _key,
+              fileName,
+              mimeType: fileType,
+              folderId: _driveFolderId || undefined,
+              clientName: _driveFolderId ? undefined : _clientName,
+              fileRecordId: fileRecord.id,
+              callbackUrl: `${APP_URL}/api/internal/drive-mirror-complete`,
+            }),
+          }).then(r => {
+            if (!r.ok) r.text().then(t => console.error(`⚠️ Drive mirror dispatch failed: ${t}`));
+            else console.log(`📡 Drive mirror dispatched to file server for "${fileName}"`);
+          }).catch(err => {
+            console.error(`⚠️ Drive mirror dispatch error: ${err.message}`);
+          });
         }
       }
 
