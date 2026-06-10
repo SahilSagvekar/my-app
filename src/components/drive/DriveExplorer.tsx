@@ -14,8 +14,6 @@ import {
   Search,
   Upload,
   MoreVertical,
-  Grid3x3,
-  List,
   Star,
   Image,
   Video,
@@ -109,7 +107,7 @@ interface DriveExplorerProps {
   role: string;
 }
 
-type ViewMode = "grid" | "list";
+
 
 // ─── FEATURE 2: URL Path Persistence Helpers ───
 function getPathFromUrl(): string {
@@ -135,7 +133,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -1707,31 +1705,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 </Button>
               )}
 
-              <div className="flex bg-secondary/30 p-1 rounded-lg">
-                <Button
-                  variant={viewMode === "grid" ? "secondary" : "ghost"}
-                  size="icon"
-                  className={cn(
-                    "h-8 w-8 rounded-md transition-all",
-                    viewMode === "grid" ? "bg-background shadow-sm" : "hover:bg-background/50"
-                  )}
-                  onClick={() => setViewMode("grid")}
-                >
-                  <Grid3x3 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
-                  size="icon"
-                  className={cn(
-                    "h-8 w-8 rounded-md transition-all",
-                    viewMode === "list" ? "bg-background shadow-sm" : "hover:bg-background/50"
-                  )}
-                  onClick={() => setViewMode("list")}
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
-
               <Button
                 variant="ghost"
                 size="icon"
@@ -1925,7 +1898,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   />
                 )} */}
               </div>
-            ) : viewMode === "grid" ? (
+            ) : (
               // Grid View
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                 {filteredItems.map((item) => (
@@ -2070,167 +2043,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     </DropdownMenu>
                   </div>
                 ))}
-              </div>
-            ) : (
-              // List View
-              <div className="border rounded-lg overflow-x-auto">
-                <table className="w-full min-w-[600px]">
-                  <thead className="bg-muted/50 border-b">
-                    <tr>
-                      <th className="text-left p-2 sm:p-3 font-medium text-xs sm:text-sm">
-                        Name
-                      </th>
-                      <th className="text-left p-2 sm:p-3 font-medium text-xs sm:text-sm hidden sm:table-cell">
-                        Modified
-                      </th>
-                      <th className="text-left p-2 sm:p-3 font-medium text-xs sm:text-sm hidden md:table-cell">
-                        Size
-                      </th>
-                      <th className="w-10 sm:w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredItems.map((item) => (
-                      <tr
-                        key={item.path}
-                        className={cn(
-                          "border-b hover:bg-accent cursor-pointer transition-colors",
-                          selectedItems.has(item.path) && "bg-accent",
-                          checkedItems.has(item.s3Key || getS3Key(item)) && "bg-primary/5"
-                        )}
-                        onClick={() => isSelectionMode ? toggleChecked(item, { stopPropagation: () => {} } as any) : handleItemClick(item)}
-                        onDoubleClick={() => handleItemDoubleClick(item)}
-                      >
-                        <td className="p-2 sm:p-3">
-                          <div className="flex items-center gap-2 sm:gap-3">
-                            {/* Checkbox in selection mode */}
-                            {isSelectionMode && (
-                              <div onClick={(e) => toggleChecked(item, e)} className="flex-shrink-0">
-                                {checkedItems.has(item.s3Key || getS3Key(item))
-                                  ? <CheckSquare className="h-4 w-4 text-primary" />
-                                  : <Square className="h-4 w-4 text-muted-foreground" />}
-                              </div>
-                            )}
-                            {item.type === "folder" ? (
-                              <Folder className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
-                            ) : (
-                              <div className="flex-shrink-0 scale-75 sm:scale-100">
-                                {getFileIcon(item.name)}
-                              </div>
-                            )}
-                            <span className="truncate text-xs sm:text-sm">
-                              {item.name}
-                            </span>
-                            <span className="sm:hidden text-xs text-muted-foreground ml-auto">
-                              {item.type === "file" && item.size
-                                ? formatBytes(item.size)
-                                : ""}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="p-2 sm:p-3 text-xs sm:text-sm text-muted-foreground hidden sm:table-cell">
-                          {item.lastModified && formatDate(item.lastModified)}
-                        </td>
-                        <td className="p-2 sm:p-3 text-xs sm:text-sm text-muted-foreground hidden md:table-cell">
-                          {item.type === "file" && item.size
-                            ? formatBytes(item.size)
-                            : "-"}
-                        </td>
-                        <td className="p-2 sm:p-3">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {item.type === "folder" && (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={(e) => { e.stopPropagation(); handleDownloadFolder(item); }}
-                                    disabled={isZipping}
-                                  >
-                                    <FolderDown className="h-4 w-4 mr-2" />
-                                    Download folder
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
-                              {item.type === "file" && item.url && (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      window.open(item.url, "_blank")
-                                    }
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    Open
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDownloadClick(item);
-                                    }}
-                                  >
-                                    <Download className="h-4 w-4 mr-2" />
-                                    Download
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleChecked(item, e);
-                                  if (!isSelectionMode) setIsSelectionMode(true);
-                                }}
-                              >
-                                <CheckSquare className="h-4 w-4 mr-2" />
-                                {checkedItems.has(item.s3Key || getS3Key(item)) ? 'Deselect' : 'Select'}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleShareClick(item);
-                                }}
-                                disabled={isSharing}
-                              >
-                                {isSharing ? (
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                ) : (
-                                  <Share2 className="h-4 w-4 mr-2" />
-                                )}
-                                Copy shareable link
-                              </DropdownMenuItem>
-                              {isClientInDeliverableFolder && item.type === "folder" && (
-                                <DropdownMenuItem
-                                  onClick={() => handleRenameClick(item)}
-                                >
-                                  <Pencil className="h-4 w-4 mr-2" />
-                                  Rename
-                                </DropdownMenuItem>
-                              )}
-                              {clientCanModify && (
-                                <DropdownMenuItem
-                                  onClick={() => handleDeleteClick(item)}
-                                  className="text-red-600 focus:text-red-600"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             )}
           </div>
