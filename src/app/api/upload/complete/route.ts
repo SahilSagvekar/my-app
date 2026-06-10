@@ -1,43 +1,17 @@
 export const dynamic = "force-dynamic";
 // app/api/upload/complete/route.ts
 import { NextRequest, NextResponse } from "next/server";
-// import { CompleteMultipartUploadCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
-// import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
 import { queueVideoForCompression } from "@/lib/video-compression/worker";
 import { updateClientStorageAfterUpload } from "@/lib/storage-service";
 import { sendUploadNotification } from "@/lib/upload-notifications";
 import { getCurrentUser2 } from "@/lib/auth";
-import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
-import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
+import { getFileUrl } from "@/lib/s3";
 import { completeMultipart, generateFileServerToken } from '@/lib/file-server';
-
-const s3Client = getS3();
+import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 
 function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
   return !!value && !value.includes("/") && !value.includes("\\");
-}
-
-async function getCompletedObjectWithRetry(key: string) {
-  const maxAttempts = 6;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      await s3Client.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
-      return await s3Client.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
-    } catch (err) {
-      if (attempt === maxAttempts) throw err;
-      await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
-    }
-  }
-  throw new Error(`File not found after upload completion: ${key}`);
-}
-
-function describeDriveMirrorError(err: any): string {
-  const message = err?.message || String(err);
-  if (message.includes("Service Accounts do not have storage quota")) {
-    return `${message} Configure GOOGLE_REFRESH_TOKEN/GOOGLE_OAUTH_CLIENT_ID/GOOGLE_OAUTH_CLIENT_SECRET for OAuth-owned uploads, or set GOOGLE_DRIVE_PARENT_ID to a Shared Drive folder that the service account can access.`;
-  }
-  return message;
 }
 
 export async function POST(request: NextRequest) {
@@ -58,6 +32,8 @@ export async function POST(request: NextRequest) {
       taskId,
       subfolder,
       codec,
+      singlePut,
+      fileUrl: singlePutFileUrl,
     } = await request.json();
 
     console.log("📥 Complete request:", {
@@ -66,10 +42,11 @@ export async function POST(request: NextRequest) {
       subfolder: subfolder || "main",
       uploadId,
       partsCount: parts?.length,
+      singlePut: !!singlePut,
       userId,
     });
 
-    if (!key || !uploadId || !parts || !taskId) {
+    if (!key || !uploadId || !taskId) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 },
@@ -77,23 +54,22 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Complete the multipart upload on S3
-      // const command = new CompleteMultipartUploadCommand({
-      //   Bucket: BUCKET,
-      //   Key: key,
-      //   UploadId: uploadId,
-      //   MultipartUpload: { Parts: parts },
-      // });
+      // For single-PUT uploads (files < 16 MB), the file is already in R2 —
+      // skip CompleteMultipartUpload and use the fileUrl passed from the client.
+      let s3Response: { ETag?: string; Location?: string } = {};
+      let fileUrl: string;
 
-      // const s3Response = await s3Client.send(command);
-      // const fileUrl = getFileUrl(key);
-
-      // Complete the multipart upload via file server
-      // completeMultipart already statically imported at top
-      const s3Response = await completeMultipart(userId, user.role || 'admin', key, uploadId, parts);
-      const fileUrl = getFileUrl(key);
-
-      console.log("✅ S3 upload completed:", fileUrl);
+      if (singlePut) {
+        fileUrl = singlePutFileUrl || getFileUrl(key);
+        console.log("✅ Single PUT already complete:", fileUrl);
+      } else {
+        if (!parts) {
+          return NextResponse.json({ error: "Missing parts for multipart complete" }, { status: 400 });
+        }
+        s3Response = await completeMultipart(userId, user.role || 'admin', key, uploadId, parts);
+        fileUrl = getFileUrl(key);
+        console.log("✅ S3 multipart completed:", fileUrl);
+      }
 
       // 🔥 Track storage for raw-footage uploads
       const isRawFootageUpload = key.includes("raw-footage");
@@ -146,19 +122,35 @@ export async function POST(request: NextRequest) {
       // 🔥 Determine folderType based on subfolder
       const folderType = !subfolder || subfolder === "main" ? "main" : subfolder;
 
-      // 1. Find the current active file for this task + folderType
-      const existingActiveFile = await prisma.file.findFirst({
-        where: { taskId, folderType, isActive: true },
-        orderBy: { version: "desc" },
-      });
+      // ─── Parallel DB reads — fire all three at once, pay only one round-trip ───
+      // existingActiveFile: needed for version bump
+      // taskForDrive:       needed for Drive mirror decision (video uploads only)
+      // taskForNotif:       needed for Slack notification clientId
+      const [existingActiveFile, taskForDrive, taskForNotif] = await Promise.all([
+        prisma.file.findFirst({
+          where: { taskId, folderType, isActive: true },
+          orderBy: { version: "desc" },
+        }),
+        prisma.task.findUnique({
+          where: { id: taskId },
+          select: {
+            requiresClientReview: true,
+            outputFolderId: true,
+            driveFolderId: true,
+            clientId: true,
+            client: { select: { companyName: true, name: true } },
+          },
+        }),
+        // taskForNotif is a subset of taskForDrive — reuse the same result below
+        Promise.resolve(null as null),
+      ]);
 
-      let newVersion = 1;
+      const newVersion = existingActiveFile ? existingActiveFile.version + 1 : 1;
       if (existingActiveFile) {
-        newVersion = existingActiveFile.version + 1;
         console.log(`📦 Found existing v${existingActiveFile.version}, creating v${newVersion}`);
       }
 
-      // 2. Create new file record with version
+      // ─── Create file record — proxyUrl set correctly in one write, no placeholder ───
       const fileRecord = await prisma.file.create({
         data: {
           name: fileName,
@@ -172,14 +164,13 @@ export async function POST(request: NextRequest) {
           version: newVersion,
           isActive: true,
           codec,
-          proxyUrl: fileType.startsWith("video/")
-            ? `/api/files/NEW_ID_PLACEHOLDER/stream`
-            : null,
+          // proxyUrl needs the record ID — set via immediate update below
+          proxyUrl: null,
         },
       });
 
-      // Update the placeholder with the actual ID
-      if (fileRecord.proxyUrl === `/api/files/NEW_ID_PLACEHOLDER/stream`) {
+      // Set proxyUrl now that we have the real ID — single targeted update
+      if (fileType.startsWith("video/")) {
         await prisma.file.update({
           where: { id: fileRecord.id },
           data: { proxyUrl: `/api/files/${fileRecord.id}/stream` },
@@ -188,18 +179,8 @@ export async function POST(request: NextRequest) {
 
       console.log(`💾 File v${newVersion} saved:`, fileRecord.id);
 
-      // 🔥 Mirror video to Google Drive — offloaded to file server (survives deploys)
+      // ─── Drive mirror — data already in hand from the parallel read above ───
       if (fileType.startsWith("video/")) {
-        const taskForDrive = await prisma.task.findUnique({
-          where: { id: taskId },
-          select: {
-            requiresClientReview: true,
-            outputFolderId: true,
-            driveFolderId: true,
-            client: { select: { companyName: true, name: true } },
-          },
-        });
-
         const needsDriveMirror = taskForDrive?.requiresClientReview === true;
         console.log("needsDriveMirror:", needsDriveMirror);
 
@@ -211,11 +192,14 @@ export async function POST(request: NextRequest) {
           const _clientName = taskForDrive?.client?.companyName || taskForDrive?.client?.name || "Unknown Client";
 
           const FILE_SERVER_URL = process.env.FILE_SERVER_URL || 'http://localhost:4000';
-          // INTERNAL_APP_URL should be set to http://127.0.0.1:3000 on same-machine setups
-          // Falls back to BASE_URL/NEXTAUTH_URL for cross-machine setups
-          const APP_URL = process.env.INTERNAL_APP_URL || process.env.BASE_URL || process.env.NEXTAUTH_URL || 'http://127.0.0.1:3000';
-
-          // Generate a short-lived token for the file server call
+          // APP_URL must be reachable FROM THE FILE SERVER (different machine).
+          // 127.0.0.1:3000 is wrong — it points to the file server's own loopback.
+          // Set INTERNAL_APP_URL in the file server's .env to the e8-app private IP
+          // or public URL: http://172.31.21.253:3000 or https://e8productions.com
+          const APP_URL = process.env.INTERNAL_APP_URL
+            || process.env.NEXTAUTH_URL
+            || process.env.BASE_URL
+            || 'https://e8productions.com';
           const token = generateFileServerToken(userId, user.role || 'editor');
 
           // Fire-and-forget — file server handles the long-running stream
@@ -243,28 +227,26 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 3. Mark old file as inactive
+      // ─── Mark old file inactive + push driveLink — parallel writes ───
+      await Promise.all([
+        existingActiveFile
+          ? prisma.file.update({
+              where: { id: existingActiveFile.id },
+              data: { isActive: false, replacedAt: new Date(), replacedBy: fileRecord.id },
+            })
+          : Promise.resolve(null),
+        prisma.task.update({
+          where: { id: taskId },
+          data: { driveLinks: { push: fileUrl } },
+        }),
+      ]);
+
       if (existingActiveFile) {
-        await prisma.file.update({
-          where: { id: existingActiveFile.id },
-          data: {
-            isActive: false,
-            replacedAt: new Date(),
-            replacedBy: fileRecord.id,
-          },
-        });
         console.log(`📁 v${existingActiveFile.version} marked inactive, replaced by v${newVersion}`);
       }
-
-      // Add file URL to task.driveLinks
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { driveLinks: { push: fileUrl } },
-      });
-
       console.log("🔗 File URL added to task driveLinks");
 
-      // Queue for compression if > 100MB
+      // Queue for compression if > 100MB (fire-and-forget)
       if (fileType.startsWith("video/") && fileSize > 100 * 1024 * 1024) {
         queueVideoForCompression({
           videoKey: key,
@@ -276,21 +258,17 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // 🔥 LOG ACTIVITY
-      const { createAuditLog, AuditAction } = await import("@/lib/audit-logger");
-      await createAuditLog({
+      // ─── Audit log + Slack notification — both fire-and-forget ───
+      // clientId already fetched from taskForDrive, no extra query needed
+      createAuditLog({
         userId,
         action: AuditAction.FILE_UPLOADED,
         entity: "File",
         entityId: fileRecord.id,
         details: `Uploaded file: ${fileName} (v${newVersion}) to folder: ${folderType}`,
         metadata: { taskId, fileName, fileSize, version: newVersion, folderType },
-      });
-
-      // 🔥 SEND SLACK NOTIFICATION
-      const taskForNotification = await prisma.task.findUnique({
-        where: { id: taskId },
-        select: { clientId: true },
+      }).catch((err) => {
+        console.error(`[AuditLog] Failed to log upload:`, err);
       });
 
       if (userId) {
@@ -298,7 +276,7 @@ export async function POST(request: NextRequest) {
           fileName,
           fileSize: fileSize || 0,
           uploadedBy: userId,
-          clientId: taskForNotification?.clientId || undefined,
+          clientId: taskForDrive?.clientId || undefined,
           taskId,
           folderType,
           s3Key: key,
