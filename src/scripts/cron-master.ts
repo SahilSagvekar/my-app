@@ -297,12 +297,12 @@ cron.schedule('0 9 * * *', () => {
 }, { timezone: 'America/New_York' });
 
 // ==========================================
-// 7. Stuck Uploads / Drive Maintenance (Every 2 hours)
+// 7. Drive Mirror DB Sync (Every 2 minutes)
+// Polls the file server's completed-mirror queue and writes Drive URLs to the DB.
 // ==========================================
-cron.schedule('0 */2 * * *', () => {
-    // Placeholder - add endpoint if you have one for drive sync/cleanup
-    console.log('⏳ [Maintenance] Running drive/upload health check placeholder...');
-}, { timezone: 'America/New_York' });
+cron.schedule('*/2 * * * *', () => {
+    triggerJob('Drive Mirror Sync', '/api/cron/check-drive-mirrors', 'GET');
+});
 
 // ==========================================
 // 5. System Heartbeat (Every hour)

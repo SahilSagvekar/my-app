@@ -226,3 +226,37 @@ export async function abortMultipart(
     throw new Error(err.error || `File server abort failed: ${res.status}`);
   }
 }
+// ─── Drive Mirror Queue ───────────────────────────────────────────────────────
+
+export interface CompletedMirrorJob {
+  fileRecordId: string;
+  reviewDriveUrl: string;
+  driveFileId: string;
+  completedAt: string;
+}
+
+// Called by the cron route — drains all pending completed mirror jobs from the file server queue.
+// Uses a system-level token (admin role) since this is an internal cron call.
+export async function drainDriveMirrorQueue(): Promise<CompletedMirrorJob[]> {
+  const token = makeToken('0', 'admin');
+  const res = await fetch(`${FILE_SERVER_URL}/drive-mirror/completed`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`File server /drive-mirror/completed failed: ${res.status}`);
+  const data = await res.json();
+  return data.jobs as CompletedMirrorJob[];
+}
+
+// Called after successfully writing Drive URLs to DB — removes jobs from the file server queue.
+export async function ackDriveMirrorJobs(fileRecordIds: string[]): Promise<void> {
+  const token = makeToken('0', 'admin');
+  const res = await fetch(`${FILE_SERVER_URL}/drive-mirror/ack`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ fileRecordIds }),
+  });
+  if (!res.ok) throw new Error(`File server /drive-mirror/ack failed: ${res.status}`);
+}
