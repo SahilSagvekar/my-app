@@ -300,7 +300,7 @@ cron.schedule('0 9 * * *', () => {
 // 7. Drive Mirror DB Sync (Every 2 minutes)
 // Polls the file server's completed-mirror queue and writes Drive URLs to the DB.
 // ==========================================
-cron.schedule('*/2 * * * *', () => {
+cron.schedule('*/30 * * * * *', () => {
     triggerJob('Drive Mirror Sync', '/api/cron/check-drive-mirrors', 'GET');
 });
 
