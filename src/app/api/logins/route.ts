@@ -2,9 +2,8 @@ export const dynamic = 'force-dynamic';
 // app/api/logins/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-// import { getServerSession } from "next-auth";
-// import { getTokenFromCookies } from "@/lib/auth";
 import { encrypt, decrypt } from "@/lib/encryption";
+import { notifyLoginAdded } from "@/lib/login-notifications";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: NextRequest): string | null {
@@ -97,15 +96,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // For client role, only show their own logins
-    // For non-admin roles, also hide admin-only logins
-    // NEW: Also check allowedRoles and allowedUserIds for granular access
     const isAdmin = userRole === "admin";
 
     let logins;
 
     if (isAdmin) {
-      // Admins see everything
       logins = await prisma.socialLogin.findMany({
         include: {
           client: {
@@ -127,7 +122,6 @@ export async function GET(req: NextRequest) {
         ],
       });
     } else if (userRole === "client") {
-      // Get the client ID for this user (via linkedClientId or fallback to Client.userId)
       const userWithClient = await prisma.user.findUnique({
         where: { id: userId },
         select: { linkedClientId: true },
@@ -135,7 +129,6 @@ export async function GET(req: NextRequest) {
 
       let clientId = userWithClient?.linkedClientId;
 
-      // Fallback: check if any client has this userId
       if (!clientId) {
         const clientByUserId = await prisma.client.findFirst({
           where: { userId: userId },
@@ -144,7 +137,6 @@ export async function GET(req: NextRequest) {
         clientId = clientByUserId?.id || null;
       }
 
-      // Clients only see their own client's logins (and NOT admin-only ones)
       logins = await prisma.socialLogin.findMany({
         where: {
           clientId: clientId || 'NO_CLIENT_FOUND',
@@ -170,17 +162,11 @@ export async function GET(req: NextRequest) {
         ],
       });
     } else {
-      // Other roles (editor, qc, scheduler, etc.)
-      // They can only see logins where:
-      // 1. adminOnly is false AND
-      // 2. Their role is in allowedRoles OR their userId is in allowedUserIds
       logins = await prisma.socialLogin.findMany({
         where: {
           adminOnly: false,
           OR: [
-            // Role-based access
             { allowedRoles: { has: userRole! } },
-            // User-specific access
             { allowedUserIds: { has: userId } },
           ],
         },
@@ -205,12 +191,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Decrypt passwords before sending
-    // Hide client data for admin-only logins
-    // Include allowedRoles and allowedUserIds for admin to manage
     const decryptedLogins = logins.map((login) => ({
       id: login.id,
-      // Only include client info if NOT adminOnly
       ...(login.adminOnly ? {} : {
         clientId: login.clientId,
         clientName: login.client?.companyName || "Unknown Client",
@@ -285,7 +267,6 @@ export async function POST(req: NextRequest) {
 
     const userRole = user.role;
 
-    // Only admin and client can add logins
     if (userRole !== "admin" && userRole !== "client") {
       return NextResponse.json({ message: "Only admin or client can add logins" }, { status: 403 });
     }
@@ -295,7 +276,6 @@ export async function POST(req: NextRequest) {
 
     const isAdminOnlyLogin = adminOnly === true;
 
-    // clientId is required ONLY if adminOnly is false
     if (!platform || !username || !password) {
       return NextResponse.json(
         { message: "Missing required fields" },
@@ -303,7 +283,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If NOT adminOnly, clientId is required
     if (!isAdminOnlyLogin && !clientId) {
       return NextResponse.json(
         { message: "Client is required when not admin-only" },
@@ -311,7 +290,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Only admins can create admin-only logins
     if (isAdminOnlyLogin && userRole !== "admin") {
       return NextResponse.json(
         { message: "Only admins can create admin-only logins" },
@@ -319,7 +297,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Only admins can set allowedRoles and allowedUserIds
     if ((allowedRoles?.length > 0 || allowedUserIds?.length > 0) && userRole !== "admin") {
       return NextResponse.json(
         { message: "Only admins can set access permissions" },
@@ -327,7 +304,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If user is a client, verify they can only add logins for their own client
     if (userRole === "client" && clientId) {
       const userWithClient = await prisma.user.findUnique({
         where: { id: userId },
@@ -336,7 +312,6 @@ export async function POST(req: NextRequest) {
 
       let userClientId = userWithClient?.linkedClientId;
 
-      // Fallback to Client.userId
       if (!userClientId) {
         const clientByUserId = await prisma.client.findFirst({
           where: { userId: userId },
@@ -353,7 +328,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Get client info (only if clientId is provided)
     let client = null;
     if (clientId) {
       client = await prisma.client.findUnique({
@@ -366,7 +340,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Encrypt password before storing
     const encryptedPassword = encrypt(password);
 
     const login = await prisma.socialLogin.create({
@@ -387,7 +360,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Log the creation (exclude client info for admin-only logins)
     await prisma.loginAuditLog.create({
       data: {
         action: "create",
@@ -397,17 +369,25 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Notify schedulers + admins about the new login (fire-and-forget)
+    notifyLoginAdded({
+      platform,
+      clientName: isAdminOnlyLogin ? null : (client?.companyName || null),
+      addedByName: user.name || "Unknown",
+      addedByRole: userRole || "unknown",
+      isAdminOnly: isAdminOnlyLogin,
+    }).catch((err) => console.error("[logins/POST] slack notify failed:", err));
+
     return NextResponse.json({
       login: {
         id: login.id,
-        // Only include client info if NOT adminOnly
         ...(isAdminOnlyLogin ? {} : {
           clientId: login.clientId,
           clientName: client!.companyName,
         }),
         platform: login.platform,
         username: login.username,
-        password: password, // Return unencrypted for immediate display
+        password: password,
         loginUrl: login.loginUrl,
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
@@ -416,7 +396,7 @@ export async function POST(req: NextRequest) {
         adminOnly: login.adminOnly,
         allowedRoles: login.allowedRoles,
         allowedUserIds: login.allowedUserIds,
-        passwordChangedAt: login.createdAt.toISOString(), // New login, password just set
+        passwordChangedAt: login.createdAt.toISOString(),
         lastUpdated: login.updatedAt.toISOString(),
         updatedBy: user.name || "Admin",
       },

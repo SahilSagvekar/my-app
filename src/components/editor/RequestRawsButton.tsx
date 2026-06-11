@@ -1,9 +1,5 @@
 "use client";
 
-// src/components/editor/RequestRawsButton.tsx
-// Dropdown + send button for editor to request raw footage.
-// Each click = one Slack message to the client's channel (or e8app fallback).
-
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FolderOpen, SendHorizonal, Loader2 } from "lucide-react";
+import { FolderOpen, Send, Loader2, Check } from "lucide-react";
 
 interface Client {
   id: string;
@@ -28,7 +24,7 @@ interface RequestRawsButtonProps {
 export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  // Track send count per client so the editor can see how many requests they've sent
+  const [justSent, setJustSent] = useState(false);
   const [sentCounts, setSentCounts] = useState<Record<string, number>>({});
 
   if (clients.length === 0) return null;
@@ -37,10 +33,7 @@ export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
   const sentCount = selectedClientId ? (sentCounts[selectedClientId] ?? 0) : 0;
 
   async function handleRequest() {
-    if (!selectedClientId) {
-      toast.error("Select a client first");
-      return;
-    }
+    if (!selectedClientId) return;
 
     setLoading(true);
     try {
@@ -58,16 +51,17 @@ export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
         return;
       }
 
-      // Increment local counter
       setSentCounts((prev) => ({
         ...prev,
         [selectedClientId]: (prev[selectedClientId] ?? 0) + 1,
       }));
 
+      setJustSent(true);
+      setTimeout(() => setJustSent(false), 2000);
+
       const destination = data.sentToClientChannel
         ? `${data.clientName} Slack channel`
         : "E8 app channel";
-
       toast.success(`Raw footage request sent to ${destination}`);
     } catch {
       toast.error("Network error — please try again");
@@ -77,15 +71,17 @@ export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
-        <FolderOpen className="h-4 w-4" />
-        <span className="text-sm hidden sm:inline">Request Raws:</span>
+    <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3 w-full max-w-xs">
+      {/* Header */}
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <FolderOpen className="h-3.5 w-3.5" />
+        Request raw footage
       </div>
 
+      {/* Client select */}
       <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-        <SelectTrigger className="w-[150px]">
-          <SelectValue placeholder="Select client" />
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Select a client..." />
         </SelectTrigger>
         <SelectContent>
           {clients.map((client) => (
@@ -96,30 +92,32 @@ export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
         </SelectContent>
       </Select>
 
+      {/* Send button */}
       <Button
-        size="sm"
         variant="outline"
+        className="w-full"
         onClick={handleRequest}
-        disabled={!selectedClientId || loading}
-        className="relative shrink-0"
-        title={
-          selectedClient
-            ? `Request raws for ${selectedClient.name}`
-            : "Select a client"
-        }
+        disabled={!selectedClientId || loading || justSent}
       >
         {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        ) : justSent ? (
+          <Check className="h-4 w-4 mr-2 text-green-600" />
         ) : (
-          <SendHorizonal className="h-4 w-4" />
+          <Send className="h-4 w-4 mr-2" />
         )}
-        <span className="ml-1.5 hidden sm:inline">Send</span>
-        {sentCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-semibold text-white leading-none">
+        {justSent ? "Sent!" : "Send request"}
+      </Button>
+
+      {/* Sent counter — only shows after at least one send */}
+      {sentCount > 0 && selectedClient && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[11px] font-medium">
             {sentCount > 9 ? "9+" : sentCount}
           </span>
-        )}
-      </Button>
+          request{sentCount > 1 ? "s" : ""} sent for {selectedClient.name}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,4 @@
 // src/app/api/editor/request-raws/route.ts
-// Editor hits this to request raw footage for a specific client.
-// Sends a Slack message to the client's channel (or e8app fallback).
-// Tags Eric's Slack ID in every message.
-
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -10,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser2 } from "@/lib/auth";
 import { sendSlackWebhook, sendToChannel } from "@/lib/slack";
 
-// Eric's Slack user ID — hardcoded same as qc_ready pattern in slack.ts
 const ERIC_SLACK_ID = "U06CNSASUUX";
 
 export async function POST(req: NextRequest) {
@@ -28,7 +23,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "clientId is required" }, { status: 400 });
     }
 
-    // Fetch client + check editor has permission for this client
     const [client, permission] = await Promise.all([
       prisma.client.findUnique({
         where: { id: clientId },
@@ -68,22 +62,16 @@ export async function POST(req: NextRequest) {
 
     let sentToClientChannel = false;
 
-    // Try client channel first
     if (client.slackEnabled && client.slackWebhookUrl) {
       sentToClientChannel = await sendSlackWebhook(notification, client.slackWebhookUrl);
     }
 
-    // Fallback: send to e8app channel if client has no channel configured
     if (!sentToClientChannel) {
       console.log(
         `[request-raws] Client "${clientDisplayName}" has no Slack channel — falling back to e8app channel`
       );
       await sendToChannel("e8app", notification);
     }
-
-    console.log(
-      `[request-raws] ✅ ${editorName} requested raws for "${clientDisplayName}" | clientChannel=${sentToClientChannel}`
-    );
 
     return NextResponse.json({
       ok: true,
