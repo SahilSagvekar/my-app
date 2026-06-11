@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser2 } from "@/lib/auth";
 import { sendSlackWebhook, sendToChannel } from "@/lib/slack";
 
-const ERIC_SLACK_ID = "U06CNSASUUX";
+const ERIC_SLACK_ID = "U047GKLSCBD";
 
 export async function POST(req: NextRequest) {
   try {
