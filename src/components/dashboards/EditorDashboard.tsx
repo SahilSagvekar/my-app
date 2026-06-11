@@ -15,7 +15,6 @@ import {
   SelectValue,
 } from "../ui/select";
 import { TaskUploadSections } from "../workflow/TaskUploadSections";
-import { RequestRawsButton } from "../editor/RequestRawsButton";
 import {
   Calendar,
   FileText,
@@ -37,6 +36,7 @@ import { useRouter } from "next/navigation";
 import { FilePreviewModal } from "../FileViewerModal";
 import { toast } from "sonner";
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
+import { RequestRawsButton } from "../editor/RequestRawsButton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { EditorEodReport } from "./EditorEodReport";
 
@@ -1822,14 +1822,23 @@ export function EditorDashboard() {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            Editor Portal
-          </h1>
-          <p className="text-muted-foreground mt-1 text-lg">
-            Manage your assigned tasks and complete work for QC review.
-          </p>
+      <div className="mb-8 pb-6 border-b border-gray-200">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              Editor Portal
+            </h1>
+            <p className="text-muted-foreground mt-1 text-lg">
+              Manage your assigned tasks and complete work for QC review.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <RequestRawsButton clients={permittedClients} />
+            <EditorCreateTaskDialog
+              permittedClients={permittedClients}
+              onTaskCreated={() => loadTasks()}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -1886,13 +1895,7 @@ export function EditorDashboard() {
               </Button>
             )}
 
-            <div className="ml-auto">
-              <RequestRawsButton clients={permittedClients} />
-              <EditorCreateTaskDialog
-                permittedClients={permittedClients}
-                onTaskCreated={() => loadTasks()}
-              />
-            </div>
+
           </div>
 
           {/* Show filter info */}

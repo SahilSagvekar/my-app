@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FolderOpen, Send, Loader2, Check } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 
 interface Client {
   id: string;
@@ -25,16 +25,14 @@ export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [justSent, setJustSent] = useState(false);
-  const [sentCounts, setSentCounts] = useState<Record<string, number>>({});
 
   if (clients.length === 0) return null;
 
-  const selectedClient = clients.find((c) => c.id === selectedClientId);
-  const sentCount = selectedClientId ? (sentCounts[selectedClientId] ?? 0) : 0;
-
   async function handleRequest() {
-    if (!selectedClientId) return;
-
+    if (!selectedClientId) {
+      toast.error("Select a client first");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/editor/request-raws", {
@@ -43,22 +41,13 @@ export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
         credentials: "include",
         body: JSON.stringify({ clientId: selectedClientId }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         toast.error(data.error || "Failed to send request");
         return;
       }
-
-      setSentCounts((prev) => ({
-        ...prev,
-        [selectedClientId]: (prev[selectedClientId] ?? 0) + 1,
-      }));
-
       setJustSent(true);
-      setTimeout(() => setJustSent(false), 2000);
-
+      setTimeout(() => setJustSent(false), 2500);
       const destination = data.sentToClientChannel
         ? `${data.clientName} Slack channel`
         : "E8 app channel";
@@ -71,17 +60,17 @@ export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3 w-full max-w-xs">
-      {/* Header */}
-      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        <FolderOpen className="h-3.5 w-3.5" />
-        Request raw footage
-      </div>
+    <>
+      {/* Vertical divider to visually separate from Create Task */}
+      <div className="h-6 w-px bg-border shrink-0" />
 
-      {/* Client select */}
+      <span className="text-sm text-muted-foreground shrink-0 hidden sm:inline">
+        Request raws:
+      </span>
+
       <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select a client..." />
+        <SelectTrigger className="w-[140px] h-9">
+          <SelectValue placeholder="Client" />
         </SelectTrigger>
         <SelectContent>
           {clients.map((client) => (
@@ -92,32 +81,22 @@ export function RequestRawsButton({ clients }: RequestRawsButtonProps) {
         </SelectContent>
       </Select>
 
-      {/* Send button */}
       <Button
-        variant="outline"
-        className="w-full"
+        size="sm"
+        variant={justSent ? "default" : "outline"}
         onClick={handleRequest}
-        disabled={!selectedClientId || loading || justSent}
+        disabled={!selectedClientId || loading}
+        className="h-9 shrink-0"
       >
         {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-        ) : justSent ? (
-          <Check className="h-4 w-4 mr-2 text-green-600" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
-          <Send className="h-4 w-4 mr-2" />
+          <Send className="h-3.5 w-3.5" />
         )}
-        {justSent ? "Sent!" : "Send request"}
+        <span className="ml-1.5">
+          {justSent ? "Sent!" : "Send"}
+        </span>
       </Button>
-
-      {/* Sent counter — only shows after at least one send */}
-      {sentCount > 0 && selectedClient && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[11px] font-medium">
-            {sentCount > 9 ? "9+" : sentCount}
-          </span>
-          request{sentCount > 1 ? "s" : ""} sent for {selectedClient.name}
-        </div>
-      )}
-    </div>
+    </>
   );
 }
