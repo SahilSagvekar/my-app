@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { TaskUploadSections } from "../workflow/TaskUploadSections";
+import { RequestRawsButton } from "../editor/RequestRawsButton";
 import {
   Calendar,
   FileText,
@@ -1886,6 +1887,7 @@ export function EditorDashboard() {
             )}
 
             <div className="ml-auto">
+              <RequestRawsButton clients={permittedClients} />
               <EditorCreateTaskDialog
                 permittedClients={permittedClients}
                 onTaskCreated={() => loadTasks()}
