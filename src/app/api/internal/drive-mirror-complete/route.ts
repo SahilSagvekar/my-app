@@ -3,19 +3,44 @@
 // Updates the File record with the Drive URL for client review.
 
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 import { prisma } from '@/lib/prisma';
+
+type DriveMirrorCallbackToken = {
+  purpose: 'drive-mirror-complete';
+  fileRecordId: string;
+};
+
+function isAuthorizedCallback(req: NextRequest, fileRecordId: string) {
+  const secret = req.headers.get('x-internal-secret');
+  if (process.env.CRON_SECRET && secret === process.env.CRON_SECRET) {
+    return true;
+  }
+
+  const token = req.nextUrl.searchParams.get('token');
+  if (!token || !process.env.FILE_SERVER_SECRET) {
+    return false;
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.FILE_SERVER_SECRET) as DriveMirrorCallbackToken;
+    return payload.purpose === 'drive-mirror-complete' && payload.fileRecordId === fileRecordId;
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const secret = req.headers.get('x-internal-secret');
-    if (secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { fileRecordId, reviewDriveUrl, driveFileId } = await req.json();
 
     if (!fileRecordId || !reviewDriveUrl) {
       return NextResponse.json({ error: 'fileRecordId and reviewDriveUrl required' }, { status: 400 });
+    }
+
+    if (!isAuthorizedCallback(req, fileRecordId)) {
+      console.error(`[Drive Mirror CB] Unauthorized callback for file: ${fileRecordId}`);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check the file record exists before trying to update
@@ -34,11 +59,12 @@ export async function POST(req: NextRequest) {
       data: { reviewDriveUrl },
     });
 
-    console.log(`✅ [Drive Mirror CB] File ${fileRecordId} updated with Drive URL: ${reviewDriveUrl}`);
+    console.log(`✅ [Drive Mirror CB] File ${fileRecordId} updated with Drive URL${driveFileId ? ` (${driveFileId})` : ''}`);
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    console.error('[Drive Mirror CB] Error:', err.message);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[Drive Mirror CB] Error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

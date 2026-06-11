@@ -9,9 +9,23 @@ import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
 import { completeMultipart, generateFileServerToken } from '@/lib/file-server';
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
+import jwt from "jsonwebtoken";
 
 function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
   return !!value && !value.includes("/") && !value.includes("\\");
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getErrorCode(error: unknown) {
+  if (error && typeof error === "object") {
+    const record = error as { Code?: unknown; name?: unknown };
+    if (typeof record.Code === "string") return record.Code;
+    if (typeof record.name === "string") return record.name;
+  }
+  return "UNKNOWN_ERROR";
 }
 
 export async function POST(request: NextRequest) {
@@ -125,8 +139,7 @@ export async function POST(request: NextRequest) {
       // ─── Parallel DB reads — fire all three at once, pay only one round-trip ───
       // existingActiveFile: needed for version bump
       // taskForDrive:       needed for Drive mirror decision (video uploads only)
-      // taskForNotif:       needed for Slack notification clientId
-      const [existingActiveFile, taskForDrive, taskForNotif] = await Promise.all([
+      const [existingActiveFile, taskForDrive] = await Promise.all([
         prisma.file.findFirst({
           where: { taskId, folderType, isActive: true },
           orderBy: { version: "desc" },
@@ -142,7 +155,6 @@ export async function POST(request: NextRequest) {
           },
         }),
         // taskForNotif is a subset of taskForDrive — reuse the same result below
-        Promise.resolve(null as null),
       ]);
 
       const newVersion = existingActiveFile ? existingActiveFile.version + 1 : 1;
@@ -194,13 +206,20 @@ export async function POST(request: NextRequest) {
           const FILE_SERVER_URL = process.env.FILE_SERVER_URL || 'http://localhost:4000';
           // APP_URL must be reachable FROM THE FILE SERVER (different machine).
           // 127.0.0.1:3000 is wrong — it points to the file server's own loopback.
-          // Set INTERNAL_APP_URL in the file server's .env to the e8-app private IP
+          // Set INTERNAL_APP_URL in this app's env to the e8-app private IP
           // or public URL: http://172.31.21.253:3000 or https://e8productions.com
           const APP_URL = process.env.INTERNAL_APP_URL
             || process.env.NEXTAUTH_URL
             || process.env.BASE_URL
             || 'https://e8productions.com';
           const token = generateFileServerToken(userId, user.role || 'editor');
+          const callbackToken = jwt.sign(
+            { purpose: 'drive-mirror-complete', fileRecordId: fileRecord.id },
+            process.env.FILE_SERVER_SECRET || '',
+            { expiresIn: '24h' },
+          );
+          const callbackUrl = new URL('/api/internal/drive-mirror-complete', APP_URL);
+          callbackUrl.searchParams.set('token', callbackToken);
 
           // Fire-and-forget — file server handles the long-running stream
           fetch(`${FILE_SERVER_URL}/drive-mirror`, {
@@ -216,7 +235,7 @@ export async function POST(request: NextRequest) {
               folderId: _driveFolderId || undefined,
               clientName: _driveFolderId ? undefined : _clientName,
               fileRecordId: fileRecord.id,
-              callbackUrl: `${APP_URL}/api/internal/drive-mirror-complete`,
+              callbackUrl: callbackUrl.toString(),
             }),
           }).then(r => {
             if (!r.ok) r.text().then(t => console.error(`⚠️ Drive mirror dispatch failed: ${t}`));
@@ -296,22 +315,25 @@ export async function POST(request: NextRequest) {
         location: s3Response.Location,
       });
 
-    } catch (s3Error: any) {
-      if (s3Error.Code === "NoSuchUpload" || s3Error.name === "NoSuchUpload") {
-        console.error("❌ Upload session expired or aborted:", { uploadId, key, fileName, error: s3Error.message });
+    } catch (s3Error: unknown) {
+      const s3ErrorCode = getErrorCode(s3Error);
+      const s3ErrorMessage = getErrorMessage(s3Error);
+
+      if (s3ErrorCode === "NoSuchUpload") {
+        console.error("❌ Upload session expired or aborted:", { uploadId, key, fileName, error: s3ErrorMessage });
         return NextResponse.json(
           {
             error: "Upload session expired",
             message: "The upload session has expired or was aborted. Please restart the upload.",
             code: "UPLOAD_EXPIRED",
-            details: { uploadId, fileName, reason: s3Error.message },
+            details: { uploadId, fileName, reason: s3ErrorMessage },
           },
           { status: 410 },
         );
       }
 
-      if (s3Error.Code === "InvalidPart" || s3Error.name === "InvalidPart") {
-        console.error("❌ Invalid part error:", { uploadId, key, error: s3Error.message });
+      if (s3ErrorCode === "InvalidPart") {
+        console.error("❌ Invalid part error:", { uploadId, key, error: s3ErrorMessage });
         return NextResponse.json(
           {
             error: "Invalid upload part",
@@ -324,17 +346,19 @@ export async function POST(request: NextRequest) {
 
       throw s3Error;
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = getErrorMessage(error);
+    const code = getErrorCode(error);
     console.error("❌ Error completing upload:", {
-      error: error.message,
-      code: error.Code || error.name,
-      stack: error.stack,
+      error: message,
+      code,
+      stack: error instanceof Error ? error.stack : undefined,
     });
     return NextResponse.json(
       {
         error: "Failed to complete upload",
-        message: error.message || "An unexpected error occurred",
-        code: error.Code || error.name || "UNKNOWN_ERROR",
+        message,
+        code,
       },
       { status: 500 },
     );
