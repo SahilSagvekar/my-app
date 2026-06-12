@@ -216,10 +216,32 @@ export function FullScreenReviewModalFrameIO({
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [savingFeedback, setSavingFeedback] = useState(false);
 
-    const sortedComments = useMemo(
-        () => [...comments].sort((a, b) => a.timestampSeconds - b.timestampSeconds),
-        [comments],
+    // Stable identity for the current viewer — logged-in users use their numeric id,
+    // share-link visitors use the shareToken as a surrogate key.
+    const viewerAuthorId = useMemo(
+        () => (user?.id ? String(user.id) : shareToken ?? null),
+        [user?.id, shareToken],
     );
+
+    const isClientViewer = userRole === 'client' || Boolean(shareToken);
+
+    const sortedComments = useMemo(() => {
+        let filtered = [...comments];
+
+        // Feature 1 — clients only see their own comments
+        if (isClientViewer && viewerAuthorId) {
+            filtered = filtered.filter(
+                c => c.authorId === viewerAuthorId || c.authorId === 'current-user',
+            );
+        }
+
+        // Feature 2 — only show comments for the currently playing version
+        if (currentVersionNumber) {
+            filtered = filtered.filter(c => (c.version ?? 1) === currentVersionNumber);
+        }
+
+        return filtered.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+    }, [comments, isClientViewer, viewerAuthorId, currentVersionNumber]);
 
     /* ── UI state ── */
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
@@ -946,6 +968,8 @@ export function FullScreenReviewModalFrameIO({
         showShareDialog,
         connectionInsight,
         userName: user?.name || 'You',
+        currentVersionNumber,
+        isClientViewer,
         togglePlay,
         toggleMute,
         seekBackward,

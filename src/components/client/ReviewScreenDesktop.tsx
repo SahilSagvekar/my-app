@@ -60,6 +60,8 @@ export interface ReviewScreenProps {
     isOptimizing: boolean;
     showApprovalSuccess: boolean;
     showRevisionSuccess: boolean;
+    currentVersionNumber: number;
+    isClientViewer: boolean;
 
     /* info & share */
     showInfoPanel: boolean;
@@ -461,11 +463,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <MessageSquare className="h-4 w-4" />
                                     Comments
                                     <Badge className="bg-[var(--review-bg-tertiary)] text-[var(--review-text-secondary)] text-xs">
-                                        {p.comments.length}
+                                        {p.sortedComments.length}
                                     </Badge>
                                 </h3>
                                 <Badge variant="outline" className="text-xs border-[var(--review-border)] text-[var(--review-text-muted)]">
-                                    {p.comments.filter(c => !c.resolved).length} open
+                                    {p.sortedComments.filter(c => !c.resolved).length} open
                                 </Badge>
                             </div>
                         </div>
@@ -489,11 +491,16 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                         {/* Comments list */}
                         <div ref={p.commentsRef} className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
-                            {p.comments.length === 0 ? (
+                            {p.sortedComments.length === 0 ? (
                                 <div className="text-center py-12 text-[var(--review-text-muted)]">
                                     <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                                    <p className="text-sm">No comments yet</p>
-                                    <p className="text-xs mt-1">Press C or click "Add comment"</p>
+                                    <p className="text-sm">No comments on V{p.currentVersionNumber}</p>
+                                    <p className="text-xs mt-1 opacity-70">
+                                        {p.isClientViewer
+                                            ? 'Add a comment to leave feedback on this version'
+                                            : 'Press C or click "Add comment"'
+                                        }
+                                    </p>
                                 </div>
                             ) : (
                                 <>

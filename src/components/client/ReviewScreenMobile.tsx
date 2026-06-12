@@ -50,7 +50,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
     const [showAllComments, setShowAllComments] = useState(false);
     const activeMobileTab = isMobileTabVisible(mobileTab) ? mobileTab : 'comments';
     const mobileTabs = [
-        { key: 'comments' as MobileTab, label: 'Comments', badge: p.comments.length },
+        { key: 'comments' as MobileTab, label: 'Comments', badge: p.sortedComments.length },
         { key: 'actions' as MobileTab, label: 'Actions', badge: null },
         { key: 'info' as MobileTab, label: 'Info', badge: null },
     ].filter(tab => isMobileTabVisible(tab.key));
@@ -579,11 +579,16 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
 
                         {/* List */}
                         <div className="p-3 space-y-2">
-                            {p.comments.length === 0 ? (
+                            {p.sortedComments.length === 0 ? (
                                 <div className="text-center py-12 text-[var(--review-text-muted)]">
                                     <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                    <p className="text-sm">No comments yet</p>
-                                    <p className="text-xs mt-1 opacity-60">Tap the button above to add one</p>
+                                    <p className="text-sm">No comments on V{p.currentVersionNumber}</p>
+                                    <p className="text-xs mt-1 opacity-60">
+                                        {p.isClientViewer
+                                            ? 'Tap the button above to leave feedback'
+                                            : 'Tap the button above to add one'
+                                        }
+                                    </p>
                                 </div>
                             ) : (
                                 <>
