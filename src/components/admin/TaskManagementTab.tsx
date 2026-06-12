@@ -16,7 +16,7 @@ import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import {
   ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight,
   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
-  Calendar, User, Users, Pencil, Trash2, Edit,
+  Calendar, User, Users, Pencil, Trash2, Edit, CloudUpload,
 } from 'lucide-react';
 import { EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -156,6 +156,7 @@ export function TaskManagementTab() {
   const [deleting, setDeleting] = useState(false);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [mirroringTaskId, setMirroringTaskId] = useState<string | null>(null);
 
   const SUPER_ADMIN_EMAIL = "sahilsagvekar230@gmail.com";
   const canDeleteTasks = user?.email === SUPER_ADMIN_EMAIL;
@@ -366,6 +367,30 @@ export function TaskManagementTab() {
   async function handleRefresh() {
     await mutateTasks();
     toast({ title: 'Refreshed', description: 'Task list updated' });
+  }
+
+  async function handleDriveMirror(taskId: string) {
+    setMirroringTaskId(taskId);
+    try {
+      const res = await fetch(`/api/admin/tasks/${taskId}/drive-mirror`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'Drive mirror failed', description: data.error || 'Unknown error', variant: 'destructive' });
+        return;
+      }
+      if (data.dispatched === 0) {
+        toast({ title: 'Nothing to mirror', description: data.results?.[0]?.reason || 'No active video files with S3 keys found', variant: 'destructive' });
+      } else {
+        toast({
+          title: 'Drive mirror dispatched',
+          description: `${data.dispatched} of ${data.total} file${data.total !== 1 ? 's' : ''} sent to file server. Drive URL will update in a few minutes.`,
+        });
+      }
+    } catch (err: any) {
+      toast({ title: 'Drive mirror failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setMirroringTaskId(null);
+    }
   }
 
   // ─────────────────────────────────────────
@@ -590,6 +615,15 @@ export function TaskManagementTab() {
     <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
     <DropdownMenuContent align="end">
       <DropdownMenuItem onClick={() => openEditDialog(task)}><Edit className="h-4 w-4 mr-2" />Edit Task</DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onClick={() => handleDriveMirror(task.id)}
+        disabled={mirroringTaskId === task.id}
+        className="text-blue-600 focus:text-blue-600"
+      >
+        <CloudUpload className="h-4 w-4 mr-2" />
+        {mirroringTaskId === task.id ? 'Mirroring...' : 'Trigger Drive Mirror'}
+      </DropdownMenuItem>
       {(() => {
         const dtype = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || '';
         const isLF = dtype.toLowerCase().includes('long') || dtype.toUpperCase().includes('LF');
