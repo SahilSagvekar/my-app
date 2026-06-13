@@ -7,7 +7,7 @@ module.exports = {
             instances: 1,
             exec_mode: 'fork',
 
-            max_memory_restart: '2G',   // was 1G — was causing restarts, server has 30GB
+            max_memory_restart: '6G',
             restart_delay: 10000,
             max_restarts: 20,
             min_uptime: '30s',
@@ -31,33 +31,8 @@ module.exports = {
             listen_timeout: 15000,
 
             node_args: [
-                '--max-old-space-size=2048',  // was 1024
+                '--max-old-space-size=6144',
             ],
-        },
-        {
-            name: 'ai-title-api',
-            cwd: '/home/ubuntu/AI_Powered_Video_Title_Generator',
-            script: '/home/ubuntu/AI_Powered_Video_Title_Generator/venv/bin/uvicorn',
-            args: 'app.main:app --host 127.0.0.1 --port 8000 --workers 1',
-            interpreter: 'none',
-            instances: 1,
-            exec_mode: 'fork',
-
-            max_memory_restart: '2G',
-            restart_delay: 5000,
-            max_restarts: 10,
-
-            env: {
-                PATH: '/home/ubuntu/AI_Powered_Video_Title_Generator/venv/bin:/usr/bin:/bin',
-            },
-
-            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-            error_file: '/home/ubuntu/AI_Powered_Video_Title_Generator/logs/error.log',
-            out_file: '/home/ubuntu/AI_Powered_Video_Title_Generator/logs/out.log',
-            merge_logs: true,
-
-            watch: false,
-            kill_timeout: 300000,
         },
         {
             name: 'cron-master',
@@ -67,7 +42,7 @@ module.exports = {
             instances: 1,
             exec_mode: 'fork',
 
-            max_memory_restart: '512M',
+            max_memory_restart: '1G',
             restart_delay: 5000,
 
             env: {
@@ -78,49 +53,6 @@ module.exports = {
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
             error_file: './logs/cron-error.log',
             out_file: './logs/cron-out.log',
-            merge_logs: true,
-        },
-        {
-            name: 'cron-titling',
-            script: 'src/scripts/cron-titling.ts',
-            interpreter: 'node',
-            node_args: '--import tsx',
-            instances: 1,
-            exec_mode: 'fork',
-            autorestart: false,         // don't auto-restart, start manually when needed
-
-            max_memory_restart: '256M',
-            restart_delay: 5000,
-
-            env: {
-                NODE_ENV: 'production',
-                BASE_URL: 'http://localhost:3000',
-            },
-
-            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-            error_file: './logs/cron-titling-error.log',
-            out_file: './logs/cron-titling-out.log',
-            merge_logs: true,
-        },
-        {
-            name: 'cron-optimization',
-            script: 'src/scripts/cron-optimization.ts',
-            interpreter: 'node',
-            node_args: '--import tsx',
-            instances: 1,
-            exec_mode: 'fork',
-
-            max_memory_restart: '256M',
-            restart_delay: 5000,
-
-            env: {
-                NODE_ENV: 'production',
-                BASE_URL: 'http://localhost:3000',
-            },
-
-            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-            error_file: './logs/cron-optimization-error.log',
-            out_file: './logs/cron-optimization-out.log',
             merge_logs: true,
         },
     ],

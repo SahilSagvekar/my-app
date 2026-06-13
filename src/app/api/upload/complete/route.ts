@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 // app/api/upload/complete/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { queueVideoForCompression } from "@/lib/video-compression/worker";
+// import { queueVideoForCompression } from "@/lib/video-compression/worker";
 import { updateClientStorageAfterUpload } from "@/lib/storage-service";
 import { sendUploadNotification } from "@/lib/upload-notifications";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -266,16 +266,16 @@ export async function POST(request: NextRequest) {
       console.log("🔗 File URL added to task driveLinks");
 
       // Queue for compression if > 100MB (fire-and-forget)
-      if (fileType.startsWith("video/") && fileSize > 100 * 1024 * 1024) {
-        queueVideoForCompression({
-          videoKey: key,
-          sizeBytes: fileSize,
-          clientId: taskId,
-          taskId,
-        }).catch((err) => {
-          console.error(`❌ Failed to queue compression: ${err}`);
-        });
-      }
+      // if (fileType.startsWith("video/") && fileSize > 100 * 1024 * 1024) {
+      //   queueVideoForCompression({
+      //     videoKey: key,
+      //     sizeBytes: fileSize,
+      //     clientId: taskId,
+      //     taskId,
+      //   }).catch((err) => {
+      //     console.error(`❌ Failed to queue compression: ${err}`);
+      //   });
+      // }
 
       // ─── Audit log + Slack notification — both fire-and-forget ───
       // clientId already fetched from taskForDrive, no extra query needed
