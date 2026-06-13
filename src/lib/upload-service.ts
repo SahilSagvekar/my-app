@@ -397,23 +397,48 @@ class UploadService {
 
             // Complete
             currentState.uploadedParts.sort((a, b) => a.PartNumber - b.PartNumber);
-            const completeResponse = await fetch("/api/upload/complete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    key: currentState.key,
-                    uploadId: currentState.uploadId,
-                    parts: currentState.uploadedParts,
-                    fileName: currentState.fileName,
-                    fileSize: currentState.fileSize,
-                    fileType: currentState.fileType,
-                    taskId: currentState.taskId,
-                    subfolder: currentState.subfolder || 'main',
-                    codec: codec
-                }),
-            });
 
-            if (!completeResponse.ok) throw new Error("Failed to complete upload");
+            // Stagger complete calls — when many files finish at the same time (folder upload),
+            // this spreads the R2 CompleteMultipart requests out to avoid rate limiting.
+            const staggerMs = Math.random() * 3000;
+            console.log(`⏳ Staggering complete by ${Math.round(staggerMs)}ms to avoid R2 overload`);
+            await this.sleep(staggerMs);
+
+            // Retry complete up to 5 times — this is the most critical step
+            let completeResponse: Response | null = null;
+            for (let attempt = 0; attempt < 5; attempt++) {
+                try {
+                    completeResponse = await fetch("/api/upload/complete", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            key: currentState.key,
+                            uploadId: currentState.uploadId,
+                            parts: currentState.uploadedParts,
+                            fileName: currentState.fileName,
+                            fileSize: currentState.fileSize,
+                            fileType: currentState.fileType,
+                            taskId: currentState.taskId,
+                            subfolder: currentState.subfolder || 'main',
+                            codec: codec
+                        }),
+                        signal: AbortSignal.timeout(90_000), // 90s — R2 complete can be slow for large files
+                    });
+                    if (completeResponse.ok) break; // success — exit retry loop
+                    const errText = await completeResponse.text().catch(() => completeResponse!.statusText);
+                    console.warn(`⚠️ Complete attempt ${attempt + 1}/5 failed (${completeResponse.status}): ${errText}`);
+                } catch (err: any) {
+                    console.warn(`⚠️ Complete attempt ${attempt + 1}/5 error: ${err.message}`);
+                    completeResponse = null;
+                }
+                if (attempt < 4) {
+                    const backoffMs = Math.pow(2, attempt) * 2000; // 2s, 4s, 8s, 16s
+                    console.log(`🔄 Retrying complete in ${backoffMs}ms...`);
+                    await this.sleep(backoffMs);
+                }
+            }
+
+            if (!completeResponse?.ok) throw new Error("Failed to complete upload after 5 attempts");
 
             await uploadStateManager.markAsCompleted(id);
             this.emit(id, 'completed', { ...currentState, status: 'completed', speed: 0, estimatedTimeLeft: 0 });
