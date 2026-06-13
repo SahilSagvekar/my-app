@@ -367,12 +367,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // ── Load client list for admin/manager selector ───────────────────────────
   useEffect(() => {
     if (role !== 'admin' && role !== 'manager') return;
-    fetch('/api/clients?simple=true')
-      .then(r => r.ok ? r.json() : [])
+    fetch('/api/clients')
+      .then(r => r.ok ? r.json() : { clients: [] })
       .then(data => {
-        const list = Array.isArray(data)
-          ? data.map((c: any) => ({ id: c.id, name: c.companyName || c.name || c.id }))
-          : [];
+        const raw = Array.isArray(data) ? data : (data.clients || []);
+        const list = raw.map((c: any) => ({
+          id: c.id,
+          name: c.companyName || c.name || c.id,
+        }));
         setAdminClientList(list.sort((a: any, b: any) => a.name.localeCompare(b.name)));
       })
       .catch(() => {});
