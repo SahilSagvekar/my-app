@@ -59,6 +59,20 @@ export async function GET(request: NextRequest) {
       const companyName = clientRecord.companyName || clientRecord.name;
       prefix = `${companyName}/`;
 
+    } else if (role === 'admin' || role === 'manager') {
+      // Admin/manager must pass a clientId — file server blocks empty-prefix scans
+      if (clientId) {
+        const clientRecord = await prisma.client.findUnique({
+          where: { id: clientId },
+          select: { companyName: true, name: true },
+        });
+        if (clientRecord) {
+          const companyName = clientRecord.companyName || clientRecord.name;
+          prefix = `${companyName}/`;
+        }
+      }
+      // If no clientId passed, prefix stays '' — file server will block and return empty root
+
     } else if (role === 'editor') {
       const editorId = parseInt(userId);
       const permissions = await prisma.editorClientPermission.findMany({
