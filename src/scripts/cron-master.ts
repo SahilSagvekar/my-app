@@ -53,6 +53,21 @@ console.log('🚀 [Cron Master] Starting centralized cron service...');
 console.log(`🔗 Target API: ${BASE_URL}`);
 registerScheduledSlackReminderJobs();
 
+// ── Upload background worker ──────────────────────────────────────────────────
+// Processes upload completion jobs every 3 seconds:
+// DB writes, storage update, Drive mirror, Slack, audit log.
+// This runs after /api/upload/complete has already returned success to the browser.
+import { runUploadWorkerTick } from '@/lib/upload-worker';
+
+console.log('📬 [Upload Worker] Starting background job processor...');
+setInterval(async () => {
+  try {
+    await runUploadWorkerTick();
+  } catch (err: any) {
+    console.error('[Upload Worker] Uncaught error in tick:', err.message);
+  }
+}, 3000); // every 3 seconds
+
 /**
  * Utility to trigger a local API endpoint
  */

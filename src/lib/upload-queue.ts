@@ -34,6 +34,9 @@ export interface UploadJob {
 
   // Drive upload flag
   isDriveUpload?: boolean;
+
+  // Set by upload/complete after DB write — worker skips file creation if present
+  fileRecordId?: string | null;
 }
 
 let redis: Redis | null = null;
