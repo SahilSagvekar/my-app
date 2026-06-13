@@ -7,7 +7,7 @@ module.exports = {
             instances: 1,
             exec_mode: 'fork',
 
-            max_memory_restart: '6G',
+            max_memory_restart: '4G',
             restart_delay: 10000,
             max_restarts: 20,
             min_uptime: '30s',
@@ -31,7 +31,7 @@ module.exports = {
             listen_timeout: 15000,
 
             node_args: [
-                '--max-old-space-size=6144',
+                '--max-old-space-size=4096',
             ],
         },
         {
@@ -42,7 +42,7 @@ module.exports = {
             instances: 1,
             exec_mode: 'fork',
 
-            max_memory_restart: '1G',
+            max_memory_restart: '512M',
             restart_delay: 5000,
 
             env: {
