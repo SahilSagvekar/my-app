@@ -173,7 +173,8 @@ export async function initiateMultipart(
   userId: number | string,
   role: string,
   key: string,
-  fileType: string
+  fileType: string,
+  fileSize?: number,
 ): Promise<{ uploadId: string; key: string }> {
   const token = makeToken(userId, role);
   const res = await fetchWithRetry(`${FILE_SERVER_URL}/multipart/initiate`, {
@@ -182,11 +183,13 @@ export async function initiateMultipart(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ key, fileType }),
+    body: JSON.stringify({ key, fileType, fileSize }),
   }, 15_000, 3);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `File server initiate failed: ${res.status}`);
+    const error: any = new Error(err.error || `File server initiate failed: ${res.status}`);
+    error.Code = err.code; // preserve USE_SINGLE_PUT code
+    throw error;
   }
   return res.json();
 }

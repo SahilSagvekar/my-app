@@ -120,14 +120,24 @@ export async function POST(req: NextRequest) {
     console.log('🎯 Initiating multipart via file server for key:', s3Key);
 
     // ── Delegate CreateMultipartUpload to file server ────────────────────────
-    const { uploadId, key } = await initiateMultipart(
-      clientId,
-      'uploader',
-      s3Key,
-      fileType
-    );
-
-    return NextResponse.json({ uploadId, key });
+    try {
+      const { uploadId, key } = await initiateMultipart(
+        clientId,
+        'uploader',
+        s3Key,
+        fileType,
+        fileSize,
+      );
+      return NextResponse.json({ uploadId, key });
+    } catch (err: any) {
+      // File server returns USE_SINGLE_PUT for files < 16MB — fall back to presigned PUT
+      if (err.Code === 'USE_SINGLE_PUT' || err.message?.includes('USE_SINGLE_PUT') || err.message?.includes('too small')) {
+        const { presignUpload } = await import('@/lib/file-server');
+        const { uploadUrl, fileUrl } = await presignUpload(clientId, 'uploader', s3Key, fileType);
+        return NextResponse.json({ singlePut: true, uploadUrl, fileUrl, key: s3Key });
+      }
+      throw err;
+    }
   } catch (error: any) {
     console.error('❌ Initiate upload error:', error);
     return NextResponse.json(

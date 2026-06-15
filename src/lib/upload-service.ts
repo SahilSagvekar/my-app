@@ -277,8 +277,68 @@ class UploadService {
                 }),
             });
 
-            if (!initResponse.ok) throw new Error("Failed to initiate upload");
+            if (!initResponse.ok) {
+                const errData = await initResponse.json().catch(() => ({}));
+                const code = errData.error || errData.message || initResponse.statusText;
+                throw new Error(`Failed to initiate upload for "${file.name}": ${code}`);
+            }
             const initData = await initResponse.json();
+
+            // ── Small file: single PUT directly to R2 ────────────────────────
+            if (initData.singlePut) {
+                const id = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const singleState: UploadState = {
+                    id,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                    taskId: taskData?.id || 'drive-upload',
+                    clientId: taskData?.clientId || 'unknown',
+                    folderType,
+                    uploadId: 'single-put',
+                    key: initData.key,
+                    uploadedParts: [],
+                    uploadedBytes: 0,
+                    totalChunks: 1,
+                    completedChunks: [],
+                    status: 'uploading',
+                    startedAt: Date.now(),
+                    lastUpdated: Date.now(),
+                    subfolder,
+                    relativePath,
+                };
+                await uploadStateManager.saveUploadState(singleState);
+                this.activeUploads.set(id, true);
+
+                Promise.resolve().then(async () => {
+                    this.emit(id, 'started', singleState);
+                    try {
+                        const putRes = await fetch(initData.uploadUrl, {
+                            method: 'PUT',
+                            body: file,
+                            headers: { 'Content-Type': file.type },
+                        });
+                        if (!putRes.ok) throw new Error(`Single PUT failed: ${putRes.status}`);
+
+                        singleState.uploadedBytes = file.size;
+                        singleState.completedChunks = [1];
+                        await uploadStateManager.markAsCompleted(id);
+                        this.emit(id, 'completed', { ...singleState, status: 'completed' });
+
+                        const cb = this.completionCallbacks.get(id);
+                        if (cb) { cb.resolve(); this.completionCallbacks.delete(id); }
+                    } catch (err: any) {
+                        await uploadStateManager.markAsFailed(id, err.message);
+                        this.emit(id, 'failed', { ...singleState, status: 'failed', error: err.message });
+                        const cb = this.completionCallbacks.get(id);
+                        if (cb) { cb.resolve(); this.completionCallbacks.delete(id); }
+                    } finally {
+                        this.activeUploads.delete(id);
+                    }
+                });
+
+                return id;
+            }
 
             state = {
                 id,
@@ -392,7 +452,11 @@ class UploadService {
             if (!finalCheck || finalCheck.status !== 'uploading') return;
 
             if (currentState.completedChunks.length < currentState.totalChunks) {
-                return;
+                // Some chunks didn't complete — treat as failure so queue doesn't hang
+                const missing = currentState.totalChunks - currentState.completedChunks.length;
+                const errMsg = `Upload incomplete: ${missing} of ${currentState.totalChunks} chunks failed`;
+                console.error(`❌ ${errMsg} for ${currentState.fileName}`);
+                throw new Error(errMsg);
             }
 
             // Complete
