@@ -185,10 +185,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [isMoving, setIsMoving] = useState(false);
   const [deliverableTypes, setDeliverableTypes] = useState<string[]>([]);
   const [selectedDeliverableFilter, setSelectedDeliverableFilter] = useState<string>("all");
-  const [adminClientList, setAdminClientList] = useState<{ id: string; name: string }[]>([]);
-  const [adminSelectedClientId, setAdminSelectedClientId] = useState<string>("");
-  const [editorClientList, setEditorClientList] = useState<{ id: string; name: string }[]>([]);
-  const [editorSelectedClientId, setEditorSelectedClientId] = useState<string>("");
 
   // Short code to display name mapping
   const SHORT_CODE_LABELS: Record<string, string> = {
@@ -361,80 +357,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }, [role, breadcrumb, browsingCompanyName]);
 
   useEffect(() => {
-    if (!user) return;
-    // Admin/manager: don't load on mount — wait for client selection
-    // Structure loads via the effectiveClientId effect when they pick a client
-    if (role === 'admin' || role === 'manager') {
-      const emptyRoot = { name: 'Root', type: 'folder' as const, path: '/', children: [] };
-      setDriveStructure(emptyRoot);
-      setCurrentFolder(emptyRoot);
-      setBreadcrumb([emptyRoot]);
-      hasRestoredRef.current = true;
-      setLoading(false);
-      return;
-    }
-    loadDriveStructure();
-  }, [user]);
-
-  // ── Load client list for admin/manager selector ───────────────────────────
-  useEffect(() => {
-    if (role !== 'admin' && role !== 'manager') return;
-    fetch('/api/clients')
-      .then(r => r.ok ? r.json() : { clients: [] })
-      .then(data => {
-        const raw = Array.isArray(data) ? data : (data.clients || []);
-        const list = raw.map((c: any) => ({
-          id: c.id,
-          name: c.companyName || c.name || c.id,
-        }));
-        setAdminClientList(list.sort((a: any, b: any) => a.name.localeCompare(b.name)));
-      })
-      .catch(() => {});
-  }, [role]);
-
-  // ── Load client list for editor selector (when editor has multiple clients) ──
-  useEffect(() => {
-    if (role !== 'editor') return;
-    fetch('/api/editor/clients')
-      .then(r => r.ok ? r.json() : [])
-      .then(data => {
-        const raw = Array.isArray(data) ? data : (data.clients || []);
-        if (raw.length > 1) {
-          // Only show selector when editor has multiple clients
-          const list = raw.map((c: any) => ({
-            id: c.id,
-            name: c.companyName || c.name || c.id,
-          }));
-          setEditorClientList(list.sort((a: any, b: any) => a.name.localeCompare(b.name)));
-        }
-      })
-      .catch(() => {});
-  }, [role]);
-
-  // When admin picks a client from the dropdown, set browsingClientId
-  useEffect(() => {
-    if (!adminSelectedClientId) return;
-    setBrowsingClientId(adminSelectedClientId);
-    const client = adminClientList.find(c => c.id === adminSelectedClientId);
-    if (client) setBrowsingCompanyName(client.name);
-  }, [adminSelectedClientId]);
-
-  // When editor picks a client from the dropdown, set browsingClientId
-  useEffect(() => {
-    if (!editorSelectedClientId) return;
-    setBrowsingClientId(editorSelectedClientId);
-    const client = editorClientList.find(c => c.id === editorSelectedClientId);
-    if (client) setBrowsingCompanyName(client.name);
-  }, [editorSelectedClientId]);
-
-  // ── Reload structure when clientId changes ────────────────────────────────
-  useEffect(() => {
-    if (!user) return;
-    if (role === 'client') return;
-    if (effectiveClientId) {
+    if (user) {
       loadDriveStructure();
     }
-  }, [effectiveClientId]);
+  }, [user]);
 
   // Load footage links when inside a deliverable folder
   useEffect(() => {
@@ -539,12 +465,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       if (user?.id) {
         params.append("userId", user.id.toString());
-      }
-
-      // ── Admin/manager: always pass clientId if we have one ──────────────
-      // Without a clientId the file server blocks the scan (31k+ objects).
-      if (effectiveClientId) {
-        params.append("clientId", effectiveClientId);
       }
 
       const response = await fetch(`/api/drive/structure?${params.toString()}`);
@@ -1612,44 +1532,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </Button>
             )}
 
-            {/* ─── Admin/Manager: Client Selector ─── */}
-            {(role === 'admin' || role === 'manager') && adminClientList.length > 0 && (
-              <Select
-                value={adminSelectedClientId}
-                onValueChange={setAdminSelectedClientId}
-              >
-                <SelectTrigger className="w-[200px] h-10 shrink-0">
-                  <SelectValue placeholder="Select client..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {adminClientList.map(client => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {/* ─── Editor: Client Selector (only when assigned to multiple clients) ─── */}
-            {role === 'editor' && editorClientList.length > 1 && (
-              <Select
-                value={editorSelectedClientId}
-                onValueChange={setEditorSelectedClientId}
-              >
-                <SelectTrigger className="w-[200px] h-10 shrink-0">
-                  <SelectValue placeholder="Select client..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {editorClientList.map(client => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
             {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
             {deliverableTypes.length > 0 && (
               // Show when: at company root (seeing outputs folder), OR inside outputs at depth 0-1
@@ -1991,18 +1873,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     ? "No files found"
                     : selectedDeliverableFilter !== "all"
                       ? `No ${selectedDeliverableFilter} folders here`
-                      : (role === 'admin' || role === 'manager') && !effectiveClientId
-                        ? "Select a client to browse their files"
-                        : "This folder is empty"}
+                      : "This folder is empty"}
                 </p>
                 <p className="text-sm mb-4">
                   {searchQuery
                     ? "Try a different search term"
                     : selectedDeliverableFilter !== "all"
                       ? "Try clearing the filter"
-                      : (role === 'admin' || role === 'manager') && !effectiveClientId
-                        ? "Use the client selector or navigate into a client folder"
-                        : "Upload files to get started"}
+                      : "Upload files to get started"}
                 </p>
                 {/* {!searchQuery && selectedDeliverableFilter === "all" && canUpload && (
                   <FileUploadDialog
