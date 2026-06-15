@@ -447,11 +447,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }, [effectiveClientId, breadcrumb]);
 
   const handleAddFootageLink = async () => {
-    if (!newLinkUrl.trim() || !effectiveClientId) return;
+    if (!newLinkUrl.trim()) return;
+    const clientIdToUse = effectiveClientId || browsingClientId;
+    if (!clientIdToUse) {
+      alert('Could not determine client — please navigate into a client folder first');
+      return;
+    }
     setAddingLink(true);
     try {
       const folderPath = getCurrentFolderS3Path();
-      const res = await fetch(`/api/clients/${effectiveClientId}/footage-links`, {
+      const res = await fetch(`/api/clients/${clientIdToUse}/footage-links`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: newLinkUrl.trim(), folderPath }),
@@ -646,7 +651,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     !!effectiveClientId &&
     isInRawFootage &&
     depthFromRawFootage >= 0 &&
-    depthFromRawFootage <= 2;
+    depthFromRawFootage <= 1; // depth 2+ means already inside month/deliverable subfolder — use FileUploadDialog
 
   const shouldShowElementsDialog =
     !!effectiveClientId &&
@@ -1590,7 +1595,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             )}
 
             {/* Add External Link Button */}
-            {isClientInDeliverableFolder && canAddFootageLinks && (
+            {isInRawFootage && canAddFootageLinks && (
               <Button
                 variant="outline"
                 className="gap-2 shrink-0 h-10 px-4"
@@ -1866,8 +1871,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </div>
             )}
 
-            {/* ── External Footage Links — shown at deliverable folder depth ── */}
-            {isClientInDeliverableFolder && (footageLinks.length > 0 || canAddFootageLinks) && (
+            {/* ── External Footage Links — shown inside raw-footage folders ── */}
+            {isInRawFootage && (footageLinks.length > 0 || canAddFootageLinks) && (
               <div className="mb-5 border rounded-xl bg-card overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/40">
                   <div className="flex items-center gap-2">

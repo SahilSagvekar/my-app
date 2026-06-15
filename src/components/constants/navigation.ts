@@ -53,7 +53,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
     { id: 'my-tracker', label: 'My Tracker', icon: Target },
     { id: 'logins', label: 'Logins', icon: LogIn },
-    { id: 'resources', label: 'Resources', icon: BookOpen },
+    // { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
