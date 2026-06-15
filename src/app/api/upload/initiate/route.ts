@@ -15,6 +15,18 @@ function normalizeUploadPathSegment(value: string): string {
     .join('/');
 }
 
+function inferMimeType(fileName: string): string {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  const map: Record<string, string> = {
+    mov: 'video/quicktime', mp4: 'video/mp4', mkv: 'video/x-matroska',
+    avi: 'video/x-msvideo', webm: 'video/webm', m4v: 'video/x-m4v',
+    mts: 'video/mp2t', m2ts: 'video/mp2t', wmv: 'video/x-ms-wmv',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+    gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf',
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
 function getCurrentMonthFolder(): string {
   const date = new Date();
   const month = date.toLocaleDateString('en-US', { month: 'long' });
@@ -37,9 +49,12 @@ export async function POST(req: NextRequest) {
       relativePath,
     } = body;
 
-    if (!fileName || !fileType || !taskId || !clientId) {
+    if (!fileName || !taskId || !clientId) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
+
+    // Infer MIME type from filename if browser didn't provide one (common for .mov folder uploads)
+    const resolvedFileType = fileType || inferMimeType(fileName);
 
     // ── Storage limit check for raw-footage uploads ──────────────────────────
     const isRawFootageUpload =
@@ -125,7 +140,7 @@ export async function POST(req: NextRequest) {
         clientId,
         'uploader',
         s3Key,
-        fileType,
+        resolvedFileType,
         fileSize,
       );
       return NextResponse.json({ uploadId, key });
@@ -133,7 +148,7 @@ export async function POST(req: NextRequest) {
       // File server returns USE_SINGLE_PUT for files < 16MB — fall back to presigned PUT
       if (err.Code === 'USE_SINGLE_PUT' || err.message?.includes('USE_SINGLE_PUT') || err.message?.includes('too small')) {
         const { presignUpload } = await import('@/lib/file-server');
-        const { uploadUrl, fileUrl } = await presignUpload(clientId, 'uploader', s3Key, fileType);
+        const { uploadUrl, fileUrl } = await presignUpload(clientId, 'uploader', s3Key, resolvedFileType);
         return NextResponse.json({ singlePut: true, uploadUrl, fileUrl, key: s3Key });
       }
       throw err;

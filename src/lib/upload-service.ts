@@ -1,6 +1,30 @@
 // lib/upload-service.ts
 import { uploadStateManager, UploadState } from './upload-state-manager';
 
+// Browser often reports file.type as '' for .mov and some other formats
+// when files come from folder drag-and-drop or webkitdirectory picker.
+function inferMimeType(fileName: string): string {
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+    const map: Record<string, string> = {
+        mov: 'video/quicktime',
+        mp4: 'video/mp4',
+        mkv: 'video/x-matroska',
+        avi: 'video/x-msvideo',
+        webm: 'video/webm',
+        m4v: 'video/x-m4v',
+        mts: 'video/mp2t',
+        m2ts: 'video/mp2t',
+        wmv: 'video/x-ms-wmv',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        pdf: 'application/pdf',
+    };
+    return map[ext] || 'application/octet-stream';
+}
+
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
 const PARALLEL_UPLOADS = 3; // Parallel chunk workers per file (NOT parallel files)
 const SPEED_WINDOW_SIZE = 8; // Rolling window for speed calculation
@@ -243,7 +267,11 @@ class UploadService {
     async startUpload(file: File, taskData: any, subfolder: string, resumeId?: string, folderType: string = "outputs", relativePath?: string) {
         let state: UploadState;
 
-        const isVideo = file.type.startsWith('video/') ||
+        // file.type is often '' for .mov and other files dropped via folder picker
+        // Infer MIME from extension as fallback
+        const resolvedFileType = file.type || inferMimeType(file.name);
+
+        const isVideo = resolvedFileType.startsWith('video/') ||
             ['mp4', 'mkv', 'mov', 'avi', 'webm'].some(ext => file.name.toLowerCase().endsWith('.' + ext));
 
         let codec: string | null = null;
@@ -266,7 +294,7 @@ class UploadService {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     fileName: file.name,
-                    fileType: file.type,
+                    fileType: resolvedFileType,
                     fileSize: file.size,
                     taskId: taskData?.id || "drive-upload",
                     clientId: taskData?.clientId || "unknown",
@@ -291,7 +319,7 @@ class UploadService {
                     id,
                     fileName: file.name,
                     fileSize: file.size,
-                    fileType: file.type,
+                    fileType: resolvedFileType,
                     taskId: taskData?.id || 'drive-upload',
                     clientId: taskData?.clientId || 'unknown',
                     folderType,
@@ -316,7 +344,7 @@ class UploadService {
                         const putRes = await fetch(initData.uploadUrl, {
                             method: 'PUT',
                             body: file,
-                            headers: { 'Content-Type': file.type },
+                            headers: { 'Content-Type': resolvedFileType },
                         });
                         if (!putRes.ok) throw new Error(`Single PUT failed: ${putRes.status}`);
 
@@ -344,7 +372,7 @@ class UploadService {
                 id,
                 fileName: file.name,
                 fileSize: file.size,
-                fileType: file.type,
+                fileType: resolvedFileType,
                 taskId: taskData?.id || "drive-upload",
                 clientId: taskData?.clientId || "unknown",
                 folderType,
@@ -384,7 +412,7 @@ class UploadService {
         // Speed tracking: rolling window of recent chunk speeds
         const speedSamples: Array<{ bytes: number; ms: number }> = [];
 
-        if (!codec && file.type.startsWith('video/')) {
+        if (!codec && currentState.fileType.startsWith('video/')) {
             codec = await this.detectCodec(file);
         }
 
@@ -412,7 +440,7 @@ class UploadService {
 
                         try {
                             const chunkStart = Date.now();
-                            const result = await this.uploadChunk(item.chunk, item.partNumber, key, s3UploadId, file.type);
+                            const result = await this.uploadChunk(item.chunk, item.partNumber, key, s3UploadId, currentState.fileType);
                             const chunkDuration = Date.now() - chunkStart;
 
                             // Track speed sample
