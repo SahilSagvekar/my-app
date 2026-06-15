@@ -217,6 +217,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [addingLink, setAddingLink] = useState(false);
 
+  // ─── Client selector lists (admin/manager/editor) ───────────────────────
+  const [adminClientList, setAdminClientList] = useState<{ id: string; name: string }[]>([]);
+  const [adminSelectedClientId, setAdminSelectedClientId] = useState<string>('');
+  const [editorClientList, setEditorClientList] = useState<{ id: string; name: string }[]>([]);
+  const [editorSelectedClientId, setEditorSelectedClientId] = useState<string>('');
+
   // ─── Admin browsing context: resolve clientId from company name ───
   const [browsingClientId, setBrowsingClientId] = useState<string | null>(null);
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
@@ -356,11 +362,67 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       .catch(() => setBrowsingClientId(null));
   }, [role, breadcrumb, browsingCompanyName]);
 
+  // ── Load client list for admin/manager selector ──────────────────────────
   useEffect(() => {
-    if (user) {
+    if (role !== 'admin' && role !== 'manager') return;
+    fetch('/api/clients')
+      .then(r => r.ok ? r.json() : { clients: [] })
+      .then(data => {
+        const raw = Array.isArray(data) ? data : (data.clients || []);
+        const list = raw.map((c: any) => ({
+          id: c.id,
+          name: c.companyName || c.name || c.id,
+        }));
+        setAdminClientList(list.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+      })
+      .catch(() => {});
+  }, [role]);
+
+  // ── Load client list for editor selector (only when multiple clients) ────
+  useEffect(() => {
+    if (role !== 'editor') return;
+    fetch('/api/editor/clients')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        const raw = Array.isArray(data) ? data : (data.clients || []);
+        if (raw.length > 1) {
+          const list = raw.map((c: any) => ({
+            id: c.id,
+            name: c.companyName || c.name || c.id,
+          }));
+          setEditorClientList(list.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+        }
+      })
+      .catch(() => {});
+  }, [role]);
+
+  // ── When admin picks a client, update context ─────────────────────────────
+  useEffect(() => {
+    if (!adminSelectedClientId) return;
+    setBrowsingClientId(adminSelectedClientId);
+    const client = adminClientList.find(c => c.id === adminSelectedClientId);
+    if (client) setBrowsingCompanyName(client.name);
+  }, [adminSelectedClientId, adminClientList]);
+
+  // ── When editor picks a client, update context ────────────────────────────
+  useEffect(() => {
+    if (!editorSelectedClientId) return;
+    setBrowsingClientId(editorSelectedClientId);
+    const client = editorClientList.find(c => c.id === editorSelectedClientId);
+    if (client) setBrowsingCompanyName(client.name);
+  }, [editorSelectedClientId, editorClientList]);
+
+  // ── Reload structure when effectiveClientId changes (non-client roles) ───
+  useEffect(() => {
+    if (!user) return;
+    if (role === 'client') {
+      loadDriveStructure();
+      return;
+    }
+    if (effectiveClientId) {
       loadDriveStructure();
     }
-  }, [user]);
+  }, [user, effectiveClientId]);
 
   // Load footage links when inside a deliverable folder
   useEffect(() => {
@@ -465,6 +527,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       if (user?.id) {
         params.append("userId", user.id.toString());
+      }
+
+      // Pass clientId so the structure route can resolve the correct R2 prefix
+      if (effectiveClientId) {
+        params.append("clientId", effectiveClientId);
       }
 
       const response = await fetch(`/api/drive/structure?${params.toString()}`);
@@ -1530,6 +1597,38 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 <LinkIcon className="h-4 w-4" />
                 <span className="hidden sm:inline font-medium">Add Link</span>
               </Button>
+            )}
+
+            {/* ─── Admin/Manager: Client Selector ─── */}
+            {(role === 'admin' || role === 'manager') && adminClientList.length > 0 && (
+              <Select value={adminSelectedClientId} onValueChange={setAdminSelectedClientId}>
+                <SelectTrigger className="w-[200px] h-10 shrink-0">
+                  <SelectValue placeholder="Select client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {adminClientList.map(client => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* ─── Editor: Client Selector (only when assigned to multiple clients) ─── */}
+            {role === 'editor' && editorClientList.length > 1 && (
+              <Select value={editorSelectedClientId} onValueChange={setEditorSelectedClientId}>
+                <SelectTrigger className="w-[200px] h-10 shrink-0">
+                  <SelectValue placeholder="Select client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {editorClientList.map(client => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
 
             {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
