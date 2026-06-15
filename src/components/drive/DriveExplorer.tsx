@@ -515,7 +515,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     setPathInUrl(resolvedPath || "/");
   }, []);
 
-  const loadDriveStructure = async () => {
+  const loadDriveStructure = async (clientIdOverride?: string | null) => {
     // Capture current path BEFORE reload so we can restore it after
     const currentNavPath = breadcrumb.length > 1
       ? breadcrumb.slice(1).map(b => b.name).join("/")
@@ -536,9 +536,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         params.append("userId", user.id.toString());
       }
 
-      // Pass clientId so the structure route can resolve the correct R2 prefix
-      if (effectiveClientId) {
-        params.append("clientId", effectiveClientId);
+      // Use override (captured at call time) or current effectiveClientId
+      const resolvedClientId = clientIdOverride !== undefined ? clientIdOverride : effectiveClientId;
+      if (resolvedClientId) {
+        params.append("clientId", resolvedClientId);
       }
 
       const response = await fetch(`/api/drive/structure?${params.toString()}`);
@@ -1523,9 +1524,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   clientId={effectiveClientId!}
                   companyName={effectiveCompanyName}
                   onUploadComplete={() => {
-                    setTimeout(loadDriveStructure, 1000);
-                    if (effectiveClientId) {
-                      fetch(`/api/clients/${effectiveClientId}/storage`)
+                    const cid = effectiveClientId || browsingClientId;
+                    setTimeout(() => loadDriveStructure(cid), 1000);
+                    if (cid) {
+                      fetch(`/api/clients/${cid}/storage`)
                         .then(res => res.json())
                         .then(setStorageInfo)
                         .catch(console.error);
@@ -1544,7 +1546,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   companyName={effectiveCompanyName}
                   mode="elements"
                   onUploadComplete={() => {
-                    setTimeout(loadDriveStructure, 1000);
+                    const cid = effectiveClientId || browsingClientId;
+                    setTimeout(() => loadDriveStructure(cid), 1000);
                   }}
                   trigger={
                     <Button className="gap-2 shrink-0 h-10 px-4">
@@ -1558,7 +1561,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   folderType="drive"
                   subfolder={getCurrentFolderS3Path()}
                   onUploadComplete={() => {
-                    setTimeout(loadDriveStructure, 1000);
+                    const cid = effectiveClientId || browsingClientId;
+                    setTimeout(() => loadDriveStructure(cid), 1000);
                   }}
                   trigger={
                     <Button className="gap-2 shrink-0 h-10 px-4">

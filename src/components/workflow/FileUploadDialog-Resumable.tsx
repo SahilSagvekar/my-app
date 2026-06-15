@@ -104,6 +104,13 @@ export function FileUploadDialog({
   const folderInputRef = useRef<HTMLInputElement>(null);
   const notifiedUploadsRef = useRef<Set<string>>(new Set());
 
+  // Keep subfolder in sync with the current folder as user navigates
+  useEffect(() => {
+    if (preselectedSubfolder) {
+      setSubfolder(preselectedSubfolder);
+    }
+  }, [preselectedSubfolder]);
+
   const { enqueueUpload, getUploadState } = useUploads();
   const currentUpload = currentUploadId ? getUploadState(currentUploadId) : null;
 
