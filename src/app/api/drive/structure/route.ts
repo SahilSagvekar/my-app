@@ -75,19 +75,33 @@ export async function GET(request: NextRequest) {
 
     } else if (role === 'editor') {
       const editorId = parseInt(userId);
-      const permissions = await prisma.editorClientPermission.findMany({
-        where: { editorId },
-        include: { client: { select: { companyName: true, name: true } } },
-      });
-      const permNames = permissions.map(p => p.client.companyName || p.client.name).filter(Boolean);
-      const taskClients = await prisma.task.findMany({
-        where: { assignedTo: editorId, clientId: { not: null } },
-        select: { client: { select: { companyName: true, name: true } } },
-        distinct: ['clientId'],
-      });
-      const taskNames = taskClients.map(t => t.client?.companyName || t.client?.name || '').filter(Boolean);
-      const assigned = [...new Set([...permNames, ...taskNames])];
-      prefix = assigned.length === 1 ? `${assigned[0]}/` : '';
+
+      // If a specific clientId is passed (editor selected a client), use it directly
+      if (clientId) {
+        const clientRecord = await prisma.client.findUnique({
+          where: { id: clientId },
+          select: { companyName: true, name: true },
+        });
+        if (clientRecord) {
+          prefix = `${clientRecord.companyName || clientRecord.name}/`;
+        }
+      } else {
+        // Fall back to permission-based lookup
+        const permissions = await prisma.editorClientPermission.findMany({
+          where: { editorId },
+          include: { client: { select: { companyName: true, name: true } } },
+        });
+        const permNames = permissions.map(p => p.client.companyName || p.client.name).filter(Boolean);
+        const taskClients = await prisma.task.findMany({
+          where: { assignedTo: editorId, clientId: { not: null } },
+          select: { client: { select: { companyName: true, name: true } } },
+          distinct: ['clientId'],
+        });
+        const taskNames = taskClients.map(t => t.client?.companyName || t.client?.name || '').filter(Boolean);
+        const assigned = [...new Set([...permNames, ...taskNames])];
+        // Only auto-set prefix if exactly one client — otherwise editor must pick
+        prefix = assigned.length === 1 ? `${assigned[0]}/` : '';
+      }
     }
 
     const tree = await getStructure(userId, role, prefix);
