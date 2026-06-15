@@ -412,17 +412,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     if (client) setBrowsingCompanyName(client.name);
   }, [editorSelectedClientId, editorClientList]);
 
-  // ── Reload structure when effectiveClientId changes (non-client roles) ───
+  // ── Load structure on mount (all roles) ──────────────────────────────────
   useEffect(() => {
     if (!user) return;
-    if (role === 'client') {
-      loadDriveStructure();
-      return;
-    }
-    if (effectiveClientId) {
-      loadDriveStructure();
-    }
-  }, [user, effectiveClientId]);
+    loadDriveStructure();
+  }, [user]);
+
+  // ── Reload structure when admin/editor selects a client ──────────────────
+  useEffect(() => {
+    if (!user) return;
+    if (role === 'client') return; // client role handled by mount effect above
+    if (!effectiveClientId) return; // no selection yet, nothing to reload
+    loadDriveStructure();
+  }, [effectiveClientId]);
 
   // Load footage links when inside a deliverable folder
   useEffect(() => {
