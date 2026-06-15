@@ -348,6 +348,37 @@ class UploadService {
                         });
                         if (!putRes.ok) throw new Error(`Single PUT failed: ${putRes.status}`);
 
+                        // ── Notify the main app that the file is in R2 ──────────────────
+                        // /api/upload/complete creates the DB record, triggers Drive mirror,
+                        // Slack notification, audit log, and storage update — identical to
+                        // what happens after a multipart upload. Without this call, the file
+                        // lands in R2 but is invisible to the rest of the system.
+                        const completeRes = await fetch('/api/upload/complete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                key: initData.key,
+                                uploadId: 'single-put',   // sentinel — complete route ignores this for singlePut
+                                singlePut: true,
+                                fileUrl: initData.fileUrl,
+                                fileName: file.name,
+                                fileSize: file.size,
+                                fileType: resolvedFileType,
+                                taskId: taskData?.id || 'drive-upload',
+                                subfolder: subfolder || 'main',
+                                codec,
+                            }),
+                            signal: AbortSignal.timeout(30_000),
+                        });
+                        if (!completeRes.ok) {
+                            const errText = await completeRes.text().catch(() => completeRes.statusText);
+                            console.warn(`⚠️ Single-PUT complete notify failed (${completeRes.status}): ${errText}`);
+                            // Not fatal — file is already in R2; DB record creation failed but we
+                            // don't want to show an error to the user for a successful upload.
+                        } else {
+                            console.log(`✅ Single-PUT complete notified for: ${file.name}`);
+                        }
+
                         singleState.uploadedBytes = file.size;
                         singleState.completedChunks = [1];
                         await uploadStateManager.markAsCompleted(id);
