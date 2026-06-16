@@ -43,7 +43,12 @@ export async function PATCH(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    const { role, userId } = decoded;
+    const { userId } = decoded;
+    const role: string = (decoded.role || decoded.userRole || '').toLowerCase();
+
+    if (!role) {
+      return NextResponse.json({ message: 'Unauthorized — missing role' }, { status: 401 });
+    }
 
     const body = await req.json();
     const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC } = body;
@@ -126,7 +131,7 @@ if (qcTitle?.trim() && titleSetByQC) {
     console.log("ROLE" + role);
     // Handle client review requirement
     if (
-      (role.toLowerCase() === "qc" || role.toLowerCase() === "admin") &&
+      (role === "qc" || role === "admin") &&
       status === "COMPLETED" &&
       task.client?.requiresClientReview === true
     ) {
@@ -161,7 +166,7 @@ if (qcTitle?.trim() && titleSetByQC) {
       }
     }
 
-    if (role.toLowerCase() === "client") {
+    if (role === "client") {
       if (status === "COMPLETED") {
         finalStatus = "COMPLETED";
       } else if (status === "REJECTED") {
@@ -173,7 +178,7 @@ if (qcTitle?.trim() && titleSetByQC) {
 
     // Update task
     // 🔥 Track QC reviewer when QC approves/rejects
-    const isQCAction = (role.toLowerCase() === "qc" || role.toLowerCase() === "admin") &&
+    const isQCAction = (role === "qc" || role === "admin") &&
       (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW" || finalStatus === "REJECTED");
 
     if (isQCAction) {
@@ -225,7 +230,7 @@ if (qcTitle?.trim() && titleSetByQC) {
     }
 
     const isSchedulerSendBack =
-      role.toLowerCase() === "scheduler" &&
+      role === "scheduler" &&
       finalStatus === "REJECTED" &&
       schedulerFeedbackText.length > 0;
 
@@ -258,7 +263,7 @@ if (qcTitle?.trim() && titleSetByQC) {
     // NEW: Trigger AI titling on QC approval
     // ============================================
     const shouldTriggerTitling =
-      role.toLowerCase() === "qc" &&
+      role === "qc" &&
       (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW") &&
       task.titlingStatus !== 'COMPLETED' && // Don't re-trigger if already done
       task.titlingStatus !== 'PROCESSING'; // Don't re-trigger if in progress
@@ -334,8 +339,8 @@ if (qcTitle?.trim() && titleSetByQC) {
         await notifyUser({
           userId: task.assignedTo,
           type: "task_rejected",
-          title: role.toLowerCase() === "scheduler" ? "Content Sent Back by Scheduler" : "Content Needs Revisions",
-          body: role.toLowerCase() === "scheduler"
+          title: role === "scheduler" ? "Content Sent Back by Scheduler" : "Content Needs Revisions",
+          body: role === "scheduler"
             ? `Task "${task.title}" was sent back to you by the scheduler: ${schedulerFeedback || feedback || qcNotes || "Please check the feedback."}`
             : `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
           payload: {
@@ -386,7 +391,7 @@ if (qcTitle?.trim() && titleSetByQC) {
   });
 
   // 🔥 If client approved, delete Drive mirror files (no longer needed)
-  if (role.toLowerCase() === "client") {
+  if (role === "client") {
     const filesWithDrive = await prisma.file.findMany({
       where: { taskId: id, reviewDriveUrl: { not: null } },
       select: { id: true, reviewDriveUrl: true },
