@@ -1,0 +1,62 @@
+diff --git a/src/components/client/ReviewScreenDesktop.tsx b/src/components/client/ReviewScreenDesktop.tsx
+index f4bcfbc4..293d7dfb 100644
+--- a/src/components/client/ReviewScreenDesktop.tsx
++++ b/src/components/client/ReviewScreenDesktop.tsx
+@@ -327,7 +327,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
+                                         )}
+                                         <iframe
+                                             ref={p.iframeRef}
+-                                            className="w-full h-full bg-black border-2 border-white rounded-lg"
++                                            className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
+                                             src={p.videoSource.src}
+                                             title={`Video player for ${p.asset.title}`}
+                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+@@ -340,7 +340,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
+                                     <>
+                                         <video
+                                             ref={p.videoRef}
+-                                            className="w-full h-full object-contain bg-black rounded-lg border-2 border-white"
++                                            className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
+                                             src={p.videoSource.src}
+                                             onTimeUpdate={p.handleTimeUpdate}
+                                             onLoadedMetadata={(e) => {
+diff --git a/src/components/client/ReviewScreenMobile.tsx b/src/components/client/ReviewScreenMobile.tsx
+index e0297f6b..4f34d671 100644
+--- a/src/components/client/ReviewScreenMobile.tsx
++++ b/src/components/client/ReviewScreenMobile.tsx
+@@ -111,8 +111,8 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
+     // For landscape: use 16:9 aspect ratio (standard)
+     const videoContainerClass =
+         videoAspect === 'portrait'
+-            ? 'w-full flex-shrink-0 bg-black relative flex items-center justify-center border-2 border-white rounded-lg'
+-            : 'w-full aspect-video flex-shrink-0 bg-black relative border-2 border-white rounded-lg';
++            ? 'w-full flex-shrink-0 bg-black relative flex items-center justify-center border border-[var(--review-border)] rounded-lg'
++            : 'w-full aspect-video flex-shrink-0 bg-black relative border border-[var(--review-border)] rounded-lg';
+ 
+     const videoStyle =
+         videoAspect === 'portrait'
+diff --git a/src/components/dashboards/QCDashboard.tsx b/src/components/dashboards/QCDashboard.tsx
+index e22b6495..bacd2116 100644
+--- a/src/components/dashboards/QCDashboard.tsx
++++ b/src/components/dashboards/QCDashboard.tsx
+@@ -1123,7 +1123,7 @@ const handleConfirmApproval = async () => {
+ 
+         {selectedTask && (
+           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
+-            <DialogContent className="max-w-4xl max-h-[85vh]">
++            <DialogContent className="max-w-6xl max-h-[85vh]">
+               <DialogHeader>
+                 <DialogTitle className="flex items-center gap-2">
+                   <Eye className="h-5 w-5" />
+@@ -1133,9 +1133,9 @@ const handleConfirmApproval = async () => {
+ 
+               <div className="overflow-y-auto max-h-[65vh] pr-2">
+                 {selectedTask.files && selectedTask.files.length > 0 ? (
+-                  <div className="space-y-4">
++                  <div className="border rounded-lg overflow-hidden divide-y">
+                     {groupFilesByFolderType(selectedTask.files).map((group) => (
+-                      <div key={group.folderType} className="border rounded-lg overflow-hidden">
++                      <div key={group.folderType}>
+                         {/* Section Header */}
+                         <div className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}>
+                           <div className="flex items-center gap-2">

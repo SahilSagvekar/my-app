@@ -6,7 +6,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
-import { LinkedSfTasks } from "../tasks/LinkedSfTasks";
+import { LinkLfTask } from "../tasks/LinkLfTask";
 import {
   Select,
   SelectContent,
@@ -826,14 +826,14 @@ const [showGuidelines, setShowGuidelines] = useState(false);
               </div>
             )}
 
-            {/* 🔗 Linked SF Tasks — read-only view for editors on Long Form tasks */}
+            {/* 🔗 Linked LF Task — editors link from the SF ticket to its LF */}
           {task.deliverableType && (
-            task.deliverableType.toLowerCase().includes('long') ||
-            task.deliverableType.toUpperCase().includes('LF')
+            task.deliverableType.toLowerCase().includes('short') ||
+            task.deliverableType.toUpperCase().includes('SF')
           ) && (
             <div className="mb-2 border rounded-lg p-2.5 bg-muted/20">
-              <LinkedSfTasks
-                lfTaskId={task.id}
+              <LinkLfTask
+                sfTaskId={task.id}
                 clientId={task.clientId}
                 canEdit={true}
               />

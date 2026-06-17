@@ -111,8 +111,8 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
     // For landscape: use 16:9 aspect ratio (standard)
     const videoContainerClass =
         videoAspect === 'portrait'
-            ? 'w-full flex-shrink-0 bg-black relative flex items-center justify-center border-2 border-white rounded-lg'
-            : 'w-full aspect-video flex-shrink-0 bg-black relative border-2 border-white rounded-lg';
+            ? 'w-full flex-shrink-0 bg-black relative flex items-center justify-center border border-[var(--review-border)] rounded-lg'
+            : 'w-full aspect-video flex-shrink-0 bg-black relative border border-[var(--review-border)] rounded-lg';
 
     const videoStyle =
         videoAspect === 'portrait'

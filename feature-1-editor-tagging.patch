@@ -1,0 +1,450 @@
+diff --git a/src/app/api/clients/[id]/assigned-editors/route.ts b/src/app/api/clients/[id]/assigned-editors/route.ts
+new file mode 100644
+index 00000000..82c46f8f
+--- /dev/null
++++ b/src/app/api/clients/[id]/assigned-editors/route.ts
+@@ -0,0 +1,52 @@
++export const dynamic = 'force-dynamic';
++// src/app/api/clients/[id]/assigned-editors/route.ts
++//
++// Returns the editors currently assigned to active tasks for a client.
++// Used by the raw footage upload dialog so admin can pick exactly who
++// gets tagged in the Slack notification — instead of always tagging
++// every editor with an open task for that client.
++
++import { NextRequest, NextResponse } from 'next/server';
++import { prisma } from '@/lib/prisma';
++import { getCurrentUser2 } from '@/lib/auth';
++
++type Params = { params: Promise<{ id: string }> };
++
++export async function GET(req: NextRequest, { params }: Params) {
++  try {
++    const user = await getCurrentUser2(req);
++    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++    // Only admin/manager need this — editors/clients don't tag people on upload
++    if (user.role !== 'admin' && user.role !== 'manager') {
++      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
++    }
++
++    const { id: clientId } = await params;
++
++    const editors = await prisma.user.findMany({
++      where: {
++        role: 'editor',
++        assignedTasks: {
++          some: {
++            clientId,
++            status: { notIn: ['COMPLETED', 'POSTED'] },
++          },
++        },
++      },
++      select: {
++        id: true,
++        name: true,
++        email: true,
++        slackUserId: true,
++      },
++      distinct: ['id'],
++      orderBy: { name: 'asc' },
++    });
++
++    return NextResponse.json({ editors });
++  } catch (err: any) {
++    console.error('[assigned-editors GET]', err);
++    return NextResponse.json({ error: err.message }, { status: 500 });
++  }
++}
+diff --git a/src/app/api/upload/complete/route.ts b/src/app/api/upload/complete/route.ts
+index da6044bc..34cb07ef 100644
+--- a/src/app/api/upload/complete/route.ts
++++ b/src/app/api/upload/complete/route.ts
+@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
+       codec,
+       singlePut,
+       fileUrl: singlePutFileUrl,
++      taggedEditorIds,
+     } = await request.json();
+ 
+     console.log("📥 Complete request:", {
+@@ -224,6 +225,8 @@ export async function POST(request: NextRequest) {
+         isDriveUpload,
+         // Pass fileRecordId so worker doesn't need to re-create the file
+         fileRecordId: fileRecord?.id || null,
++        // Admin-selected editors to tag in Slack — falls back to auto-tag-all if omitted
++        taggedEditorIds: Array.isArray(taggedEditorIds) && taggedEditorIds.length > 0 ? taggedEditorIds : null,
+       });
+ 
+       console.log(`📬 Background job queued: ${jobId} for ${fileName}`);
+diff --git a/src/components/drive/DriveExplorer.tsx b/src/components/drive/DriveExplorer.tsx
+index 8110cca8..91b6916f 100644
+--- a/src/components/drive/DriveExplorer.tsx
++++ b/src/components/drive/DriveExplorer.tsx
+@@ -1523,6 +1523,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
+                 <RawFootageUploadDialog
+                   clientId={effectiveClientId!}
+                   companyName={effectiveCompanyName}
++                  role={role}
+                   onUploadComplete={() => {
+                     const cid = effectiveClientId || browsingClientId;
+                     setTimeout(() => loadDriveStructure(cid), 1000);
+diff --git a/src/components/drive/RawFootageUploadDialog.tsx b/src/components/drive/RawFootageUploadDialog.tsx
+index 03d4bd70..2334af4e 100644
+--- a/src/components/drive/RawFootageUploadDialog.tsx
++++ b/src/components/drive/RawFootageUploadDialog.tsx
+@@ -20,6 +20,7 @@ import {
+   SelectValue,
+ } from "@/components/ui/select";
+ import { Alert, AlertDescription } from "@/components/ui/alert";
++import { Checkbox } from "@/components/ui/checkbox";
+ import {
+   Upload,
+   X,
+@@ -33,6 +34,7 @@ import {
+   Calendar,
+   Package,
+   RefreshCw,
++  Users,
+ } from "lucide-react";
+ import { uploadStateManager, UploadState } from "@/lib/upload-state-manager";
+ import { useUploads } from "../workflow/UploadContext";
+@@ -94,12 +96,20 @@ interface DeliverableType {
+   description: string | null;
+ }
+ 
++interface AssignedEditor {
++  id: number;
++  name: string | null;
++  email: string;
++  slackUserId: string | null;
++}
++
+ interface RawFootageUploadDialogProps {
+   clientId: string;
+   companyName: string;
+   onUploadComplete: () => void;
+   trigger?: React.ReactNode;
+   mode?: 'rawFootage' | 'elements';
++  role?: string;
+ }
+ 
+ function getMonthOptions(): { value: string; label: string; isCurrent: boolean }[] {
+@@ -122,8 +132,10 @@ export function RawFootageUploadDialog({
+   onUploadComplete,
+   trigger,
+   mode = 'rawFootage',
++  role,
+ }: RawFootageUploadDialogProps) {
+   const isElementsMode = mode === 'elements';
++  const isAdminOrManager = role === 'admin' || role === 'manager';
+   const [open, setOpen] = useState(false);
+   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+   const [isDragging, setIsDragging] = useState(false);
+@@ -135,6 +147,10 @@ export function RawFootageUploadDialog({
+   const [deliverables, setDeliverables] = useState<DeliverableType[]>([]);
+   const [loadingDeliverables, setLoadingDeliverables] = useState(false);
+ 
++  const [assignedEditors, setAssignedEditors] = useState<AssignedEditor[]>([]);
++  const [loadingEditors, setLoadingEditors] = useState(false);
++  const [selectedEditorIds, setSelectedEditorIds] = useState<Set<number>>(new Set());
++
+   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
+   const [isStarting, setIsStarting] = useState(false);
+   const fileInputRef = useRef<HTMLInputElement>(null);
+@@ -155,6 +171,15 @@ export function RawFootageUploadDialog({
+     if (open && clientId) fetchDeliverables();
+   }, [open, clientId]);
+ 
++  useEffect(() => {
++    if (open && clientId && isAdminOrManager && !isElementsMode) fetchAssignedEditors();
++    if (!open) {
++      // Reset selection each time the dialog closes so a stale pick
++      // doesn't silently carry over to the next unrelated upload session
++      setSelectedEditorIds(new Set());
++    }
++  }, [open, clientId, isAdminOrManager, isElementsMode]);
++
+   useEffect(() => {
+     if (
+       currentUpload?.status === 'completed' &&
+@@ -172,6 +197,31 @@ export function RawFootageUploadDialog({
+     }
+   }, [currentUpload?.status, currentUpload?.id, selectedFiles.length, onUploadComplete]);
+ 
++  const fetchAssignedEditors = async () => {
++    setLoadingEditors(true);
++    try {
++      const res = await fetch(`/api/clients/${clientId}/assigned-editors`);
++      if (!res.ok) throw new Error('Failed to fetch assigned editors');
++      const data = await res.json();
++      setAssignedEditors(data.editors || []);
++    } catch (error) {
++      console.error('Error fetching assigned editors:', error);
++      // Non-fatal — picker just won't show options, upload still works
++      // and falls back to auto-tagging all assigned editors.
++    } finally {
++      setLoadingEditors(false);
++    }
++  };
++
++  const toggleEditorSelected = (editorId: number) => {
++    setSelectedEditorIds((prev) => {
++      const next = new Set(prev);
++      if (next.has(editorId)) next.delete(editorId);
++      else next.add(editorId);
++      return next;
++    });
++  };
++
+   const fetchDeliverables = async () => {
+     setLoadingDeliverables(true);
+     try {
+@@ -313,10 +363,15 @@ export function RawFootageUploadDialog({
+     const targetPath = getTargetPath();
+     console.log('📁 Uploading to:', targetPath);
+ 
++    const taggedEditorIds = selectedEditorIds.size > 0
++      ? Array.from(selectedEditorIds).map(String)
++      : undefined;
++    const taskData = { clientId, taggedEditorIds };
++
+     try {
+       const firstId = await enqueueUpload(
+         filesToUpload[0].file,
+-        { clientId },
++        taskData,
+         targetPath,
+         'drive',
+         filesToUpload[0].relativePath  // ← folder structure preserved
+@@ -327,7 +382,7 @@ export function RawFootageUploadDialog({
+       for (const sf of filesToUpload.slice(1)) {
+         enqueueUpload(
+           sf.file,
+-          { clientId },
++          taskData,
+           targetPath,
+           'drive',
+           sf.relativePath  // ← folder structure preserved
+@@ -463,6 +518,50 @@ export function RawFootageUploadDialog({
+                 </p>
+               </div>
+ 
++              {/* Editor Tagging — admin/manager only, raw footage only */}
++              {isAdminOrManager && !isElementsMode && (
++                <div className="space-y-2">
++                  <Label className="flex items-center gap-2 text-sm">
++                    <Users className="h-4 w-4 text-muted-foreground" />
++                    Tag editors in Slack
++                    <span className="text-muted-foreground font-normal">(optional)</span>
++                  </Label>
++                  {loadingEditors ? (
++                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
++                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
++                      Loading editors...
++                    </div>
++                  ) : assignedEditors.length === 0 ? (
++                    <p className="text-[11px] text-muted-foreground">
++                      No editors currently assigned to this client.
++                    </p>
++                  ) : (
++                    <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
++                      {assignedEditors.map((editor) => (
++                        <label
++                          key={editor.id}
++                          className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-muted/50"
++                        >
++                          <Checkbox
++                            checked={selectedEditorIds.has(editor.id)}
++                            onCheckedChange={() => toggleEditorSelected(editor.id)}
++                          />
++                          <span className="flex-1 truncate">{editor.name || editor.email}</span>
++                          {!editor.slackUserId && (
++                            <span className="text-[10px] text-muted-foreground">No Slack linked</span>
++                          )}
++                        </label>
++                      ))}
++                    </div>
++                  )}
++                  <p className="text-[11px] text-muted-foreground">
++                    {selectedEditorIds.size > 0
++                      ? `${selectedEditorIds.size} editor${selectedEditorIds.size !== 1 ? "s" : ""} selected — only they will be tagged.`
++                      : "Leave unselected to tag every editor currently assigned to this client (default)."}
++                  </p>
++                </div>
++              )}
++
+               {/* Path Preview */}
+               {(selectedMonth || selectedDeliverable) && (
+                 <div className="bg-muted/50 rounded-lg p-3 border">
+diff --git a/src/lib/upload-notifications.ts b/src/lib/upload-notifications.ts
+index 8703a5ec..35fcaebd 100644
+--- a/src/lib/upload-notifications.ts
++++ b/src/lib/upload-notifications.ts
+@@ -12,6 +12,9 @@ interface UploadNotificationParams {
+   taskId?: string;
+   folderType?: string; // 'rawFootage' | 'outputs' | 'drive' | 'essentials'
+   s3Key?: string;
++  // Admin-selected editor IDs to tag instead of auto-tagging everyone
++  // assigned to the client. Omitted/undefined = old auto-tag-all behavior.
++  taggedEditorIds?: string[];
+ }
+ 
+ interface UploaderInfo {
+@@ -49,6 +52,33 @@ async function getClientAssignedEditors(clientId: string): Promise<UploaderInfo[
+   return editors;
+ }
+ 
++/**
++ * Get specific editors by ID — used when admin manually picks which
++ * editors to tag, instead of auto-tagging everyone assigned to the client.
++ */
++async function getEditorsByIds(editorIds: string[]): Promise<UploaderInfo[]> {
++  const numericIds = editorIds
++    .map((id) => Number(id))
++    .filter((id) => Number.isFinite(id));
++
++  if (numericIds.length === 0) return [];
++
++  const editors = await prisma.user.findMany({
++    where: {
++      id: { in: numericIds },
++      role: "editor",
++    },
++    select: {
++      id: true,
++      name: true,
++      role: true,
++      slackUserId: true,
++    },
++  });
++
++  return editors;
++}
++
+ /**
+  * Format file size to human readable string
+  */
+@@ -91,7 +121,7 @@ function getFolderPath(s3Key?: string): string {
+ export async function sendUploadNotification(
+   params: UploadNotificationParams
+ ): Promise<void> {
+-  const { fileName, fileSize, uploadedBy, clientId, taskId, folderType, s3Key } = params;
++  const { fileName, fileSize, uploadedBy, clientId, taskId, folderType, s3Key, taggedEditorIds } = params;
+ 
+   try {
+     // Get uploader info
+@@ -148,12 +178,16 @@ export async function sendUploadNotification(
+         return;
+       }
+ 
+-      // Get assigned editors to mention
+-      const editors = await getClientAssignedEditors(clientId);
++      // Get editors to mention — admin's manual picks take priority,
++      // otherwise fall back to auto-tagging everyone assigned to the client.
++      const editors =
++        taggedEditorIds && taggedEditorIds.length > 0
++          ? await getEditorsByIds(taggedEditorIds)
++          : await getClientAssignedEditors(clientId);
+       if (editors.length > 0) {
+         mentionString = buildMentions(editors);
+         console.log(
+-          `[UploadNotification] Tagging ${editors.length} editors: ${editors.map((e) => e.name).join(", ")}`
++          `[UploadNotification] Tagging ${editors.length} editors (${taggedEditorIds && taggedEditorIds.length > 0 ? "manually selected" : "auto-assigned"}): ${editors.map((e) => e.name).join(", ")}`
+         );
+       }
+ 
+diff --git a/src/lib/upload-queue.ts b/src/lib/upload-queue.ts
+index a74835ab..26d0f7d7 100644
+--- a/src/lib/upload-queue.ts
++++ b/src/lib/upload-queue.ts
+@@ -37,6 +37,10 @@ export interface UploadJob {
+ 
+   // Set by upload/complete after DB write — worker skips file creation if present
+   fileRecordId?: string | null;
++
++  // Admin-selected editors to tag in Slack upload notification (raw footage uploads).
++  // null/omitted = fall back to auto-tagging all editors with an active task for the client.
++  taggedEditorIds?: string[] | null;
+ }
+ 
+ let redis: Redis | null = null;
+diff --git a/src/lib/upload-service.ts b/src/lib/upload-service.ts
+index dd2bf9f2..805fc1a9 100644
+--- a/src/lib/upload-service.ts
++++ b/src/lib/upload-service.ts
+@@ -334,6 +334,7 @@ class UploadService {
+                     lastUpdated: Date.now(),
+                     subfolder,
+                     relativePath,
++                    taggedEditorIds: taskData?.taggedEditorIds,
+                 };
+                 await uploadStateManager.saveUploadState(singleState);
+                 this.activeUploads.set(id, true);
+@@ -367,6 +368,7 @@ class UploadService {
+                                 taskId: taskData?.id || 'drive-upload',
+                                 subfolder: subfolder || 'main',
+                                 codec,
++                                taggedEditorIds: taskData?.taggedEditorIds,
+                             }),
+                             signal: AbortSignal.timeout(30_000),
+                         });
+@@ -418,6 +420,7 @@ class UploadService {
+                 lastUpdated: Date.now(),
+                 subfolder,
+                 relativePath,
++                taggedEditorIds: taskData?.taggedEditorIds,
+             };
+ 
+             await uploadStateManager.saveUploadState(state);
+@@ -543,7 +546,8 @@ class UploadService {
+                             fileType: currentState.fileType,
+                             taskId: currentState.taskId,
+                             subfolder: currentState.subfolder || 'main',
+-                            codec: codec
++                            codec: codec,
++                            taggedEditorIds: currentState.taggedEditorIds,
+                         }),
+                         signal: AbortSignal.timeout(90_000), // 90s — R2 complete can be slow for large files
+                     });
+diff --git a/src/lib/upload-state-manager.ts b/src/lib/upload-state-manager.ts
+index 3c9d927c..eddac2ee 100644
+--- a/src/lib/upload-state-manager.ts
++++ b/src/lib/upload-state-manager.ts
+@@ -24,6 +24,7 @@ interface UploadState {
+   speed?: number;              // bytes/sec (rolling average)
+   estimatedTimeLeft?: number;  // seconds remaining
+   relativePath?: string;       // for folder uploads — relative path within the folder
++  taggedEditorIds?: string[];  // admin-selected editors to tag in Slack notification (raw footage)
+ }
+ 
+ interface UploadDB extends DBSchema {
+diff --git a/src/lib/upload-worker.ts b/src/lib/upload-worker.ts
+index 9eb5c316..85c770b0 100644
+--- a/src/lib/upload-worker.ts
++++ b/src/lib/upload-worker.ts
+@@ -56,7 +56,7 @@ async function processJob(job: UploadJob): Promise<void> {
+       key, fileUrl, fileName, fileSize, fileType,
+       taskId, subfolder, userId, userRole,
+       driveFolderId, clientName, requiresClientReview,
+-      clientId, isDriveUpload, fileRecordId,
++      clientId, isDriveUpload, fileRecordId, taggedEditorIds,
+     } = job;
+ 
+     // ── Drive-only upload — just send Slack ──────────────────────────────
+@@ -68,6 +68,7 @@ async function processJob(job: UploadJob): Promise<void> {
+         clientId: clientId || undefined,
+         folderType: 'drive',
+         s3Key: key,
++        taggedEditorIds: taggedEditorIds || undefined,
+       }).catch((err: any) => console.error('[UploadWorker] Drive Slack failed:', err.message));
+ 
+       await ackUploadJob(job.id);
+@@ -158,6 +159,7 @@ async function processJob(job: UploadJob): Promise<void> {
+       taskId,
+       folderType,
+       s3Key: key,
++      taggedEditorIds: taggedEditorIds || undefined,
+     }).catch((err: any) => console.error('[UploadWorker] Slack failed:', err.message));
+ 
+     await ackUploadJob(job.id);

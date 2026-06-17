@@ -1123,7 +1123,7 @@ const handleConfirmApproval = async () => {
 
         {selectedTask && (
           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-            <DialogContent className="max-w-4xl max-h-[85vh]">
+            <DialogContent className="max-w-6xl max-h-[85vh]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Eye className="h-5 w-5" />
@@ -1133,9 +1133,9 @@ const handleConfirmApproval = async () => {
 
               <div className="overflow-y-auto max-h-[65vh] pr-2">
                 {selectedTask.files && selectedTask.files.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="border rounded-lg overflow-hidden divide-y">
                     {groupFilesByFolderType(selectedTask.files).map((group) => (
-                      <div key={group.folderType} className="border rounded-lg overflow-hidden">
+                      <div key={group.folderType}>
                         {/* Section Header */}
                         <div className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}>
                           <div className="flex items-center gap-2">

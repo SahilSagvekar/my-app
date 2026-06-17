@@ -1,0 +1,565 @@
+diff --git a/src/app/api/tasks/[id]/link-lf/route.ts b/src/app/api/tasks/[id]/link-lf/route.ts
+new file mode 100644
+index 00000000..b74a2e6e
+--- /dev/null
++++ b/src/app/api/tasks/[id]/link-lf/route.ts
+@@ -0,0 +1,100 @@
++export const dynamic = 'force-dynamic';
++// src/app/api/tasks/[id]/link-lf/route.ts
++//
++// SF-side counterpart to link-sf. Here `id` is the SF task, and we're
++// setting/clearing/reading ITS relatedTaskId (which points at the LF task
++// it belongs to). Same underlying column as link-sf, opposite direction
++// of initiation — this lets the SF ticket "link LF" instead of the LF
++// ticket "link SF". The LF-side route is left untouched so the scheduler's
++// existing read-only LinkedSfTasks view keeps working exactly as before.
++
++import { NextRequest, NextResponse } from 'next/server';
++import { prisma } from '@/lib/prisma';
++import { getCurrentUser2 } from '@/lib/auth';
++
++type Params = { params: Promise<{ id: string }> };
++
++export async function GET(req: NextRequest, { params }: Params) {
++  try {
++    const user = await getCurrentUser2(req);
++    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++    const { id: sfTaskId } = await params;
++
++    const sfTask = await prisma.task.findUnique({
++      where: { id: sfTaskId },
++      select: {
++        relatedTask: {
++          select: {
++            id: true,
++            title: true,
++            description: true,
++            deliverableType: true,
++            status: true,
++            dueDate: true,
++            assignedTo: true,
++            clientId: true,
++            client: { select: { name: true } },
++            user: { select: { name: true } },
++          },
++        },
++      },
++    });
++
++    if (!sfTask) return NextResponse.json({ error: 'SF task not found' }, { status: 404 });
++
++    return NextResponse.json({ linked: sfTask.relatedTask ?? null });
++  } catch (err: any) {
++    console.error('[link-lf GET]', err);
++    return NextResponse.json({ error: err.message }, { status: 500 });
++  }
++}
++
++export async function POST(req: NextRequest, { params }: Params) {
++  try {
++    const user = await getCurrentUser2(req);
++    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++    const { id: sfTaskId } = await params;
++    const { lfTaskId } = await req.json();
++
++    if (!lfTaskId) return NextResponse.json({ error: 'lfTaskId is required' }, { status: 400 });
++
++    const sfTask = await prisma.task.findUnique({ where: { id: sfTaskId }, select: { id: true } });
++    if (!sfTask) return NextResponse.json({ error: 'SF task not found' }, { status: 404 });
++
++    if (lfTaskId === sfTaskId) return NextResponse.json({ error: 'Cannot link a task to itself' }, { status: 400 });
++
++    const lfTask = await prisma.task.findUnique({ where: { id: lfTaskId }, select: { id: true } });
++    if (!lfTask) return NextResponse.json({ error: 'LF task not found' }, { status: 404 });
++
++    await prisma.task.update({
++      where: { id: sfTaskId },
++      data: { relatedTaskId: lfTaskId },
++    });
++
++    return NextResponse.json({ success: true });
++  } catch (err: any) {
++    console.error('[link-lf POST]', err);
++    return NextResponse.json({ error: err.message }, { status: 500 });
++  }
++}
++
++export async function DELETE(req: NextRequest, { params }: Params) {
++  try {
++    const user = await getCurrentUser2(req);
++    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++    const { id: sfTaskId } = await params;
++
++    await prisma.task.update({
++      where: { id: sfTaskId },
++      data: { relatedTaskId: null },
++    });
++
++    return NextResponse.json({ success: true });
++  } catch (err: any) {
++    console.error('[link-lf DELETE]', err);
++    return NextResponse.json({ error: err.message }, { status: 500 });
++  }
++}
+diff --git a/src/app/api/tasks/search-lf/route.ts b/src/app/api/tasks/search-lf/route.ts
+new file mode 100644
+index 00000000..a3cd3455
+--- /dev/null
++++ b/src/app/api/tasks/search-lf/route.ts
+@@ -0,0 +1,71 @@
++export const dynamic = 'force-dynamic';
++// src/app/api/tasks/search-lf/route.ts
++// Mirror of search-sf, but matches LF (long form) tasks instead. Used by
++// the new SF-side "Link LF" picker.
++
++import { NextRequest, NextResponse } from 'next/server';
++import { prisma } from '@/lib/prisma';
++import { getCurrentUser2 } from '@/lib/auth';
++
++export async function GET(req: NextRequest) {
++  try {
++    const user = await getCurrentUser2(req);
++    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
++
++    const { searchParams } = new URL(req.url);
++    const query = searchParams.get('q') ?? '';
++    const clientId = searchParams.get('clientId') ?? undefined;
++    const excludeSfId = searchParams.get('excludeSfId') ?? undefined;
++
++    const tasks = await prisma.task.findMany({
++      where: {
++        AND: [
++          clientId ? { clientId } : {},
++          excludeSfId ? { id: { not: excludeSfId } } : {},
++          {
++            OR: [
++              { deliverableType: { contains: 'LF', mode: 'insensitive' } },
++              { deliverableType: { contains: 'LONG', mode: 'insensitive' } },
++              { taskType: { contains: 'LF', mode: 'insensitive' } },
++              { monthlyDeliverable: { type: { contains: 'LF', mode: 'insensitive' } } },
++              { monthlyDeliverable: { type: { contains: 'LONG', mode: 'insensitive' } } },
++              { oneOffDeliverable: { type: { contains: 'LF', mode: 'insensitive' } } },
++              { oneOffDeliverable: { type: { contains: 'LONG', mode: 'insensitive' } } },
++            ],
++          },
++          query.length > 1
++            ? {
++                OR: [
++                  { title: { contains: query, mode: 'insensitive' } },
++                  { description: { contains: query, mode: 'insensitive' } },
++                ],
++              }
++            : {},
++        ],
++      },
++      select: {
++        id: true,
++        title: true,
++        description: true,
++        deliverableType: true,
++        status: true,
++        client: { select: { name: true } },
++        user: { select: { name: true } },
++        monthlyDeliverable: { select: { type: true } },
++        oneOffDeliverable: { select: { type: true } },
++      },
++      orderBy: { createdAt: 'desc' },
++      take: 100,
++    });
++
++    const mapped = tasks.map(t => ({
++      ...t,
++      deliverableType: t.deliverableType || t.monthlyDeliverable?.type || t.oneOffDeliverable?.type || null,
++    }));
++
++    return NextResponse.json({ tasks: mapped });
++  } catch (err: any) {
++    console.error('[search-lf]', err);
++    return NextResponse.json({ error: err.message }, { status: 500 });
++  }
++}
+diff --git a/src/components/admin/TaskManagementTab.tsx b/src/components/admin/TaskManagementTab.tsx
+index d57763af..d1ef2eaa 100644
+--- a/src/components/admin/TaskManagementTab.tsx
++++ b/src/components/admin/TaskManagementTab.tsx
+@@ -12,7 +12,7 @@ import { Checkbox } from '../ui/checkbox';
+ import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
+ import { Plus } from 'lucide-react';
+ import { DateRangePicker } from '../ui/date-range-picker';
+-import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
++import { LinkLfTask } from '../tasks/LinkLfTask';
+ import {
+   ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight,
+   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
+@@ -743,14 +743,14 @@ export function TaskManagementTab() {
+               <p className="text-xs text-muted-foreground">Leave unchanged to keep existing due dates</p>
+             </div>
+           </div>
+-          {/* SF → LF linking — only shown for Long Form tasks */}
++          {/* SF → LF linking — only shown for Short Form tasks (linking initiated from the SF side) */}
+           {editingTask && (() => {
+             const dtype = editingTask.monthlyDeliverable?.type || editingTask.oneOffDeliverable?.type || '';
+-            const isLF = dtype.toLowerCase().includes('long') || dtype.toUpperCase().includes('LF');
+-            return isLF ? (
++            const isSF = dtype.toLowerCase().includes('short') || dtype.toUpperCase().includes('SF');
++            return isSF ? (
+               <div className="border-t pt-4 px-1">
+-                <LinkedSfTasks
+-                  lfTaskId={editingTask.id}
++                <LinkLfTask
++                  sfTaskId={editingTask.id}
+                   clientId={editingTask.clientId}
+                   canEdit={true}
+                 />
+diff --git a/src/components/dashboards/EditorDashboard.tsx b/src/components/dashboards/EditorDashboard.tsx
+index 4ec25c4f..f9906f5c 100644
+--- a/src/components/dashboards/EditorDashboard.tsx
++++ b/src/components/dashboards/EditorDashboard.tsx
+@@ -6,7 +6,7 @@ import { Badge } from "../ui/badge";
+ import { Button } from "../ui/button";
+ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+ import { Alert, AlertDescription } from "../ui/alert";
+-import { LinkedSfTasks } from "../tasks/LinkedSfTasks";
++import { LinkLfTask } from "../tasks/LinkLfTask";
+ import {
+   Select,
+   SelectContent,
+@@ -826,14 +826,14 @@ const [showGuidelines, setShowGuidelines] = useState(false);
+               </div>
+             )}
+ 
+-            {/* 🔗 Linked SF Tasks — read-only view for editors on Long Form tasks */}
++            {/* 🔗 Linked LF Task — editors link from the SF ticket to its LF */}
+           {task.deliverableType && (
+-            task.deliverableType.toLowerCase().includes('long') ||
+-            task.deliverableType.toUpperCase().includes('LF')
++            task.deliverableType.toLowerCase().includes('short') ||
++            task.deliverableType.toUpperCase().includes('SF')
+           ) && (
+             <div className="mb-2 border rounded-lg p-2.5 bg-muted/20">
+-              <LinkedSfTasks
+-                lfTaskId={task.id}
++              <LinkLfTask
++                sfTaskId={task.id}
+                 clientId={task.clientId}
+                 canEdit={true}
+               />
+diff --git a/src/components/tasks/LinkLfTask.tsx b/src/components/tasks/LinkLfTask.tsx
+new file mode 100644
+index 00000000..ececbf45
+--- /dev/null
++++ b/src/components/tasks/LinkLfTask.tsx
+@@ -0,0 +1,310 @@
++'use client';
++// src/components/tasks/LinkLfTask.tsx
++// Usage: <LinkLfTask sfTaskId={task.id} clientId={task.clientId} canEdit={role !== 'client'} />
++//
++// SF-side counterpart to LinkedSfTasks. An SF task has at most one linked
++// LF task (relatedTaskId is a single FK), so this renders a single linked
++// card with a search-to-link / unlink flow, instead of a list.
++//
++// This does NOT replace LinkedSfTasks — that component stays exactly as
++// it is everywhere it's currently used (especially the scheduler views,
++// which must keep their existing read-only LF-side display unchanged).
++// This is a new, separate UI surface for the SF ticket.
++
++import { useState, useEffect, useCallback, useRef } from 'react';
++import { Link2, X, Search, Plus, Loader2, Unlink } from 'lucide-react';
++import { Button } from '@/components/ui/button';
++import { Input } from '@/components/ui/input';
++import { Badge } from '@/components/ui/badge';
++import { toast } from 'sonner';
++import { cn } from '@/lib/utils';
++
++interface LinkedLfTask {
++  id: string;
++  title: string | null;
++  description: string;
++  deliverableType: string | null;
++  status: string | null;
++  dueDate: string | null;
++  client: { name: string } | null;
++  user: { name: string } | null;
++}
++
++interface SearchTask {
++  id: string;
++  title: string | null;
++  description: string;
++  deliverableType: string | null;
++  status: string | null;
++  client: { name: string } | null;
++  user: { name: string } | null;
++}
++
++interface Props {
++  sfTaskId: string;
++  clientId?: string | null;
++  canEdit?: boolean;
++}
++
++const STATUS_COLORS: Record<string, string> = {
++  pending: 'bg-gray-100 text-gray-600',
++  in_progress: 'bg-blue-50 text-blue-700',
++  ready_for_qc: 'bg-yellow-50 text-yellow-700',
++  qc_in_progress: 'bg-purple-50 text-purple-700',
++  completed: 'bg-green-50 text-green-700',
++  rejected: 'bg-red-50 text-red-700',
++  on_hold: 'bg-orange-50 text-orange-700',
++  posted: 'bg-teal-50 text-teal-700',
++};
++
++function StatusBadge({ status }: { status: string | null }) {
++  if (!status) return null;
++  const label = status.replace(/_/g, ' ');
++  const color = STATUS_COLORS[status.toLowerCase()] ?? 'bg-gray-100 text-gray-600';
++  return (
++    <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium capitalize', color)}>
++      {label}
++    </span>
++  );
++}
++
++export function LinkLfTask({ sfTaskId, clientId, canEdit = true }: Props) {
++  const [linked, setLinked] = useState<LinkedLfTask | null>(null);
++  const [loadingLinked, setLoadingLinked] = useState(true);
++  const [showSearch, setShowSearch] = useState(false);
++  const [searchQuery, setSearchQuery] = useState('');
++  const [searchResults, setSearchResults] = useState<SearchTask[]>([]);
++  const [searching, setSearching] = useState(false);
++  const [linking, setLinking] = useState<string | null>(null);
++  const [unlinking, setUnlinking] = useState(false);
++  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
++
++  const loadLinked = useCallback(async () => {
++    try {
++      setLoadingLinked(true);
++      const res = await fetch(`/api/tasks/${sfTaskId}/link-lf`);
++      const data = await res.json();
++      if (!res.ok) throw new Error(data.error);
++      setLinked(data.linked ?? null);
++    } catch (err: any) {
++      console.error(err);
++    } finally {
++      setLoadingLinked(false);
++    }
++  }, [sfTaskId]);
++
++  useEffect(() => { loadLinked(); }, [loadLinked]);
++
++  const doSearch = useCallback(async (q: string) => {
++    if (q.length < 1) { setSearchResults([]); return; }
++    setSearching(true);
++    try {
++      const params = new URLSearchParams({ q, excludeSfId: sfTaskId });
++      if (clientId) params.set('clientId', clientId);
++      const res = await fetch(`/api/tasks/search-lf?${params}`);
++      const data = await res.json();
++      if (res.ok) setSearchResults(data.tasks ?? []);
++    } catch { /* silent */ }
++    finally { setSearching(false); }
++  }, [sfTaskId, clientId]);
++
++  const handleSearchChange = (val: string) => {
++    setSearchQuery(val);
++    if (searchTimeout.current) clearTimeout(searchTimeout.current);
++    searchTimeout.current = setTimeout(() => doSearch(val), 350);
++  };
++
++  const handleLink = async (lfTaskId: string) => {
++    setLinking(lfTaskId);
++    try {
++      const res = await fetch(`/api/tasks/${sfTaskId}/link-lf`, {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ lfTaskId }),
++      });
++      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
++      toast.success('LF task linked');
++      setShowSearch(false);
++      setSearchQuery('');
++      setSearchResults([]);
++      await loadLinked();
++    } catch (err: any) {
++      toast.error(err.message || 'Failed to link');
++    } finally {
++      setLinking(null);
++    }
++  };
++
++  const handleUnlink = async () => {
++    setUnlinking(true);
++    try {
++      const res = await fetch(`/api/tasks/${sfTaskId}/link-lf`, { method: 'DELETE' });
++      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
++      toast.success('LF task unlinked');
++      await loadLinked();
++    } catch (err: any) {
++      toast.error(err.message || 'Failed to unlink');
++    } finally {
++      setUnlinking(false);
++    }
++  };
++
++  return (
++    <div className="space-y-3">
++      <div className="flex items-center justify-between">
++        <div className="flex items-center gap-1.5">
++          <Link2 className="h-4 w-4 text-muted-foreground" />
++          <span className="text-sm font-medium">Linked LF Task</span>
++          {linked && (
++            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
++              1
++            </Badge>
++          )}
++        </div>
++        {canEdit && !linked && (
++          <Button
++            variant="ghost"
++            size="sm"
++            className="h-7 gap-1 text-xs"
++            onClick={() => {
++              setShowSearch((s) => !s);
++              if (!showSearch) doSearch('');
++            }}
++          >
++            <Plus className="h-3.5 w-3.5" />
++            Link LF
++          </Button>
++        )}
++      </div>
++
++      {showSearch && canEdit && !linked && (
++        <div className="border rounded-lg overflow-hidden bg-card">
++          <div className="p-2 border-b">
++            <div className="relative">
++              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
++              <Input
++                className="pl-8 h-8 text-sm"
++                placeholder="Search LF tasks by title or description..."
++                value={searchQuery}
++                onChange={(e) => handleSearchChange(e.target.value)}
++                autoFocus
++              />
++              {searchQuery && (
++                <button
++                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
++                  onClick={() => { setSearchQuery(''); setSearchResults([]); doSearch(''); }}
++                >
++                  <X className="h-3.5 w-3.5" />
++                </button>
++              )}
++            </div>
++          </div>
++
++          <div className="max-h-52 overflow-y-auto divide-y">
++            {searching && (
++              <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground">
++                <Loader2 className="h-3.5 w-3.5 animate-spin" />
++                Searching…
++              </div>
++            )}
++            {!searching && searchResults.length === 0 && searchQuery.length > 0 && (
++              <div className="px-3 py-2.5 text-xs text-muted-foreground text-center">
++                No LF tasks found
++              </div>
++            )}
++            {!searching && searchResults.length === 0 && searchQuery.length === 0 && (
++              <div className="px-3 py-2.5 text-xs text-muted-foreground text-center">
++                Type to search for LF tasks to link
++              </div>
++            )}
++            {searchResults.map((task) => {
++              const isLinking = linking === task.id;
++              return (
++                <div
++                  key={task.id}
++                  className="flex items-center gap-2 px-3 py-2 hover:bg-accent"
++                >
++                  <div className="flex-1 min-w-0">
++                    <p className="text-xs font-medium truncate">
++                      {task.title || task.description}
++                    </p>
++                    <div className="flex items-center gap-1.5 mt-0.5">
++                      {task.deliverableType && (
++                        <span className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600 rounded">
++                          {task.deliverableType}
++                        </span>
++                      )}
++                      <StatusBadge status={task.status} />
++                      {task.user?.name && (
++                        <span className="text-[10px] text-muted-foreground truncate">
++                          {task.user.name}
++                        </span>
++                      )}
++                    </div>
++                  </div>
++                  <Button
++                    size="sm"
++                    variant="outline"
++                    className="h-6 text-[11px] px-2 shrink-0"
++                    disabled={isLinking}
++                    onClick={() => handleLink(task.id)}
++                  >
++                    {isLinking ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Link'}
++                  </Button>
++                </div>
++              );
++            })}
++          </div>
++        </div>
++      )}
++
++      {loadingLinked ? (
++        <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
++          <Loader2 className="h-3 w-3 animate-spin" />
++          Loading linked task…
++        </div>
++      ) : !linked ? (
++        <p className="text-xs text-muted-foreground py-1">
++          No LF task linked yet.{canEdit ? ' Click "Link LF" to add one.' : ''}
++        </p>
++      ) : (
++        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-accent/40 transition-colors group">
++          <div className="flex-1 min-w-0">
++            <p className="text-xs font-medium truncate">
++              {linked.title || linked.description}
++            </p>
++            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
++              {linked.deliverableType && (
++                <span className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600 rounded">
++                  {linked.deliverableType}
++                </span>
++              )}
++              <StatusBadge status={linked.status} />
++              {linked.user?.name && (
++                <span className="text-[10px] text-muted-foreground">
++                  {linked.user.name}
++                </span>
++              )}
++            </div>
++          </div>
++          {canEdit && (
++            <Button
++              variant="ghost"
++              size="icon"
++              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
++              disabled={unlinking}
++              onClick={handleUnlink}
++              title="Unlink this LF task"
++            >
++              {unlinking ? (
++                <Loader2 className="h-3 w-3 animate-spin" />
++              ) : (
++                <Unlink className="h-3 w-3 text-muted-foreground" />
++              )}
++            </Button>
++          )}
++        </div>
++      )}
++    </div>
++  );
++}

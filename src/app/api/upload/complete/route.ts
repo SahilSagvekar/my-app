@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       codec,
       singlePut,
       fileUrl: singlePutFileUrl,
+      taggedEditorIds,
     } = await request.json();
 
     console.log("📥 Complete request:", {
@@ -224,6 +225,8 @@ export async function POST(request: NextRequest) {
         isDriveUpload,
         // Pass fileRecordId so worker doesn't need to re-create the file
         fileRecordId: fileRecord?.id || null,
+        // Admin-selected editors to tag in Slack — falls back to auto-tag-all if omitted
+        taggedEditorIds: Array.isArray(taggedEditorIds) && taggedEditorIds.length > 0 ? taggedEditorIds : null,
       });
 
       console.log(`📬 Background job queued: ${jobId} for ${fileName}`);

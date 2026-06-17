@@ -12,7 +12,7 @@ import { Checkbox } from '../ui/checkbox';
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { Plus } from 'lucide-react';
 import { DateRangePicker } from '../ui/date-range-picker';
-import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
+import { LinkLfTask } from '../tasks/LinkLfTask';
 import {
   ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight,
   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
@@ -743,14 +743,14 @@ export function TaskManagementTab() {
               <p className="text-xs text-muted-foreground">Leave unchanged to keep existing due dates</p>
             </div>
           </div>
-          {/* SF → LF linking — only shown for Long Form tasks */}
+          {/* SF → LF linking — only shown for Short Form tasks (linking initiated from the SF side) */}
           {editingTask && (() => {
             const dtype = editingTask.monthlyDeliverable?.type || editingTask.oneOffDeliverable?.type || '';
-            const isLF = dtype.toLowerCase().includes('long') || dtype.toUpperCase().includes('LF');
-            return isLF ? (
+            const isSF = dtype.toLowerCase().includes('short') || dtype.toUpperCase().includes('SF');
+            return isSF ? (
               <div className="border-t pt-4 px-1">
-                <LinkedSfTasks
-                  lfTaskId={editingTask.id}
+                <LinkLfTask
+                  sfTaskId={editingTask.id}
                   clientId={editingTask.clientId}
                   canEdit={true}
                 />

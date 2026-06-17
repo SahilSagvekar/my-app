@@ -327,7 +327,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         )}
                                         <iframe
                                             ref={p.iframeRef}
-                                            className="w-full h-full bg-black border-2 border-white rounded-lg"
+                                            className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
                                             src={p.videoSource.src}
                                             title={`Video player for ${p.asset.title}`}
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -340,7 +340,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <>
                                         <video
                                             ref={p.videoRef}
-                                            className="w-full h-full object-contain bg-black rounded-lg border-2 border-white"
+                                            className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
                                             src={p.videoSource.src}
                                             onTimeUpdate={p.handleTimeUpdate}
                                             onLoadedMetadata={(e) => {
