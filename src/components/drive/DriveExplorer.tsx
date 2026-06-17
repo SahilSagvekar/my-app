@@ -1523,6 +1523,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 <RawFootageUploadDialog
                   clientId={effectiveClientId!}
                   companyName={effectiveCompanyName}
+                  role={role}
                   onUploadComplete={() => {
                     const cid = effectiveClientId || browsingClientId;
                     setTimeout(() => loadDriveStructure(cid), 1000);

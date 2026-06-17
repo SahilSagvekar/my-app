@@ -37,6 +37,10 @@ export interface UploadJob {
 
   // Set by upload/complete after DB write — worker skips file creation if present
   fileRecordId?: string | null;
+
+  // Admin-selected editors to tag in Slack upload notification (raw footage uploads).
+  // null/omitted = fall back to auto-tagging all editors with an active task for the client.
+  taggedEditorIds?: string[] | null;
 }
 
 let redis: Redis | null = null;

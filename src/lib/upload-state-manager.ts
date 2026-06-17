@@ -24,6 +24,7 @@ interface UploadState {
   speed?: number;              // bytes/sec (rolling average)
   estimatedTimeLeft?: number;  // seconds remaining
   relativePath?: string;       // for folder uploads — relative path within the folder
+  taggedEditorIds?: string[];  // admin-selected editors to tag in Slack notification (raw footage)
 }
 
 interface UploadDB extends DBSchema {

@@ -56,7 +56,7 @@ async function processJob(job: UploadJob): Promise<void> {
       key, fileUrl, fileName, fileSize, fileType,
       taskId, subfolder, userId, userRole,
       driveFolderId, clientName, requiresClientReview,
-      clientId, isDriveUpload, fileRecordId,
+      clientId, isDriveUpload, fileRecordId, taggedEditorIds,
     } = job;
 
     // ── Drive-only upload — just send Slack ──────────────────────────────
@@ -68,6 +68,7 @@ async function processJob(job: UploadJob): Promise<void> {
         clientId: clientId || undefined,
         folderType: 'drive',
         s3Key: key,
+        taggedEditorIds: taggedEditorIds || undefined,
       }).catch((err: any) => console.error('[UploadWorker] Drive Slack failed:', err.message));
 
       await ackUploadJob(job.id);
@@ -158,6 +159,7 @@ async function processJob(job: UploadJob): Promise<void> {
       taskId,
       folderType,
       s3Key: key,
+      taggedEditorIds: taggedEditorIds || undefined,
     }).catch((err: any) => console.error('[UploadWorker] Slack failed:', err.message));
 
     await ackUploadJob(job.id);

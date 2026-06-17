@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Upload,
   X,
@@ -33,6 +34,7 @@ import {
   Calendar,
   Package,
   RefreshCw,
+  Users,
 } from "lucide-react";
 import { uploadStateManager, UploadState } from "@/lib/upload-state-manager";
 import { useUploads } from "../workflow/UploadContext";
@@ -94,12 +96,20 @@ interface DeliverableType {
   description: string | null;
 }
 
+interface AssignedEditor {
+  id: number;
+  name: string | null;
+  email: string;
+  slackUserId: string | null;
+}
+
 interface RawFootageUploadDialogProps {
   clientId: string;
   companyName: string;
   onUploadComplete: () => void;
   trigger?: React.ReactNode;
   mode?: 'rawFootage' | 'elements';
+  role?: string;
 }
 
 function getMonthOptions(): { value: string; label: string; isCurrent: boolean }[] {
@@ -122,8 +132,10 @@ export function RawFootageUploadDialog({
   onUploadComplete,
   trigger,
   mode = 'rawFootage',
+  role,
 }: RawFootageUploadDialogProps) {
   const isElementsMode = mode === 'elements';
+  const isAdminOrManager = role === 'admin' || role === 'manager';
   const [open, setOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -134,6 +146,10 @@ export function RawFootageUploadDialog({
 
   const [deliverables, setDeliverables] = useState<DeliverableType[]>([]);
   const [loadingDeliverables, setLoadingDeliverables] = useState(false);
+
+  const [assignedEditors, setAssignedEditors] = useState<AssignedEditor[]>([]);
+  const [loadingEditors, setLoadingEditors] = useState(false);
+  const [selectedEditorIds, setSelectedEditorIds] = useState<Set<number>>(new Set());
 
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
@@ -156,6 +172,15 @@ export function RawFootageUploadDialog({
   }, [open, clientId]);
 
   useEffect(() => {
+    if (open && clientId && isAdminOrManager && !isElementsMode) fetchAssignedEditors();
+    if (!open) {
+      // Reset selection each time the dialog closes so a stale pick
+      // doesn't silently carry over to the next unrelated upload session
+      setSelectedEditorIds(new Set());
+    }
+  }, [open, clientId, isAdminOrManager, isElementsMode]);
+
+  useEffect(() => {
     if (
       currentUpload?.status === 'completed' &&
       !notifiedUploadsRef.current.has(currentUpload.id)
@@ -171,6 +196,31 @@ export function RawFootageUploadDialog({
       }
     }
   }, [currentUpload?.status, currentUpload?.id, selectedFiles.length, onUploadComplete]);
+
+  const fetchAssignedEditors = async () => {
+    setLoadingEditors(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/assigned-editors`);
+      if (!res.ok) throw new Error('Failed to fetch assigned editors');
+      const data = await res.json();
+      setAssignedEditors(data.editors || []);
+    } catch (error) {
+      console.error('Error fetching assigned editors:', error);
+      // Non-fatal — picker just won't show options, upload still works
+      // and falls back to auto-tagging all assigned editors.
+    } finally {
+      setLoadingEditors(false);
+    }
+  };
+
+  const toggleEditorSelected = (editorId: number) => {
+    setSelectedEditorIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(editorId)) next.delete(editorId);
+      else next.add(editorId);
+      return next;
+    });
+  };
 
   const fetchDeliverables = async () => {
     setLoadingDeliverables(true);
@@ -313,10 +363,15 @@ export function RawFootageUploadDialog({
     const targetPath = getTargetPath();
     console.log('📁 Uploading to:', targetPath);
 
+    const taggedEditorIds = selectedEditorIds.size > 0
+      ? Array.from(selectedEditorIds).map(String)
+      : undefined;
+    const taskData = { clientId, taggedEditorIds };
+
     try {
       const firstId = await enqueueUpload(
         filesToUpload[0].file,
-        { clientId },
+        taskData,
         targetPath,
         'drive',
         filesToUpload[0].relativePath  // ← folder structure preserved
@@ -327,7 +382,7 @@ export function RawFootageUploadDialog({
       for (const sf of filesToUpload.slice(1)) {
         enqueueUpload(
           sf.file,
-          { clientId },
+          taskData,
           targetPath,
           'drive',
           sf.relativePath  // ← folder structure preserved
@@ -462,6 +517,50 @@ export function RawFootageUploadDialog({
                   Leave empty to upload directly to the deliverable folder
                 </p>
               </div>
+
+              {/* Editor Tagging — admin/manager only, raw footage only */}
+              {isAdminOrManager && !isElementsMode && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    Tag editors in Slack
+                    <span className="text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  {loadingEditors ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Loading editors...
+                    </div>
+                  ) : assignedEditors.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      No editors currently assigned to this client.
+                    </p>
+                  ) : (
+                    <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
+                      {assignedEditors.map((editor) => (
+                        <label
+                          key={editor.id}
+                          className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-muted/50"
+                        >
+                          <Checkbox
+                            checked={selectedEditorIds.has(editor.id)}
+                            onCheckedChange={() => toggleEditorSelected(editor.id)}
+                          />
+                          <span className="flex-1 truncate">{editor.name || editor.email}</span>
+                          {!editor.slackUserId && (
+                            <span className="text-[10px] text-muted-foreground">No Slack linked</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    {selectedEditorIds.size > 0
+                      ? `${selectedEditorIds.size} editor${selectedEditorIds.size !== 1 ? "s" : ""} selected — only they will be tagged.`
+                      : "Leave unselected to tag every editor currently assigned to this client (default)."}
+                  </p>
+                </div>
+              )}
 
               {/* Path Preview */}
               {(selectedMonth || selectedDeliverable) && (

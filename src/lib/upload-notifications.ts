@@ -12,6 +12,9 @@ interface UploadNotificationParams {
   taskId?: string;
   folderType?: string; // 'rawFootage' | 'outputs' | 'drive' | 'essentials'
   s3Key?: string;
+  // Admin-selected editor IDs to tag instead of auto-tagging everyone
+  // assigned to the client. Omitted/undefined = old auto-tag-all behavior.
+  taggedEditorIds?: string[];
 }
 
 interface UploaderInfo {
@@ -44,6 +47,33 @@ async function getClientAssignedEditors(clientId: string): Promise<UploaderInfo[
       slackUserId: true,
     },
     distinct: ["id"],
+  });
+
+  return editors;
+}
+
+/**
+ * Get specific editors by ID — used when admin manually picks which
+ * editors to tag, instead of auto-tagging everyone assigned to the client.
+ */
+async function getEditorsByIds(editorIds: string[]): Promise<UploaderInfo[]> {
+  const numericIds = editorIds
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
+
+  if (numericIds.length === 0) return [];
+
+  const editors = await prisma.user.findMany({
+    where: {
+      id: { in: numericIds },
+      role: "editor",
+    },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      slackUserId: true,
+    },
   });
 
   return editors;
@@ -91,7 +121,7 @@ function getFolderPath(s3Key?: string): string {
 export async function sendUploadNotification(
   params: UploadNotificationParams
 ): Promise<void> {
-  const { fileName, fileSize, uploadedBy, clientId, taskId, folderType, s3Key } = params;
+  const { fileName, fileSize, uploadedBy, clientId, taskId, folderType, s3Key, taggedEditorIds } = params;
 
   try {
     // Get uploader info
@@ -148,12 +178,16 @@ export async function sendUploadNotification(
         return;
       }
 
-      // Get assigned editors to mention
-      const editors = await getClientAssignedEditors(clientId);
+      // Get editors to mention — admin's manual picks take priority,
+      // otherwise fall back to auto-tagging everyone assigned to the client.
+      const editors =
+        taggedEditorIds && taggedEditorIds.length > 0
+          ? await getEditorsByIds(taggedEditorIds)
+          : await getClientAssignedEditors(clientId);
       if (editors.length > 0) {
         mentionString = buildMentions(editors);
         console.log(
-          `[UploadNotification] Tagging ${editors.length} editors: ${editors.map((e) => e.name).join(", ")}`
+          `[UploadNotification] Tagging ${editors.length} editors (${taggedEditorIds && taggedEditorIds.length > 0 ? "manually selected" : "auto-assigned"}): ${editors.map((e) => e.name).join(", ")}`
         );
       }
 

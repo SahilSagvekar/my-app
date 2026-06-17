@@ -334,6 +334,7 @@ class UploadService {
                     lastUpdated: Date.now(),
                     subfolder,
                     relativePath,
+                    taggedEditorIds: taskData?.taggedEditorIds,
                 };
                 await uploadStateManager.saveUploadState(singleState);
                 this.activeUploads.set(id, true);
@@ -367,6 +368,7 @@ class UploadService {
                                 taskId: taskData?.id || 'drive-upload',
                                 subfolder: subfolder || 'main',
                                 codec,
+                                taggedEditorIds: taskData?.taggedEditorIds,
                             }),
                             signal: AbortSignal.timeout(30_000),
                         });
@@ -418,6 +420,7 @@ class UploadService {
                 lastUpdated: Date.now(),
                 subfolder,
                 relativePath,
+                taggedEditorIds: taskData?.taggedEditorIds,
             };
 
             await uploadStateManager.saveUploadState(state);
@@ -543,7 +546,8 @@ class UploadService {
                             fileType: currentState.fileType,
                             taskId: currentState.taskId,
                             subfolder: currentState.subfolder || 'main',
-                            codec: codec
+                            codec: codec,
+                            taggedEditorIds: currentState.taggedEditorIds,
                         }),
                         signal: AbortSignal.timeout(90_000), // 90s — R2 complete can be slow for large files
                     });
