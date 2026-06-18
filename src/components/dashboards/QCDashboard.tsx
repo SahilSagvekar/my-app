@@ -217,7 +217,7 @@ const persistQCResult = async ({
 };
 
 export function QCDashboard() {
-  const { viewingAsRole } = useViewAsRole();
+  const { viewingAsRole, isViewingAsOther } = useViewAsRole();
 
   const [qcTasks, setQCTasks] = useState<EnhancedWorkflowTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -302,6 +302,16 @@ const [pendingApprovalType, setPendingApprovalType] = useState<"client" | "sched
     window.addEventListener('task-updated', handleTaskGlobalUpdate);
     return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
   }, []);
+
+  // 🔥 Bulk selection is admin-only (viewing as QC). If this ever stops being
+  // true mid-session — a real QC user, or an admin switching back to their
+  // own role — force-exit selection mode so the feature can't linger.
+  useEffect(() => {
+    if (!isViewingAsOther && (selectionMode || selectedTaskIds.size > 0)) {
+      setSelectionMode(false);
+      setSelectedTaskIds(new Set());
+    }
+  }, [isViewingAsOther]);
 
   const loadQCTasks = useCallback(async () => {
     try {
@@ -723,7 +733,7 @@ const handleConfirmApproval = async () => {
   };
 
   const handleTaskClick = (task: EnhancedWorkflowTask) => {
-    if (selectionMode) {
+    if (selectionMode && isViewingAsOther) {
       toggleTaskSelection(task.id);
       return;
     }
@@ -742,6 +752,7 @@ const handleConfirmApproval = async () => {
   };
 
   const handleToggleSelectionMode = () => {
+    if (!isViewingAsOther) return; // bulk selection is admin-viewing-as-QC only
     setSelectionMode((prev) => {
       if (prev) setSelectedTaskIds(new Set()); // leaving selection mode clears selection
       return !prev;
@@ -1032,24 +1043,26 @@ const handleConfirmApproval = async () => {
                 </Button>
               )}
 
-              <Button
-                variant={selectionMode ? "default" : "outline"}
-                size="sm"
-                onClick={handleToggleSelectionMode}
-                className="h-9 text-xs"
-              >
-                {selectionMode ? (
-                  <>
-                    <X className="h-3.5 w-3.5 mr-1.5" />
-                    Cancel Selection
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
-                    Select Multiple
-                  </>
-                )}
-              </Button>
+              {isViewingAsOther && (
+                <Button
+                  variant={selectionMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={handleToggleSelectionMode}
+                  className="h-9 text-xs"
+                >
+                  {selectionMode ? (
+                    <>
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      Cancel Selection
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                      Select Multiple
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             {/* Stats Badge */}
@@ -1069,7 +1082,7 @@ const handleConfirmApproval = async () => {
           </div>
         </div>
 
-        {selectionMode && (
+        {selectionMode && isViewingAsOther && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-violet-50 border border-violet-200 rounded-xl">
             <div className="flex items-center gap-3">
               <Checkbox
@@ -1161,7 +1174,7 @@ const handleConfirmApproval = async () => {
                         <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
                       )}
 
-                      {selectionMode ? (
+                      {selectionMode && isViewingAsOther ? (
                         /* Selection Checkbox - Top Left */
                         <div className="absolute top-3 left-3 z-20">
                           <div
