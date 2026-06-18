@@ -26,6 +26,7 @@ async function fsRequest(
   role: string,
   body?: object,
   queryParams?: Record<string, string>,
+  timeoutMs: number = 20_000,
 ): Promise<Response> {
   const token = makeToken(userId, role);
   const url = new URL(`${FILE_SERVER_URL}${path}`);
@@ -42,7 +43,7 @@ async function fsRequest(
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(timeoutMs),
   };
 
   if (body && method !== 'GET') {
@@ -81,7 +82,13 @@ export async function streamZip(
   role: string,
   opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
 ): Promise<Response> {
-  return fsRequest('POST', '/download-zip', userId, role, opts);
+  // Zip generation streams every file from R2 sequentially before finishing —
+  // unlike metadata calls (structure/search/presign), this scales with file
+  // count and size, so it needs a much longer timeout than the default 20s.
+  // Multiple large video files can easily take well past 20s to fully stream
+  // and archive; 20s was previously shared with every other fast call here,
+  // which silently aborted multi-file/folder downloads before they finished.
+  return fsRequest('POST', '/download-zip', userId, role, opts, undefined, 300_000);
 }
 
 export async function deleteItem(userId: number | string, role: string, s3Key: string, type: 'file' | 'folder') {
