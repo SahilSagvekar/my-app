@@ -4,6 +4,7 @@ export interface SchedulerTask {
     id: string;
     title: string;
     titleSetByQC?: boolean;
+    titleSetByClient?: boolean;
     postingTitle?: string | null;
     description?: string;
     priority: string;

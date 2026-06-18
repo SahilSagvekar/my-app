@@ -43,6 +43,11 @@ interface ClientTask {
   monthlyDeliverable?: any;
   socialMediaLinks?: string[];
   deliverableType?: string;
+  // 🔥 Posting title — set by QC, optionally edited by the client before
+  // the task is sent on to the scheduler.
+  postingTitle?: string | null;
+  titleSetByQC?: boolean;
+  titleSetByClient?: boolean;
   user?: {
     name: string;
     role: string;

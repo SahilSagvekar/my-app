@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
+import { Input } from '../ui/input';
 import {
     X,
     Download,
@@ -17,7 +18,8 @@ import {
     ChevronRight,
     Plus,
     LayoutGrid,
-    Check
+    Check,
+    PenLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ReviewCommentCard, CommentInput } from '../review';
@@ -53,6 +55,11 @@ interface ThumbnailReviewModalProps {
     onApprove: (file: TaskFile) => void | Promise<void>;
     onRequestRevisions: (file: TaskFile, feedback: any[]) => void | Promise<void>;
     userRole?: 'client' | 'qc';
+    // 🔥 Posting title — set by QC, optionally edited by the client
+    postingTitle?: string | null;
+    titleSetByQC?: boolean;
+    clientTitle?: string;
+    onClientTitleChange?: (title: string) => void;
 }
 
 export function ThumbnailReviewModal({
@@ -65,6 +72,10 @@ export function ThumbnailReviewModal({
     onApprove,
     onRequestRevisions,
     userRole = 'client',
+    postingTitle = null,
+    titleSetByQC = false,
+    clientTitle = '',
+    onClientTitleChange,
 }: ThumbnailReviewModalProps) {
     const { user } = useAuth();
 
@@ -321,6 +332,23 @@ export function ThumbnailReviewModal({
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Posting Title Bar — client-editable, optional */}
+                        {userRole === 'client' && titleSetByQC && postingTitle && (
+                            <div className="flex-shrink-0 px-6 py-3 bg-[#1f1f1f] border-b border-white/10 flex items-center gap-3">
+                                <label htmlFor="posting-title-thumb" className="text-xs text-zinc-400 flex items-center gap-1.5 shrink-0">
+                                    <PenLine className="h-3.5 w-3.5" />
+                                    Title for scheduler
+                                </label>
+                                <Input
+                                    id="posting-title-thumb"
+                                    value={clientTitle}
+                                    onChange={(e) => onClientTitleChange?.(e.target.value)}
+                                    placeholder={postingTitle}
+                                    className="text-sm h-8 max-w-md bg-[#141414] border-white/10 text-white"
+                                />
+                            </div>
+                        )}
 
                         {/* Main Content Area */}
                         <div className="flex-1 flex overflow-hidden">

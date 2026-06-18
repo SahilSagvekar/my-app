@@ -73,6 +73,8 @@ interface SchedulerTask {
     id: string;
     title: string;
     titleSetByQC?: boolean;       // ← QC title flag
+    titleSetByClient?: boolean;   // ← Client edited the title during review
+    postingTitle?: string | null;
     description?: string;
     priority: string;
     status: string;
@@ -183,6 +185,7 @@ export function SchedulerSpreadsheetView() {
                     id: t.id,
                     title: t.title,
                     titleSetByQC: t.titleSetByQC ?? false,   // ← map QC title flag
+                    titleSetByClient: t.titleSetByClient ?? false, // ← map client title-edit flag
                     postingTitle: t.postingTitle ?? null,
                     description: t.description,
                     priority: t.priority || "medium",
@@ -726,9 +729,9 @@ if (!isEdit) {
                                               >
                                                 {task.title}
                                               </p>
-                                              {task.titleSetByQC && (
-                                                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-violet-100 text-violet-700 border border-violet-300 rounded">
-                                                  QC
+                                              {(task.titleSetByQC || task.titleSetByClient) && (
+                                                <span className={`flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${task.titleSetByClient ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-violet-100 text-violet-700 border-violet-300'}`}>
+                                                  {task.titleSetByClient ? 'CLIENT' : 'QC'}
                                                 </span>
                                               )}
                                               {task.isSponsored && (
@@ -801,13 +804,13 @@ if (!isEdit) {
 
                                           {/* ── AI Title cell — shows QC title or AI copy button ── */}
                                           <td className="px-3 py-3 max-w-[180px]">
-                                            {task.titleSetByQC ? (
+                                            {(task.titleSetByQC || task.titleSetByClient) ? (
                                               <div className="flex items-center gap-1.5 min-w-0">
-                                                <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-700 border border-violet-300 rounded">
-                                                  QC
+                                                <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${task.titleSetByClient ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-violet-100 text-violet-700 border-violet-300'}`}>
+                                                  {task.titleSetByClient ? 'CLIENT' : 'QC'}
                                                 </span>
                                                 <span
-                                                  className="text-xs font-medium text-violet-900 truncate"
+                                                  className={`text-xs font-medium truncate ${task.titleSetByClient ? 'text-blue-900' : 'text-violet-900'}`}
                                                   title={task.title}
                                                 >
                                                   {task.title}
@@ -1207,23 +1210,25 @@ if (!isEdit) {
                                                 <div>
                                                   <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm text-gray-700">
                                                     <Sparkles className="h-4 w-4 text-yellow-500" />
-                                                    {task.titleSetByQC
+                                                    {task.titleSetByClient
+                                                      ? "Title (Set by Client)"
+                                                      : task.titleSetByQC
                                                       ? "Title (Set by QC)"
                                                       : "AI Suggested Titles"}
                                                   </h4>
 
-                                                  {task.titleSetByQC ? (
-                                                    // QC locked title — read only
-                                                    <div className="p-3 bg-violet-50 rounded-lg border border-violet-200 flex items-center justify-between gap-3">
+                                                  {(task.titleSetByQC || task.titleSetByClient) ? (
+                                                    // Locked title — read only
+                                                    <div className={`p-3 rounded-lg border flex items-center justify-between gap-3 ${task.titleSetByClient ? 'bg-blue-50 border-blue-200' : 'bg-violet-50 border-violet-200'}`}>
                                                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-violet-600 text-white rounded shrink-0">
-                                                          QC
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 text-white rounded shrink-0 ${task.titleSetByClient ? 'bg-blue-600' : 'bg-violet-600'}`}>
+                                                          {task.titleSetByClient ? 'CLIENT' : 'QC'}
                                                         </span>
-                                                        <p className="text-sm font-medium text-violet-900 truncate">
+                                                        <p className={`text-sm font-medium truncate ${task.titleSetByClient ? 'text-blue-900' : 'text-violet-900'}`}>
                                                           {task.postingTitle}
                                                         </p>
                                                       </div>
-                                                      <span className="text-[10px] text-violet-500 shrink-0">
+                                                      <span className={`text-[10px] shrink-0 ${task.titleSetByClient ? 'text-blue-500' : 'text-violet-500'}`}>
                                                         Read only
                                                       </span>
                                                     </div>

@@ -51,7 +51,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC } = body;
+    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient } = body;
 
     let finalStatus = status;
 
@@ -77,6 +77,16 @@ if (incomingPostingTitle?.trim() && titleSetByQC) {
 if (qcTitle?.trim() && titleSetByQC) {
   updateData.title = qcTitle.trim();
   updateData.titleSetByQC = true;
+}
+// Save a client-edited posting title (client review step, optional).
+// The client can only ever touch postingTitle — never the internal task
+// `title` — and only when explicitly flagged as a client edit. This is
+// independent of the QC branches above: if the client leaves the field
+// untouched, neither postingTitle nor titleSetByClient is sent, and
+// whatever QC set earlier passes through to the scheduler unchanged.
+if (role === "client" && postingTitle?.trim() && titleSetByClient) {
+  updateData.postingTitle = postingTitle.trim();
+  updateData.titleSetByClient = true;
 }
 
     let task: any;

@@ -244,10 +244,12 @@ export function TaskRow({
 
                 {/* AI Title */}
                 <td className="px-3 py-3 max-w-[180px]">
-                    {task.titleSetByQC && task.postingTitle ? (
+                    {(task.titleSetByQC || task.titleSetByClient) && task.postingTitle ? (
                         <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-700 border border-violet-300 rounded">QC</span>
-                            <span className="text-xs font-medium text-violet-900 truncate" title={task.postingTitle}>{task.postingTitle}</span>
+                            <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${task.titleSetByClient ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-violet-100 text-violet-700 border-violet-300'}`}>
+                                {task.titleSetByClient ? 'CLIENT' : 'QC'}
+                            </span>
+                            <span className={`text-xs font-medium truncate ${task.titleSetByClient ? 'text-blue-900' : 'text-violet-900'}`} title={task.postingTitle}>{task.postingTitle}</span>
                         </div>
                     ) : task.titlingStatus === 'COMPLETED' && task.suggestedTitles?.length ? (
                         <button
@@ -400,13 +402,15 @@ export function TaskRow({
                                     <Sparkles className="h-4 w-4 text-yellow-500" />AI Suggested Titles
                                 </h4>
 
-                                {task.titleSetByQC && task.postingTitle && (
-                                    <div className="mb-3 flex items-center justify-between p-3 bg-violet-50 rounded-lg border border-violet-200">
+                                {(task.titleSetByQC || task.titleSetByClient) && task.postingTitle && (
+                                    <div className={`mb-3 flex items-center justify-between p-3 rounded-lg border ${task.titleSetByClient ? 'bg-blue-50 border-blue-200' : 'bg-violet-50 border-violet-200'}`}>
                                         <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
-                                            <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-700 border border-violet-300 rounded">QC</span>
-                                            <p className="text-sm font-medium text-violet-900 truncate">{task.postingTitle}</p>
+                                            <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${task.titleSetByClient ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-violet-100 text-violet-700 border-violet-300'}`}>
+                                                {task.titleSetByClient ? 'CLIENT' : 'QC'}
+                                            </span>
+                                            <p className={`text-sm font-medium truncate ${task.titleSetByClient ? 'text-blue-900' : 'text-violet-900'}`}>{task.postingTitle}</p>
                                         </div>
-                                        <Button size="sm" variant="ghost" onClick={() => onCopyTitle(task.postingTitle!)} className="h-8 text-violet-600 hover:text-violet-800 hover:bg-violet-100">
+                                        <Button size="sm" variant="ghost" onClick={() => onCopyTitle(task.postingTitle!)} className={task.titleSetByClient ? "h-8 text-blue-600 hover:text-blue-800 hover:bg-blue-100" : "h-8 text-violet-600 hover:text-violet-800 hover:bg-violet-100"}>
                                             <Copy className="h-3 w-3" />
                                         </Button>
                                     </div>

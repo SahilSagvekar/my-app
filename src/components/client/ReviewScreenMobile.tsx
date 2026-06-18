@@ -6,12 +6,13 @@ import { Card, CardContent } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { Textarea } from '../ui/textarea';
+import { Input } from '../ui/input';
 import {
     X, Download, Share, Play, Pause, Volume2, VolumeX,
     CheckCircle2, MessageSquare, Calendar, AlertCircle,
     SkipBack, SkipForward, ArrowLeft, Copy, Check,
     UserCheck, Plus, Monitor, ChevronDown, ChevronUp,
-    RotateCcw, ThumbsUp, ThumbsDown, Send,
+    RotateCcw, ThumbsUp, ThumbsDown, Send, PenLine,
 } from 'lucide-react';
 import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
@@ -246,6 +247,21 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                 By approving, you confirm this is the <span className="text-white font-semibold">final version</span> ready for publishing. This action will send the asset to the scheduler.
                             </p>
                         </div>
+                        {p.titleSetByQC && p.postingTitle && (
+                            <div className="space-y-1">
+                                <label htmlFor="posting-title-mobile" className="text-[11px] text-[var(--review-text-muted)] flex items-center gap-1">
+                                    <PenLine className="h-3 w-3" />
+                                    Title for scheduler (optional to edit)
+                                </label>
+                                <Input
+                                    id="posting-title-mobile"
+                                    value={p.clientTitle ?? ''}
+                                    onChange={(e) => p.onClientTitleChange?.(e.target.value)}
+                                    placeholder={p.postingTitle}
+                                    className="text-sm h-9 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
+                                />
+                            </div>
+                        )}
                         <div className="flex gap-3">
                             <Button
                                 variant="outline"

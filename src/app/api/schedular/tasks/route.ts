@@ -185,6 +185,7 @@ export async function GET(req: Request) {
           title: t.title,
           postingTitle: (t as any).postingTitle || null,
           titleSetByQC: (t as any).titleSetByQC ?? false,
+          titleSetByClient: (t as any).titleSetByClient ?? false,
           description: t.description,
           status: t.status,
           editor: t.user ? { name: t.user.name } : null,

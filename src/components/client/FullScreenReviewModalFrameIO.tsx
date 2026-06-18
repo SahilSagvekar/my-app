@@ -64,6 +64,12 @@ interface FullScreenReviewModalProps {
     taskId?: string;
     requiresClientReview?: boolean;
     shareToken?: string;
+    // 🔥 Posting title — set by QC, optionally edited by the client before
+    // the task moves on to the scheduler. Only meaningful for userRole="client".
+    postingTitle?: string | null;
+    titleSetByQC?: boolean;
+    clientTitle?: string;
+    onClientTitleChange?: (title: string) => void;
 }
 
 interface RevisionRequest {
@@ -171,6 +177,10 @@ export function FullScreenReviewModalFrameIO({
     taskId,
     requiresClientReview = false,
     shareToken,
+    postingTitle = null,
+    titleSetByQC = false,
+    clientTitle = '',
+    onClientTitleChange,
 }: FullScreenReviewModalProps) {
     const { user } = useAuth();
 
@@ -937,6 +947,10 @@ export function FullScreenReviewModalFrameIO({
         currentFileSection,
         userRole,
         requiresClientReview,
+        postingTitle,
+        titleSetByQC,
+        clientTitle,
+        onClientTitleChange,
         videoRef,
         iframeRef,
         containerRef,

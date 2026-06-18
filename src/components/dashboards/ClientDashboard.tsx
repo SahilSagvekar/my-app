@@ -93,6 +93,11 @@ interface ClientTask {
   files?: TaskFile[];
   monthlyDeliverable?: any;
   socialMediaLinks?: string[];
+  // 🔥 Posting title — set by QC, optionally edited by the client here
+  // before the task moves on to the scheduler.
+  postingTitle?: string | null;
+  titleSetByQC?: boolean;
+  titleSetByClient?: boolean;
   user?: {
     name: string;
     role: string;
@@ -107,10 +112,12 @@ const persistClientResult = async ({
   taskId,
   approved,
   feedback,
+  postingTitle,
 }: {
   taskId: string;
   approved: boolean;
   feedback?: string;
+  postingTitle?: string;
 }) => {
   const metaBody: any = {};
 
@@ -122,6 +129,13 @@ const persistClientResult = async ({
     metaBody.route = "scheduler";
     if (feedback) {
       metaBody.clientFeedback = feedback;
+    }
+    // 🔥 Optional client title edit — only sent if the client actually
+    // changed the QC-set title. If omitted, the existing postingTitle
+    // (set by QC) passes through to the scheduler untouched.
+    if (postingTitle?.trim()) {
+      metaBody.postingTitle = postingTitle.trim();
+      metaBody.titleSetByClient = true;
     }
   } else {
     // Client requested revisions → Send back to Editor
@@ -179,6 +193,10 @@ export function ClientDashboard() {
 
   const [selectedTask, setSelectedTask] = useState<ClientTask | null>(null);
   const [selectedFile, setSelectedFile] = useState<TaskFile | null>(null);
+  // 🔥 Client-editable posting title — initialized from the QC-set title
+  // whenever a new task is opened for review. Optional: if the client
+  // never touches it, it's never sent and QC's title passes through as-is.
+  const [clientEditedTitle, setClientEditedTitle] = useState<string>("");
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
@@ -216,6 +234,14 @@ export function ClientDashboard() {
     window.addEventListener('task-updated', handleTaskGlobalUpdate);
     return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
   }, [refreshTasks]);
+
+  // 🔥 Reset the editable title whenever the review session ends, so a
+  // leftover edit can't accidentally apply to the next task opened.
+  useEffect(() => {
+    if (!selectedTask) {
+      setClientEditedTitle("");
+    }
+  }, [selectedTask]);
 
   const handleMarkAsPosted = async (task?: ClientTask) => {
     const taskToMark = task || selectedTask;
@@ -288,9 +314,16 @@ export function ClientDashboard() {
     try {
       setIsSubmitting(true);
 
+      // Only send a title update if the client actually changed it from
+      // the QC-set value. Untouched/blank means: pass QC's title through.
+      const originalTitle = taskToApprove.postingTitle || "";
+      const editedTitle = clientEditedTitle.trim();
+      const titleChanged = editedTitle.length > 0 && editedTitle !== originalTitle.trim();
+
       await persistClientResult({
         taskId: taskToApprove.id,
         approved: true,
+        postingTitle: titleChanged ? editedTitle : undefined,
       });
 
       // Optimistic update via SWR mutate — update + re-sort without a network refetch
@@ -859,6 +892,7 @@ export function ClientDashboard() {
 
   const handleTaskClick = (task: ClientTask) => {
     setSelectedTask(task);
+    setClientEditedTitle(task.postingTitle || "");
     setShowFileSelector(true);
   };
 
@@ -1421,6 +1455,11 @@ export function ClientDashboard() {
               }}
               // 🔥 Pass deliverable type for correct aspect ratio (LF=16:9, SF=9:16, SQF=1:1)
               deliverableType={selectedTask.monthlyDeliverable?.type}
+              // 🔥 Posting title — QC-set, optionally edited by the client here
+              postingTitle={selectedTask.postingTitle || null}
+              titleSetByQC={!!selectedTask.titleSetByQC}
+              clientTitle={clientEditedTitle}
+              onClientTitleChange={setClientEditedTitle}
             />
           )}
         {/* File Preview Modal */}
@@ -1459,6 +1498,11 @@ export function ClientDashboard() {
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
               userRole="client"
+              // 🔥 Posting title — QC-set, optionally edited by the client here
+              postingTitle={selectedTask.postingTitle || null}
+              titleSetByQC={!!selectedTask.titleSetByQC}
+              clientTitle={clientEditedTitle}
+              onClientTitleChange={setClientEditedTitle}
             />
           )}
 

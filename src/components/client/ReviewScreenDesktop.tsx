@@ -6,6 +6,7 @@ import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
+import { Input } from '../ui/input';
 import {
     Tooltip,
     TooltipContent,
@@ -17,7 +18,7 @@ import {
     CheckCircle2, MessageSquare, Calendar, ChevronRight,
     AlertCircle, SkipBack, SkipForward, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
-    RotateCcw, HardDrive,
+    RotateCcw, HardDrive, PenLine,
 } from 'lucide-react';
 import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
@@ -32,6 +33,11 @@ export interface ReviewScreenProps {
     currentFileSection?: { folderType: string; fileId: string; version: number };
     userRole: 'client' | 'qc';
     requiresClientReview: boolean;
+    // 🔥 Posting title — set by QC, optionally edited by the client
+    postingTitle?: string | null;
+    titleSetByQC?: boolean;
+    clientTitle?: string;
+    onClientTitleChange?: (title: string) => void;
 
     /* video state */
     videoRef: RefObject<HTMLVideoElement | null>;
@@ -552,6 +558,21 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 </>
                             ) : (
                                 <>
+                                    {p.titleSetByQC && p.postingTitle && (
+                                        <div className="space-y-1 mb-2">
+                                            <label htmlFor="posting-title-desktop" className="text-[11px] text-[var(--review-text-muted)] flex items-center gap-1">
+                                                <PenLine className="h-3 w-3" />
+                                                Title for scheduler (optional to edit)
+                                            </label>
+                                            <Input
+                                                id="posting-title-desktop"
+                                                value={p.clientTitle ?? ''}
+                                                onChange={(e) => p.onClientTitleChange?.(e.target.value)}
+                                                placeholder={p.postingTitle}
+                                                className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-[var(--review-text-secondary)]"
+                                            />
+                                        </div>
+                                    )}
                                     <div className="flex items-start gap-2 mb-2">
                                         <Checkbox
                                             id="confirm-final-desktop"
