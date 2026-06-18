@@ -38,7 +38,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           {children}
-          <Toaster position="bottom-right" />
+          <Toaster position="bottom-left" />
           {/* GA is NOT loaded unconditionally — CookieConsent handles opt-in */}
           <CookieConsent measurementId={GA_MEASUREMENT_ID} />
         </AuthProvider>
