@@ -20,8 +20,10 @@ import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
-import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine } from 'lucide-react';
+import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2 } from 'lucide-react';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { Checkbox } from '../ui/checkbox';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
 
@@ -247,6 +249,13 @@ const [pendingApprovalType, setPendingApprovalType] = useState<"client" | "sched
   const [qcUsers, setQcUsers] = useState<{ id: number; name: string }[]>([]);
   const [selectedQcId, setSelectedQcId] = useState<string>("");
   const [isReassigning, setIsReassigning] = useState(false);
+
+  // 🔥 Bulk selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [showBulkRejectDialog, setShowBulkRejectDialog] = useState(false);
+  const [bulkRejectFeedback, setBulkRejectFeedback] = useState("");
 
   const { user } = useAuth();
 
@@ -714,8 +723,117 @@ const handleConfirmApproval = async () => {
   };
 
   const handleTaskClick = (task: EnhancedWorkflowTask) => {
+    if (selectionMode) {
+      toggleTaskSelection(task.id);
+      return;
+    }
     setSelectedTask(task);
     setShowFileSelector(true);
+  };
+
+  // 🔥 Bulk selection helpers
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const handleToggleSelectionMode = () => {
+    setSelectionMode((prev) => {
+      if (prev) setSelectedTaskIds(new Set()); // leaving selection mode clears selection
+      return !prev;
+    });
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedTaskIds((prev) => {
+      const allSelected = filteredTasks.length > 0 && filteredTasks.every((t) => prev.has(t.id));
+      if (allSelected) return new Set();
+      return new Set(filteredTasks.map((t) => t.id));
+    });
+  };
+
+  const handleBulkApprove = async () => {
+    if (selectedTaskIds.size === 0) return;
+    const ids = Array.from(selectedTaskIds);
+    setIsBulkProcessing(true);
+
+    const results = await Promise.allSettled(
+      ids.map((taskId) =>
+        persistQCResult({
+          taskId,
+          approved: true,
+          requiresClientReview: qcTasks.find((t) => t.id === taskId)?.requiresClientReview,
+        })
+      )
+    );
+
+    const succeededIds = ids.filter((_, i) => results[i].status === "fulfilled");
+    const failedCount = results.length - succeededIds.length;
+
+    if (succeededIds.length > 0) {
+      setQCTasks((prev) => prev.filter((t) => !succeededIds.includes(t.id)));
+    }
+
+    if (failedCount === 0) {
+      toast.success(`✅ ${succeededIds.length} task(s) approved`);
+    } else {
+      toast.error(`Approved ${succeededIds.length}, failed ${failedCount}. Failed tasks remain selected.`);
+    }
+
+    setSelectedTaskIds(new Set(ids.filter((id) => !succeededIds.includes(id))));
+    if (succeededIds.length === ids.length) {
+      setSelectionMode(false);
+    }
+    setIsBulkProcessing(false);
+  };
+
+  const handleOpenBulkReject = () => {
+    if (selectedTaskIds.size === 0) return;
+    setBulkRejectFeedback("");
+    setShowBulkRejectDialog(true);
+  };
+
+  const handleConfirmBulkReject = async () => {
+    const ids = Array.from(selectedTaskIds);
+    if (ids.length === 0) return;
+    setIsBulkProcessing(true);
+
+    const results = await Promise.allSettled(
+      ids.map((taskId) =>
+        persistQCResult({
+          taskId,
+          approved: false,
+          feedback: bulkRejectFeedback.trim() || undefined,
+        })
+      )
+    );
+
+    const succeededIds = ids.filter((_, i) => results[i].status === "fulfilled");
+    const failedCount = results.length - succeededIds.length;
+
+    if (succeededIds.length > 0) {
+      setQCTasks((prev) => prev.filter((t) => !succeededIds.includes(t.id)));
+    }
+
+    if (failedCount === 0) {
+      toast(`📝 ${succeededIds.length} task(s) sent back to editor`, {
+        description: bulkRejectFeedback.trim() ? "Feedback has been shared with the editors." : undefined,
+      });
+    } else {
+      toast.error(`Rejected ${succeededIds.length}, failed ${failedCount}. Failed tasks remain selected.`);
+    }
+
+    setSelectedTaskIds(new Set(ids.filter((id) => !succeededIds.includes(id))));
+    if (succeededIds.length === ids.length) {
+      setSelectionMode(false);
+    }
+    setShowBulkRejectDialog(false);
+    setBulkRejectFeedback("");
+    setIsBulkProcessing(false);
   };
 
   const handleOpenReassign = async (e: React.MouseEvent, task: EnhancedWorkflowTask) => {
@@ -913,6 +1031,25 @@ const handleConfirmApproval = async () => {
                   Clear
                 </Button>
               )}
+
+              <Button
+                variant={selectionMode ? "default" : "outline"}
+                size="sm"
+                onClick={handleToggleSelectionMode}
+                className="h-9 text-xs"
+              >
+                {selectionMode ? (
+                  <>
+                    <X className="h-3.5 w-3.5 mr-1.5" />
+                    Cancel Selection
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                    Select Multiple
+                  </>
+                )}
+              </Button>
             </div>
 
             {/* Stats Badge */}
@@ -931,6 +1068,52 @@ const handleConfirmApproval = async () => {
             </div>
           </div>
         </div>
+
+        {selectionMode && (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-violet-50 border border-violet-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                checked={filteredTasks.length > 0 && filteredTasks.every((t) => selectedTaskIds.has(t.id))}
+                onCheckedChange={handleSelectAllFiltered}
+                aria-label="Select all visible tasks"
+              />
+              <span className="text-sm font-medium text-violet-900">
+                {selectedTaskIds.size === 0
+                  ? "Select tasks to approve or reject in bulk"
+                  : `${selectedTaskIds.size} task${selectedTaskIds.size !== 1 ? "s" : ""} selected`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                onClick={handleOpenBulkReject}
+              >
+                {isBulkProcessing ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Reject Selected
+              </Button>
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                onClick={handleBulkApprove}
+              >
+                {isBulkProcessing ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Approve Selected
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1">
           {loading ? (
@@ -951,10 +1134,11 @@ const handleConfirmApproval = async () => {
               {filteredTasks.map((task, index) => {
                 const thumbnail = getTaskThumbnail(task);
                 const deliverableColors = getDeliverableTypeColor((task as any).deliverableType);
+                const isChecked = selectedTaskIds.has(task.id);
                 return (
                   <Card
                     key={task.id}
-                    className={`group cursor-pointer shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full hover:shadow-md ${deliverableColors.bg} ${deliverableColors.border} border hover:${deliverableColors.ring} ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""}`}
+                    className={`group cursor-pointer shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full hover:shadow-md ${deliverableColors.bg} ${deliverableColors.border} border hover:${deliverableColors.ring} ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""} ${isChecked ? "ring-2 ring-violet-500" : ""}`}
                     onClick={() => handleTaskClick(task)}
                   >
                     {/* Visual Header / Thumbnail Area */}
@@ -977,26 +1161,41 @@ const handleConfirmApproval = async () => {
                         <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
                       )}
 
-                      {/* Share + Reassign Buttons - Top Left */}
-                      <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex gap-1.5">
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-primary"
-                          onClick={(e) => handleShare(e, task)}
-                        >
-                          <Share2 className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          title="Reassign to another QC"
-                          className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-orange-500"
-                          onClick={(e) => handleOpenReassign(e, task)}
-                        >
-                          <UserCheck className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      {selectionMode ? (
+                        /* Selection Checkbox - Top Left */
+                        <div className="absolute top-3 left-3 z-20">
+                          <div
+                            className="h-8 w-8 rounded-full bg-white/90 backdrop-blur-sm border border-zinc-200/50 shadow-sm flex items-center justify-center"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTaskSelection(task.id);
+                            }}
+                          >
+                            <Checkbox checked={isChecked} aria-label={`Select ${task.title}`} />
+                          </div>
+                        </div>
+                      ) : (
+                        /* Share + Reassign Buttons - Top Left */
+                        <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex gap-1.5">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-primary"
+                            onClick={(e) => handleShare(e, task)}
+                          >
+                            <Share2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            title="Reassign to another QC"
+                            className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-orange-500"
+                            onClick={(e) => handleOpenReassign(e, task)}
+                          >
+                            <UserCheck className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
 
                       {/* File Count - Top Right */}
                       <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm z-20">
@@ -1530,6 +1729,54 @@ const handleConfirmApproval = async () => {
               className="bg-orange-500 hover:bg-orange-600 text-white"
             >
               {isReassigning ? "Reassigning…" : "Reassign"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Reject Dialog */}
+      <Dialog open={showBulkRejectDialog} onOpenChange={(open) => { if (!open && !isBulkProcessing) { setShowBulkRejectDialog(false); setBulkRejectFeedback(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-500" />
+              Reject {selectedTaskIds.size} Task{selectedTaskIds.size !== 1 ? "s" : ""}
+            </DialogTitle>
+            <DialogDescription>
+              These tasks will be sent back to their editors. Feedback below will be applied to all selected tasks.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <Textarea
+              placeholder="Optional: describe what needs to be fixed (applies to all selected tasks)…"
+              value={bulkRejectFeedback}
+              onChange={(e) => setBulkRejectFeedback(e.target.value)}
+              className="text-sm min-h-[100px]"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" disabled={isBulkProcessing} onClick={() => { setShowBulkRejectDialog(false); setBulkRejectFeedback(""); }}>
+              Cancel
+            </Button>
+            <Button
+              disabled={isBulkProcessing}
+              onClick={handleConfirmBulkReject}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isBulkProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  Rejecting…
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 mr-1.5" />
+                  Reject {selectedTaskIds.size} Task{selectedTaskIds.size !== 1 ? "s" : ""}
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>
