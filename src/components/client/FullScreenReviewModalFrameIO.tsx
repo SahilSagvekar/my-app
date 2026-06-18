@@ -552,8 +552,19 @@ export function FullScreenReviewModalFrameIO({
     /* ── Keyboard shortcuts (desktop only) ── */
     useEffect(() => {
         if (viewMode !== 'desktop') return;
+        const isTypingTarget = (target: EventTarget | null) => {
+            const el = target as HTMLElement | null;
+            if (!el) return false;
+            const tag = el.tagName;
+            return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+        };
         const handler = (e: KeyboardEvent) => {
             if (!open || showCommentInput || isDragging) return;
+            // Don't hijack keystrokes while the user is typing anywhere —
+            // the comment box, the posting-title field, etc. Without this,
+            // pressing space to type a space-character toggles playback
+            // instead of being typed.
+            if (isTypingTarget(e.target)) return;
             switch (e.key) {
                 case ' ': e.preventDefault(); togglePlay(); break;
                 case 'Escape': onOpenChange(false); break;
