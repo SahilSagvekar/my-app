@@ -508,7 +508,6 @@ export function TaskRow({
                                         </div>
                                     </div>
                                 )}
-                            </div>
 
                                 {task.socialMediaLinks && task.socialMediaLinks.length > 0 && (
                                     <div className="mt-4">
@@ -548,7 +547,7 @@ export function TaskRow({
                                         </div>
                                     </div>
                                 )}
-                            </div>
+                            </div>{/* end space-y-4 posting content */}
                         </div>
 
                         {/* Deliverable Info */}
