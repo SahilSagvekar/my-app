@@ -132,41 +132,33 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
     // 🔥 Sidebar tab switcher
-    type SidebarTab = 'comments' | 'titles' | 'descriptions' | 'tags';
+    type SidebarTab = 'comments' | 'titles';
     const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
     // inline-edit state: which item id is currently being edited, per type
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState('');
-    // new-item input per tab
-    const [newItemText, setNewItemText] = useState('');
+    // new-item input per list type
+    const [newTexts, setNewTexts] = useState({ titles: '', descriptions: '', tags: '' });
 
     // caps per type
-    const CAPS: Record<Exclude<SidebarTab, 'comments'>, number> = { titles: 3, descriptions: 3, tags: 10 };
+    const CAPS = { titles: 3, descriptions: 3, tags: 10 };
 
-    const currentList = sidebarTab === 'titles' ? p.postingTitles
-        : sidebarTab === 'descriptions' ? p.postingDescriptions
-        : sidebarTab === 'tags' ? p.postingTags
-        : [];
-
-    const setCurrentList = sidebarTab === 'titles' ? p.onPostingTitlesChange
-        : sidebarTab === 'descriptions' ? p.onPostingDescriptionsChange
-        : sidebarTab === 'tags' ? p.onPostingTagsChange
-        : () => {};
-
-    const addItem = () => {
-        if (sidebarTab === 'comments') return;
-        const text = newItemText.trim();
+    const addItem = (type: 'titles'|'descriptions'|'tags') => {
+        const text = newTexts[type].trim();
         if (!text) return;
-        const cap = CAPS[sidebarTab as Exclude<SidebarTab, 'comments'>];
+        const cap = CAPS[type];
+        const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
+        const setCurrentList = type === 'titles' ? p.onPostingTitlesChange : type === 'descriptions' ? p.onPostingDescriptionsChange : p.onPostingTagsChange;
         if (currentList.length >= cap) return;
         setCurrentList([...currentList, { id: `${Date.now()}-${Math.random()}`, text }]);
-        setNewItemText('');
+        setNewTexts({ ...newTexts, [type]: '' });
     };
 
-    const deleteItem = (id: string) => {
-        if (sidebarTab === 'comments') return;
+    const deleteItem = (type: 'titles'|'descriptions'|'tags', id: string) => {
+        const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
+        const setCurrentList = type === 'titles' ? p.onPostingTitlesChange : type === 'descriptions' ? p.onPostingDescriptionsChange : p.onPostingTagsChange;
         // Floor-of-one: client cannot delete last title
-        if (sidebarTab === 'titles' && p.userRole === 'client' && currentList.length <= 1) return;
+        if (type === 'titles' && p.userRole === 'client' && currentList.length <= 1) return;
         setCurrentList(currentList.filter(i => i.id !== id));
     };
 
@@ -175,8 +167,10 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setEditingText(text);
     };
 
-    const commitEdit = () => {
-        if (!editingId || sidebarTab === 'comments') return;
+    const commitEdit = (type: 'titles'|'descriptions'|'tags') => {
+        if (!editingId) return;
+        const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
+        const setCurrentList = type === 'titles' ? p.onPostingTitlesChange : type === 'descriptions' ? p.onPostingDescriptionsChange : p.onPostingTagsChange;
         const text = editingText.trim();
         if (!text) { setEditingId(null); return; }
         setCurrentList(currentList.map(i => i.id === editingId ? { ...i, text } : i));
@@ -184,10 +178,10 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setEditingText('');
     };
 
-    // clear new-item input and editing state when tab changes
+    // clear new-item inputs and editing state when tab changes
     const handleTabChange = (tab: SidebarTab) => {
         setSidebarTab(tab);
-        setNewItemText('');
+        setNewTexts({ titles: '', descriptions: '', tags: '' });
         setEditingId(null);
         setEditingText('');
     };
@@ -524,24 +518,24 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     >
                         {/* ── SIDEBAR HEADER — tab switcher ── */}
                         <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
-                            <div className="grid grid-cols-4 gap-0.5 bg-[var(--review-bg-tertiary)] rounded-lg p-0.5">
-                                {(['comments', 'titles', 'descriptions', 'tags'] as const).map(tab => (
-                                    <button
-                                        key={tab}
-                                        onClick={() => handleTabChange(tab)}
-                                        className={`text-[10px] font-semibold py-1.5 px-1 rounded-md transition-colors capitalize ${
-                                            sidebarTab === tab
-                                                ? 'bg-[var(--review-bg-secondary)] text-white shadow-sm'
-                                                : 'text-[var(--review-text-muted)] hover:text-[var(--review-text-secondary)]'
-                                        }`}
-                                    >
-                                        {tab === 'comments'
-                                            ? `Comments${p.sortedComments.length ? ` (${p.sortedComments.length})` : ''}`
-                                            : tab === 'titles' ? `Titles${p.postingTitles.length ? ` (${p.postingTitles.length})` : ''}`
-                                            : tab === 'descriptions' ? `Desc${p.postingDescriptions.length ? ` (${p.postingDescriptions.length})` : ''}`
-                                            : `Tags${p.postingTags.length ? ` (${p.postingTags.length})` : ''}`}
-                                    </button>
-                                ))}
+                            <div className="grid grid-cols-2 gap-2">
+                                {(['comments', 'titles'] as const).map(tab => {
+                                    const isComments = tab === 'comments';
+                                    const isActive = sidebarTab === tab;
+                                    const colorClasses = isComments
+                                        ? `border-blue-500 text-white bg-transparent hover:bg-blue-500 hover:text-white ${isActive ? 'bg-blue-500/20' : ''}`
+                                        : `border-orange-500 text-white bg-transparent hover:bg-orange-500 hover:text-white ${isActive ? 'bg-orange-500/20' : ''}`;
+
+                                    return (
+                                        <button
+                                            key={tab}
+                                            onClick={() => handleTabChange(tab)}
+                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize border ${colorClasses}`}
+                                        >
+                                            {tab === 'comments' ? 'Comments' : 'Titles'}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
@@ -601,132 +595,135 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         </>)}
 
                         {/* ── TITLES / DESCRIPTIONS / TAGS TABS ── */}
-                        {sidebarTab !== 'comments' && (() => {
-                            const cap = CAPS[sidebarTab];
-                            const atCap = currentList.length >= cap;
-                            const labels: Record<Exclude<typeof sidebarTab, 'comments'>, { singular: string; placeholder: string }> = {
-                                titles: { singular: 'title', placeholder: 'Add a title…' },
-                                descriptions: { singular: 'description', placeholder: 'Add a description…' },
-                                tags: { singular: 'tag', placeholder: 'Add a tag…' },
-                            };
-                            const { singular, placeholder } = labels[sidebarTab];
-                            return (
-                                <>
-                                    {/* Add-new input */}
-                                    <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0 space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs text-[var(--review-text-muted)] capitalize">{sidebarTab}</span>
-                                            <span className={`text-[10px] font-medium ${atCap ? 'text-red-400' : 'text-[var(--review-text-muted)]'}`}>
-                                                {currentList.length}/{cap}
-                                            </span>
-                                        </div>
-                                        <div className="flex gap-1.5">
-                                            <Input
-                                                value={newItemText}
-                                                onChange={e => setNewItemText(e.target.value)}
-                                                placeholder={atCap ? `Max ${cap} ${singular}s reached` : placeholder}
-                                                disabled={atCap}
-                                                className="flex-1 text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] disabled:opacity-40"
-                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }}
-                                            />
-                                            <Button
-                                                size="sm"
-                                                disabled={atCap || !newItemText.trim()}
-                                                onClick={addItem}
-                                                className="h-8 px-2.5 bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white shrink-0"
-                                            >
-                                                <Plus className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-                                    </div>
+                        {sidebarTab === 'titles' && (
+                            <div className="flex-1 overflow-y-auto review-scrollbar min-h-0">
+                                {(['titles', 'descriptions', 'tags'] as const).map(type => {
+                                    const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
+                                    const cap = CAPS[type];
+                                    const atCap = currentList.length >= cap;
+                                    const labels = {
+                                        titles: { singular: 'title', placeholder: 'Add a title…' },
+                                        descriptions: { singular: 'description', placeholder: 'Add a description…' },
+                                        tags: { singular: 'tag', placeholder: 'Add a tag…' },
+                                    };
+                                    const { singular, placeholder } = labels[type];
+                                    
+                                    return (
+                                        <div key={type} className="border-b border-[var(--review-border)] last:border-0 pb-4 mb-2 last:mb-0">
+                                            <div className="p-3 pb-1 space-y-2 sticky top-0 bg-[var(--review-bg-secondary)] z-10 border-b border-[var(--review-border)]/50">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-semibold text-white capitalize">{type}</span>
+                                                    <span className={`text-[10px] font-medium ${atCap ? 'text-red-400' : 'text-[var(--review-text-muted)]'}`}>
+                                                        {currentList.length}/{cap}
+                                                    </span>
+                                                </div>
+                                                <div className="flex gap-1.5 pb-2">
+                                                    <Input
+                                                        value={newTexts[type]}
+                                                        onChange={e => setNewTexts({ ...newTexts, [type]: e.target.value })}
+                                                        placeholder={atCap ? `Max ${cap} ${singular}s reached` : placeholder}
+                                                        disabled={atCap}
+                                                        className="flex-1 text-xs h-8 bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] disabled:opacity-40"
+                                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(type); } }}
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        disabled={atCap || !newTexts[type].trim()}
+                                                        onClick={() => addItem(type)}
+                                                        className="h-8 px-2.5 bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white shrink-0"
+                                                    >
+                                                        <Plus className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
 
-                                    {/* List */}
-                                    <div className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0 space-y-2">
-                                        {currentList.length === 0 ? (
-                                            <div className="text-center py-12 text-[var(--review-text-muted)]">
-                                                <p className="text-sm">No {singular}s yet</p>
-                                                <p className="text-xs mt-1 opacity-70">Add up to {cap} {singular}s above</p>
-                                            </div>
-                                        ) : currentList.map(item => (
-                                            <div
-                                                key={item.id}
-                                                className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
-                                            >
-                                                {editingId === item.id ? (
-                                                    <div className="space-y-1.5">
-                                                        <Input
-                                                            value={editingText}
-                                                            onChange={e => setEditingText(e.target.value)}
-                                                            className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
-                                                            autoFocus
-                                                            onKeyDown={e => {
-                                                                if (e.key === 'Enter') commitEdit();
-                                                                if (e.key === 'Escape') { setEditingId(null); setEditingText(''); }
-                                                            }}
-                                                        />
-                                                        <div className="flex gap-1">
-                                                            <Button size="sm" onClick={commitEdit} className="h-6 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
-                                                            <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditingText(''); }} className="h-6 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
-                                                        </div>
+                                            <div className="px-3 space-y-2 mt-2">
+                                                {currentList.length === 0 ? (
+                                                    <div className="text-center py-4 text-[var(--review-text-muted)]">
+                                                        <p className="text-xs opacity-70">No {singular}s yet</p>
                                                     </div>
-                                                ) : (
-                                                    <div className="flex items-start gap-2">
-                                                        <p className="flex-1 text-xs text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
-                                                        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button
-                                                                onClick={() => startEdit(item.id, item.text)}
-                                                                className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
-                                                                title={`Edit ${singular}`}
-                                                            >
-                                                                <PenLine className="h-3 w-3" />
-                                                            </button>
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
+                                                ) : currentList.map(item => (
+                                                    <div
+                                                        key={item.id}
+                                                        className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
+                                                    >
+                                                        {editingId === item.id ? (
+                                                            <div className="space-y-1.5">
+                                                                <Input
+                                                                    value={editingText}
+                                                                    onChange={e => setEditingText(e.target.value)}
+                                                                    className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
+                                                                    autoFocus
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') commitEdit(type);
+                                                                        if (e.key === 'Escape') { setEditingId(null); setEditingText(''); }
+                                                                    }}
+                                                                />
+                                                                <div className="flex gap-1">
+                                                                    <Button size="sm" onClick={() => commitEdit(type)} className="h-6 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditingText(''); }} className="h-6 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-start gap-2">
+                                                                <p className="flex-1 text-xs text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
+                                                                <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                     <button
-                                                                        onClick={() => deleteItem(item.id)}
-                                                                        disabled={sidebarTab === 'titles' && p.userRole === 'client' && currentList.length <= 1}
-                                                                        className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--review-text-muted)]"
-                                                                        title={`Delete ${singular}`}
+                                                                        onClick={() => startEdit(item.id, item.text)}
+                                                                        className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
+                                                                        title={`Edit ${singular}`}
                                                                     >
-                                                                        <X className="h-3 w-3" />
+                                                                        <PenLine className="h-3 w-3" />
                                                                     </button>
-                                                                </TooltipTrigger>
-                                                                {sidebarTab === 'titles' && p.userRole === 'client' && currentList.length <= 1 && (
-                                                                    <TooltipContent side="left" className="text-xs max-w-[160px]">
-                                                                        At least one title must be kept
-                                                                    </TooltipContent>
-                                                                )}
-                                                            </Tooltip>
-                                                        </div>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <button
+                                                                                onClick={() => deleteItem(type, item.id)}
+                                                                                disabled={type === 'titles' && p.userRole === 'client' && currentList.length <= 1}
+                                                                                className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--review-text-muted)]"
+                                                                                title={`Delete ${singular}`}
+                                                                            >
+                                                                                <X className="h-3 w-3" />
+                                                                            </button>
+                                                                        </TooltipTrigger>
+                                                                        {type === 'titles' && p.userRole === 'client' && currentList.length <= 1 && (
+                                                                            <TooltipContent side="left" className="text-xs max-w-[160px]">
+                                                                                At least one title must be kept
+                                                                            </TooltipContent>
+                                                                        )}
+                                                                    </Tooltip>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
-                                </>
-                            );
-                        })()}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
 
                         {/* Action footer */}
-                        <div className="p-4 border-t border-[var(--review-border)] space-y-2 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
+                        <div className="p-4 pb-6 border-t border-[var(--review-border)] flex flex-col gap-2.5 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
                             {p.userRole === 'qc' ? (
                                 <>
-                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white" onClick={() => p.handleStatusChange('approved')} disabled={p.asset.approvalLocked || p.savingFeedback}>
+                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={p.asset.approvalLocked || p.savingFeedback}>
                                         {p.requiresClientReview
-                                            ? <><UserCheck className="h-4 w-4 mr-2" />Approve &amp; Send to Client</>
-                                            : <><Calendar className="h-4 w-4 mr-2" />Approve &amp; Send to Scheduler</>
+                                            ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Client</>
+                                            : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Scheduler</>
                                         }
                                     </Button>
-                                    <Button size="sm" variant="outline" className="w-full bg-transparent border-[var(--review-status-changes)] text-[var(--review-status-changes)] hover:bg-[var(--review-status-changes)]/10" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0 || p.savingFeedback}>
+                                    <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0 || p.savingFeedback}>
                                         {p.savingFeedback
-                                            ? <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />Saving...</>
-                                            : <><MessageSquare className="h-4 w-4 mr-2" />Send Back ({p.comments.filter(c => !c.resolved).length} comments)</>
+                                            ? <><div className="h-3.5 w-3.5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />Saving...</>
+                                            : <><MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Send Back ({p.comments.filter(c => !c.resolved).length} comments)</>
                                         }
                                     </Button>
                                 </>
                             ) : (
                                 <>
-                                    <div className="flex items-start gap-2 mb-2">
+                                    <div className="flex items-start gap-2 mb-1">
                                         <Checkbox
                                             id="confirm-final-desktop"
                                             checked={p.confirmFinal}
@@ -737,11 +734,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             I confirm this is the final version for publishing
                                         </label>
                                     </div>
-                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white" onClick={() => p.handleStatusChange('approved')} disabled={!p.confirmFinal || p.asset.approvalLocked}>
-                                        <CheckCircle2 className="h-4 w-4 mr-2" />Approve &amp; Send to Scheduler
+                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={!p.confirmFinal || p.asset.approvalLocked}>
+                                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Scheduler
                                     </Button>
-                                    <Button size="sm" variant="outline" className="w-full bg-transparent border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-400" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0}>
-                                        <MessageSquare className="h-4 w-4 mr-2" />Request Revisions
+                                    <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0}>
+                                        <MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Request Revisions
                                     </Button>
                                 </>
                             )}
