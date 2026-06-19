@@ -48,6 +48,10 @@ interface ClientTask {
   postingTitle?: string | null;
   titleSetByQC?: boolean;
   titleSetByClient?: boolean;
+  // 🔥 Multi-item posting content lists (composed in the review sidebar)
+  postingTitles?: { id: string; text: string }[];
+  postingDescriptions?: { id: string; text: string }[];
+  postingTags?: { id: string; text: string }[];
   user?: {
     name: string;
     role: string;

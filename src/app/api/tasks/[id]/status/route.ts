@@ -51,7 +51,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient } = body;
+    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags } = body;
 
     let finalStatus = status;
 
@@ -65,29 +65,42 @@ export async function PATCH(
     if (qcNotes !== undefined) updateData.qcNotes = qcNotes;
     const schedulerFeedbackText =
       typeof schedulerFeedback === "string" ? schedulerFeedback.trim() : "";
-    if (schedulerFeedback !== undefined) updateData.feedback = schedulerFeedbackText; // store in feedback field so editor sees it
+    if (schedulerFeedback !== undefined) updateData.feedback = schedulerFeedbackText;
     if (route !== undefined) updateData.route = route;
-    // Save QC-set posting title to dedicated field — never overwrites the task name (title)
-const incomingPostingTitle = postingTitle ?? qcTitle;
-if (incomingPostingTitle?.trim() && titleSetByQC) {
-  updateData.postingTitle = incomingPostingTitle.trim();
-  updateData.titleSetByQC = true;
-}
-// Save QC-set title
-if (qcTitle?.trim() && titleSetByQC) {
-  updateData.title = qcTitle.trim();
-  updateData.titleSetByQC = true;
-}
-// Save a client-edited posting title (client review step, optional).
-// The client can only ever touch postingTitle — never the internal task
-// `title` — and only when explicitly flagged as a client edit. This is
-// independent of the QC branches above: if the client leaves the field
-// untouched, neither postingTitle nor titleSetByClient is sent, and
-// whatever QC set earlier passes through to the scheduler unchanged.
-if (role === "client" && postingTitle?.trim() && titleSetByClient) {
-  updateData.postingTitle = postingTitle.trim();
-  updateData.titleSetByClient = true;
-}
+
+    // ── Legacy single-title fields (kept for backward compat, not written by new UI) ──
+    const incomingPostingTitle = postingTitle ?? qcTitle;
+    if (incomingPostingTitle?.trim() && titleSetByQC) {
+      updateData.postingTitle = incomingPostingTitle.trim();
+      updateData.titleSetByQC = true;
+    }
+    if (qcTitle?.trim() && titleSetByQC) {
+      updateData.title = qcTitle.trim();
+      updateData.titleSetByQC = true;
+    }
+    if (role === "client" && postingTitle?.trim() && titleSetByClient) {
+      updateData.postingTitle = postingTitle.trim();
+      updateData.titleSetByClient = true;
+    }
+
+    // 🔥 New multi-item posting content — composed in the review sidebar,
+    // sent as a single batch when the user clicks approve.
+    // Each is an array of { id: string, text: string } or null/undefined to skip.
+    if (Array.isArray(postingTitles)) {
+      updateData.postingTitles = postingTitles
+        .filter((t: any) => t?.text?.trim())
+        .map((t: any) => ({ id: t.id, text: t.text.trim() }));
+    }
+    if (Array.isArray(postingDescriptions)) {
+      updateData.postingDescriptions = postingDescriptions
+        .filter((d: any) => d?.text?.trim())
+        .map((d: any) => ({ id: d.id, text: d.text.trim() }));
+    }
+    if (Array.isArray(postingTags)) {
+      updateData.postingTags = postingTags
+        .filter((t: any) => t?.text?.trim())
+        .map((t: any) => ({ id: t.id, text: t.text.trim() }));
+    }
 
     let task: any;
     try {

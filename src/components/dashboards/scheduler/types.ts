@@ -3,9 +3,13 @@ export type PlatformKey = 'instagram' | 'youtube' | 'tiktok' | 'facebook' | 'lin
 export interface SchedulerTask {
     id: string;
     title: string;
-    titleSetByQC?: boolean;
-    titleSetByClient?: boolean;
-    postingTitle?: string | null;
+    titleSetByQC?: boolean;        // legacy single-title flag
+    titleSetByClient?: boolean;    // legacy single-title flag
+    postingTitle?: string | null;  // legacy single-title value
+    // 🔥 Multi-item posting content lists
+    postingTitles?: { id: string; text: string }[];
+    postingDescriptions?: { id: string; text: string }[];
+    postingTags?: { id: string; text: string }[];
     description?: string;
     priority: string;
     status: string;

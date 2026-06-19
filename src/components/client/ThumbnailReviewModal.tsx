@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
@@ -55,11 +55,126 @@ interface ThumbnailReviewModalProps {
     onApprove: (file: TaskFile) => void | Promise<void>;
     onRequestRevisions: (file: TaskFile, feedback: any[]) => void | Promise<void>;
     userRole?: 'client' | 'qc';
-    // 🔥 Posting title — set by QC, optionally edited by the client
-    postingTitle?: string | null;
-    titleSetByQC?: boolean;
-    clientTitle?: string;
-    onClientTitleChange?: (title: string) => void;
+    // 🔥 Multi-item posting content lists
+    postingTitles?: { id: string; text: string }[];
+    postingDescriptions?: { id: string; text: string }[];
+    postingTags?: { id: string; text: string }[];
+    onPostingTitlesChange?: (items: { id: string; text: string }[]) => void;
+    onPostingDescriptionsChange?: (items: { id: string; text: string }[]) => void;
+    onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
+}
+
+// 🔥 Posting-content tab panel for the thumbnail review modal
+type ThumbPostingTab = 'comments' | 'titles' | 'descriptions' | 'tags';
+interface ThumbPostingPanelProps {
+    userRole: 'client' | 'qc';
+    postingTitles: { id: string; text: string }[];
+    postingDescriptions: { id: string; text: string }[];
+    postingTags: { id: string; text: string }[];
+    onPostingTitlesChange?: (items: { id: string; text: string }[]) => void;
+    onPostingDescriptionsChange?: (items: { id: string; text: string }[]) => void;
+    onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
+}
+function ThumbPostingPanel({
+    userRole,
+    postingTitles,
+    postingDescriptions,
+    postingTags,
+    onPostingTitlesChange,
+    onPostingDescriptionsChange,
+    onPostingTagsChange,
+}: ThumbPostingPanelProps) {
+    const [thumbTab, setThumbTab] = React.useState<ThumbPostingTab>('comments');
+    const [thumbNewText, setThumbNewText] = React.useState('');
+    const [thumbEditId, setThumbEditId] = React.useState<string | null>(null);
+    const [thumbEditText, setThumbEditText] = React.useState('');
+
+    const CAPS = { titles: 3, descriptions: 3, tags: 10 };
+    const list = thumbTab === 'titles' ? postingTitles : thumbTab === 'descriptions' ? postingDescriptions : thumbTab === 'tags' ? postingTags : [];
+    const setList = thumbTab === 'titles' ? onPostingTitlesChange : thumbTab === 'descriptions' ? onPostingDescriptionsChange : thumbTab === 'tags' ? onPostingTagsChange : undefined;
+    const cap = thumbTab !== 'comments' ? CAPS[thumbTab as Exclude<ThumbPostingTab, 'comments'>] : 0;
+    const atCap = list.length >= cap;
+    const singular = thumbTab === 'titles' ? 'title' : thumbTab === 'descriptions' ? 'description' : 'tag';
+
+    const addItem = () => {
+        if (!setList || !thumbNewText.trim() || atCap) return;
+        setList([...list, { id: `${Date.now()}-${Math.random()}`, text: thumbNewText.trim() }]);
+        setThumbNewText('');
+    };
+    const deleteItem = (id: string) => {
+        if (!setList) return;
+        if (thumbTab === 'titles' && userRole === 'client' && list.length <= 1) return;
+        setList(list.filter(i => i.id !== id));
+    };
+    const commitEdit = () => {
+        if (!setList || !thumbEditId) return;
+        const text = thumbEditText.trim();
+        if (text) setList(list.map(i => i.id === thumbEditId ? { ...i, text } : i));
+        setThumbEditId(null); setThumbEditText('');
+    };
+
+    return (
+        <div className="flex-shrink-0 border-b border-white/10 bg-[#1a1a1a]">
+            <div className="flex border-b border-white/10">
+                {(['comments', 'titles', 'descriptions', 'tags'] as ThumbPostingTab[]).map(tab => (
+                    <button key={tab} onClick={() => { setThumbTab(tab); setThumbNewText(''); setThumbEditId(null); }}
+                        className={`flex-1 py-2 text-[10px] font-semibold capitalize transition-colors ${thumbTab === tab ? 'text-white border-b-2 border-white' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                        {tab === 'titles' ? `Titles${postingTitles.length ? ` (${postingTitles.length})` : ''}`
+                            : tab === 'descriptions' ? `Desc${postingDescriptions.length ? ` (${postingDescriptions.length})` : ''}`
+                            : tab === 'tags' ? `Tags${postingTags.length ? ` (${postingTags.length})` : ''}`
+                            : 'Comments'}
+                    </button>
+                ))}
+            </div>
+            {thumbTab !== 'comments' && (
+                <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
+                    <div className="flex gap-1.5">
+                        <Input value={thumbNewText} onChange={e => setThumbNewText(e.target.value)}
+                            placeholder={atCap ? `Max ${cap} ${singular}s` : `Add a ${singular}…`}
+                            disabled={atCap}
+                            className="flex-1 text-xs h-7 bg-[#141414] border-white/10 text-white placeholder:text-zinc-600 disabled:opacity-40"
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }}
+                        />
+                        <Button size="sm" disabled={atCap || !thumbNewText.trim()} onClick={addItem}
+                            className="h-7 px-2 bg-green-600 hover:bg-green-700 text-white shrink-0">
+                            <Plus className="h-3 w-3" />
+                        </Button>
+                    </div>
+                    {list.map(item => (
+                        <div key={item.id} className="group flex items-start gap-2 rounded border border-white/10 bg-[#141414] px-2.5 py-2">
+                            {thumbEditId === item.id ? (
+                                <div className="flex-1 flex gap-1">
+                                    <Input value={thumbEditText} onChange={e => setThumbEditText(e.target.value)} autoFocus
+                                        className="flex-1 text-xs h-7 bg-[#0d0d0d] border-white/10 text-white"
+                                        onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setThumbEditId(null); setThumbEditText(''); } }}
+                                    />
+                                    <Button size="sm" onClick={commitEdit} className="h-7 px-2 bg-green-600 text-white text-[10px]">Save</Button>
+                                </div>
+                            ) : (
+                                <>
+                                    <p className="flex-1 text-xs text-zinc-300 leading-relaxed break-words min-w-0">{item.text}</p>
+                                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => { setThumbEditId(item.id); setThumbEditText(item.text); }}
+                                            className="p-0.5 rounded hover:bg-white/10 text-zinc-500 hover:text-white transition-colors">
+                                            <PenLine className="h-3 w-3" />
+                                        </button>
+                                        <button onClick={() => deleteItem(item.id)}
+                                            disabled={thumbTab === 'titles' && userRole === 'client' && list.length <= 1}
+                                            className="p-0.5 rounded hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    ))}
+                    {list.length === 0 && (
+                        <p className="text-[11px] text-zinc-600 text-center py-2">No {singular}s yet</p>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 }
 
 export function ThumbnailReviewModal({
@@ -72,10 +187,12 @@ export function ThumbnailReviewModal({
     onApprove,
     onRequestRevisions,
     userRole = 'client',
-    postingTitle = null,
-    titleSetByQC = false,
-    clientTitle = '',
-    onClientTitleChange,
+    postingTitles = [],
+    postingDescriptions = [],
+    postingTags = [],
+    onPostingTitlesChange,
+    onPostingDescriptionsChange,
+    onPostingTagsChange,
 }: ThumbnailReviewModalProps) {
     const { user } = useAuth();
 
@@ -333,22 +450,16 @@ export function ThumbnailReviewModal({
                             </div>
                         </div>
 
-                        {/* Posting Title Bar — client-editable, optional */}
-                        {userRole === 'client' && titleSetByQC && postingTitle && (
-                            <div className="flex-shrink-0 px-6 py-3 bg-[#1f1f1f] border-b border-white/10 flex items-center gap-3">
-                                <label htmlFor="posting-title-thumb" className="text-xs text-zinc-400 flex items-center gap-1.5 shrink-0">
-                                    <PenLine className="h-3.5 w-3.5" />
-                                    Title for scheduler
-                                </label>
-                                <Input
-                                    id="posting-title-thumb"
-                                    value={clientTitle}
-                                    onChange={(e) => onClientTitleChange?.(e.target.value)}
-                                    placeholder={postingTitle}
-                                    className="text-sm h-8 max-w-md bg-[#141414] border-white/10 text-white"
-                                />
-                            </div>
-                        )}
+                        {/* Posting Content Tab Bar */}
+                        <ThumbPostingPanel
+                            userRole={userRole}
+                            postingTitles={postingTitles}
+                            postingDescriptions={postingDescriptions}
+                            postingTags={postingTags}
+                            onPostingTitlesChange={onPostingTitlesChange}
+                            onPostingDescriptionsChange={onPostingDescriptionsChange}
+                            onPostingTagsChange={onPostingTagsChange}
+                        />
 
                         {/* Main Content Area */}
                         <div className="flex-1 flex overflow-hidden">

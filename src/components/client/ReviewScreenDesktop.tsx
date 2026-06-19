@@ -19,8 +19,7 @@ import {
     AlertCircle, SkipBack, SkipForward, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
     RotateCcw, HardDrive, PenLine,
-} from 'lucide-react';
-import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
+} from 'lucide-react';import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
 // import { ReviewConnectionIndicator, type ReviewConnectionInsight } from './ReviewConnectionIndicator';
@@ -33,11 +32,13 @@ export interface ReviewScreenProps {
     currentFileSection?: { folderType: string; fileId: string; version: number };
     userRole: 'client' | 'qc';
     requiresClientReview: boolean;
-    // 🔥 Posting title — set by QC, optionally edited by the client
-    postingTitle?: string | null;
-    titleSetByQC?: boolean;
-    clientTitle?: string;
-    onClientTitleChange?: (title: string) => void;
+    // 🔥 Multi-item posting content — composed in the review sidebar, batched on approve
+    postingTitles: { id: string; text: string }[];
+    postingDescriptions: { id: string; text: string }[];
+    postingTags: { id: string; text: string }[];
+    onPostingTitlesChange: (items: { id: string; text: string }[]) => void;
+    onPostingDescriptionsChange: (items: { id: string; text: string }[]) => void;
+    onPostingTagsChange: (items: { id: string; text: string }[]) => void;
 
     /* video state */
     videoRef: RefObject<HTMLVideoElement | null>;
@@ -130,12 +131,71 @@ export interface ReviewScreenProps {
 export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
+    // 🔥 Sidebar tab switcher
+    type SidebarTab = 'comments' | 'titles' | 'descriptions' | 'tags';
+    const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
+    // inline-edit state: which item id is currently being edited, per type
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingText, setEditingText] = useState('');
+    // new-item input per tab
+    const [newItemText, setNewItemText] = useState('');
+
+    // caps per type
+    const CAPS: Record<Exclude<SidebarTab, 'comments'>, number> = { titles: 3, descriptions: 3, tags: 10 };
+
+    const currentList = sidebarTab === 'titles' ? p.postingTitles
+        : sidebarTab === 'descriptions' ? p.postingDescriptions
+        : sidebarTab === 'tags' ? p.postingTags
+        : [];
+
+    const setCurrentList = sidebarTab === 'titles' ? p.onPostingTitlesChange
+        : sidebarTab === 'descriptions' ? p.onPostingDescriptionsChange
+        : sidebarTab === 'tags' ? p.onPostingTagsChange
+        : () => {};
+
+    const addItem = () => {
+        if (sidebarTab === 'comments') return;
+        const text = newItemText.trim();
+        if (!text) return;
+        const cap = CAPS[sidebarTab as Exclude<SidebarTab, 'comments'>];
+        if (currentList.length >= cap) return;
+        setCurrentList([...currentList, { id: `${Date.now()}-${Math.random()}`, text }]);
+        setNewItemText('');
+    };
+
+    const deleteItem = (id: string) => {
+        if (sidebarTab === 'comments') return;
+        // Floor-of-one: client cannot delete last title
+        if (sidebarTab === 'titles' && p.userRole === 'client' && currentList.length <= 1) return;
+        setCurrentList(currentList.filter(i => i.id !== id));
+    };
+
+    const startEdit = (id: string, text: string) => {
+        setEditingId(id);
+        setEditingText(text);
+    };
+
+    const commitEdit = () => {
+        if (!editingId || sidebarTab === 'comments') return;
+        const text = editingText.trim();
+        if (!text) { setEditingId(null); return; }
+        setCurrentList(currentList.map(i => i.id === editingId ? { ...i, text } : i));
+        setEditingId(null);
+        setEditingText('');
+    };
+
+    // clear new-item input and editing state when tab changes
+    const handleTabChange = (tab: SidebarTab) => {
+        setSidebarTab(tab);
+        setNewItemText('');
+        setEditingId(null);
+        setEditingText('');
+    };
 
     const { visibleComments, hasMoreComments } = useMemo(() => {
         if (p.sortedComments.length <= MAX_RENDERED_COMMENTS) {
             return { visibleComments: p.sortedComments, hasMoreComments: false };
         }
-        // Show the most recent comments by default
         return {
             visibleComments: showAllComments
                 ? p.sortedComments
@@ -462,82 +522,190 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         className="w-80 flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
                         style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
                     >
-                        {/* Sidebar header */}
-                        <div className="p-4 border-b border-[var(--review-border)] flex-shrink-0">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-medium text-white flex items-center gap-2">
-                                    <MessageSquare className="h-4 w-4" />
-                                    Comments
-                                    <Badge className="bg-[var(--review-bg-tertiary)] text-[var(--review-text-secondary)] text-xs">
-                                        {p.sortedComments.length}
-                                    </Badge>
-                                </h3>
-                                <Badge variant="outline" className="text-xs border-[var(--review-border)] text-[var(--review-text-muted)]">
-                                    {p.sortedComments.filter(c => !c.resolved).length} open
-                                </Badge>
+                        {/* ── SIDEBAR HEADER — tab switcher ── */}
+                        <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
+                            <div className="grid grid-cols-4 gap-0.5 bg-[var(--review-bg-tertiary)] rounded-lg p-0.5">
+                                {(['comments', 'titles', 'descriptions', 'tags'] as const).map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => handleTabChange(tab)}
+                                        className={`text-[10px] font-semibold py-1.5 px-1 rounded-md transition-colors capitalize ${
+                                            sidebarTab === tab
+                                                ? 'bg-[var(--review-bg-secondary)] text-white shadow-sm'
+                                                : 'text-[var(--review-text-muted)] hover:text-[var(--review-text-secondary)]'
+                                        }`}
+                                    >
+                                        {tab === 'comments'
+                                            ? `Comments${p.sortedComments.length ? ` (${p.sortedComments.length})` : ''}`
+                                            : tab === 'titles' ? `Titles${p.postingTitles.length ? ` (${p.postingTitles.length})` : ''}`
+                                            : tab === 'descriptions' ? `Desc${p.postingDescriptions.length ? ` (${p.postingDescriptions.length})` : ''}`
+                                            : `Tags${p.postingTags.length ? ` (${p.postingTags.length})` : ''}`}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
-                        {/* Comment input */}
-                        <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
-                            <CommentInput
-                                taskId={p.asset.id}
-                                currentTime={p.currentTime}
-                                currentTimestamp={p.formatTime(p.currentTime)}
-                                authorId="current-user"
-                                authorName={p.userName}
-                                videoRef={p.videoRef}
-                                onSubmit={p.handleCommentSubmit}
-
-                                onCancel={() => p.setShowCommentInput(false)}
-                                isExpanded={p.showCommentInput}
-                                onToggleExpand={() => p.setShowCommentInput(true)}
-                            />
-                        </div>
-
-                        {/* Comments list */}
-                        <div ref={p.commentsRef} className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
-                            {p.sortedComments.length === 0 ? (
-                                <div className="text-center py-12 text-[var(--review-text-muted)]">
-                                    <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                                    <p className="text-sm">No comments on V{p.currentVersionNumber}</p>
-                                    <p className="text-xs mt-1 opacity-70">
-                                        {p.isClientViewer
-                                            ? 'Add a comment to leave feedback on this version'
-                                            : 'Press C or click "Add comment"'
-                                        }
-                                    </p>
-                                </div>
-                            ) : (
-                                <>
-                                    {hasMoreComments && (
-                                        <div className="mb-2 text-[10px] text-[var(--review-text-muted)] text-center">
-                                            Showing last {MAX_RENDERED_COMMENTS} of {p.sortedComments.length} comments.&nbsp;
-                                            <button
-                                                className="underline hover:text-[var(--review-text-secondary)]"
-                                                onClick={() => setShowAllComments(true)}
-                                            >
-                                                Show all
-                                            </button>
+                        {/* ── COMMENTS TAB ── */}
+                        {sidebarTab === 'comments' && (<>
+                            <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
+                                <CommentInput
+                                    taskId={p.asset.id}
+                                    currentTime={p.currentTime}
+                                    currentTimestamp={p.formatTime(p.currentTime)}
+                                    authorId="current-user"
+                                    authorName={p.userName}
+                                    videoRef={p.videoRef}
+                                    onSubmit={p.handleCommentSubmit}
+                                    onCancel={() => p.setShowCommentInput(false)}
+                                    isExpanded={p.showCommentInput}
+                                    onToggleExpand={() => p.setShowCommentInput(true)}
+                                />
+                            </div>
+                            <div ref={p.commentsRef} className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
+                                {p.sortedComments.length === 0 ? (
+                                    <div className="text-center py-12 text-[var(--review-text-muted)]">
+                                        <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                                        <p className="text-sm">No comments on V{p.currentVersionNumber}</p>
+                                        <p className="text-xs mt-1 opacity-70">
+                                            {p.isClientViewer
+                                                ? 'Add a comment to leave feedback on this version'
+                                                : 'Press C or click "Add comment"'
+                                            }
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {hasMoreComments && (
+                                            <div className="mb-2 text-[10px] text-[var(--review-text-muted)] text-center">
+                                                Showing last {MAX_RENDERED_COMMENTS} of {p.sortedComments.length} comments.&nbsp;
+                                                <button className="underline hover:text-[var(--review-text-secondary)]" onClick={() => setShowAllComments(true)}>Show all</button>
+                                            </div>
+                                        )}
+                                        <div className="space-y-2">
+                                            {visibleComments.map(comment => (
+                                                <div key={comment.id} id={`comment-${comment.id}`}>
+                                                    <ReviewCommentCard
+                                                        comment={comment}
+                                                        isActive={p.activeCommentId === comment.id}
+                                                        onTimestampClick={p.handleTimestampClick}
+                                                        onResolve={p.handleCommentResolve}
+                                                        onDelete={p.handleCommentDelete}
+                                                        onEdit={p.handleCommentEdit}
+                                                    />
+                                                </div>
+                                            ))}
                                         </div>
-                                    )}
-                                    <div className="space-y-2">
-                                        {visibleComments.map(comment => (
-                                            <div key={comment.id} id={`comment-${comment.id}`}>
-                                                <ReviewCommentCard
-                                                    comment={comment}
-                                                    isActive={p.activeCommentId === comment.id}
-                                                    onTimestampClick={p.handleTimestampClick}
-                                                    onResolve={p.handleCommentResolve}
-                                                    onDelete={p.handleCommentDelete}
-                                                    onEdit={p.handleCommentEdit}
-                                                />
+                                    </>
+                                )}
+                            </div>
+                        </>)}
+
+                        {/* ── TITLES / DESCRIPTIONS / TAGS TABS ── */}
+                        {sidebarTab !== 'comments' && (() => {
+                            const cap = CAPS[sidebarTab];
+                            const atCap = currentList.length >= cap;
+                            const labels: Record<Exclude<typeof sidebarTab, 'comments'>, { singular: string; placeholder: string }> = {
+                                titles: { singular: 'title', placeholder: 'Add a title…' },
+                                descriptions: { singular: 'description', placeholder: 'Add a description…' },
+                                tags: { singular: 'tag', placeholder: 'Add a tag…' },
+                            };
+                            const { singular, placeholder } = labels[sidebarTab];
+                            return (
+                                <>
+                                    {/* Add-new input */}
+                                    <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-[var(--review-text-muted)] capitalize">{sidebarTab}</span>
+                                            <span className={`text-[10px] font-medium ${atCap ? 'text-red-400' : 'text-[var(--review-text-muted)]'}`}>
+                                                {currentList.length}/{cap}
+                                            </span>
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                            <Input
+                                                value={newItemText}
+                                                onChange={e => setNewItemText(e.target.value)}
+                                                placeholder={atCap ? `Max ${cap} ${singular}s reached` : placeholder}
+                                                disabled={atCap}
+                                                className="flex-1 text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] disabled:opacity-40"
+                                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } }}
+                                            />
+                                            <Button
+                                                size="sm"
+                                                disabled={atCap || !newItemText.trim()}
+                                                onClick={addItem}
+                                                className="h-8 px-2.5 bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white shrink-0"
+                                            >
+                                                <Plus className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* List */}
+                                    <div className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0 space-y-2">
+                                        {currentList.length === 0 ? (
+                                            <div className="text-center py-12 text-[var(--review-text-muted)]">
+                                                <p className="text-sm">No {singular}s yet</p>
+                                                <p className="text-xs mt-1 opacity-70">Add up to {cap} {singular}s above</p>
+                                            </div>
+                                        ) : currentList.map(item => (
+                                            <div
+                                                key={item.id}
+                                                className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
+                                            >
+                                                {editingId === item.id ? (
+                                                    <div className="space-y-1.5">
+                                                        <Input
+                                                            value={editingText}
+                                                            onChange={e => setEditingText(e.target.value)}
+                                                            className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
+                                                            autoFocus
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') commitEdit();
+                                                                if (e.key === 'Escape') { setEditingId(null); setEditingText(''); }
+                                                            }}
+                                                        />
+                                                        <div className="flex gap-1">
+                                                            <Button size="sm" onClick={commitEdit} className="h-6 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditingText(''); }} className="h-6 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-start gap-2">
+                                                        <p className="flex-1 text-xs text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
+                                                        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => startEdit(item.id, item.text)}
+                                                                className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
+                                                                title={`Edit ${singular}`}
+                                                            >
+                                                                <PenLine className="h-3 w-3" />
+                                                            </button>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button
+                                                                        onClick={() => deleteItem(item.id)}
+                                                                        disabled={sidebarTab === 'titles' && p.userRole === 'client' && currentList.length <= 1}
+                                                                        className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--review-text-muted)]"
+                                                                        title={`Delete ${singular}`}
+                                                                    >
+                                                                        <X className="h-3 w-3" />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                {sidebarTab === 'titles' && p.userRole === 'client' && currentList.length <= 1 && (
+                                                                    <TooltipContent side="left" className="text-xs max-w-[160px]">
+                                                                        At least one title must be kept
+                                                                    </TooltipContent>
+                                                                )}
+                                                            </Tooltip>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
                                 </>
-                            )}
-                        </div>
+                            );
+                        })()}
 
                         {/* Action footer */}
                         <div className="p-4 border-t border-[var(--review-border)] space-y-2 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
@@ -558,21 +726,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 </>
                             ) : (
                                 <>
-                                    {p.titleSetByQC && p.postingTitle && (
-                                        <div className="space-y-1 mb-2">
-                                            <label htmlFor="posting-title-desktop" className="text-[11px] text-[var(--review-text-muted)] flex items-center gap-1">
-                                                <PenLine className="h-3 w-3" />
-                                                Title for scheduler (optional to edit)
-                                            </label>
-                                            <Input
-                                                id="posting-title-desktop"
-                                                value={p.clientTitle ?? ''}
-                                                onChange={(e) => p.onClientTitleChange?.(e.target.value)}
-                                                placeholder={p.postingTitle}
-                                                className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-[var(--review-text-secondary)]"
-                                            />
-                                        </div>
-                                    )}
                                     <div className="flex items-start gap-2 mb-2">
                                         <Checkbox
                                             id="confirm-final-desktop"

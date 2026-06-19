@@ -187,6 +187,9 @@ export function SchedulerSpreadsheetView() {
                     titleSetByQC: t.titleSetByQC ?? false,   // ← map QC title flag
                     titleSetByClient: t.titleSetByClient ?? false, // ← map client title-edit flag
                     postingTitle: t.postingTitle ?? null,
+                    postingTitles: t.postingTitles ?? [],
+                    postingDescriptions: t.postingDescriptions ?? [],
+                    postingTags: t.postingTags ?? [],
                     description: t.description,
                     priority: t.priority || "medium",
                     status: ['SCHEDULED', 'POSTED', 'PUBLISHED'].includes((t.status || '').toUpperCase()) ? 'SCHEDULED' : 'PENDING',
@@ -729,9 +732,9 @@ if (!isEdit) {
                                               >
                                                 {task.title}
                                               </p>
-                                              {(task.titleSetByQC || task.titleSetByClient) && (
-                                                <span className={`flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${task.titleSetByClient ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-violet-100 text-violet-700 border-violet-300'}`}>
-                                                  {task.titleSetByClient ? 'CLIENT' : 'QC'}
+                                              {(task.postingTitles?.length || task.titleSetByQC || task.titleSetByClient) && (
+                                                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-violet-100 text-violet-700 border-violet-300" title="Posting content set">
+                                                  ✓
                                                 </span>
                                               )}
                                               {task.isSponsored && (
@@ -802,39 +805,34 @@ if (!isEdit) {
                                             </div>
                                           </td>
 
-                                          {/* ── AI Title cell — shows QC title or AI copy button ── */}
+                                          {/* ── Posting Titles cell ── */}
                                           <td className="px-3 py-3 max-w-[180px]">
-                                            {(task.titleSetByQC || task.titleSetByClient) ? (
+                                            {task.postingTitles && task.postingTitles.length > 0 ? (
+                                              <div className="space-y-0.5 min-w-0">
+                                                {task.postingTitles.map((t, i) => (
+                                                  <div key={t.id} className="flex items-center gap-1 min-w-0">
+                                                    <span className="flex-shrink-0 text-[10px] font-bold text-violet-500 w-4">{i + 1}.</span>
+                                                    <span className="text-xs text-violet-900 truncate" title={t.text}>{t.text}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (task.titleSetByQC || task.titleSetByClient) ? (
                                               <div className="flex items-center gap-1.5 min-w-0">
                                                 <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border ${task.titleSetByClient ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-violet-100 text-violet-700 border-violet-300'}`}>
                                                   {task.titleSetByClient ? 'CLIENT' : 'QC'}
                                                 </span>
-                                                <span
-                                                  className={`text-xs font-medium truncate ${task.titleSetByClient ? 'text-blue-900' : 'text-violet-900'}`}
-                                                  title={task.title}
-                                                >
-                                                  {task.title}
-                                                </span>
+                                                <span className={`text-xs font-medium truncate ${task.titleSetByClient ? 'text-blue-900' : 'text-violet-900'}`} title={task.title}>{task.title}</span>
                                               </div>
-                                            ) : task.titlingStatus ===
-                                                "COMPLETED" &&
-                                              task.suggestedTitles?.length ? (
+                                            ) : task.titlingStatus === "COMPLETED" && task.suggestedTitles?.length ? (
                                               <button
-                                                onClick={() =>
-                                                  copyTitle(
-                                                    task.suggestedTitles![0],
-                                                  )
-                                                }
+                                                onClick={() => copyTitle(task.suggestedTitles![0])}
                                                 className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-50 hover:bg-yellow-100 rounded text-xs font-medium text-yellow-800 border border-yellow-200"
-                                                title={getTitleText(
-                                                  task.suggestedTitles[0],
-                                                )}
+                                                title={getTitleText(task.suggestedTitles[0])}
                                               >
                                                 <Copy className="h-3 w-3" />
                                                 Copy
                                               </button>
-                                            ) : task.titlingStatus ===
-                                              "PROCESSING" ? (
+                                            ) : task.titlingStatus === "PROCESSING" ? (
                                               <Badge
                                                 variant="outline"
                                                 className="text-xs"
@@ -1206,71 +1204,87 @@ if (!isEdit) {
                                                   )}
                                                 </div>
 
-                                                {/* ── AI Titles / QC Title section ── */}
-                                                <div>
-                                                  <h4 className="font-semibold mb-3 flex items-center gap-2 text-sm text-gray-700">
-                                                    <Sparkles className="h-4 w-4 text-yellow-500" />
-                                                    {task.titleSetByClient
-                                                      ? "Title (Set by Client)"
-                                                      : task.titleSetByQC
-                                                      ? "Title (Set by QC)"
-                                                      : "AI Suggested Titles"}
-                                                  </h4>
-
-                                                  {(task.titleSetByQC || task.titleSetByClient) ? (
-                                                    // Locked title — read only
-                                                    <div className={`p-3 rounded-lg border flex items-center justify-between gap-3 ${task.titleSetByClient ? 'bg-blue-50 border-blue-200' : 'bg-violet-50 border-violet-200'}`}>
-                                                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 text-white rounded shrink-0 ${task.titleSetByClient ? 'bg-blue-600' : 'bg-violet-600'}`}>
-                                                          {task.titleSetByClient ? 'CLIENT' : 'QC'}
-                                                        </span>
-                                                        <p className={`text-sm font-medium truncate ${task.titleSetByClient ? 'text-blue-900' : 'text-violet-900'}`}>
-                                                          {task.postingTitle}
-                                                        </p>
-                                                      </div>
-                                                      <span className={`text-[10px] shrink-0 ${task.titleSetByClient ? 'text-blue-500' : 'text-violet-500'}`}>
-                                                        Read only
-                                                      </span>
-                                                    </div>
-                                                  ) : task.suggestedTitles &&
-                                                    task.suggestedTitles
-                                                      .length > 0 ? (
-                                                    <div className="space-y-2">
-                                                      {task.suggestedTitles
-                                                        .slice(0, 5)
-                                                        .map((title, i) => (
-                                                          <div
-                                                            key={i}
-                                                            className="flex items-center justify-between p-3 bg-white rounded-lg border hover:bg-gray-50"
-                                                          >
-                                                            <p className="text-sm flex-1 mr-2">
-                                                              {getTitleText(
-                                                                title,
-                                                              )}
-                                                            </p>
-                                                            <Button
-                                                              size="sm"
-                                                              variant="ghost"
-                                                              onClick={() =>
-                                                                copyTitle(title)
-                                                              }
-                                                              className="h-8"
-                                                            >
+                                                {/* ── Posting Content: Titles, Descriptions, Tags ── */}
+                                                <div className="space-y-4">
+                                                  {/* Titles */}
+                                                  <div>
+                                                    <h4 className="font-semibold mb-2 flex items-center gap-2 text-sm text-gray-700">
+                                                      <Sparkles className="h-4 w-4 text-violet-500" />Titles
+                                                    </h4>
+                                                    {task.postingTitles && task.postingTitles.length > 0 ? (
+                                                      <div className="space-y-2">
+                                                        {task.postingTitles.map((t, i) => (
+                                                          <div key={t.id} className="flex items-center justify-between p-3 bg-violet-50 rounded-lg border border-violet-200">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                                                              <span className="flex-shrink-0 text-[10px] font-bold w-5 text-violet-500">{i + 1}.</span>
+                                                              <p className="text-sm font-medium text-violet-900 truncate">{t.text}</p>
+                                                            </div>
+                                                            <Button size="sm" variant="ghost" onClick={() => navigator.clipboard.writeText(t.text)} className="h-8 text-violet-600 shrink-0">
                                                               <Copy className="h-3 w-3" />
                                                             </Button>
                                                           </div>
                                                         ))}
-                                                    </div>
-                                                  ) : (
-                                                    <div className="p-4 bg-white rounded-lg border text-center">
-                                                      <p className="text-muted-foreground text-sm">
-                                                        {task.titlingStatus ===
-                                                        "PROCESSING"
-                                                          ? "AI titles are being generated..."
-                                                          : "No AI titles generated yet"}
-                                                      </p>
+                                                      </div>
+                                                    ) : (task.titleSetByQC || task.titleSetByClient) && task.postingTitle ? (
+                                                      <div className={`p-3 rounded-lg border flex items-center justify-between gap-3 ${task.titleSetByClient ? 'bg-blue-50 border-blue-200' : 'bg-violet-50 border-violet-200'}`}>
+                                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                          <span className={`text-[10px] font-bold px-1.5 py-0.5 text-white rounded shrink-0 ${task.titleSetByClient ? 'bg-blue-600' : 'bg-violet-600'}`}>
+                                                            {task.titleSetByClient ? 'CLIENT' : 'QC'}
+                                                          </span>
+                                                          <p className={`text-sm font-medium truncate ${task.titleSetByClient ? 'text-blue-900' : 'text-violet-900'}`}>{task.postingTitle}</p>
+                                                        </div>
+                                                        <span className="text-[10px] shrink-0 text-gray-400">legacy</span>
+                                                      </div>
+                                                    ) : task.suggestedTitles && task.suggestedTitles.length > 0 ? (
+                                                      <div className="space-y-2">
+                                                        {task.suggestedTitles.slice(0, 5).map((title, i) => (
+                                                          <div key={i} className="flex items-center justify-between p-3 bg-white rounded-lg border hover:bg-gray-50">
+                                                            <p className="text-sm flex-1 mr-2">{getTitleText(title)}</p>
+                                                            <Button size="sm" variant="ghost" onClick={() => copyTitle(title)} className="h-8"><Copy className="h-3 w-3" /></Button>
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    ) : (
+                                                      <p className="text-muted-foreground text-sm p-3 bg-white rounded-lg border text-center">No titles set</p>
+                                                    )}
+                                                  </div>
+
+                                                  {/* Descriptions */}
+                                                  {task.postingDescriptions && task.postingDescriptions.length > 0 && (
+                                                    <div>
+                                                      <h4 className="font-semibold mb-2 text-sm text-gray-700">Descriptions</h4>
+                                                      <div className="space-y-2">
+                                                        {task.postingDescriptions.map((d, i) => (
+                                                          <div key={d.id} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg border">
+                                                            <div className="flex gap-2 flex-1 min-w-0 mr-2">
+                                                              <span className="flex-shrink-0 text-[10px] font-bold text-gray-400 w-5 pt-0.5">{i + 1}.</span>
+                                                              <p className="text-sm text-gray-800 break-words">{d.text}</p>
+                                                            </div>
+                                                            <Button size="sm" variant="ghost" onClick={() => navigator.clipboard.writeText(d.text)} className="h-8 shrink-0">
+                                                              <Copy className="h-3 w-3" />
+                                                            </Button>
+                                                          </div>
+                                                        ))}
+                                                      </div>
                                                     </div>
                                                   )}
+
+                                                  {/* Tags */}
+                                                  {task.postingTags && task.postingTags.length > 0 && (
+                                                    <div>
+                                                      <h4 className="font-semibold mb-2 text-sm text-gray-700">Tags</h4>
+                                                      <div className="flex flex-wrap gap-1.5">
+                                                        {task.postingTags.map(t => (
+                                                          <button key={t.id} onClick={() => navigator.clipboard.writeText(t.text)}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full border text-gray-700 transition-colors">
+                                                            #{t.text}
+                                                            <Copy className="h-2.5 w-2.5 opacity-50" />
+                                                          </button>
+                                                        ))}
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                                </div>
 
                                                   {/* Social Links Summary */}
                                                   {task.socialMediaLinks &&

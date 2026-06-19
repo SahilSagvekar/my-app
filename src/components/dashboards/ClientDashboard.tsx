@@ -98,6 +98,10 @@ interface ClientTask {
   postingTitle?: string | null;
   titleSetByQC?: boolean;
   titleSetByClient?: boolean;
+  // 🔥 Multi-item posting content lists (composed in the review sidebar)
+  postingTitles?: { id: string; text: string }[];
+  postingDescriptions?: { id: string; text: string }[];
+  postingTags?: { id: string; text: string }[];
   user?: {
     name: string;
     role: string;
@@ -112,31 +116,28 @@ const persistClientResult = async ({
   taskId,
   approved,
   feedback,
-  postingTitle,
+  postingTitles,
+  postingDescriptions,
+  postingTags,
 }: {
   taskId: string;
   approved: boolean;
   feedback?: string;
-  postingTitle?: string;
+  postingTitles?: { id: string; text: string }[];
+  postingDescriptions?: { id: string; text: string }[];
+  postingTags?: { id: string; text: string }[];
 }) => {
   const metaBody: any = {};
 
   if (approved) {
-    // Client approved → Send to Scheduler
-    // 🔥 FIX: Use "COMPLETED" (valid TaskStatus) instead of "APPROVED"
     metaBody.status = "COMPLETED";
     metaBody.clientResult = "APPROVED";
     metaBody.route = "scheduler";
-    if (feedback) {
-      metaBody.clientFeedback = feedback;
-    }
-    // 🔥 Optional client title edit — only sent if the client actually
-    // changed the QC-set title. If omitted, the existing postingTitle
-    // (set by QC) passes through to the scheduler untouched.
-    if (postingTitle?.trim()) {
-      metaBody.postingTitle = postingTitle.trim();
-      metaBody.titleSetByClient = true;
-    }
+    if (feedback) metaBody.clientFeedback = feedback;
+    // 🔥 Batch-send the three posting-content lists on approve
+    if (postingTitles !== undefined) metaBody.postingTitles = postingTitles;
+    if (postingDescriptions !== undefined) metaBody.postingDescriptions = postingDescriptions;
+    if (postingTags !== undefined) metaBody.postingTags = postingTags;
   } else {
     // Client requested revisions → Send back to Editor
     // Use REJECTED as the valid TaskStatus
@@ -193,10 +194,11 @@ export function ClientDashboard() {
 
   const [selectedTask, setSelectedTask] = useState<ClientTask | null>(null);
   const [selectedFile, setSelectedFile] = useState<TaskFile | null>(null);
-  // 🔥 Client-editable posting title — initialized from the QC-set title
-  // whenever a new task is opened for review. Optional: if the client
-  // never touches it, it's never sent and QC's title passes through as-is.
-  const [clientEditedTitle, setClientEditedTitle] = useState<string>("");
+  // 🔥 Posting-content lists — initialized from the task when opened,
+  // edited freely in the review sidebar, sent in one batch on approve.
+  const [postingTitles, setPostingTitles] = useState<{ id: string; text: string }[]>([]);
+  const [postingDescriptions, setPostingDescriptions] = useState<{ id: string; text: string }[]>([]);
+  const [postingTags, setPostingTags] = useState<{ id: string; text: string }[]>([]);
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
@@ -235,11 +237,12 @@ export function ClientDashboard() {
     return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
   }, [refreshTasks]);
 
-  // 🔥 Reset the editable title whenever the review session ends, so a
-  // leftover edit can't accidentally apply to the next task opened.
+  // 🔥 Reset posting-content lists whenever the review session ends
   useEffect(() => {
     if (!selectedTask) {
-      setClientEditedTitle("");
+      setPostingTitles([]);
+      setPostingDescriptions([]);
+      setPostingTags([]);
     }
   }, [selectedTask]);
 
@@ -314,16 +317,13 @@ export function ClientDashboard() {
     try {
       setIsSubmitting(true);
 
-      // Only send a title update if the client actually changed it from
-      // the QC-set value. Untouched/blank means: pass QC's title through.
-      const originalTitle = taskToApprove.postingTitle || "";
-      const editedTitle = clientEditedTitle.trim();
-      const titleChanged = editedTitle.length > 0 && editedTitle !== originalTitle.trim();
-
+      // Send the posting-content lists as a batch on approve
       await persistClientResult({
         taskId: taskToApprove.id,
         approved: true,
-        postingTitle: titleChanged ? editedTitle : undefined,
+        postingTitles,
+        postingDescriptions,
+        postingTags,
       });
 
       // Optimistic update via SWR mutate — update + re-sort without a network refetch
@@ -892,7 +892,9 @@ export function ClientDashboard() {
 
   const handleTaskClick = (task: ClientTask) => {
     setSelectedTask(task);
-    setClientEditedTitle(task.postingTitle || "");
+    setPostingTitles(task.postingTitles || []);
+    setPostingDescriptions(task.postingDescriptions || []);
+    setPostingTags(task.postingTags || []);
     setShowFileSelector(true);
   };
 
@@ -1455,11 +1457,13 @@ export function ClientDashboard() {
               }}
               // 🔥 Pass deliverable type for correct aspect ratio (LF=16:9, SF=9:16, SQF=1:1)
               deliverableType={selectedTask.monthlyDeliverable?.type}
-              // 🔥 Posting title — QC-set, optionally edited by the client here
-              postingTitle={selectedTask.postingTitle || null}
-              titleSetByQC={!!selectedTask.titleSetByQC}
-              clientTitle={clientEditedTitle}
-              onClientTitleChange={setClientEditedTitle}
+              // 🔥 Posting content lists
+              postingTitles={postingTitles}
+              postingDescriptions={postingDescriptions}
+              postingTags={postingTags}
+              onPostingTitlesChange={setPostingTitles}
+              onPostingDescriptionsChange={setPostingDescriptions}
+              onPostingTagsChange={setPostingTags}
             />
           )}
         {/* File Preview Modal */}
@@ -1498,11 +1502,13 @@ export function ClientDashboard() {
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
               userRole="client"
-              // 🔥 Posting title — QC-set, optionally edited by the client here
-              postingTitle={selectedTask.postingTitle || null}
-              titleSetByQC={!!selectedTask.titleSetByQC}
-              clientTitle={clientEditedTitle}
-              onClientTitleChange={setClientEditedTitle}
+              // 🔥 Posting content lists
+              postingTitles={postingTitles}
+              postingDescriptions={postingDescriptions}
+              postingTags={postingTags}
+              onPostingTitlesChange={setPostingTitles}
+              onPostingDescriptionsChange={setPostingDescriptions}
+              onPostingTagsChange={setPostingTags}
             />
           )}
 

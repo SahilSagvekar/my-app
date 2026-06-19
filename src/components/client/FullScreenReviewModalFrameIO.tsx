@@ -64,12 +64,14 @@ interface FullScreenReviewModalProps {
     taskId?: string;
     requiresClientReview?: boolean;
     shareToken?: string;
-    // 🔥 Posting title — set by QC, optionally edited by the client before
-    // the task moves on to the scheduler. Only meaningful for userRole="client".
-    postingTitle?: string | null;
-    titleSetByQC?: boolean;
-    clientTitle?: string;
-    onClientTitleChange?: (title: string) => void;
+    // 🔥 Multi-item posting content — set in the review sidebar, batched on approve.
+    // Only meaningful in the review screen itself (not QC's separate approval dialog).
+    postingTitles?: { id: string; text: string }[];
+    postingDescriptions?: { id: string; text: string }[];
+    postingTags?: { id: string; text: string }[];
+    onPostingTitlesChange?: (items: { id: string; text: string }[]) => void;
+    onPostingDescriptionsChange?: (items: { id: string; text: string }[]) => void;
+    onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
 }
 
 interface RevisionRequest {
@@ -177,10 +179,12 @@ export function FullScreenReviewModalFrameIO({
     taskId,
     requiresClientReview = false,
     shareToken,
-    postingTitle = null,
-    titleSetByQC = false,
-    clientTitle = '',
-    onClientTitleChange,
+    postingTitles = [],
+    postingDescriptions = [],
+    postingTags = [],
+    onPostingTitlesChange,
+    onPostingDescriptionsChange,
+    onPostingTagsChange,
 }: FullScreenReviewModalProps) {
     const { user } = useAuth();
 
@@ -958,10 +962,12 @@ export function FullScreenReviewModalFrameIO({
         currentFileSection,
         userRole,
         requiresClientReview,
-        postingTitle,
-        titleSetByQC,
-        clientTitle,
-        onClientTitleChange,
+        postingTitles,
+        postingDescriptions,
+        postingTags,
+        onPostingTitlesChange: onPostingTitlesChange ?? (() => {}),
+        onPostingDescriptionsChange: onPostingDescriptionsChange ?? (() => {}),
+        onPostingTagsChange: onPostingTagsChange ?? (() => {}),
         videoRef,
         iframeRef,
         containerRef,

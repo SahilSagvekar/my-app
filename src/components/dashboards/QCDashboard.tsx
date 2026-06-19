@@ -165,30 +165,27 @@ const persistQCResult = async ({
   approved,
   feedback,
   requiresClientReview,
-  qcTitle,
+  postingTitles,
+  postingDescriptions,
+  postingTags,
 }: {
   taskId: string;
   approved: boolean;
   feedback?: string;
   requiresClientReview?: boolean;
-  qcTitle?: string;
+  postingTitles?: { id: string; text: string }[];
+  postingDescriptions?: { id: string; text: string }[];
+  postingTags?: { id: string; text: string }[];
 }) => {
   const newStatus = approved ? "COMPLETED" : "REJECTED";
   const metaBody: any = {};
 
-  if (approved && feedback) {
-    metaBody.feedback = feedback;
-  }
-
-  if (!approved && feedback) {
-    metaBody.qcNotes = feedback;
-  }
+  if (approved && feedback) metaBody.feedback = feedback;
+  if (!approved && feedback) metaBody.qcNotes = feedback;
 
   if (approved) {
     metaBody.qcResult = "APPROVED";
-    metaBody.route = requiresClientReview
-      ? "client_then_scheduler"
-      : "scheduler";
+    metaBody.route = requiresClientReview ? "client_then_scheduler" : "scheduler";
   } else {
     metaBody.qcResult = "REJECTED";
     metaBody.route = "editor";
@@ -196,11 +193,10 @@ const persistQCResult = async ({
 
   metaBody.status = newStatus;
 
-  // Pass the QC-set title so the scheduler sees it
- if (qcTitle?.trim()) {
-  metaBody.postingTitle = qcTitle.trim();
-  metaBody.titleSetByQC = true;
-}
+  // 🔥 Batch-send posting content lists on approve
+  if (postingTitles !== undefined) metaBody.postingTitles = postingTitles;
+  if (postingDescriptions !== undefined) metaBody.postingDescriptions = postingDescriptions;
+  if (postingTags !== undefined) metaBody.postingTags = postingTags;
 
   const metaRes = await fetch(`/api/tasks/${taskId}/status`, {
     method: "PATCH",
@@ -239,9 +235,12 @@ export function QCDashboard() {
   const [copied, setCopied] = useState(false);
   // QC Title state
 const [showTitlePrompt, setShowTitlePrompt] = useState(false);
-const [qcTitle, setQcTitle] = useState("");
 const [pendingApprovalAsset, setPendingApprovalAsset] = useState<any>(null);
 const [pendingApprovalType, setPendingApprovalType] = useState<"client" | "scheduler" | "thumbnail" | null>(null);
+// 🔥 Posting-content lists — composed in the review sidebar, sent on approve
+const [qcPostingTitles, setQcPostingTitles] = useState<{ id: string; text: string }[]>([]);
+const [qcPostingDescriptions, setQcPostingDescriptions] = useState<{ id: string; text: string }[]>([]);
+const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[]>([]);
 
   // QC Reassign state
   const [showReassignDialog, setShowReassignDialog] = useState(false);
@@ -363,13 +362,27 @@ const [pendingApprovalType, setPendingApprovalType] = useState<"client" | "sched
   }, []);
 
   const handleSendToClient = async (asset: any) => {
-  if (!selectedTask) return;
-  setShowVideoReview(false);
-  setPendingApprovalAsset({ asset, task: selectedTask });
-  setPendingApprovalType("client");
-  setQcTitle("");
-  setShowTitlePrompt(true);
-};
+    if (!selectedTask) return;
+    try {
+      await persistQCResult({
+        taskId: selectedTask.id,
+        approved: true,
+        requiresClientReview: true,
+        postingTitles: qcPostingTitles,
+        postingDescriptions: qcPostingDescriptions,
+        postingTags: qcPostingTags,
+      });
+      setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
+      toast("✅ Approved – Sent to Client", { description: "Content has been moved to the next stage." });
+      setShowVideoReview(false);
+      setSelectedFile(null);
+      setSelectedTask(null);
+      setQcPostingTitles([]); setQcPostingDescriptions([]); setQcPostingTags([]);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update task status");
+    }
+  };
 
   const handleSendBackToEditor = async (asset: any, revisionData: any) => {
     if (!selectedTask) return;
@@ -408,84 +421,65 @@ const [pendingApprovalType, setPendingApprovalType] = useState<"client" | "sched
     if (mimeType.startsWith('video/')) {
       setShowVideoReview(true);
     } else if (mimeType.startsWith('image/')) {
-      // Open images in the full thumbnail review modal (same as client)
       setShowThumbnailReview(true);
     } else {
-      // PDFs and other files use basic preview
       setShowFilePreview(true);
     }
   };
 
-  // QC: Approve thumbnail — mark task as COMPLETED and send to scheduler/client
-  // const handleThumbnailApprove = async (file: TaskFile) => {
-  //   if (!selectedTask) return;
-  //   try {
-  //     await persistQCResult({
-  //       taskId: selectedTask.id,
-  //       approved: true,
-  //       requiresClientReview: selectedTask.requiresClientReview,
-  //     });
-  //     setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
-  //     toast('✅ Thumbnail Approved', { description: 'Task has been moved to the next stage.' });
-  //     setShowThumbnailReview(false);
-  //     setSelectedFile(null);
-  //     setSelectedTask(null);
-  //   } catch (err) {
-  //     console.error(err);
-  //     toast.error('Failed to approve thumbnail');
-  //   }
-  // };
-
- const handleThumbnailApprove = async (file: TaskFile) => {
-  if (!selectedTask) return;
-  setShowThumbnailReview(false);
-  setPendingApprovalAsset({ file, task: selectedTask });
-  setPendingApprovalType("thumbnail");
-  setQcTitle("");
-  setShowTitlePrompt(true);
-};
-
-const handleConfirmApproval = async () => {
-  if (!pendingApprovalType || !pendingApprovalAsset) return;
-
-  const task = pendingApprovalAsset.task;
-  if (!task) return;
-
-  setShowTitlePrompt(false);
-
-  try {
-    if (pendingApprovalType === "thumbnail") {
+  const handleThumbnailApprove = async (file: TaskFile) => {
+    if (!selectedTask) return;
+    try {
       await persistQCResult({
-        taskId: task.id,
+        taskId: selectedTask.id,
         approved: true,
-        requiresClientReview: task.requiresClientReview,
-        qcTitle: qcTitle.trim() || undefined,
+        requiresClientReview: selectedTask.requiresClientReview,
+        postingTitles: qcPostingTitles,
+        postingDescriptions: qcPostingDescriptions,
+        postingTags: qcPostingTags,
       });
-      setQCTasks(prev => prev.filter(t => t.id !== task.id));
+      setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       toast("✅ Thumbnail Approved", { description: "Task has been moved to the next stage." });
-    } else {
+      setShowThumbnailReview(false);
+      setSelectedFile(null);
+      setSelectedTask(null);
+      setQcPostingTitles([]); setQcPostingDescriptions([]); setQcPostingTags([]);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to approve thumbnail');
+    }
+  };
+
+  // handleConfirmApproval kept for the bulk-approve path which may still reference it
+  const handleConfirmApproval = async () => {
+    if (!pendingApprovalType || !pendingApprovalAsset) return;
+    const task = pendingApprovalAsset.task;
+    if (!task) return;
+    setShowTitlePrompt(false);
+    try {
       await persistQCResult({
         taskId: task.id,
         approved: true,
         requiresClientReview: pendingApprovalType === "client",
-        qcTitle: qcTitle.trim() || undefined,
+        postingTitles: qcPostingTitles,
+        postingDescriptions: qcPostingDescriptions,
+        postingTags: qcPostingTags,
       });
       setQCTasks(prev => prev.filter(t => t.id !== task.id));
       toast("✅ Approved – Sent to " + (pendingApprovalType === "client" ? "Client" : "Scheduler"), {
         description: "Content has been moved to the next stage.",
       });
+      setSelectedFile(null);
+      setSelectedTask(null);
+      setQcPostingTitles([]); setQcPostingDescriptions([]); setQcPostingTags([]);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update task status");
+    } finally {
+      setPendingApprovalAsset(null);
+      setPendingApprovalType(null);
     }
-    setSelectedFile(null);
-    setSelectedTask(null);
-  } catch (err) {
-    console.error(err);
-    toast.error("Failed to update task status");
-  } finally {
-    setPendingApprovalAsset(null);
-    setPendingApprovalType(null);
-    setQcTitle("");
-  }
-};
+  };
 
   // QC: Request revisions on thumbnail — mark task as REJECTED and send back to editor
   const handleThumbnailRequestRevisions = async (file: TaskFile, feedbackItems: any[]) => {
@@ -738,6 +732,10 @@ const handleConfirmApproval = async () => {
       return;
     }
     setSelectedTask(task);
+    // 🔥 Initialize posting-content lists from whatever was already saved on this task
+    setQcPostingTitles((task as any).postingTitles || []);
+    setQcPostingDescriptions((task as any).postingDescriptions || []);
+    setQcPostingTags((task as any).postingTags || []);
     setShowFileSelector(true);
   };
 
@@ -1499,14 +1497,15 @@ const handleConfirmApproval = async () => {
 
         {selectedTask && selectedFile && selectedFile.mimeType?.startsWith("video/") && (
           <FullScreenReviewModalFrameIO
-    open={showVideoReview}
-    onOpenChange={(open: boolean) => {
-      setShowVideoReview(open);
-      if (!open && !showTitlePrompt) {
-        setSelectedFile(null);
-        setSelectedTask(null);
-      }
-    }}
+            open={showVideoReview}
+            onOpenChange={(open: boolean) => {
+              setShowVideoReview(open);
+              if (!open) {
+                setSelectedFile(null);
+                setSelectedTask(null);
+                setQcPostingTitles([]); setQcPostingDescriptions([]); setQcPostingTags([]);
+              }
+            }}
             asset={getVideoAssetFromFile(selectedFile)}
             onApprove={() => { }}
             onRequestRevisions={() => { }}
@@ -1520,6 +1519,12 @@ const handleConfirmApproval = async () => {
               fileId: selectedFile.id,
               version: selectedFile.version || 1,
             }}
+            postingTitles={qcPostingTitles}
+            postingDescriptions={qcPostingDescriptions}
+            postingTags={qcPostingTags}
+            onPostingTitlesChange={setQcPostingTitles}
+            onPostingDescriptionsChange={setQcPostingDescriptions}
+            onPostingTagsChange={setQcPostingTags}
           />
         )}
 
@@ -1530,6 +1535,7 @@ const handleConfirmApproval = async () => {
               setShowThumbnailReview(open);
               if (!open) {
                 setSelectedFile(null);
+                setQcPostingTitles([]); setQcPostingDescriptions([]); setQcPostingTags([]);
               }
             }}
             file={selectedFile}
@@ -1539,6 +1545,12 @@ const handleConfirmApproval = async () => {
             onApprove={handleThumbnailApprove}
             onRequestRevisions={handleThumbnailRequestRevisions}
             userRole="qc"
+            postingTitles={qcPostingTitles}
+            postingDescriptions={qcPostingDescriptions}
+            postingTags={qcPostingTags}
+            onPostingTitlesChange={setQcPostingTitles}
+            onPostingDescriptionsChange={setQcPostingDescriptions}
+            onPostingTagsChange={setQcPostingTags}
           />
         )}
 
@@ -1614,88 +1626,7 @@ const handleConfirmApproval = async () => {
         )}
       </div>
 
-      {/* QC Title Prompt Dialog */}
-<Dialog open={showTitlePrompt} onOpenChange={(open) => { if (!open) { setShowTitlePrompt(false); setPendingApprovalAsset(null); setPendingApprovalType(null); setQcTitle(""); } }}>
-  <DialogContent className="max-w-md">
-    <DialogHeader>
-      <DialogTitle className="flex items-center gap-2">
-        <PenLine className="h-5 w-5 text-violet-600" />
-        Add Title Before Approving
-      </DialogTitle>
-      <DialogDescription>
-        Optionally set a title for the scheduler. If you set one, the scheduler can only view it — not edit it.
-      </DialogDescription>
-    </DialogHeader>
-
-    <div className="space-y-4 py-2">
-      {selectedTask && (selectedTask as any).suggestedTitles && Array.isArray((selectedTask as any).suggestedTitles) && (selectedTask as any).suggestedTitles.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-amber-500" />
-            AI Suggested Titles — click to select
-          </p>
-          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-            {((selectedTask as any).suggestedTitles as any[]).map((t: any, i: number) => {
-              const titleText = typeof t === 'string' ? t : t?.title;
-              if (!titleText) return null;
-              const isSelected = qcTitle === titleText;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setQcTitle(isSelected ? '' : titleText)}
-                  className={`text-left text-xs px-3 py-2 rounded-md border transition-all ${
-                    isSelected
-                      ? 'bg-violet-600 text-white border-violet-600'
-                      : 'bg-white border-gray-200 hover:border-violet-400 hover:bg-violet-50 text-gray-700'
-                  }`}
-                >
-                  {titleText}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-1.5">
-        <p className="text-xs text-muted-foreground">Or type a custom title</p>
-        <Input
-          placeholder="e.g. How We Built a $1M Business in 6 Months"
-          value={qcTitle}
-          onChange={(e) => setQcTitle(e.target.value)}
-          className="text-sm"
-          autoFocus
-        />
-        {qcTitle.trim() && (
-          <p className="text-[11px] text-violet-600 font-medium flex items-center gap-1">
-            <CheckCircle className="h-3 w-3" />
-            Scheduler will see this as a QC-set title and cannot edit it
-          </p>
-        )}
-      </div>
-    </div>
-
-    <div className="flex gap-2 justify-end">
-      <Button
-        variant="outline"
-        onClick={() => { setShowTitlePrompt(false); setPendingApprovalAsset(null); setPendingApprovalType(null); setQcTitle(""); }}
-      >
-        Cancel
-      </Button>
-      <Button variant="outline" onClick={() => { setQcTitle(""); handleConfirmApproval(); }}>
-        Approve Without Title
-      </Button>
-      <Button
-        className="bg-green-600 hover:bg-green-700"
-        onClick={handleConfirmApproval}
-      >
-        <CheckCircle className="h-4 w-4 mr-1.5" />
-        {qcTitle.trim() ? 'Approve with Title' : 'Approve'}
-      </Button>
-    </div>
-  </DialogContent>
-</Dialog>
+      {/* QC Title Prompt Dialog — removed: titles are now composed in the review sidebar */}
 
       {/* QC Reassign Dialog */}
       <Dialog open={showReassignDialog} onOpenChange={setShowReassignDialog}>

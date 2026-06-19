@@ -20,10 +20,10 @@ import { ShareDialog } from '../review/ShareDialog';
 import { ReviewConnectionIndicator } from './ReviewConnectionIndicator';
 import type { ReviewScreenProps } from './ReviewScreenDesktop';
 
-type MobileTab = 'comments' | 'actions' | 'info';
+type MobileTab = 'comments' | 'actions' | 'info' | 'titles' | 'descriptions' | 'tags';
 
-// Keep extra mobile tabs soft-hidden for now so we can restore them easily later.
-const MOBILE_VISIBLE_TABS: readonly MobileTab[] = ['comments'];
+// Tabs that are currently visible in the mobile UI.
+const MOBILE_VISIBLE_TABS: readonly MobileTab[] = ['comments', 'titles', 'descriptions', 'tags'];
 
 function isMobileTabVisible(tab: MobileTab) {
     return MOBILE_VISIBLE_TABS.includes(tab);
@@ -49,9 +49,49 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
 
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
+
+    // 🔥 Posting-content editing state for mobile tabs
+    const [mobileNewText, setMobileNewText] = useState('');
+    const [mobileEditId, setMobileEditId] = useState<string | null>(null);
+    const [mobileEditText, setMobileEditText] = useState('');
+
+    const POSTING_CAPS = { titles: 3, descriptions: 3, tags: 10 };
+    const getPostingList = (tab: MobileTab) =>
+        tab === 'titles' ? p.postingTitles : tab === 'descriptions' ? p.postingDescriptions : tab === 'tags' ? p.postingTags : [];
+    const getPostingSetList = (tab: MobileTab) =>
+        tab === 'titles' ? p.onPostingTitlesChange : tab === 'descriptions' ? p.onPostingDescriptionsChange : tab === 'tags' ? p.onPostingTagsChange : () => {};
+
+    const addMobileItem = (tab: MobileTab) => {
+        const setList = getPostingSetList(tab);
+        const list = getPostingList(tab);
+        const cap = POSTING_CAPS[tab as keyof typeof POSTING_CAPS] ?? 3;
+        const text = mobileNewText.trim();
+        if (!setList || !text || list.length >= cap) return;
+        setList([...list, { id: `${Date.now()}-${Math.random()}`, text }]);
+        setMobileNewText('');
+    };
+    const deleteMobileItem = (tab: MobileTab, id: string) => {
+        const setList = getPostingSetList(tab);
+        const list = getPostingList(tab);
+        if (!setList) return;
+        if (tab === 'titles' && p.userRole === 'client' && list.length <= 1) return;
+        setList(list.filter(i => i.id !== id));
+    };
+    const commitMobileEdit = (tab: MobileTab) => {
+        const setList = getPostingSetList(tab);
+        const list = getPostingList(tab);
+        if (!setList || !mobileEditId) return;
+        const text = mobileEditText.trim();
+        if (text) setList(list.map(i => i.id === mobileEditId ? { ...i, text } : i));
+        setMobileEditId(null); setMobileEditText('');
+    };
+
     const activeMobileTab = isMobileTabVisible(mobileTab) ? mobileTab : 'comments';
     const mobileTabs = [
         { key: 'comments' as MobileTab, label: 'Comments', badge: p.sortedComments.length },
+        { key: 'titles' as MobileTab, label: `Titles${p.postingTitles.length ? ` (${p.postingTitles.length})` : ''}`, badge: null },
+        { key: 'descriptions' as MobileTab, label: `Desc${p.postingDescriptions.length ? ` (${p.postingDescriptions.length})` : ''}`, badge: null },
+        { key: 'tags' as MobileTab, label: `Tags${p.postingTags.length ? ` (${p.postingTags.length})` : ''}`, badge: null },
         { key: 'actions' as MobileTab, label: 'Actions', badge: null },
         { key: 'info' as MobileTab, label: 'Info', badge: null },
     ].filter(tab => isMobileTabVisible(tab.key));
@@ -247,21 +287,6 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                 By approving, you confirm this is the <span className="text-white font-semibold">final version</span> ready for publishing. This action will send the asset to the scheduler.
                             </p>
                         </div>
-                        {p.titleSetByQC && p.postingTitle && (
-                            <div className="space-y-1">
-                                <label htmlFor="posting-title-mobile" className="text-[11px] text-[var(--review-text-muted)] flex items-center gap-1">
-                                    <PenLine className="h-3 w-3" />
-                                    Title for scheduler (optional to edit)
-                                </label>
-                                <Input
-                                    id="posting-title-mobile"
-                                    value={p.clientTitle ?? ''}
-                                    onChange={(e) => p.onClientTitleChange?.(e.target.value)}
-                                    placeholder={p.postingTitle}
-                                    className="text-sm h-9 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
-                                />
-                            </div>
-                        )}
                         <div className="flex gap-3">
                             <Button
                                 variant="outline"
@@ -636,6 +661,80 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                         </div>
                     </div>
                 )}
+
+                {/* ─── Titles / Descriptions / Tags ─── */}
+                {(activeMobileTab === 'titles' || activeMobileTab === 'descriptions' || activeMobileTab === 'tags') && (() => {
+                    const tab = activeMobileTab as 'titles' | 'descriptions' | 'tags';
+                    const list = getPostingList(tab);
+                    const cap = POSTING_CAPS[tab];
+                    const atCap = list.length >= cap;
+                    const singular = tab === 'titles' ? 'title' : tab === 'descriptions' ? 'description' : 'tag';
+                    return (
+                        <div className="flex flex-col flex-1 min-h-0">
+                            <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-[var(--review-text-muted)] capitalize">{tab}</span>
+                                    <span className={`text-[10px] font-medium ${atCap ? 'text-red-400' : 'text-[var(--review-text-muted)]'}`}>{list.length}/{cap}</span>
+                                </div>
+                                <div className="flex gap-1.5">
+                                    <Input
+                                        value={mobileNewText}
+                                        onChange={e => setMobileNewText(e.target.value)}
+                                        placeholder={atCap ? `Max ${cap} ${singular}s` : `Add a ${singular}…`}
+                                        disabled={atCap}
+                                        className="flex-1 text-sm h-9 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] disabled:opacity-40"
+                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addMobileItem(tab); } }}
+                                    />
+                                    <Button size="sm" disabled={atCap || !mobileNewText.trim()} onClick={() => addMobileItem(tab)}
+                                        className="h-9 px-3 bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white shrink-0">
+                                        <Plus className="h-3.5 w-3.5" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0 space-y-2">
+                                {list.length === 0 ? (
+                                    <div className="text-center py-10 text-[var(--review-text-muted)]">
+                                        <p className="text-sm">No {singular}s yet</p>
+                                        <p className="text-xs mt-1 opacity-70">Add up to {cap} {singular}s above</p>
+                                    </div>
+                                ) : list.map(item => (
+                                    <div key={item.id} className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5">
+                                        {mobileEditId === item.id ? (
+                                            <div className="space-y-1.5">
+                                                <Input value={mobileEditText} onChange={e => setMobileEditText(e.target.value)} autoFocus
+                                                    className="text-sm h-9 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter') commitMobileEdit(tab);
+                                                        if (e.key === 'Escape') { setMobileEditId(null); setMobileEditText(''); }
+                                                    }}
+                                                />
+                                                <div className="flex gap-1">
+                                                    <Button size="sm" onClick={() => commitMobileEdit(tab)} className="h-7 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
+                                                    <Button size="sm" variant="ghost" onClick={() => { setMobileEditId(null); setMobileEditText(''); }} className="h-7 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-start gap-2">
+                                                <p className="flex-1 text-sm text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
+                                                <div className="flex gap-1 shrink-0">
+                                                    <button onClick={() => { setMobileEditId(item.id); setMobileEditText(item.text); }}
+                                                        className="p-1.5 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors">
+                                                        <PenLine className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <button onClick={() => deleteMobileItem(tab, item.id)}
+                                                        disabled={tab === 'titles' && p.userRole === 'client' && list.length <= 1}
+                                                        className="p-1.5 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* ─── Actions ─── */}
                 {activeMobileTab === 'actions' && (

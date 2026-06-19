@@ -116,6 +116,11 @@ model Task {
   titleSetByQC  Boolean  @default(false)
   titleSetByClient Boolean @default(false)
   postingTitle         String?
+  // 🔥 Multi-item posting content — composed in the review screen sidebar,
+  // batched to the server on approve. Each entry: { id: string, text: string }
+  postingTitles        Json?
+  postingDescriptions  Json?
+  postingTags          Json?
   clientUserId         Int?
   folderType           String?
   assignedTo           Int
