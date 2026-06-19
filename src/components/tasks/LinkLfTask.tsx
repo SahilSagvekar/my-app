@@ -225,7 +225,7 @@ export function LinkLfTask({ sfTaskId, clientId, canEdit = true }: Props) {
                   className="flex items-center gap-2 px-3 py-2 hover:bg-accent"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">
+                    <p className="text-xs font-medium break-words">
                       {task.title || task.description}
                     </p>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -270,7 +270,7 @@ export function LinkLfTask({ sfTaskId, clientId, canEdit = true }: Props) {
       ) : (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card hover:bg-accent/40 transition-colors group">
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate">
+            <p className="text-xs font-medium break-words">
               {linked.title || linked.description}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
