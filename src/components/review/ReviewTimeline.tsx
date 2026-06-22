@@ -8,6 +8,7 @@ interface ReviewTimelineProps {
     currentTime: number;
     comments: ReviewComment[];
     activeCommentId?: string;
+    currentVersionNumber?: number;
     onSeek: (time: number) => void;
     onMarkerClick: (comment: ReviewComment) => void;
     onDragStart?: () => void;
@@ -19,11 +20,18 @@ export const ReviewTimeline = memo(function ReviewTimeline({
     currentTime,
     comments,
     activeCommentId,
+    currentVersionNumber,
     onSeek,
     onMarkerClick,
     onDragStart,
     onDragEnd,
 }: ReviewTimelineProps) {
+    // Only show markers for comments belonging to the current version.
+    // When a new version is uploaded and sent to QC, dots from previous
+    // versions should not bleed onto the new version's timeline.
+    const versionFilteredComments = currentVersionNumber !== undefined
+        ? comments.filter(c => c.version === undefined || c.version === currentVersionNumber)
+        : comments;
     const trackRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
 
@@ -77,7 +85,7 @@ export const ReviewTimeline = memo(function ReviewTimeline({
         const threshold = duration * 0.02; // 2% of duration
         const groups: { time: number; comments: ReviewComment[] }[] = [];
 
-        comments.forEach((comment) => {
+        versionFilteredComments.forEach((comment) => {
             const existingGroup = groups.find(
                 (g) => Math.abs(g.time - comment.timestampSeconds) < threshold
             );
@@ -89,7 +97,7 @@ export const ReviewTimeline = memo(function ReviewTimeline({
         });
 
         return groups;
-    }, [comments, duration]);
+    }, [versionFilteredComments, duration]);
 
     return (
         <div className="review-timeline !rounded-full" style={{ padding: '0 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

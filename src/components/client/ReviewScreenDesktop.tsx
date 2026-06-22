@@ -435,6 +435,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     currentTime={p.currentTime}
                                     comments={p.comments}
                                     activeCommentId={p.activeCommentId}
+                                    currentVersionNumber={p.currentVersionNumber}
                                     onSeek={p.handleSeek}
                                     onMarkerClick={p.handleMarkerClick}
                                     onDragStart={() => p.setIsDragging(true)}
@@ -549,6 +550,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     authorId="current-user"
                                     authorName={p.userName}
                                     videoRef={p.videoRef}
+                                    currentVersionNumber={p.currentVersionNumber}
                                     onSubmit={p.handleCommentSubmit}
                                     onCancel={() => p.setShowCommentInput(false)}
                                     isExpanded={p.showCommentInput}

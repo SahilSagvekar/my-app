@@ -37,7 +37,7 @@ interface CommentInputProps {
     authorName: string;
     videoRef?: React.RefObject<HTMLVideoElement | null>;
     duration?: number; // Video duration for validation
-
+    currentVersionNumber?: number; // Version to stamp on new comments
 
     onSubmit: (comment: Omit<ReviewComment, 'id' | 'createdAt'>) => void;
 
@@ -54,6 +54,7 @@ export function CommentInput({
     authorName,
     videoRef,
     duration = 0,
+    currentVersionNumber,
     onSubmit,
 
     onCancel,
@@ -265,6 +266,7 @@ export function CommentInput({
             screenshotUrl: screenshotUrl || undefined,
             resolved: false,
             replies: [],
+            version: currentVersionNumber,
         };
 
 
