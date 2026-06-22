@@ -1651,7 +1651,7 @@ export function EditorDashboard() {
     // Prevent dragging tasks that are ready for QC (editor shouldn't move these)
     if (task.status === "ready_for_qc") {
       e.preventDefault();
-      setValidationError("Tasks under QC review cannot be moved");
+      toast.error("Tasks under QC review cannot be moved");
       return;
     }
     setDraggingTask(task);
@@ -1680,16 +1680,20 @@ export function EditorDashboard() {
 
     if (!draggingTask) return;
 
+    // 🔥 Always use the latest task state — draggingTask snapshot may be stale
+    // after optimistic feedback acknowledgement updates
+    const freshTask = tasks.find(t => t.id === draggingTask.id) || draggingTask;
+
     // 🔥 VALIDATE THE TRANSITION
     const validation = validateTransition(
-      draggingTask.status,
+      freshTask.status,
       targetStatus,
-      draggingTask
+      freshTask
     );
 
     if (!validation.valid) {
       if (validation.message) {
-        setValidationError(validation.message);
+        toast.error(validation.message);
       }
       setDraggingTask(null);
       return;
@@ -1717,7 +1721,7 @@ export function EditorDashboard() {
             t.id === taskId ? { ...t, status: draggingTask.status } : t
           )
         );
-        setValidationError("Failed to update task status. Please try again.");
+        toast.error("Failed to update task status. Please try again.");
       } else if (toStatus === "ready_for_qc") {
         // 🔥 Check quota completion after moving to ready_for_qc
         checkDeliverableQuota(draggingTask);
@@ -1729,7 +1733,7 @@ export function EditorDashboard() {
           t.id === taskId ? { ...t, status: draggingTask.status } : t
         )
       );
-      setValidationError("Network error. Please try again.");
+      toast.error("Network error. Please try again.");
       console.error("Failed to update task status:", err);
     }
 
