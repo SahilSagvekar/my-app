@@ -30,6 +30,7 @@ import {
   Clock,
   RefreshCw,
   Info,
+  Play,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -947,10 +948,14 @@ const [showGuidelines, setShowGuidelines] = useState(false);
           {(task.status === "pending" || task.status === "rejected") && (
             <Button
               size="sm"
-              variant="outline"
-              className="w-full text-xs"
+              className={`w-full ${
+                task.status === "rejected" 
+                  ? "bg-red-600 text-white hover:bg-red-700" 
+                  : "bg-green-500 text-white hover:bg-green-600"
+              }`}
               onClick={() => onStartTask(task.id)}
             >
+              <Play className="h-3.5 w-3.5 mr-1.5" />
               {task.status === "rejected" ? "Start Revision" : "Start"}
             </Button>
           )}
@@ -984,8 +989,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
           {task.status === "ready_for_qc" && (
             <Button
               size="sm"
-              variant="outline"
-              className="w-full text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+              className="w-full text-xs bg-[#ccff00] text-black hover:bg-[#bce600]"
               onClick={() => onStartTask(task.id)}
             >
               ↩ Move Back to In Progress
