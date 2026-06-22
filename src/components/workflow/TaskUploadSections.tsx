@@ -301,33 +301,6 @@ export function TaskUploadSections({
 
   return (
     <div className="space-y-1.5">
-      {/* Compact Status Bar */}
-      <div
-        className={`flex items-center justify-between px-2 py-1 rounded text-xs ${allRequiredFilesUploaded()
-          ? "bg-green-50 text-green-700 border border-green-200"
-          : "bg-yellow-50 text-yellow-700 border border-yellow-200"
-          }`}
-      >
-        <div className="flex items-center gap-1.5">
-          {allRequiredFilesUploaded() ? (
-            <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-          ) : (
-            <AlertCircle className="h-3.5 w-3.5 text-yellow-600" />
-          )}
-          <span className="font-medium">
-            {allRequiredFilesUploaded()
-              ? "Ready to Submit"
-              : `${sections.filter((s) => s.required && s.uploaded).length}/${sections.filter((s) => s.required).length
-              } Required Uploaded`}
-          </span>
-        </div>
-        {Object.keys(uploadedFiles).length > 0 && (
-          <span className="text-[10px] opacity-75">
-            {Object.values(uploadedFiles).flat().length} file
-            {Object.values(uploadedFiles).flat().length !== 1 ? "s" : ""}
-          </span>
-        )}
-      </div>
 
       {/* Enhanced Accordion Upload Sections with inline file info */}
       {sections.map((section) => {

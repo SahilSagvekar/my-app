@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 import { RequestRawsButton } from "../editor/RequestRawsButton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { EditorEodReport } from "./EditorEodReport";
 
 /* -------------------------------------------------------------------------- */
@@ -520,6 +521,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
   const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | null>(null);
   const activeVersion = feedbackVersionFilter ?? currentVersion;
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [guidelinesLoading, setGuidelinesLoading] = useState(false);
   const [guidelines, setGuidelines] = useState<{
     id: string;
@@ -618,11 +620,11 @@ const [showGuidelines, setShowGuidelines] = useState(false);
           } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}
       >
         <CardContent className="p-3">
-          {/* Drag Handle + Title */}
+          {/* Drag Handle + Title + actions */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <h4 className="font-medium text-xs whitespace-normal break-words">
+              <h4 className="font-semibold text-[13px] whitespace-normal break-words">
                 {task.title || task.clientName || task.deliverableType}
               </h4>
             </div>
@@ -636,7 +638,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                         e.stopPropagation();
                         loadGuidelines();
                       }}
-                      className="h-5 w-5 rounded-full border border-dashed border-primary/60 text-[9px] font-semibold flex items-center justify-center text-primary hover:bg-primary/5"
+                      className="h-5 w-5 rounded-full border border-dashed border-orange-400 text-[9px] font-semibold flex items-center justify-center text-orange-500 hover:bg-orange-50"
                     >
                       G
                     </button>
@@ -646,14 +648,34 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                   </TooltipContent>
                 </Tooltip>
               )}
-              <Badge
-                variant="outline"
-                className={`text-[10px] px-1.5 py-0 h-4 font-medium ${getStatusBadgeStyles(
-                  task.status
-                )}`}
-              >
-                {task.status.replace(/_/g, " ").toUpperCase()}
-              </Badge>
+
+              {/* 🔥 Info icon — shows video description popup */}
+              {task.description && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={e => e.stopPropagation()}
+                      className="h-5 w-5 flex items-center justify-center rounded-full hover:bg-blue-50 text-blue-500 transition-colors"
+                      title="View description"
+                    >
+                      <Info className="h-[18px] w-[18px]" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="bottom"
+                    align="end"
+                    className="w-72 p-3 text-xs"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <p className="font-semibold mb-1.5 text-foreground">Description</p>
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap break-words">
+                      {task.description}
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              )}
+
               {task.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING') && (
                 <div className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 animate-pulse">
                   <RefreshCw className="h-2.5 w-2.5 animate-spin" />
@@ -663,26 +685,25 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             </div>
           </div>
 
-          <div className="flex items-center gap-2 mb-2">
-            <div className="flex flex-wrap gap-1 shrink-0">
-              {task.deliverableType && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] px-1.5 py-0 h-4"
-                >
-                  {task.deliverableType.replace(/_/g, " ")}
-                </Badge>
-              )}
-              {task.id.startsWith("one-off") || (task as any).isOneOff ? (
-                <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
-                  One-Off
-                </Badge>
-              ) : null}
-              {isQuotaComplete && (
-                <Badge className="text-[10px] h-4 px-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                  ✓ Quota complete
-                </Badge>
-              )}
+          {/* Badges row — deliverable type, one-off, quota, sponsor (far right) */}
+          <div className="flex items-center gap-1 mb-2 flex-wrap">
+            {task.deliverableType && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                {task.deliverableType.replace(/_/g, " ")}
+              </Badge>
+            )}
+            {task.id.startsWith("one-off") || (task as any).isOneOff ? (
+              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
+                One-Off
+              </Badge>
+            ) : null}
+            {isQuotaComplete && (
+              <Badge className="text-[10px] h-4 px-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                ✓ Quota complete
+              </Badge>
+            )}
+            {/* 🔥 Sponsor tag pushed to the far right */}
+            <div className="ml-auto">
               <button
                 type="button"
                 onClick={(e) => {
@@ -691,153 +712,168 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                 }}
                 className={`text-[10px] h-4 px-1.5 rounded border font-medium transition-colors ${
                   task.isSponsored
-                    ? "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200"
-                    : "bg-transparent text-muted-foreground border-dashed border-muted-foreground/40 hover:border-amber-300 hover:text-amber-600"
+                    ? "bg-amber-100 text-amber-700 border-amber-400 hover:bg-amber-200"
+                    : "bg-transparent text-muted-foreground border-dashed border-yellow-400 hover:border-yellow-500 hover:text-amber-600"
                 }`}
                 title={task.isSponsored ? "Sponsored — click to unmark" : "Mark as sponsored"}
               >
                 {task.isSponsored ? "★ Sponsored" : "Sponsored?"}
               </button>
             </div>
-            <p className="text-[11px] text-muted-foreground line-clamp-1 flex-1">
-              {task.description}
-            </p>
           </div>
 
-          {/* Compact Upload Progress for In Progress Tasks */}
-          {/* {task.status === "in_progress" && uploadValidation && (
-            <div className="mb-2 p-1.5 bg-muted/50 rounded text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-medium">
-                  Upload Progress:
-                </span>
-                <span
-                  className={`text-[10px] ${uploadValidation.isComplete
-                    ? "text-green-600"
-                    : "text-yellow-600"
-                    }`}
-                >
-                  {uploadValidation.isComplete
-                    ? "✓ Ready"
-                    : `${uploadValidation.uploadedSections.length}/${uploadValidation.uploadedSections.length +
-                    uploadValidation.missingUploads.length
-                    }`}
-                </span>
-              </div>
-            </div>
-          )} */}
-
-          {/* 🔥 VERSION-TAGGED FEEDBACK - with version filter + acknowledge gate */}
+          {/* 🔥 VERSION-TAGGED FEEDBACK — popup button instead of inline list */}
           {task.taskFeedback && task.taskFeedback.length > 0 && (() => {
             const visibleFeedback = task.taskFeedback!.filter(fb => (fb.fileVersion || 1) === activeVersion && fb.status !== 'resolved');
             const unresolvedCount = visibleFeedback.length;
             const acknowledgedCount = visibleFeedback.filter(fb => fb.status === 'acknowledged' || !!fb.acknowledgedAt).length;
-            const allAcknowledged = unresolvedCount > 0 && acknowledgedCount === unresolvedCount;
             return (
-              <div className="mb-2 space-y-1.5">
-                {/* Header row: label + version filter */}
-                <div className="flex items-center justify-between gap-1.5">
+              <div className="mb-2">
+                {/* Trigger button */}
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setFeedbackDialogOpen(true); }}
+                  className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded border text-[10px] font-medium transition-colors ${
+                    acknowledgedCount === unresolvedCount
+                      ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/20 dark:text-green-400'
+                      : 'border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive/10'
+                  }`}
+                >
                   <div className="flex items-center gap-1.5">
-                    <AlertCircle className="h-3 w-3 text-destructive" />
-                    <span className="text-[10px] font-semibold text-destructive">
-                      Revision Feedback
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {acknowledgedCount}/{unresolvedCount} fixed
-                    </span>
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    <span>Revision Feedback</span>
                   </div>
-                  {allVersions.length > 1 && (
-                    <select
-                      className="text-[9px] border rounded px-1 py-0 h-4 bg-background text-foreground"
-                      value={activeVersion}
-                      onChange={e => setFeedbackVersionFilter(Number(e.target.value))}
-                      onClick={e => e.stopPropagation()}
-                    >
-                      {allVersions.map(v => (
-                        <option key={v} value={v}>V{v}{v === currentVersion ? ' (current)' : ''}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  {visibleFeedback.map((fb) => {
-                    const isExpanded = expandedFeedbackIds.has(fb.id);
-                    const isLong = fb.feedback && fb.feedback.length > 120;
-                    const isAcknowledged = fb.status === 'acknowledged' || !!fb.acknowledgedAt;
-                    const isAcking = acknowledgingId === fb.id;
-                    return (
-                      <Alert
-                        key={fb.id}
-                        variant={isAcknowledged ? "default" : "destructive"}
-                        className={`py-1.5 overflow-hidden w-full min-w-0 cursor-pointer transition-colors ${isAcknowledged ? 'opacity-60 border-green-400 bg-green-50 dark:bg-green-950/20' : 'hover:bg-destructive/10'}`}
-                        onClick={(e) => { e.stopPropagation(); setSelectedFeedback(fb); }}
+                  <div className="flex items-center gap-1.5">
+                    <span className="opacity-70">{acknowledgedCount}/{unresolvedCount} fixed</span>
+                    {allVersions.length > 1 && (
+                      <select
+                        className="text-[9px] border rounded px-1 py-0 h-4 bg-background text-foreground"
+                        value={activeVersion}
+                        onChange={e => { e.stopPropagation(); setFeedbackVersionFilter(Number(e.target.value)); }}
+                        onClick={e => e.stopPropagation()}
                       >
-                        <AlertDescription className="text-[10px] overflow-hidden min-w-0">
-                          <div className="flex items-start gap-1.5">
-                            {/* Acknowledge checkbox */}
-                            <button
-                              className={`mt-0.5 shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isAcknowledged ? 'bg-green-500 border-green-500 text-white' : 'border-destructive/50 hover:border-green-500'}`}
-                              onClick={(e) => { if (!isAcknowledged) handleAcknowledge(fb.id, e); else e.stopPropagation(); }}
-                              disabled={isAcking || isAcknowledged}
-                              title={isAcknowledged ? `Fixed on ${new Date(fb.acknowledgedAt!).toLocaleDateString()}` : 'Mark as fixed'}
-                            >
-                              {isAcknowledged && <span className="text-[8px] leading-none">✓</span>}
-                              {isAcking && <span className="text-[8px] leading-none">...</span>}
-                            </button>
+                        {allVersions.map(v => (
+                          <option key={v} value={v}>V{v}{v === currentVersion ? ' (current)' : ''}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </button>
 
-                            <div className="flex-1 min-w-0">
-                              {/* Version and Section badges */}
-                              <div className="flex items-center gap-1 mb-1 flex-wrap">
-                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
-                                  V{fb.fileVersion || 1}
-                                </Badge>
-                                <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                                  {fb.folderType === "main" ? "📁 Main" :
-                                    fb.folderType === "thumbnails" ? "🖼️ Thumb" :
-                                      fb.folderType === "tiles" ? "🎨 Tiles" :
-                                        fb.folderType === "music-license" ? "🎵 Music" :
-                                          fb.folderType === "scheduler" ? "Scheduler" :
-                                            fb.folderType}
-                                </Badge>
-                                {fb.timestamp && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">
-                                    ⏱️ {fb.timestamp}
-                                  </Badge>
-                                )}
-                                {fb.category && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                                    {fb.category}
-                                  </Badge>
-                                )}
-                              </div>
+                {/* Dialog popup */}
+                <Dialog open={feedbackDialogOpen} onOpenChange={open => { setFeedbackDialogOpen(open); if (!open) setSelectedFeedback(null); }}>
+                  <DialogContent className="max-w-sm p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <DialogHeader className="px-4 pt-4 pb-0">
+                      <DialogTitle className="text-sm flex items-center gap-2 pr-6">
+                        {selectedFeedback ? (
+                          <button
+                            className="text-[11px] text-primary hover:underline flex items-center gap-1 font-normal"
+                            onClick={() => setSelectedFeedback(null)}
+                          >
+                            ← Back
+                          </button>
+                        ) : (
+                          <span className="flex-1">Revision Feedback</span>
+                        )}
+                        {selectedFeedback ? (
+                          (() => {
+                            const isAcknowledged = selectedFeedback.status === 'acknowledged' || !!selectedFeedback.acknowledgedAt;
+                            const isAcking = acknowledgingId === selectedFeedback.id;
+                            return !isAcknowledged ? (
+                              <button
+                                className="text-[11px] px-2 py-1 rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 font-normal ml-auto"
+                                disabled={isAcking}
+                                onClick={e => handleAcknowledge(selectedFeedback.id, e)}
+                              >
+                                {isAcking ? '...' : '✓ Mark fixed'}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-green-600 font-medium ml-auto">✓ Fixed</span>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground font-normal">{acknowledgedCount}/{unresolvedCount} fixed</span>
+                        )}
+                      </DialogTitle>
+                    </DialogHeader>
 
-                              {/* Feedback text — expandable */}
-                              <p className={`whitespace-pre-wrap break-words ${isExpanded ? '' : 'line-clamp-2'}`}>
-                                {fb.feedback}
-                              </p>
-                              {isLong && (
-                                <button
-                                  className="text-[9px] font-semibold text-destructive/80 hover:text-destructive underline mt-0.5 focus:outline-none"
-                                  onClick={(e) => { e.stopPropagation(); toggleFeedbackExpand(fb.id); }}
-                                >
-                                  {isExpanded ? 'Show less ▲' : 'Show more ▼'}
-                                </button>
-                              )}
-
-                              {/* File reference if available */}
-                              {fb.fileName && (
-                                <p className="text-muted-foreground mt-0.5 text-[9px] truncate">
-                                  📎 {fb.fileName}
-                                </p>
-                              )}
-                            </div>
+                    <div className="max-h-[60vh] overflow-y-auto">
+                      {selectedFeedback ? (
+                        /* Detail view */
+                        <div className="px-4 pb-4 pt-3 space-y-3">
+                          <div className="flex flex-wrap gap-1">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">V{selectedFeedback.fileVersion || 1}</Badge>
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                              {selectedFeedback.folderType === "main" ? "📁 Main" :
+                                selectedFeedback.folderType === "thumbnails" ? "🖼️ Thumb" :
+                                selectedFeedback.folderType === "tiles" ? "🎨 Tiles" :
+                                selectedFeedback.folderType === "music-license" ? "🎵 Music" :
+                                selectedFeedback.folderType}
+                            </Badge>
+                            {selectedFeedback.timestamp && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {selectedFeedback.timestamp}</Badge>
+                            )}
+                            {selectedFeedback.category && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">{selectedFeedback.category}</Badge>
+                            )}
                           </div>
-                        </AlertDescription>
-                      </Alert>
-                    );
-                  })}
-                </div>
+                          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
+                            {selectedFeedback.feedback}
+                          </p>
+                          {selectedFeedback.fileName && (
+                            <p className="text-[11px] text-muted-foreground truncate">📎 {selectedFeedback.fileName}</p>
+                          )}
+                          {selectedFeedback.acknowledgedAt && (
+                            <p className="text-[11px] text-green-600">Fixed on {new Date(selectedFeedback.acknowledgedAt).toLocaleDateString()}</p>
+                          )}
+                        </div>
+                      ) : (
+                        /* List view */
+                        <div className="divide-y mt-3">
+                          {visibleFeedback.map(fb => {
+                            const isAcknowledged = fb.status === 'acknowledged' || !!fb.acknowledgedAt;
+                            const isAcking = acknowledgingId === fb.id;
+                            return (
+                              <div
+                                key={fb.id}
+                                className={`px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors ${isAcknowledged ? 'opacity-60' : ''}`}
+                                onClick={() => setSelectedFeedback(fb)}
+                              >
+                                <div className="flex items-start gap-2.5">
+                                  <button
+                                    className={`mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                      isAcknowledged ? 'bg-green-500 border-green-500 text-white' : 'border-muted-foreground/40 hover:border-green-500'
+                                    }`}
+                                    onClick={e => { e.stopPropagation(); if (!isAcknowledged) handleAcknowledge(fb.id, e); }}
+                                    disabled={isAcking || isAcknowledged}
+                                  >
+                                    {isAcknowledged && <span className="text-[9px] leading-none">✓</span>}
+                                    {isAcking && <span className="text-[9px] leading-none">…</span>}
+                                  </button>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1 mb-1 flex-wrap">
+                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">V{fb.fileVersion || 1}</Badge>
+                                      <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                                        {fb.folderType === "main" ? "📁 Main" :
+                                          fb.folderType === "thumbnails" ? "🖼️ Thumb" :
+                                          fb.folderType === "tiles" ? "🎨 Tiles" :
+                                          fb.folderType === "music-license" ? "🎵 Music" :
+                                          fb.folderType}
+                                      </Badge>
+                                      {fb.timestamp && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {fb.timestamp}</Badge>}
+                                    </div>
+                                    <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{fb.feedback}</p>
+                                  </div>
+                                  <span className="text-muted-foreground shrink-0 mt-1 text-xs">›</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             );
           })()}
