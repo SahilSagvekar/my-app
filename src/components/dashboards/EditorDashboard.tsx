@@ -290,11 +290,13 @@ interface TaskFeedbackItem {
   fileId?: string;
   folderType: string; // "main", "thumbnails", "music-license", "tiles", "covers"
   feedback: string;
-  status: string; // "needs_revision", "approved"
+  status: string; // "needs_revision", "acknowledged", "approved"
   timestamp?: string; // Video timestamp like "1:30"
   category?: string; // "design", "content", "timing", "technical", "spelling", "other"
   createdAt: string;
   resolvedAt?: string;
+  acknowledgedAt?: string;
+  acknowledgedBy?: number;
   fileVersion?: number; // The version of the file this feedback relates to
   fileName?: string;
 }
@@ -486,6 +488,8 @@ function TaskCard({
   onPreview,
   isQuotaComplete,
   onToggleSponsored,
+  onAcknowledgeFeedback,
+  currentUserId,
 }: {
   task: WorkflowTask;
   onUploadComplete: (taskId: string, files: any[]) => void;
@@ -495,6 +499,8 @@ function TaskCard({
   onPreview: (file: TaskFile) => void;
   isQuotaComplete?: boolean;
   onToggleSponsored: (taskId: string, value: boolean) => void;
+  onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
+  currentUserId?: number;
 }) {
   // const [showFiles, setShowFiles] = useState(false);
   // const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
@@ -504,6 +510,16 @@ function TaskCard({
 const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
 const [selectedFeedback, setSelectedFeedback] = useState<TaskFeedbackItem | null>(null);
 const [showGuidelines, setShowGuidelines] = useState(false);
+  // Version filter for feedback: null = current version (highest), number = specific version
+  const allVersions = useMemo(() => {
+    if (!task.taskFeedback) return [];
+    const versions = [...new Set(task.taskFeedback.map(fb => fb.fileVersion || 1))].sort((a, b) => b - a);
+    return versions;
+  }, [task.taskFeedback]);
+  const currentVersion = allVersions[0] ?? 1;
+  const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | null>(null);
+  const activeVersion = feedbackVersionFilter ?? currentVersion;
+  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
   const [guidelinesLoading, setGuidelinesLoading] = useState(false);
   const [guidelines, setGuidelines] = useState<{
     id: string;
@@ -561,6 +577,24 @@ const [showGuidelines, setShowGuidelines] = useState(false);
       return next;
     });
   };
+
+  const handleAcknowledge = async (fbId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAcknowledgingId(fbId);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/feedback?feedbackId=${fbId}&action=acknowledge`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acknowledgedBy: currentUserId || 0 }),
+      });
+      if (res.ok) {
+        onAcknowledgeFeedback?.(task.id, fbId);
+      }
+    } finally {
+      setAcknowledgingId(null);
+    }
+  };
+
   const isOverdue = new Date(task.dueDate) < new Date();
 
   // 🔥 Tasks in QC review can now be dragged back to in_progress by editors
@@ -693,87 +727,120 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             </div>
           )} */}
 
-          {/* 🔥 VERSION-TAGGED FEEDBACK - New format with version badges */}
-          {task.taskFeedback && task.taskFeedback.length > 0 && (
-            <div className="mb-2 space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <AlertCircle className="h-3 w-3 text-destructive" />
-                <span className="text-[10px] font-semibold text-destructive">
-                  Revision Feedback ({task.taskFeedback.filter(fb => fb.status === "needs_revision").length})
-                </span>
-              </div>
+          {/* 🔥 VERSION-TAGGED FEEDBACK - with version filter + acknowledge gate */}
+          {task.taskFeedback && task.taskFeedback.length > 0 && (() => {
+            const visibleFeedback = task.taskFeedback!.filter(fb => (fb.fileVersion || 1) === activeVersion && fb.status !== 'resolved');
+            const unresolvedCount = visibleFeedback.length;
+            const acknowledgedCount = visibleFeedback.filter(fb => fb.status === 'acknowledged' || !!fb.acknowledgedAt).length;
+            const allAcknowledged = unresolvedCount > 0 && acknowledgedCount === unresolvedCount;
+            return (
+              <div className="mb-2 space-y-1.5">
+                {/* Header row: label + version filter */}
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <AlertCircle className="h-3 w-3 text-destructive" />
+                    <span className="text-[10px] font-semibold text-destructive">
+                      Revision Feedback
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {acknowledgedCount}/{unresolvedCount} fixed
+                    </span>
+                  </div>
+                  {allVersions.length > 1 && (
+                    <select
+                      className="text-[9px] border rounded px-1 py-0 h-4 bg-background text-foreground"
+                      value={activeVersion}
+                      onChange={e => setFeedbackVersionFilter(Number(e.target.value))}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {allVersions.map(v => (
+                        <option key={v} value={v}>V{v}{v === currentVersion ? ' (current)' : ''}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
 
-              <div className="space-y-1.5">
-                {task.taskFeedback
-                  .filter(fb => fb.status === "needs_revision")
-                  .map((fb) => {
+                <div className="space-y-1.5">
+                  {visibleFeedback.map((fb) => {
                     const isExpanded = expandedFeedbackIds.has(fb.id);
                     const isLong = fb.feedback && fb.feedback.length > 120;
+                    const isAcknowledged = fb.status === 'acknowledged' || !!fb.acknowledgedAt;
+                    const isAcking = acknowledgingId === fb.id;
                     return (
-                      // <Alert
-                      //   key={fb.id}
-                      //   variant="destructive"
-                      //   className="py-1.5 overflow-hidden w-full min-w-0"
-                      // >
-
                       <Alert
                         key={fb.id}
-                        variant="destructive"
-                        className="py-1.5 overflow-hidden w-full min-w-0 cursor-pointer hover:bg-destructive/10 transition-colors"
+                        variant={isAcknowledged ? "default" : "destructive"}
+                        className={`py-1.5 overflow-hidden w-full min-w-0 cursor-pointer transition-colors ${isAcknowledged ? 'opacity-60 border-green-400 bg-green-50 dark:bg-green-950/20' : 'hover:bg-destructive/10'}`}
                         onClick={(e) => { e.stopPropagation(); setSelectedFeedback(fb); }}
                       >
                         <AlertDescription className="text-[10px] overflow-hidden min-w-0">
-                          {/* Version and Section badges */}
-                          <div className="flex items-center gap-1 mb-1 flex-wrap">
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
-                              V{fb.fileVersion || 1}
-                            </Badge>
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                              {fb.folderType === "main" ? "📁 Main" :
-                                fb.folderType === "thumbnails" ? "🖼️ Thumb" :
-                                  fb.folderType === "tiles" ? "🎨 Tiles" :
-                                    fb.folderType === "music-license" ? "🎵 Music" :
-                                      fb.folderType === "scheduler" ? "Scheduler" :
-                                        fb.folderType}
-                            </Badge>
-                            {fb.timestamp && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">
-                                ⏱️ {fb.timestamp}
-                              </Badge>
-                            )}
-                            {fb.category && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                                {fb.category}
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Feedback text — expandable */}
-                          <p className={`whitespace-pre-wrap break-words ${isExpanded ? '' : 'line-clamp-2'}`}>
-                            {fb.feedback}
-                          </p>
-                          {isLong && (
+                          <div className="flex items-start gap-1.5">
+                            {/* Acknowledge checkbox */}
                             <button
-                              className="text-[9px] font-semibold text-destructive/80 hover:text-destructive underline mt-0.5 focus:outline-none"
-                              onClick={(e) => { e.stopPropagation(); toggleFeedbackExpand(fb.id); }}
+                              className={`mt-0.5 shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isAcknowledged ? 'bg-green-500 border-green-500 text-white' : 'border-destructive/50 hover:border-green-500'}`}
+                              onClick={(e) => { if (!isAcknowledged) handleAcknowledge(fb.id, e); else e.stopPropagation(); }}
+                              disabled={isAcking || isAcknowledged}
+                              title={isAcknowledged ? `Fixed on ${new Date(fb.acknowledgedAt!).toLocaleDateString()}` : 'Mark as fixed'}
                             >
-                              {isExpanded ? 'Show less ▲' : 'Show more ▼'}
+                              {isAcknowledged && <span className="text-[8px] leading-none">✓</span>}
+                              {isAcking && <span className="text-[8px] leading-none">...</span>}
                             </button>
-                          )}
 
-                          {/* File reference if available */}
-                          {fb.fileName && (
-                            <p className="text-muted-foreground mt-0.5 text-[9px] truncate">
-                              📎 {fb.fileName}
-                            </p>
-                          )}
+                            <div className="flex-1 min-w-0">
+                              {/* Version and Section badges */}
+                              <div className="flex items-center gap-1 mb-1 flex-wrap">
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
+                                  V{fb.fileVersion || 1}
+                                </Badge>
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                                  {fb.folderType === "main" ? "📁 Main" :
+                                    fb.folderType === "thumbnails" ? "🖼️ Thumb" :
+                                      fb.folderType === "tiles" ? "🎨 Tiles" :
+                                        fb.folderType === "music-license" ? "🎵 Music" :
+                                          fb.folderType === "scheduler" ? "Scheduler" :
+                                            fb.folderType}
+                                </Badge>
+                                {fb.timestamp && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">
+                                    ⏱️ {fb.timestamp}
+                                  </Badge>
+                                )}
+                                {fb.category && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                                    {fb.category}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {/* Feedback text — expandable */}
+                              <p className={`whitespace-pre-wrap break-words ${isExpanded ? '' : 'line-clamp-2'}`}>
+                                {fb.feedback}
+                              </p>
+                              {isLong && (
+                                <button
+                                  className="text-[9px] font-semibold text-destructive/80 hover:text-destructive underline mt-0.5 focus:outline-none"
+                                  onClick={(e) => { e.stopPropagation(); toggleFeedbackExpand(fb.id); }}
+                                >
+                                  {isExpanded ? 'Show less ▲' : 'Show more ▼'}
+                                </button>
+                              )}
+
+                              {/* File reference if available */}
+                              {fb.fileName && (
+                                <p className="text-muted-foreground mt-0.5 text-[9px] truncate">
+                                  📎 {fb.fileName}
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </AlertDescription>
                       </Alert>
                     );
                   })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Compact Due Date + Files */}
           <div className="flex items-center justify-between mb-2 text-xs">
@@ -1016,6 +1083,8 @@ interface ColumnProps {
   onPreview: (file: TaskFile) => void;
   quotaCompleteTaskIds: Set<string>;
   onToggleSponsored: (taskId: string, value: boolean) => void;
+  onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
+  currentUserId?: number;
 }
 
 function DroppableColumn({
@@ -1036,6 +1105,8 @@ function DroppableColumn({
   onPreview,
   quotaCompleteTaskIds,
   onToggleSponsored,
+  onAcknowledgeFeedback,
+  currentUserId,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -1080,6 +1151,8 @@ function DroppableColumn({
             onPreview={onPreview}
             isQuotaComplete={quotaCompleteTaskIds.has(task.id)}
             onToggleSponsored={onToggleSponsored}
+            onAcknowledgeFeedback={onAcknowledgeFeedback}
+            currentUserId={currentUserId}
           />
         ))}
 
@@ -1211,6 +1284,8 @@ export function EditorDashboard() {
               category: fb.category,
               createdAt: fb.createdAt,
               resolvedAt: fb.resolvedAt,
+              acknowledgedAt: fb.acknowledgedAt,
+              acknowledgedBy: fb.acknowledgedBy,
               // Use nested file data from API response
               fileVersion: fb.file?.version || 1,
               fileName: fb.file?.name || null,
@@ -1538,6 +1613,24 @@ export function EditorDashboard() {
           message: `Missing required uploads: ${missingList}`,
         };
       }
+
+      // 🔥 Gate: all feedback on the current version must be acknowledged before sending to QC
+      if (task.taskFeedback && task.taskFeedback.length > 0) {
+        const allVersions = [...new Set(task.taskFeedback.map(fb => fb.fileVersion || 1))];
+        const latestVersion = Math.max(...allVersions);
+        const currentVersionFeedback = task.taskFeedback.filter(
+          fb => (fb.fileVersion || 1) === latestVersion && fb.status !== 'resolved'
+        );
+        const unacknowledged = currentVersionFeedback.filter(
+          fb => fb.status !== 'acknowledged' && !fb.acknowledgedAt
+        );
+        if (unacknowledged.length > 0) {
+          return {
+            valid: false,
+            message: `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`,
+          };
+        }
+      }
     }
 
     return { valid: true, message: "" };
@@ -1734,6 +1827,21 @@ export function EditorDashboard() {
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: "in_progress" } : t))
     );
+  }, []);
+
+  // 🔥 Optimistic update when editor acknowledges a feedback item
+  const handleAcknowledgeFeedback = useCallback((taskId: string, feedbackId: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      return {
+        ...t,
+        taskFeedback: (t.taskFeedback || []).map(fb =>
+          fb.id === feedbackId
+            ? { ...fb, status: 'acknowledged', acknowledgedAt: new Date().toISOString() }
+            : fb
+        )
+      };
+    }));
   }, []);
 
   const handleUploadComplete = useCallback(async (taskId: string, files: any[]) => {
@@ -1941,6 +2049,8 @@ export function EditorDashboard() {
             onPreview={handlePreview}
             quotaCompleteTaskIds={quotaCompleteTaskIds}
             onToggleSponsored={handleToggleSponsored}
+            onAcknowledgeFeedback={handleAcknowledgeFeedback}
+            currentUserId={Number(currentUser.id) || undefined}
           />
         ))}
       </div>

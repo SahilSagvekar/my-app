@@ -271,6 +271,36 @@ export async function DELETE(
       );
     }
 
+    if (action === 'acknowledge') {
+      const body = await req.json().catch(() => ({}));
+      const { acknowledgedBy } = body;
+
+      if (!acknowledgedBy) {
+        return NextResponse.json({ error: 'Missing acknowledgedBy' }, { status: 400 });
+      }
+
+      const updated = await prisma.taskFeedback.update({
+        where: { id: feedbackId },
+        data: {
+          acknowledgedAt: new Date(),
+          acknowledgedBy,
+          status: 'acknowledged',
+        }
+      });
+
+      const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
+      await createAuditLog({
+        userId: acknowledgedBy,
+        action: AuditAction.TASK_UPDATED,
+        entity: 'TaskFeedback',
+        entityId: feedbackId,
+        details: `Editor acknowledged feedback on task ${id}`,
+        metadata: { taskId: id, feedbackId, acknowledgedBy }
+      });
+
+      return NextResponse.json({ success: true, feedback: updated });
+    }
+
     if (action === 'resolve') {
       // Mark feedback as resolved
       const updated = await prisma.taskFeedback.update({

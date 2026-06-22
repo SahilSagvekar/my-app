@@ -247,20 +247,22 @@ model TitlingJob {
 }
 
 model TaskFeedback {
-  id         String    @id @default(cuid())
-  taskId     String
-  fileId     String?
-  folderType String
-  feedback   String
-  status     String    @default("needs_revision")
-  timestamp  String?
-  category   String?
-  createdBy  Int
-  resolvedAt DateTime?
-  createdAt  DateTime  @default(now())
-  user       User      @relation("TaskFeedbackAuthor", fields: [createdBy], references: [id])
-  file       File?     @relation(fields: [fileId], references: [id])
-  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id               String    @id @default(cuid())
+  taskId           String
+  fileId           String?
+  folderType       String
+  feedback         String
+  status           String    @default("needs_revision")
+  timestamp        String?
+  category         String?
+  createdBy        Int
+  resolvedAt       DateTime?
+  acknowledgedAt   DateTime?
+  acknowledgedBy   Int?
+  createdAt        DateTime  @default(now())
+  user             User      @relation("TaskFeedbackAuthor", fields: [createdBy], references: [id])
+  file             File?     @relation(fields: [fileId], references: [id])
+  task             Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
   @@index([fileId])
