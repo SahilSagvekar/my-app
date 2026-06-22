@@ -923,6 +923,24 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             <TaskUploadSections
               task={task}
               onUploadComplete={(files) => onUploadComplete(task.id, files)}
+              onBeforeSubmitToQC={() => {
+                if (!task.taskFeedback || task.taskFeedback.length === 0) return true;
+                const allVersions = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
+                const latestVersion = Math.max(...(allVersions as number[]));
+                const unacknowledged = task.taskFeedback.filter(
+                  (fb: any) => (fb.fileVersion || 1) === latestVersion
+                    && fb.status !== 'resolved'
+                    && fb.status !== 'acknowledged'
+                    && !fb.acknowledgedAt
+                );
+                if (unacknowledged.length > 0) {
+                  toast.error(
+                    `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`
+                  );
+                  return false;
+                }
+                return true;
+              }}
             />
           )}
 

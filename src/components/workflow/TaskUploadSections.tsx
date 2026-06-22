@@ -67,11 +67,13 @@ interface FeedbackRecord {
 interface TaskUploadSectionsProps {
   task: any;
   onUploadComplete: (files: any[]) => void;
+  onBeforeSubmitToQC?: () => boolean; // return false to block submission
 }
 
 export function TaskUploadSections({
   task,
   onUploadComplete,
+  onBeforeSubmitToQC,
 }: TaskUploadSectionsProps) {
   const [sections, setSections] = useState<UploadSection[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, FileRecord[]>>({});
@@ -257,6 +259,9 @@ export function TaskUploadSections({
   // Submit to QC handler
   const handleSubmitToQC = async () => {
     if (!allRequiredFilesUploaded()) return;
+
+    // 🔥 Run feedback acknowledgement gate before allowing submission
+    if (onBeforeSubmitToQC && !onBeforeSubmitToQC()) return;
 
     setSubmitting(true);
     try {
