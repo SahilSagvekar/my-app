@@ -88,7 +88,7 @@ export function TaskUploadSections({
       folderType: "main",
       label: "Main Task File",
       required: true,
-      icon: "🎬",
+      icon: "img:/icons/main-task-file.svg",
       uploaded: false,
     };
 
@@ -105,14 +105,14 @@ export function TaskUploadSections({
             folderType: "music-license",
             label: "Music Licenses",
             required: true,
-            icon: "🎵",
+            icon: "img:/icons/music-license.svg",
             uploaded: false,
           },
           {
             folderType: "thumbnails",
             label: "Thumbnails",
             required: false,
-            icon: "🖼️",
+            icon: "img:/icons/thumbnails.svg",
             uploaded: false,
           },
         ];
@@ -124,14 +124,14 @@ export function TaskUploadSections({
             folderType: "thumbnails",
             label: "Thumbnails",
             required: true,
-            icon: "🖼️",
+            icon: "img:/icons/thumbnails.svg",
             uploaded: false,
           },
           {
             folderType: "music-license",
             label: "Music Licenses",
             required: true,
-            icon: "🎵",
+            icon: "img:/icons/music-license.svg",
             uploaded: false,
           },
         ];
@@ -149,7 +149,7 @@ export function TaskUploadSections({
             folderType: "music-license",
             label: "Music Licenses",
             required: true,
-            icon: "🎵",
+            icon: "img:/icons/music-license.svg",
             uploaded: false,
           },
         ];
@@ -299,6 +299,11 @@ export function TaskUploadSections({
     return uploadedFiles[folderType]?.length || 0;
   };
 
+  const renderIcon = (icon: string, className = "w-5 h-5") =>
+    icon.startsWith("img:")
+      ? <img src={icon.slice(4)} alt="" className={className} />
+      : <span>{icon}</span>;
+
   return (
     <div className="space-y-1.5">
 
@@ -325,11 +330,8 @@ export function TaskUploadSections({
                   className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
                   onClick={() => toggleSection(section.folderType)}
                 >
-                  <div
-                    className={`p-1 rounded shrink-0 ${section.uploaded ? "bg-green-100" : "bg-purple-100"
-                      }`}
-                  >
-                    <span className="text-base">{section.icon}</span>
+                  <div className="p-1 rounded shrink-0 bg-white">
+                    {renderIcon(section.icon, "w-5 h-5")}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -354,24 +356,6 @@ export function TaskUploadSections({
                         </span>
                       )}
                     </div>
-                    {/* Show file names when collapsed */}
-                    {!isOpen && sectionFiles.length > 0 && (
-                      <div className="mt-0.5">
-                        {sectionFiles.slice(0, 2).map((file, idx) => (
-                          <p
-                            key={idx}
-                            className="text-[10px] text-gray-600 truncate"
-                          >
-                            • {file.name}
-                          </p>
-                        ))}
-                        {sectionFiles.length > 2 && (
-                          <p className="text-[10px] text-gray-500">
-                            +{sectionFiles.length - 2} more
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </div>
                   <ChevronDown
                     className={`h-3.5 w-3.5 text-gray-500 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""
@@ -392,7 +376,7 @@ export function TaskUploadSections({
                           className="flex items-center justify-between p-1.5 bg-white rounded text-xs"
                         >
                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <span className="text-xs">{section.icon}</span>
+                            {renderIcon(section.icon, "w-4 h-4")}
                             <span className="font-medium truncate text-[11px]">
                               {file.name}
                             </span>
@@ -428,7 +412,7 @@ export function TaskUploadSections({
                     trigger={
                       <button className="w-full p-2.5 border-2 border-dashed rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors">
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-lg">{section.icon}</span>
+                          {renderIcon(section.icon, "w-6 h-6")}
                           <span className="text-xs font-medium text-gray-700">
                             {section.uploaded
                               ? "Upload new version"
