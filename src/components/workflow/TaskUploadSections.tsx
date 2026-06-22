@@ -323,43 +323,36 @@ export function TaskUploadSections({
                 : "border-gray-200"
               }`}
           >
-            <CardContent className="p-2">
+            <CardContent className="p-2 !pb-2">
               {/* Enhanced Header with Summary Info */}
-              <div className="flex items-center gap-2">
-                <div
-                  className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
-                  onClick={() => toggleSection(section.folderType)}
-                >
-                  <div className="p-1 rounded shrink-0 bg-white">
-                    {renderIcon(section.icon, "w-5 h-5")}
+              <div 
+                className="relative flex items-center w-full min-h-[40px] cursor-pointer"
+                onClick={() => toggleSection(section.folderType)}
+              >
+                {/* Center Content */}
+                <div className="absolute inset-0 flex items-center justify-center gap-2 pointer-events-none">
+                  <div className="p-1 rounded shrink-0 bg-white flex items-center justify-center">
+                    {renderIcon(section.icon, "w-6 h-6")}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="text-xs font-medium truncate">
-                        {section.label}
-                        {section.required && (
-                          <span className="text-red-500 ml-0.5">*</span>
-                        )}
-                      </h3>
-                      {/* {section.uploaded && (
-                        <Badge
-                          variant="outline"
-                          className="text-green-600 border-green-600 text-[10px] px-1 py-0 h-3.5"
-                        >
-                          <CheckCircle className="h-2 w-2 mr-0.5" />
-                          Done
-                        </Badge>
-                      )} */}
-                      {fileCount > 0 && (
-                        <span className="text-[10px] text-gray-500">
-                          ({fileCount} file{fileCount !== 1 ? "s" : ""})
-                        </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3 className="text-sm font-medium">
+                      {section.label}
+                      {section.required && (
+                        <span className="text-red-500 ml-0.5">*</span>
                       )}
-                    </div>
+                    </h3>
+                    {fileCount > 0 && (
+                      <span className="text-xs text-gray-500">
+                        ({fileCount} file{fileCount !== 1 ? "s" : ""})
+                      </span>
+                    )}
                   </div>
+                </div>
+                
+                {/* Right Chevron */}
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
                   <ChevronDown
-                    className={`h-3.5 w-3.5 text-gray-500 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""
-                      }`}
+                    className={`h-4 w-4 text-gray-500 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`}
                   />
                 </div>
               </div>
