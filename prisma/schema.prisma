@@ -65,6 +65,9 @@ model User {
   securityPin             UserSecurityPin?
   twoFactorAuth           UserTwoFactorAuth?
   eodReports              EditorEodReport[]
+  // ── Quote-to-Onboarding pipeline ──
+  createdPreClients       PreClient[]              @relation("PreClientCreator")
+  portalUnlocks           ClientPortalAccess[]     @relation("PortalUnlocker")
 
   @@index([email])
   @@index([role])
@@ -351,6 +354,12 @@ model Client {
   linkedUsers             User[]                   @relation("LinkedClientUsers")
   youtubeChannel          YouTubeChannel?
   youtubeSnapshots        YouTubeSnapshot[]
+  // ── Quote-to-Onboarding pipeline ──
+  preClientId             String?                  @unique
+  portalPasswordSet       Boolean                  @default(false)
+  welcomeVideoWatched     Boolean                  @default(false)
+  portalAccess            ClientPortalAccess?
+  onboardingToken         OnboardingToken?
 
   @@index([status])
 }
@@ -1371,6 +1380,10 @@ model Contract {
   updatedAt            DateTime           @updatedAt
   annotations          Json?
   allowVariableSigners Boolean            @default(false)
+  // ── SignWell integration ──
+  preClientId          String?
+  signwellRequestId    String?
+  signwellDocumentId   String?
   createdBy            User               @relation("ContractCreator", fields: [createdById], references: [id])
   template             ContractTemplate?  @relation(fields: [templateId], references: [id])
   auditLogs            ContractAuditLog[]
@@ -1821,4 +1834,102 @@ model NasSyncLog {
 
   @@index([completedAt])
   @@index([status])
+}
+// ── Quote-to-Onboarding Pipeline ──────────────────────────────────────────────
+
+model PreClient {
+  id          String          @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  companyName String?
+  status      PreClientStatus @default(QUALIFIED)
+  createdById Int
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  createdBy   User            @relation("PreClientCreator", fields: [createdById], references: [id])
+  quotes      Quote[]
+
+  @@index([status])
+  @@index([createdById])
+}
+
+enum PreClientStatus {
+  QUALIFIED
+  QUOTED
+  QUOTE_ACCEPTED
+  PROVISIONING
+  CONVERTED
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  preClientId     String
+  version         Int         @default(1)
+  status          QuoteStatus @default(DRAFT)
+  services        Json        // [{ description, quantity, unitPrice, total }]
+  totalAmount     Int         // in cents
+  notes           String?
+  validDays       Int         @default(30)
+  shareToken      String      @unique @default(cuid())
+  sentAt          DateTime?
+  viewedAt        DateTime?
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  changeRequest   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  preClient       PreClient   @relation(fields: [preClientId], references: [id], onDelete: Cascade)
+
+  @@index([preClientId])
+  @@index([status])
+  @@index([shareToken])
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+}
+
+model OnboardingToken {
+  id        String   @id @default(cuid())
+  clientId  String   @unique
+  token     String   @unique @default(cuid())
+  used      Boolean  @default(false)
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model ClientPortalAccess {
+  id                String             @id @default(cuid())
+  clientId          String             @unique
+  status            PortalAccessStatus @default(ONBOARDING)
+  billingAnchorDate DateTime?
+  nextBillingDate   DateTime?
+  arrearsPolicy     String             @default("current_only")
+  adminUnlockedById Int?
+  adminUnlockedAt   DateTime?
+  lockedAt          DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  adminUnlockedBy   User?              @relation("PortalUnlocker", fields: [adminUnlockedById], references: [id])
+
+  @@index([status])
+  @@index([nextBillingDate])
+}
+
+enum PortalAccessStatus {
+  ONBOARDING
+  CONTRACT_PENDING
+  PAYMENT_PENDING
+  ACTIVE
+  LOCKED
+  ADMIN_UNLOCKED
 }

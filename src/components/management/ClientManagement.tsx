@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { PreClientsTab } from "../admin/PreClientsTab";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -173,6 +174,13 @@ interface Client {
     logoUsage: string;
     toneOfVoice: string;
     brandValues: string;
+  // ── Portal access ──
+  portalAccess?: {
+    status: string;
+    nextBillingDate?: string;
+    lockedAt?: string;
+    adminUnlockedAt?: string;
+  } | null;
     targetAudience: string;
     contentStyle: string;
   };
@@ -2319,6 +2327,14 @@ export function ClientManagement() {
 
   return (
     <div className="space-y-6">
+      <Tabs defaultValue="active-clients">
+        <TabsList className="mb-2">
+          <TabsTrigger value="active-clients">Active Clients</TabsTrigger>
+          <TabsTrigger value="pre-clients">Pre-Clients & Quotes</TabsTrigger>
+        </TabsList>
+
+        {/* ── Active Clients tab (existing content) ── */}
+        <TabsContent value="active-clients" className="space-y-6 mt-0">
       {/* Filters + Add Client — single row */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-xs">
@@ -2400,6 +2416,63 @@ export function ClientManagement() {
                       {client.status.charAt(0).toUpperCase() +
                         client.status.slice(1)}
                     </Badge>
+
+                    {/* Portal access tag */}
+                    {client.portalAccess && (() => {
+                      const ps = client.portalAccess!.status;
+                      const cfg: Record<string, { label: string; cls: string }> = {
+                        ACTIVE:           { label: 'Paid',      cls: 'bg-green-100 text-green-700 border-green-200' },
+                        ADMIN_UNLOCKED:   { label: 'Unlocked',  cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+                        LOCKED:           { label: 'Locked',    cls: 'bg-red-100 text-red-700 border-red-200' },
+                        PAYMENT_PENDING:  { label: 'Awaiting payment', cls: 'bg-orange-100 text-orange-700 border-orange-200' },
+                        CONTRACT_PENDING: { label: 'Awaiting contract', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+                        ONBOARDING:       { label: 'Onboarding', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
+                      };
+                      const tag = cfg[ps];
+                      if (!tag) return null;
+                      return (
+                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${tag.cls}`}>
+                          {tag.label}
+                        </span>
+                      );
+                    })()}
+
+                    {/* Admin unlock/lock button */}
+                    {client.portalAccess && (
+                      client.portalAccess.status === 'LOCKED' ? (
+                        <button
+                          className="text-xs text-blue-600 hover:text-blue-800 underline ml-1"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            await fetch('/api/portal/admin-unlock', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              body: JSON.stringify({ clientId: client.id }),
+                            });
+                            window.location.reload();
+                          }}
+                        >
+                          Unlock
+                        </button>
+                      ) : client.portalAccess.status === 'ADMIN_UNLOCKED' ? (
+                        <button
+                          className="text-xs text-red-500 hover:text-red-700 underline ml-1"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            await fetch('/api/portal/admin-unlock', {
+                              method: 'DELETE',
+                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              body: JSON.stringify({ clientId: client.id }),
+                            });
+                            window.location.reload();
+                          }}
+                        >
+                          Re-lock
+                        </button>
+                      ) : null
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -3812,6 +3885,13 @@ export function ClientManagement() {
 
       {/* Client Details Dialog */}
       <ClientDetailsDialog />
+      </TabsContent>
+
+      <TabsContent value="pre-clients" className="mt-0">
+        <PreClientsTab />
+      </TabsContent>
+
+      </Tabs>
     </div>
   );
 }

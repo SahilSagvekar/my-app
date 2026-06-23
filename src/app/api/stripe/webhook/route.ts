@@ -156,7 +156,7 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
     where: { stripeInvoiceId: stripeInvoice.id },
     include: {
       stripeCustomer: {
-        include: { client: true },
+        include: { client: { include: { portalAccess: true } } },
       },
     },
   });
@@ -171,11 +171,44 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
       },
     });
 
-    // Send payment received notification
-    const clientName = invoice.stripeCustomer?.client?.companyName || 
-                       invoice.stripeCustomer?.client?.name || 
+    // ── Portal unlock logic ────────────────────────────────────────────────
+    const client = (invoice.stripeCustomer as any)?.client;
+    if (client?.portalAccess) {
+      const portalAccess = client.portalAccess;
+      const now = new Date();
+
+      // Compute next billing date (same calendar day next month)
+      const nextBilling = new Date(now);
+      nextBilling.setMonth(nextBilling.getMonth() + 1);
+
+      const updateData: any = {
+        status: 'ACTIVE',
+        lockedAt: null,
+        adminUnlockedById: null,
+        adminUnlockedAt: null,
+        nextBillingDate: nextBilling,
+      };
+
+      // Set billing anchor on first payment
+      if (!portalAccess.billingAnchorDate) {
+        updateData.billingAnchorDate = now;
+      }
+
+      await prisma.clientPortalAccess.update({
+        where: { clientId: client.id },
+        data: updateData,
+      });
+
+      console.log(`🔓 [Portal] Unlocked for client: ${client.name} | next billing: ${nextBilling.toISOString()}`);
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    // Also handle invoice paid for checkout session (first payment via Stripe Checkout)
+    // The stripeCustomer may be resolved via Stripe metadata if no invoice record exists yet
+    const clientName = (invoice.stripeCustomer as any)?.client?.companyName || 
+                       (invoice.stripeCustomer as any)?.client?.name || 
                        'Client';
-    const clientEmail = invoice.stripeCustomer?.client?.email || stripeInvoice.customer_email;
+    const clientEmail = (invoice.stripeCustomer as any)?.client?.email || stripeInvoice.customer_email;
 
     await sendPaymentNotificationEmail({
       type: 'invoice_paid',
@@ -186,6 +219,10 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
       invoiceUrl: stripeInvoice.hosted_invoice_url || undefined,
       pdfUrl: stripeInvoice.invoice_pdf || undefined,
     });
+  } else {
+    // No invoice record yet — this may be the first Checkout payment
+    // Resolve via Stripe customer metadata
+    await handleFirstCheckoutPayment(stripeInvoice);
   }
 }
 
@@ -196,7 +233,7 @@ async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
     where: { stripeInvoiceId: stripeInvoice.id },
     include: {
       stripeCustomer: {
-        include: { client: true },
+        include: { client: { include: { portalAccess: true } } },
       },
     },
   });
@@ -209,11 +246,27 @@ async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
       },
     });
 
-    // Send payment failed notification
-    const clientName = invoice.stripeCustomer?.client?.companyName || 
-                       invoice.stripeCustomer?.client?.name || 
+    // ── Portal lock logic ──────────────────────────────────────────────────
+    const client = (invoice.stripeCustomer as any)?.client;
+    if (client?.portalAccess && client.portalAccess.status === 'ACTIVE') {
+      await prisma.clientPortalAccess.update({
+        where: { clientId: client.id },
+        data: {
+          status: 'LOCKED',
+          lockedAt: new Date(),
+        },
+      });
+      console.log(`🔒 [Portal] Locked for client: ${client.name} — payment failed`);
+
+      // Send lock notification to client
+      await sendPortalLockedEmail(client.name, client.email);
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    const clientName = (invoice.stripeCustomer as any)?.client?.companyName || 
+                       (invoice.stripeCustomer as any)?.client?.name || 
                        'Client';
-    const clientEmail = invoice.stripeCustomer?.client?.email || stripeInvoice.customer_email;
+    const clientEmail = (invoice.stripeCustomer as any)?.client?.email || stripeInvoice.customer_email;
 
     await sendPaymentNotificationEmail({
       type: 'payment_failed',
@@ -446,4 +499,123 @@ function mapSubscriptionStatus(status: Stripe.Subscription.Status): 'ACTIVE' | '
     incomplete_expired: 'CANCELED',
   };
   return statusMap[status] || 'ACTIVE';
+}
+
+// ── Portal pipeline helpers ────────────────────────────────────────────────────
+
+// Handles first payment via Stripe Checkout (no invoice record yet in our DB)
+async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
+  const stripeCustomerId = stripeInvoice.customer as string;
+  if (!stripeCustomerId) return;
+
+  const stripeCustomer = await prisma.stripeCustomer.findUnique({
+    where: { stripeCustomerId },
+    include: { client: { include: { portalAccess: true } } },
+  });
+
+  const client = (stripeCustomer as any)?.client;
+  if (!client?.portalAccess) return;
+
+  const now = new Date();
+  const nextBilling = new Date(now);
+  nextBilling.setMonth(nextBilling.getMonth() + 1);
+
+  const updateData: any = {
+    status: 'ACTIVE',
+    lockedAt: null,
+    nextBillingDate: nextBilling,
+  };
+
+  if (!client.portalAccess.billingAnchorDate) {
+    updateData.billingAnchorDate = now;
+  }
+
+  await prisma.clientPortalAccess.update({
+    where: { clientId: client.id },
+    data: updateData,
+  });
+
+  console.log(`🔓 [Portal] First payment — unlocked for: ${client.name}`);
+}
+
+// Send billing warning email 3 days before billing date
+export async function sendBillingWarningEmail(clientName: string, clientEmail: string, billingDate: Date) {
+  const nodemailer = await import('nodemailer');
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+
+  const transporter = nodemailer.default.createTransport({
+    host: 'smtp.gmail.com', port: 465, secure: true,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+
+  const dateStr = billingDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://e8productions.com';
+
+  await transporter.sendMail({
+    from: `"E8 Productions" <eric@e8productions.com>`,
+    to: clientEmail,
+    subject: `Your E8 payment is due on ${dateStr}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #333;">
+        <div style="border-bottom: 3px solid #0066ff; padding-bottom: 12px; margin-bottom: 20px;">
+          <strong style="font-size: 18px;">E8 Productions</strong>
+        </div>
+        <p>Hi ${clientName},</p>
+        <p>Just a heads-up — your monthly payment is due on <strong>${dateStr}</strong>.</p>
+        <p>Your portal will remain active as long as payment is received on time.
+           If payment fails, access will be temporarily suspended until it's resolved.</p>
+        <div style="margin: 24px 0; text-align: center;">
+          <a href="${baseUrl}/dashboard"
+             style="background: #0066ff; color: #fff; padding: 12px 28px;
+                    border-radius: 8px; text-decoration: none; font-weight: bold;">
+            Go to My Portal
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #999;">
+          E8 Productions, LLC · <a href="https://e8productions.com">e8productions.com</a>
+        </p>
+      </div>
+    `,
+  }).catch(console.error);
+}
+
+// Send portal locked email when payment fails
+async function sendPortalLockedEmail(clientName: string, clientEmail: string) {
+  const nodemailer = await import('nodemailer');
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+
+  const transporter = nodemailer.default.createTransport({
+    host: 'smtp.gmail.com', port: 465, secure: true,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://e8productions.com';
+
+  await transporter.sendMail({
+    from: `"E8 Productions" <eric@e8productions.com>`,
+    to: clientEmail,
+    subject: `Action required — Your E8 portal has been suspended`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #333;">
+        <div style="border-bottom: 3px solid #e53e3e; padding-bottom: 12px; margin-bottom: 20px;">
+          <strong style="font-size: 18px; color: #e53e3e;">E8 Productions</strong>
+        </div>
+        <p>Hi ${clientName},</p>
+        <p>We weren't able to process your monthly payment, so your portal access has been
+           temporarily suspended.</p>
+        <p>To restore access, please log in and complete your payment:</p>
+        <div style="margin: 24px 0; text-align: center;">
+          <a href="${baseUrl}/dashboard"
+             style="background: #e53e3e; color: #fff; padding: 12px 28px;
+                    border-radius: 8px; text-decoration: none; font-weight: bold;">
+            Complete Payment
+          </a>
+        </div>
+        <p>If you have any questions, reply to this email or contact us directly.</p>
+        <p style="font-size: 12px; color: #999;">
+          E8 Productions, LLC · <a href="https://e8productions.com">e8productions.com</a>
+        </p>
+      </div>
+    `,
+  }).catch(console.error);
 }

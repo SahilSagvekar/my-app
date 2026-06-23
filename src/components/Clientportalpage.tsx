@@ -137,6 +137,17 @@ const platformAbbrev: Record<string, string> = {
   Snapchat: "SC",
 };
 
+// ── Portal access status ──────────────────────────────────────────────────────
+interface PortalAccess {
+  status: string;
+  fullAccess: boolean;
+  locked: boolean;
+  forcePage: string | null;
+  message: string | null;
+  nextBillingDate: string | null;
+  lockedAt: string | null;
+}
+
 export function ClientPortalPage() {
   const [loading, setLoading] = useState(true);
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
@@ -144,19 +155,21 @@ export function ClientPortalPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [portalAccess, setPortalAccess] = useState<PortalAccess | null>(null);
 
   // Fetch all data
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Fetch client info, contracts, and invoices in parallel
-      const [clientRes, contractsRes, invoicesRes] = await Promise.all([
+      // Fetch client info, contracts, invoices, and portal access in parallel
+      const [clientRes, contractsRes, invoicesRes, accessRes] = await Promise.all([
         fetch("/api/client/me", { credentials: "include" }),
         fetch(`/api/contracts${searchQuery ? `?search=${searchQuery}` : ""}`, {
           credentials: "include",
         }),
         fetch("/api/billing/invoices", { credentials: "include" }),
+        fetch("/api/portal/access", { credentials: "include" }),
       ]);
 
       if (clientRes.ok) {
@@ -173,6 +186,11 @@ export function ClientPortalPage() {
       if (invoicesRes.ok) {
         const invoicesData = await invoicesRes.json();
         setInvoices(invoicesData.invoices || []);
+      }
+
+      if (accessRes.ok) {
+        const accessData = await accessRes.json();
+        setPortalAccess(accessData);
       }
     } catch (err) {
       console.error("Failed to fetch data:", err);
@@ -240,6 +258,95 @@ export function ClientPortalPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  // ── Portal lock gate ──────────────────────────────────────────────────────
+  // If the portal is locked (payment overdue) or in CONTRACT_PENDING /
+  // PAYMENT_PENDING, show only the contracts & billing section with a banner.
+  const isLocked = portalAccess && !portalAccess.fullAccess && portalAccess.forcePage === 'contracts-billing';
+
+  if (isLocked) {
+    // Categorize contracts and invoices for the locked view
+    const lockedNeedsAction = contracts.filter(
+      (c) => c.status === "SENT" || c.status === "PARTIALLY_SIGNED"
+    );
+    const lockedCompleted = contracts.filter((c) => c.status === "COMPLETED");
+    const lockedUnpaid = invoices.filter((inv) =>
+      ["SENT", "PENDING", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status)
+    );
+
+    return (
+      <div className="space-y-6 pb-12">
+        {/* Lock banner */}
+        <div className={`rounded-xl px-6 py-4 flex items-start gap-4 border ${
+          portalAccess.status === 'LOCKED'
+            ? 'bg-red-50 border-red-200'
+            : 'bg-blue-50 border-blue-200'
+        }`}>
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+            portalAccess.status === 'LOCKED' ? 'bg-red-100' : 'bg-blue-100'
+          }`}>
+            {portalAccess.status === 'LOCKED'
+              ? <CreditCard className="w-5 h-5 text-red-600" />
+              : <FileSignature className="w-5 h-5 text-blue-600" />
+            }
+          </div>
+          <div>
+            <p className={`font-semibold ${portalAccess.status === 'LOCKED' ? 'text-red-800' : 'text-blue-800'}`}>
+              {portalAccess.status === 'LOCKED'
+                ? 'Portal locked — payment required'
+                : portalAccess.status === 'CONTRACT_PENDING'
+                ? 'One more step — please sign your contract'
+                : 'Almost there — complete your first payment to unlock the portal'}
+            </p>
+            <p className={`text-sm mt-0.5 ${portalAccess.status === 'LOCKED' ? 'text-red-600' : 'text-blue-600'}`}>
+              {portalAccess.message}
+            </p>
+          </div>
+        </div>
+
+        {/* Contracts section */}
+        {(lockedNeedsAction.length > 0 || lockedCompleted.length > 0) && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Contracts</h2>
+            <div className="space-y-3">
+              {[...lockedNeedsAction, ...lockedCompleted].map((contract) => (
+                <ContractCard
+                  key={contract.id}
+                  contract={contract}
+                  onDownload={handleDownload}
+                  onSelect={(id) => setSelectedContractId(id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Invoices section */}
+        {(lockedUnpaid.length > 0 || invoices.length > 0) && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Billing</h2>
+            <div className="space-y-3">
+              {(lockedUnpaid.length > 0 ? lockedUnpaid : invoices).map((inv) => (
+                <InvoiceCard
+                  key={inv.id}
+                  invoice={inv}
+                  onPay={handleInvoiceAction}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {contracts.length === 0 && invoices.length === 0 && (
+          <div className="text-center py-16 text-gray-400">
+            <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
+            <p>Your contract and invoice will appear here shortly.</p>
+            <p className="text-sm mt-1">The E8 team will be in touch soon.</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -487,6 +594,35 @@ export function ClientPortalPage() {
           </div>
         </div>
 
+        {/* Subscription setup CTA — shows when portal status is PAYMENT_PENDING */}
+        {portalAccess?.status === 'PAYMENT_PENDING' && (
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-xl px-6 py-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <CreditCard className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-green-900">Contract signed — set up your monthly payment</p>
+                <p className="text-sm text-green-700 mt-0.5">Complete your first payment to unlock your full portal.</p>
+              </div>
+            </div>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white flex-shrink-0"
+              onClick={async () => {
+                const res = await fetch('/api/portal/setup-subscription', {
+                  method: 'POST', credentials: 'include',
+                });
+                const data = await res.json();
+                if (data.checkoutUrl) window.location.href = data.checkoutUrl;
+                else alert(data.error || 'Something went wrong');
+              }}
+            >
+              <CreditCard className="h-4 w-4 mr-2" />
+              Set up payment
+            </Button>
+          </div>
+        )}
+
         {contracts.length === 0 ? (
           <div className="text-center py-16 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
             <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -726,6 +862,14 @@ export function ClientPortalPage() {
           </div>
         )}
       </section>
+
+      {/* ===== SECTION 4: ONBOARDING INTAKE (Phase 5 — shown after payment) ===== */}
+      {portalAccess?.fullAccess && (
+        <>
+          <Separator />
+          <IntakeFormSection />
+        </>
+      )}
     </div>
   );
 }
@@ -830,5 +974,276 @@ function ContractCard({
         </button>
       </div>
     </div>
+  );
+}
+// ── InvoiceCard component (used in locked view) ───────────────────────────────
+function InvoiceCard({ invoice, onPay }: { invoice: any; onPay: (id: string) => void }) {
+  return (
+    <div className="flex items-center justify-between p-4 bg-white rounded-lg border shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-amber-100 rounded-lg">
+          <Receipt className="h-4 w-4 text-amber-600" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900 text-sm">{invoice.invoiceNumber}</p>
+          <p className="text-xs text-gray-500">{invoice.description || 'Monthly service'}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <p className="font-bold text-gray-900">
+          ${((invoice.amount - invoice.amountPaid) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        </p>
+        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => onPay(invoice.id)}>
+          <CreditCard className="h-3.5 w-3.5 mr-1" /> Pay
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Intake Form Section (Phase 4 — shown after portal is fully unlocked) ──────
+const LOOM_URL = process.env.NEXT_PUBLIC_LOOM_ONBOARDING_URL || '';
+
+function IntakeFormSection() {
+  const [status, setStatus] = React.useState<'loading' | 'completed' | 'form' | 'success'>('loading');
+  const [showVideo, setShowVideo] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [form, setForm] = React.useState({
+    brandColors: '',
+    brandFonts: '',
+    brandVoice: '',
+    brandGuidelines: '',
+    logoUrl: '',
+    platforms: [] as string[],
+    contentNiche: '',
+    targetAudience: '',
+    contentStyle: 'mixed',
+    topicsToAvoid: '',
+    competitorChannels: '',
+    preferredPostingDays: [] as string[],
+    primaryContactName: '',
+    primaryContactEmail: '',
+    primaryContactPhone: '',
+    additionalNotes: '',
+  });
+
+  React.useEffect(() => {
+    fetch('/api/portal/intake', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setStatus(d.completed ? 'completed' : 'form'))
+      .catch(() => setStatus('form'));
+  }, []);
+
+  async function handleSubmit() {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/portal/intake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ...form,
+          brandColors: form.brandColors.split(',').map(s => s.trim()).filter(Boolean),
+          brandFonts: form.brandFonts.split(',').map(s => s.trim()).filter(Boolean),
+        }),
+      });
+      if (res.ok) setStatus('success');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const platforms = ['YouTube', 'TikTok', 'Instagram', 'Facebook', 'LinkedIn'];
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  function toggleArr(arr: string[], val: string) {
+    return arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val];
+  }
+
+  if (status === 'loading') return null;
+
+  if (status === 'completed' || status === 'success') {
+    return (
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Onboarding</h2>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-xl px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-green-900">Intake form submitted</p>
+              <p className="text-sm text-green-700">Your team has everything they need to get started.</p>
+            </div>
+          </div>
+          {LOOM_URL && (
+            <Button variant="outline" size="sm" onClick={() => setShowVideo(true)}>
+              Re-watch welcome video
+            </Button>
+          )}
+        </div>
+        {showVideo && LOOM_URL && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-3xl">
+              <div className="relative pb-[56.25%] h-0 rounded-xl overflow-hidden">
+                <iframe
+                  src={`${LOOM_URL}?autoplay=1`}
+                  className="absolute inset-0 w-full h-full"
+                  allowFullScreen allow="autoplay; fullscreen"
+                />
+              </div>
+              <button
+                onClick={() => setShowVideo(false)}
+                className="mt-4 text-white/70 hover:text-white text-sm mx-auto block"
+              >
+                Close ✕
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Onboarding Intake</h2>
+        <p className="text-gray-500 mt-1">Help us understand your brand so we can hit the ground running.</p>
+      </div>
+
+      <div className="space-y-6 max-w-2xl">
+        {/* Brand */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+          <h3 className="font-semibold text-gray-900">Brand</h3>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Brand colors (comma-separated hex codes)</label>
+            <input type="text" value={form.brandColors} onChange={e => setForm(p => ({ ...p, brandColors: e.target.value }))}
+              placeholder="#000000, #ffffff" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Fonts (comma-separated)</label>
+            <input type="text" value={form.brandFonts} onChange={e => setForm(p => ({ ...p, brandFonts: e.target.value }))}
+              placeholder="Montserrat, Open Sans" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Brand voice / tone</label>
+            <textarea value={form.brandVoice} onChange={e => setForm(p => ({ ...p, brandVoice: e.target.value }))}
+              rows={2} placeholder="Professional but approachable, educational, witty..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Logo URL or Drive link</label>
+            <input type="text" value={form.logoUrl} onChange={e => setForm(p => ({ ...p, logoUrl: e.target.value }))}
+              placeholder="https://drive.google.com/..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+
+        {/* Platforms */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+          <h3 className="font-semibold text-gray-900">Platforms</h3>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">Which platforms are we posting to?</label>
+            <div className="flex flex-wrap gap-2">
+              {platforms.map(p => (
+                <button key={p}
+                  onClick={() => setForm(f => ({ ...f, platforms: toggleArr(f.platforms, p) }))}
+                  className={`px-3 py-1.5 text-sm rounded-full border font-medium transition ${
+                    form.platforms.includes(p)
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                  }`}
+                >{p}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+          <h3 className="font-semibold text-gray-900">Content</h3>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Content niche / industry</label>
+            <input type="text" value={form.contentNiche} onChange={e => setForm(p => ({ ...p, contentNiche: e.target.value }))}
+              placeholder="e.g. Fitness, SaaS, Real Estate..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Target audience</label>
+            <textarea value={form.targetAudience} onChange={e => setForm(p => ({ ...p, targetAudience: e.target.value }))}
+              rows={2} placeholder="Age, demographics, interests, pain points..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Topics to avoid</label>
+            <textarea value={form.topicsToAvoid} onChange={e => setForm(p => ({ ...p, topicsToAvoid: e.target.value }))}
+              rows={2} placeholder="Politics, competitors by name, sensitive topics..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Competitor channels (for reference)</label>
+            <input type="text" value={form.competitorChannels} onChange={e => setForm(p => ({ ...p, competitorChannels: e.target.value }))}
+              placeholder="@channel1, @channel2" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+
+        {/* Scheduling */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+          <h3 className="font-semibold text-gray-900">Posting preferences</h3>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">Preferred posting days</label>
+            <div className="flex flex-wrap gap-2">
+              {days.map(d => (
+                <button key={d}
+                  onClick={() => setForm(f => ({ ...f, preferredPostingDays: toggleArr(f.preferredPostingDays, d) }))}
+                  className={`px-3 py-1.5 text-sm rounded-full border font-medium transition ${
+                    form.preferredPostingDays.includes(d)
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                  }`}
+                >{d.slice(0, 3)}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+          <h3 className="font-semibold text-gray-900">Primary point of contact</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Name</label>
+              <input type="text" value={form.primaryContactName} onChange={e => setForm(p => ({ ...p, primaryContactName: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Email</label>
+              <input type="email" value={form.primaryContactEmail} onChange={e => setForm(p => ({ ...p, primaryContactEmail: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Phone</label>
+            <input type="tel" value={form.primaryContactPhone} onChange={e => setForm(p => ({ ...p, primaryContactPhone: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+
+        {/* Additional */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <label className="text-sm font-medium text-gray-700 mb-1 block">Anything else we should know?</label>
+          <textarea value={form.additionalNotes} onChange={e => setForm(p => ({ ...p, additionalNotes: e.target.value }))}
+            rows={3} placeholder="Special requests, timelines, brand history..."
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        <Button
+          onClick={handleSubmit}
+          disabled={saving}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-base"
+        >
+          {saving ? 'Submitting...' : 'Submit Intake Form →'}
+        </Button>
+      </div>
+    </section>
   );
 }

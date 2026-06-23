@@ -326,12 +326,21 @@ cron.schedule('0 * * * *', () => {
     console.log(`💓 [Heartbeat] Cron Master is alive and tracking ${cron.getTasks().size} jobs.`);
 }, { timezone: 'America/New_York' });
 
+// ==========================================
+// 6. Billing warning emails (Daily at 10 AM)
+// Sends warning email to clients whose next billing date is in 3 days
+// ==========================================
+cron.schedule('0 10 * * *', () => {
+    triggerJob('Billing Warning Emails', '/api/cron/billing-warnings', 'GET');
+}, { timezone: 'America/New_York' });
+
 // Log initialized jobs
 console.log('📦 Jobs Scheduled:');
 console.log(' - Monthly Tasks: Daily at 1 AM');
 console.log(' - Meta Sync: Daily at 2 AM');
 console.log(' - YouTube Sync: Daily at 3 AM');
 console.log(' - Auto Invoice: Daily at 9 AM (drafts → admin review)');
+console.log(' - Billing Warnings: Daily at 10 AM');
 console.log(' - Activity Report: Daily at 7 PM');
 console.log(' - Team Summary Report: Daily at 7:05 PM');
 console.log(' - Maintenance: Every 2 hours');
