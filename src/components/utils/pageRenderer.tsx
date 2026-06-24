@@ -44,6 +44,7 @@ import { CompressionDashboard } from "@/components/admin/CompressionDashboard";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
 import { FolderRepairTool } from "../admin/Folderrepairtool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
+import { PortalLockGate } from "../client/PortalLockGate";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -350,30 +351,35 @@ export function renderPage(
   }
 
   if (role === "client") {
-    switch (page) {
-      // case 'monthly-overview': return <ClientMonthlyOverview />;
-      case "monthly-overview":
-        return <ComingSoonPage title="Monthly Overview" />;
-      case "approvals":
-        return <ClientDashboard />;
-      case "projects":
-        return <ComingSoonPage title="My Projects" />;
-      case "employment-info":
-        return <EmploymentInfo currentRole={role} />;
-      // case "feedback":
-      //   return <FeedbackSystem currentRole={role} />;
-      case "social":
-        console.log("linkedClientId:", linkedClientId);
-        return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
-      case "training":
-        return <TrainingPortalPage />;
-      case "archive":
-        return <ComingSoonPage title="Archive" />;
-      case "contracts":
-        return <ClientPortalPage />; // Unified page with Info + Contracts + Invoices
-      default:
-        return <ClientMonthlyOverview />;
-    }
+    // All client pages go through the lock gate first
+    const clientPage = (() => {
+      switch (page) {
+        case "monthly-overview":
+          return <ComingSoonPage title="Monthly Overview" />;
+        case "approvals":
+          return <ClientDashboard />;
+        case "projects":
+          return <ComingSoonPage title="My Projects" />;
+        case "employment-info":
+          return <EmploymentInfo currentRole={role} />;
+        case "social":
+          return <SocialAnalyticsDashboard clientId={linkedClientId || ""} />;
+        case "training":
+          return <TrainingPortalPage />;
+        case "archive":
+          return <ComingSoonPage title="Archive" />;
+        case "contracts":
+          return <ClientPortalPage />;
+        default:
+          return <ClientMonthlyOverview />;
+      }
+    })();
+
+    return (
+      <PortalLockGate currentPage={page} onPageChange={onPageChange}>
+        {clientPage}
+      </PortalLockGate>
+    );
   }
 
   if (role === "videographer") {

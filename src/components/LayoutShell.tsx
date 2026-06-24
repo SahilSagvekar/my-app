@@ -89,7 +89,17 @@ export function LayoutShell({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [permittedItems, setPermittedItems] = useState<any[]>([]);
   const [navLoading, setNavLoading] = useState(true);
+  const [portalLocked, setPortalLocked] = useState(false);
   const { user: authUser } = useAuth();
+
+  // Fetch portal lock status for client role
+  useEffect(() => {
+    if (currentRole?.toLowerCase() !== 'client') return;
+    fetch('/api/portal/access', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => setPortalLocked(!data.fullAccess))
+      .catch(() => {});
+  }, [currentRole]);
 
   // 🔥 Role switching feature
   const { canSwitchRole, isViewingAsOther, switchableRoles, switchToRole, resetToOriginal } = useViewAsRole();
@@ -378,23 +388,38 @@ export function LayoutShell({
               const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || FileText;
               const isActive = currentPage === item.id;
 
+              // For locked client portals, grey out everything except contracts
+              const isClientLocked = portalLocked && normalizedRole === 'client';
+              const isAllowed = item.id === 'contracts';
+              const isDisabled = isClientLocked && !isAllowed;
+
               return (
                 <button
                   key={item.id}
                   onClick={() => {
+                    if (isDisabled) return;
                     onPageChange(item.id);
                     setIsSidebarOpen(false);
                   }}
+                  disabled={isDisabled}
                   className={`
                     w-full flex items-center gap-3 px-3 py-3 sm:py-2 text-sm rounded-lg transition-colors
                     ${isActive
                       ? 'bg-primary text-primary-foreground shadow-sm'
+                      : isDisabled
+                      ? 'text-gray-300 cursor-not-allowed'
                       : 'text-gray-700 hover:bg-gray-100'
                     }
                   `}
                 >
-                  <Icon className="h-5 w-5" />
-                  {item.label}
+                  <Icon className={`h-5 w-5 ${isDisabled ? 'opacity-30' : ''}`} />
+                  <span className={isDisabled ? 'opacity-40' : ''}>{item.label}</span>
+                  {isDisabled && (
+                    <svg className="h-3 w-3 ml-auto opacity-30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  )}
                 </button>
               );
             })}
