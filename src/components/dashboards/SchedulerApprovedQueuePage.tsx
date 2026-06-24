@@ -52,9 +52,11 @@ const folderTypes = {
   'script': { label: 'Script', icon: '📝', color: 'bg-blue-100 text-blue-800' },
   'voiceover': { label: 'Voice Over', icon: '🎤', color: 'bg-purple-100 text-purple-800' },
   'broll': { label: 'B-Roll', icon: '🎬', color: 'bg-green-100 text-green-800' },
-  'music': { label: 'Music', icon: '🎵', color: 'bg-pink-100 text-pink-800' },
+  // 'music': { label: 'Music', icon: '🎵', color: 'bg-pink-100 text-pink-800' },
+  'music-license': { label: 'Music License', icon: '🎵', color: 'bg-pink-100 text-pink-800' },
   'graphics': { label: 'Graphics', icon: '🎨', color: 'bg-yellow-100 text-yellow-800' },
-  'thumbnail': { label: 'Thumbnail', icon: '🖼️', color: 'bg-indigo-100 text-indigo-800' },
+  // 'thumbnail': { label: 'Thumbnail', icon: '🖼️', color: 'bg-indigo-100 text-indigo-800' },
+  'thumbnails': { label: 'Thumbnails', icon: '🖼️', color: 'bg-indigo-100 text-indigo-800' },
   'outputs': { label: 'Final Output', icon: '✅', color: 'bg-emerald-100 text-emerald-800' },
   'other': { label: 'Other', icon: '📁', color: 'bg-gray-100 text-gray-800' },
 };
