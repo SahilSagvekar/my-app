@@ -72,8 +72,8 @@ const formatPostingTimes = (times: string[]): string => {
 interface SchedulerTask {
     id: string;
     title: string;
-    titleSetByQC?: boolean;       // ← QC title flag
-    titleSetByClient?: boolean;   // ← Client edited the title during review
+    titleSetByQC?: boolean;
+    titleSetByClient?: boolean;
     postingTitle?: string | null;
     description?: string;
     priority: string;
@@ -108,6 +108,37 @@ interface ClientDeliverable {
     id: string; type: string; quantity: number; postingSchedule: string;
     postingDays: string[]; postingTimes: string[]; platforms: string[];
     description?: string; isOneOff?: boolean;
+}
+
+// ── File badge helpers ──────────────────────────────────────────────────────
+// Groups task files by folderType and returns counts for the summary badges
+// shown in the collapsed row. Editors upload to these exact folderType values:
+//   'main'          → primary video file
+//   'thumbnails'    → thumbnail images (plural — matches DB value)
+//   'music-license' → music license PDFs/docs (matches DB value)
+//   'tiles'         → tile/cover images
+//   'covers'        → cover art
+//   'other'         → uncategorized
+function getFileBadgeCounts(files: SchedulerTask['files']) {
+    const counts = {
+        videos: 0,       // main + any video/* MIME outside thumbnails folder
+        thumbnails: 0,   // folderType === 'thumbnails'
+        musicLicenses: 0, // folderType === 'music-license'
+        other: 0,        // everything else (tiles, covers, docs, etc.)
+    };
+    for (const f of files) {
+        const ft = f.folderType || 'other';
+        if (ft === 'thumbnails') {
+            counts.thumbnails++;
+        } else if (ft === 'music-license') {
+            counts.musicLicenses++;
+        } else if (ft === 'main' || f.mimeType?.startsWith('video/')) {
+            counts.videos++;
+        } else {
+            counts.other++;
+        }
+    }
+    return counts;
 }
 
 export function SchedulerSpreadsheetView() {
@@ -184,8 +215,8 @@ export function SchedulerSpreadsheetView() {
                 return {
                     id: t.id,
                     title: t.title,
-                    titleSetByQC: t.titleSetByQC ?? false,   // ← map QC title flag
-                    titleSetByClient: t.titleSetByClient ?? false, // ← map client title-edit flag
+                    titleSetByQC: t.titleSetByQC ?? false,
+                    titleSetByClient: t.titleSetByClient ?? false,
                     postingTitle: t.postingTitle ?? null,
                     postingTitles: t.postingTitles ?? [],
                     postingDescriptions: t.postingDescriptions ?? [],
@@ -197,6 +228,7 @@ export function SchedulerSpreadsheetView() {
                     files: (t.files || []).map((file: any) => ({
                         id: file.id, name: file.name, url: file.url || '',
                         size: file.size || 0, mimeType: file.mimeType || '',
+                        // Preserve the exact folderType from DB — 'thumbnails' and 'music-license'
                         folderType: file.folderType || 'other', s3Key: file.s3Key || '',
                     })),
                     createdAt: t.createdAt, clientId: t.clientId, client: t.client,
@@ -294,21 +326,20 @@ export function SchedulerSpreadsheetView() {
             }));
             toast.success(`${PLATFORMS[linkDialog.platform].label} link ${isEdit ? 'updated' : 'added'}!`);
             setLinkDialog(null); setLinkUrl(''); setLinkPostedAt('');
-            // Auto-mark as scheduled if all required platform links are now present
-if (!isEdit) {
-    const task = tasks.find(t => t.id === linkDialog.taskId);
-    if (task && task.status !== 'SCHEDULED') {
-        const requiredPlatforms = task.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
-        if (requiredPlatforms.length > 0) {
-            const existingLinks = (task.socialMediaLinks || []).map(l => l.platform.toLowerCase());
-            const allLinks = [...new Set([...existingLinks, linkDialog.platform.toLowerCase()])];
-            const allCovered = requiredPlatforms.every(p => allLinks.includes(p));
-            if (allCovered) {
-                setTimeout(() => markAsScheduled(task.id), 300);
+            if (!isEdit) {
+                const task = tasks.find(t => t.id === linkDialog.taskId);
+                if (task && task.status !== 'SCHEDULED') {
+                    const requiredPlatforms = task.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
+                    if (requiredPlatforms.length > 0) {
+                        const existingLinks = (task.socialMediaLinks || []).map(l => l.platform.toLowerCase());
+                        const allLinks = [...new Set([...existingLinks, linkDialog.platform.toLowerCase()])];
+                        const allCovered = requiredPlatforms.every(p => allLinks.includes(p));
+                        if (allCovered) {
+                            setTimeout(() => markAsScheduled(task.id), 300);
+                        }
+                    }
+                }
             }
-        }
-    }
-}
         } catch (err) { toast.error(`Failed to ${linkDialog.mode === 'edit' ? 'update' : 'add'} link`); }
         finally { setSubmittingLink(false); }
     }
@@ -651,7 +682,6 @@ if (!isEdit) {
                                 <th className="px-3 py-3 text-center font-semibold">
                                     <div className="flex items-center justify-center gap-1"><FileText className="h-4 w-4" />Files</div>
                                 </th>
-                                {/* ── AI Title column ── */}
                                 <th className="px-3 py-3 text-center font-semibold">
                                     <div className="flex items-center justify-center gap-1"><Sparkles className="h-4 w-4 text-yellow-500" />AI Title</div>
                                 </th>
@@ -686,8 +716,8 @@ if (!isEdit) {
                             ) : (
                                 displayTasks.map((task) => {
                                     const isExpanded = expandedRows.has(task.id);
-                                    const videoFiles = task.files.filter(f => f.mimeType?.startsWith("video/"));
-                                    const imageFiles = task.files.filter(f => f.mimeType?.startsWith("image/"));
+                                    // ── Use folderType-aware counts instead of MIME-type-only grouping ──
+                                    const fileCounts = getFileBadgeCounts(task.files);
 
                                     return (
                                       <React.Fragment key={task.id}>
@@ -696,15 +726,10 @@ if (!isEdit) {
                                         >
                                           <td className="px-3 py-3">
                                             <Checkbox
-                                              checked={selectedRows.has(
-                                                task.id,
-                                              )}
+                                              checked={selectedRows.has(task.id)}
                                               onCheckedChange={(checked) => {
-                                                const newSet = new Set(
-                                                  selectedRows,
-                                                );
-                                                if (checked)
-                                                  newSet.add(task.id);
+                                                const newSet = new Set(selectedRows);
+                                                if (checked) newSet.add(task.id);
                                                 else newSet.delete(task.id);
                                                 setSelectedRows(newSet);
                                               }}
@@ -726,10 +751,7 @@ if (!isEdit) {
                                           {/* Title */}
                                           <td className="px-3 py-3 max-w-[200px]">
                                             <div className="flex items-center gap-1.5">
-                                              <p
-                                                className="font-medium truncate"
-                                                title={task.title}
-                                              >
+                                              <p className="font-medium truncate" title={task.title}>
                                                 {task.title}
                                               </p>
                                               {(task.postingTitles?.length || task.titleSetByQC || task.titleSetByClient) && (
@@ -752,9 +774,7 @@ if (!isEdit) {
 
                                           <td className="px-3 py-3">
                                             <span className="text-muted-foreground text-xs">
-                                              {task.client?.companyName ||
-                                                task.client?.name ||
-                                                task.clientId}
+                                              {task.client?.companyName || task.client?.name || task.clientId}
                                             </span>
                                           </td>
                                           <td className="px-3 py-3">
@@ -765,47 +785,45 @@ if (!isEdit) {
                                           <td className="px-3 py-3">
                                             <span className="text-xs">
                                               {task.dueDate
-                                                ? new Date(
-                                                    task.dueDate,
-                                                  ).toLocaleDateString(
-                                                    "en-US",
-                                                    {
-                                                      month: "short",
-                                                      day: "numeric",
-                                                    },
-                                                  )
+                                                ? new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                                                 : "-"}
                                             </span>
                                           </td>
+
+                                          {/* ── Files column — folderType-aware badges ── */}
                                           <td className="px-3 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-1">
-                                              {videoFiles.length > 0 && (
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-xs px-1.5"
-                                                >
+                                            <div className="flex items-center justify-center gap-1 flex-wrap">
+                                              {fileCounts.videos > 0 && (
+                                                <Badge variant="outline" className="text-xs px-1.5" title={`${fileCounts.videos} video file${fileCounts.videos > 1 ? 's' : ''}`}>
                                                   <Video className="h-3 w-3 mr-1" />
-                                                  {videoFiles.length}
+                                                  {fileCounts.videos}
                                                 </Badge>
                                               )}
-                                              {imageFiles.length > 0 && (
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-xs px-1.5"
-                                                >
+                                              {fileCounts.thumbnails > 0 && (
+                                                <Badge variant="outline" className="text-xs px-1.5 border-indigo-200 text-indigo-700 bg-indigo-50" title={`${fileCounts.thumbnails} thumbnail${fileCounts.thumbnails > 1 ? 's' : ''}`}>
                                                   <ImageIcon className="h-3 w-3 mr-1" />
-                                                  {imageFiles.length}
+                                                  {fileCounts.thumbnails}
+                                                </Badge>
+                                              )}
+                                              {fileCounts.musicLicenses > 0 && (
+                                                <Badge variant="outline" className="text-xs px-1.5 border-pink-200 text-pink-700 bg-pink-50" title={`${fileCounts.musicLicenses} music license${fileCounts.musicLicenses > 1 ? 's' : ''}`}>
+                                                  <Music className="h-3 w-3 mr-1" />
+                                                  {fileCounts.musicLicenses}
+                                                </Badge>
+                                              )}
+                                              {fileCounts.other > 0 && (
+                                                <Badge variant="outline" className="text-xs px-1.5" title={`${fileCounts.other} other file${fileCounts.other > 1 ? 's' : ''}`}>
+                                                  <FileText className="h-3 w-3 mr-1" />
+                                                  {fileCounts.other}
                                                 </Badge>
                                               )}
                                               {task.files.length === 0 && (
-                                                <span className="text-muted-foreground text-xs">
-                                                  -
-                                                </span>
+                                                <span className="text-muted-foreground text-xs">-</span>
                                               )}
                                             </div>
                                           </td>
 
-                                          {/* ── Posting Titles cell ── */}
+                                          {/* ── AI Title / Posting Titles cell ── */}
                                           <td className="px-3 py-3 max-w-[180px]">
                                             {task.postingTitles && task.postingTitles.length > 0 ? (
                                               <div className="space-y-0.5 min-w-0">
@@ -833,190 +851,95 @@ if (!isEdit) {
                                                 Copy
                                               </button>
                                             ) : task.titlingStatus === "PROCESSING" ? (
-                                              <Badge
-                                                variant="outline"
-                                                className="text-xs"
-                                              >
+                                              <Badge variant="outline" className="text-xs">
                                                 <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                                                 Processing
                                               </Badge>
                                             ) : (
-                                              <span className="text-muted-foreground text-xs">
-                                                -
-                                              </span>
+                                              <span className="text-muted-foreground text-xs">-</span>
                                             )}
                                           </td>
 
                                           {/* Platform columns */}
-                                          {Object.entries(PLATFORMS).map(
-                                            ([key, platform]) => {
-                                              const existingUrl =
-                                                hasPlatformLink(
-                                                  task,
-                                                  key as PlatformKey,
-                                                );
-                                              const Icon = platform.icon;
-                                              const deliverablePlatforms =
-                                                task.deliverable?.platforms?.map(
-                                                  (p: string) =>
-                                                    p.toLowerCase(),
-                                                ) || [];
-                                              const isPlatformInDeliverable =
-                                                deliverablePlatforms.includes(
-                                                  key.toLowerCase(),
-                                                );
-                                              return (
-                                                <td
-                                                  key={key}
-                                                  className="px-2 py-3 text-center"
-                                                >
-                                                  {existingUrl ? (
-                                                    <button
-                                                      onClick={() =>
-                                                        window.open(
-                                                          existingUrl,
-                                                          "_blank",
-                                                        )
-                                                      }
-                                                      className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${platform.bgColor} ${platform.color} border border-current opacity-80 hover:opacity-100 transition-opacity`}
-                                                      title={`View ${key} post`}
-                                                    >
-                                                      <Icon className="h-4 w-4" />
-                                                    </button>
-                                                  ) : isPlatformInDeliverable ? (
-                                                    <button
-                                                      onClick={() =>
-                                                        setLinkDialog({
-                                                          open: true,
-                                                          taskId: task.id,
-                                                          platform:
-                                                            key as PlatformKey,
-                                                          mode: "add",
-                                                        })
-                                                      }
-                                                      className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors border border-dashed border-gray-300"
-                                                      title={`Add ${key} link`}
-                                                    >
-                                                      <Plus className="h-3 w-3" />
-                                                    </button>
-                                                  ) : (
-                                                    <span
-                                                      className="inline-flex items-center justify-center w-7 h-7 text-gray-200"
-                                                      title={`${key} not configured`}
-                                                    >
-                                                      <X className="h-3 w-3" />
-                                                    </span>
-                                                  )}
-                                                </td>
-                                              );
-                                            },
-                                          )}
+                                          {Object.entries(PLATFORMS).map(([key, platform]) => {
+                                            const existingUrl = hasPlatformLink(task, key as PlatformKey);
+                                            const Icon = platform.icon;
+                                            const deliverablePlatforms = task.deliverable?.platforms?.map((p: string) => p.toLowerCase()) || [];
+                                            const isPlatformInDeliverable = deliverablePlatforms.includes(key.toLowerCase());
+                                            return (
+                                              <td key={key} className="px-2 py-3 text-center">
+                                                {existingUrl ? (
+                                                  <button
+                                                    onClick={() => window.open(existingUrl, "_blank")}
+                                                    className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${platform.bgColor} ${platform.color} border border-current opacity-80 hover:opacity-100 transition-opacity`}
+                                                    title={`View ${key} post`}
+                                                  >
+                                                    <Icon className="h-4 w-4" />
+                                                  </button>
+                                                ) : isPlatformInDeliverable ? (
+                                                  <button
+                                                    onClick={() => setLinkDialog({ open: true, taskId: task.id, platform: key as PlatformKey, mode: "add" })}
+                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors border border-dashed border-gray-300"
+                                                    title={`Add ${key} link`}
+                                                  >
+                                                    <Plus className="h-3 w-3" />
+                                                  </button>
+                                                ) : (
+                                                  <span className="inline-flex items-center justify-center w-7 h-7 text-gray-200" title={`${key} not configured`}>
+                                                    <X className="h-3 w-3" />
+                                                  </span>
+                                                )}
+                                              </td>
+                                            );
+                                          })}
 
                                           {/* Status */}
                                           <td className="px-3 py-3 text-center">
                                             <DropdownMenu modal={false}>
                                               <DropdownMenuTrigger asChild>
                                                 {task.status === "SCHEDULED" ? (
-                                                  <Button
-                                                    variant="ghost"
-                                                    className="h-7 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1 px-2"
-                                                  >
+                                                  <Button variant="ghost" className="h-7 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1 px-2">
                                                     ✓ Scheduled{" "}
-                                                    {task.isSponsored && (
-                                                      <span className="text-amber-600 font-semibold">
-                                                        ★
-                                                      </span>
-                                                    )}
+                                                    {task.isSponsored && <span className="text-amber-600 font-semibold">★</span>}
                                                     <ChevronDown className="h-3 w-3 opacity-50" />
                                                   </Button>
                                                 ) : (
-                                                  <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-7 text-xs gap-1"
-                                                  >
+                                                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
                                                     Pending{" "}
-                                                    {task.isSponsored && (
-                                                      <span className="text-amber-600 font-semibold">
-                                                        ★
-                                                      </span>
-                                                    )}
+                                                    {task.isSponsored && <span className="text-amber-600 font-semibold">★</span>}
                                                     <ChevronDown className="h-3 w-3 opacity-50" />
                                                   </Button>
                                                 )}
                                               </DropdownMenuTrigger>
-                                              <DropdownMenuContent
-                                                align="end"
-                                                sideOffset={4}
-                                                onCloseAutoFocus={(e) =>
-                                                  e.preventDefault()
-                                                }
-                                              >
+                                              <DropdownMenuContent align="end" sideOffset={4} onCloseAutoFocus={(e) => e.preventDefault()}>
                                                 {task.status !== "SCHEDULED" ? (
-                                                  <DropdownMenuItem
-                                                    onClick={() =>
-                                                      markAsScheduled(task.id)
-                                                    }
-                                                    className="text-green-600 font-medium"
-                                                  >
-                                                    <Check className="h-4 w-4 mr-2" />
-                                                    Mark as Scheduled
+                                                  <DropdownMenuItem onClick={() => markAsScheduled(task.id)} className="text-green-600 font-medium">
+                                                    <Check className="h-4 w-4 mr-2" />Mark as Scheduled
                                                   </DropdownMenuItem>
                                                 ) : (
-                                                  <DropdownMenuItem
-                                                    onClick={() =>
-                                                      markAsPending(task.id)
-                                                    }
-                                                    className="text-amber-600 font-medium"
-                                                  >
-                                                    <Clock className="h-4 w-4 mr-2" />
-                                                    Revert to Pending
+                                                  <DropdownMenuItem onClick={() => markAsPending(task.id)} className="text-amber-600 font-medium">
+                                                    <Clock className="h-4 w-4 mr-2" />Revert to Pending
                                                   </DropdownMenuItem>
                                                 )}
                                                 <DropdownMenuItem
-                                                  onClick={() =>
-                                                    toggleSponsored(
-                                                      task.id,
-                                                      task.isSponsored ?? false,
-                                                    )
-                                                  }
-                                                  className={
-                                                    task.isSponsored
-                                                      ? "text-amber-700"
-                                                      : ""
-                                                  }
+                                                  onClick={() => toggleSponsored(task.id, task.isSponsored ?? false)}
+                                                  className={task.isSponsored ? "text-amber-700" : ""}
                                                 >
-                                                  <span className="mr-2">
-                                                    ★
-                                                  </span>
-                                                  {task.isSponsored
-                                                    ? "Remove Sponsored"
-                                                    : "Mark as Sponsored"}
+                                                  <span className="mr-2">★</span>
+                                                  {task.isSponsored ? "Remove Sponsored" : "Mark as Sponsored"}
                                                 </DropdownMenuItem>
-                                                {task.status !==
-                                                  "SCHEDULED" && (
+                                                {task.status !== "SCHEDULED" && (
                                                   <DropdownMenuItem
                                                     onClick={(e) => {
                                                       e.preventDefault();
-                                                      setSendBackTaskId(
-                                                        task.id,
-                                                      );
-                                                      setSendBackTaskTitle(
-                                                        task.title || "",
-                                                      );
+                                                      setSendBackTaskId(task.id);
+                                                      setSendBackTaskTitle(task.title || "");
                                                       setSendBackFeedback("");
-                                                      setTimeout(
-                                                        () =>
-                                                          setShowSendBackDialog(
-                                                            true,
-                                                          ),
-                                                        50,
-                                                      );
+                                                      setTimeout(() => setShowSendBackDialog(true), 50);
                                                     }}
                                                     className="text-red-600 font-medium"
                                                   >
-                                                    <ArrowLeft className="h-4 w-4 mr-2" />
-                                                    Send Back to Editor
+                                                    <ArrowLeft className="h-4 w-4 mr-2" />Send Back to Editor
                                                   </DropdownMenuItem>
                                                 )}
                                               </DropdownMenuContent>
@@ -1027,179 +950,126 @@ if (!isEdit) {
                                         {/* Expanded Row */}
                                         {isExpanded && (
                                           <tr className="bg-gray-50">
-                                            <td
-                                              colSpan={14}
-                                              className="px-6 py-4"
-                                            >
+                                            <td colSpan={14} className="px-6 py-4">
                                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                 {/* Files Section */}
                                                 <div>
                                                   <h4 className="font-semibold mb-3 flex items-center gap-2">
                                                     <FileText className="h-4 w-4" />
-                                                    Task Files (
-                                                    {task.files.length})
+                                                    Task Files ({task.files.length})
                                                   </h4>
                                                   {task.files.length === 0 ? (
-                                                    <p className="text-muted-foreground text-sm">
-                                                      No files attached
-                                                    </p>
+                                                    <p className="text-muted-foreground text-sm">No files attached</p>
                                                   ) : (
                                                     <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                                                       {(() => {
-                                                        const grouped =
-                                                          task.files.reduce(
-                                                            (acc, file) => {
-                                                              const ft =
-                                                                file.folderType ||
-                                                                "Uncategorized";
-                                                              if (!acc[ft])
-                                                                acc[ft] = [];
-                                                              acc[ft].push(
-                                                                file,
-                                                              );
-                                                              return acc;
-                                                            },
-                                                            {} as Record<
-                                                              string,
-                                                              typeof task.files
-                                                            >,
-                                                          );
-                                                        const order: Record<
-                                                          string,
-                                                          number
-                                                        > = {
+                                                        // Group by folderType using exact DB values
+                                                        const grouped = task.files.reduce((acc, file) => {
+                                                          const ft = file.folderType || "Uncategorized";
+                                                          if (!acc[ft]) acc[ft] = [];
+                                                          acc[ft].push(file);
+                                                          return acc;
+                                                        }, {} as Record<string, typeof task.files>);
+
+                                                        // Display order: main video first, then thumbnails and music near the top
+                                                        const order: Record<string, number> = {
                                                           main: 0,
-                                                          covers: 1,
-                                                          tiles: 2,
-                                                          other: 3,
-                                                          Uncategorized: 4,
-                                                          thumbnails: 5,
-                                                          "music-license": 6,
+                                                          thumbnails: 1,       // 'thumbnails' (plural) — exact DB value
+                                                          'music-license': 2,  // 'music-license' — exact DB value
+                                                          covers: 3,
+                                                          tiles: 4,
+                                                          other: 5,
+                                                          Uncategorized: 6,
                                                         };
-                                                        return Object.entries(
-                                                          grouped,
-                                                        ).sort(
-                                                          ([a], [b]) =>
-                                                            (order[a] ?? 3) -
-                                                            (order[b] ?? 3),
+
+                                                        // Human-readable labels for each folderType
+                                                        const folderLabels: Record<string, string> = {
+                                                          main: 'Main Video',
+                                                          thumbnails: 'Thumbnails',
+                                                          'music-license': 'Music Licenses',
+                                                          covers: 'Covers',
+                                                          tiles: 'Tiles',
+                                                          other: 'Other',
+                                                          Uncategorized: 'Uncategorized',
+                                                        };
+
+                                                        return Object.entries(grouped).sort(
+                                                          ([a], [b]) => (order[a] ?? 5) - (order[b] ?? 5)
                                                         );
-                                                      })().map(
-                                                        ([
-                                                          folderType,
-                                                          folderFiles,
-                                                        ]) => (
-                                                          <div
-                                                            key={folderType}
-                                                            className="space-y-2"
-                                                          >
-                                                            <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-gray-100 px-2 py-1 rounded inline-block">
-                                                              {folderType.replace(
-                                                                /_/g,
-                                                                " ",
-                                                              )}
+                                                      })().map(([folderType, folderFiles]) => {
+                                                        const folderLabels: Record<string, string> = {
+                                                          main: 'Main Video',
+                                                          thumbnails: 'Thumbnails',
+                                                          'music-license': 'Music Licenses',
+                                                          covers: 'Covers',
+                                                          tiles: 'Tiles',
+                                                          other: 'Other',
+                                                          Uncategorized: 'Uncategorized',
+                                                        };
+                                                        const label = folderLabels[folderType] || folderType.replace(/-/g, ' ').replace(/_/g, ' ');
+
+                                                        return (
+                                                          <div key={folderType} className="space-y-2">
+                                                            <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-gray-100 px-2 py-1 rounded inline-flex items-center gap-1.5">
+                                                              {folderType === 'thumbnails' && <ImageIcon className="h-3 w-3" />}
+                                                              {folderType === 'music-license' && <Music className="h-3 w-3" />}
+                                                              {folderType === 'main' && <Video className="h-3 w-3" />}
+                                                              {label}
+                                                              <span className="font-normal opacity-60">({folderFiles.length})</span>
                                                             </h5>
                                                             <div className="space-y-2">
-                                                              {folderFiles.map(
-                                                                (file) => {
-                                                                  const isVideo =
-                                                                    file.mimeType?.startsWith(
-                                                                      "video/",
-                                                                    );
-                                                                  const isImage =
-                                                                    file.mimeType?.startsWith(
-                                                                      "image/",
-                                                                    );
-                                                                  return (
-                                                                    <div
-                                                                      key={
-                                                                        file.id
-                                                                      }
-                                                                      className="flex items-center justify-between p-2 bg-white rounded-lg border hover:border-primary/30 transition-colors"
-                                                                    >
-                                                                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                                        {isVideo ? (
-                                                                          <Video className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                                                                        ) : isImage ? (
-                                                                          <img
-                                                                            src={
-                                                                              file.url
-                                                                            }
-                                                                            alt={
-                                                                              file.name
-                                                                            }
-                                                                            className="h-10 w-14 object-cover rounded flex-shrink-0 border border-zinc-200"
-                                                                            onError={(
-                                                                              e,
-                                                                            ) => {
-                                                                              (
-                                                                                e.target as HTMLImageElement
-                                                                              ).style.display =
-                                                                                "none";
-                                                                            }}
-                                                                          />
-                                                                        ) : (
-                                                                          <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                                                                        )}
-                                                                        <div className="min-w-0">
-                                                                          <p className="font-medium text-[13px] truncate">
-                                                                            {
-                                                                              file.name
-                                                                            }
-                                                                          </p>
-                                                                          <p className="text-[10px] text-muted-foreground">
-                                                                            {(
-                                                                              file.size /
-                                                                              1024 /
-                                                                              1024
-                                                                            ).toFixed(
-                                                                              2,
-                                                                            )}{" "}
-                                                                            MB
-                                                                          </p>
-                                                                        </div>
-                                                                      </div>
-                                                                      <div className="flex items-center gap-1">
-                                                                        <Button
-                                                                          size="sm"
-                                                                          variant="ghost"
-                                                                          className="h-7 w-7 p-0"
-                                                                          onClick={() => {
-                                                                            setPreviewFile(
-                                                                              {
-                                                                                ...file,
-                                                                                url: getFileUrl(
-                                                                                  file,
-                                                                                ),
-                                                                              },
-                                                                            );
-                                                                            setIsPreviewOpen(
-                                                                              true,
-                                                                            );
-                                                                          }}
-                                                                        >
-                                                                          <Eye className="h-3 w-3" />
-                                                                        </Button>
-                                                                        <Button
-                                                                          size="sm"
-                                                                          variant="ghost"
-                                                                          className="h-7 w-7 p-0"
-                                                                          onClick={() =>
-                                                                            downloadFile(
-                                                                              file,
-                                                                            )
-                                                                          }
-                                                                        >
-                                                                          <Download className="h-3 w-3" />
-                                                                        </Button>
+                                                              {folderFiles.map((file) => {
+                                                                const isVideo = file.mimeType?.startsWith("video/");
+                                                                const isImage = file.mimeType?.startsWith("image/");
+                                                                return (
+                                                                  <div
+                                                                    key={file.id}
+                                                                    className="flex items-center justify-between p-2 bg-white rounded-lg border hover:border-primary/30 transition-colors"
+                                                                  >
+                                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                                      {isVideo ? (
+                                                                        <Video className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                                                      ) : isImage ? (
+                                                                        <img
+                                                                          src={file.url}
+                                                                          alt={file.name}
+                                                                          className="h-10 w-14 object-cover rounded flex-shrink-0 border border-zinc-200"
+                                                                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                                                        />
+                                                                      ) : (
+                                                                        <FileText className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                                                                      )}
+                                                                      <div className="min-w-0">
+                                                                        <p className="font-medium text-[13px] truncate">{file.name}</p>
+                                                                        <p className="text-[10px] text-muted-foreground">
+                                                                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                                        </p>
                                                                       </div>
                                                                     </div>
-                                                                  );
-                                                                },
-                                                              )}
+                                                                    <div className="flex items-center gap-1">
+                                                                      <Button
+                                                                        size="sm" variant="ghost" className="h-7 w-7 p-0"
+                                                                        onClick={() => {
+                                                                          setPreviewFile({ ...file, url: getFileUrl(file) });
+                                                                          setIsPreviewOpen(true);
+                                                                        }}
+                                                                      >
+                                                                        <Eye className="h-3 w-3" />
+                                                                      </Button>
+                                                                      <Button
+                                                                        size="sm" variant="ghost" className="h-7 w-7 p-0"
+                                                                        onClick={() => downloadFile(file)}
+                                                                      >
+                                                                        <Download className="h-3 w-3" />
+                                                                      </Button>
+                                                                    </div>
+                                                                  </div>
+                                                                );
+                                                              })}
                                                             </div>
                                                           </div>
-                                                        ),
-                                                      )}
+                                                        );
+                                                      })}
                                                     </div>
                                                   )}
                                                 </div>
@@ -1284,329 +1154,138 @@ if (!isEdit) {
                                                       </div>
                                                     </div>
                                                   )}
-                                                </div>
 
                                                   {/* Social Links Summary */}
-                                                  {task.socialMediaLinks &&
-                                                    task.socialMediaLinks
-                                                      .length > 0 && (
-                                                      <div className="mt-4">
-                                                        <h4 className="font-semibold mb-2 text-sm">
-                                                          Posted Links
-                                                        </h4>
-                                                        <div className="space-y-2">
-                                                          {task.socialMediaLinks.map(
-                                                            (link, i) => {
-                                                              const pk =
-                                                                link.platform.toLowerCase() as PlatformKey;
-                                                              const platform =
-                                                                PLATFORMS[pk];
-                                                              const Icon =
-                                                                platform?.icon ||
-                                                                ExternalLink;
-                                                              return (
-                                                                <div
-                                                                  key={i}
-                                                                  className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group"
+                                                  {task.socialMediaLinks && task.socialMediaLinks.length > 0 && (
+                                                    <div className="mt-4">
+                                                      <h4 className="font-semibold mb-2 text-sm">Posted Links</h4>
+                                                      <div className="space-y-2">
+                                                        {task.socialMediaLinks.map((link, i) => {
+                                                          const pk = link.platform.toLowerCase() as PlatformKey;
+                                                          const platform = PLATFORMS[pk];
+                                                          const Icon = platform?.icon || ExternalLink;
+                                                          return (
+                                                            <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group">
+                                                              <div className={`p-1 rounded ${platform?.bgColor || "bg-gray-100"}`}>
+                                                                <Icon className={`h-3.5 w-3.5 ${platform?.color || "text-gray-600"}`} />
+                                                              </div>
+                                                              <div className="flex-1 min-w-0">
+                                                                <a href={link.url} target="_blank" rel="noopener noreferrer"
+                                                                  className="text-sm text-blue-600 hover:underline truncate block">
+                                                                  {link.url.length > 50 ? link.url.slice(0, 50) + "..." : link.url}
+                                                                </a>
+                                                                {link.postedAt && (
+                                                                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                                                                    <Clock className="h-2.5 w-2.5" />
+                                                                    {new Date(link.postedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })}
+                                                                  </span>
+                                                                )}
+                                                              </div>
+                                                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                                                                  onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setLinkUrl(link.url);
+                                                                    if (link.postedAt) {
+                                                                      const dt = new Date(link.postedAt);
+                                                                      setLinkPostedAt(new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+                                                                    }
+                                                                    setLinkDialog({ open: true, taskId: task.id, platform: pk, mode: "edit", existingUrl: link.url, existingPostedAt: link.postedAt });
+                                                                  }}
+                                                                  title="Edit link"
                                                                 >
-                                                                  <div
-                                                                    className={`p-1 rounded ${platform?.bgColor || "bg-gray-100"}`}
-                                                                  >
-                                                                    <Icon
-                                                                      className={`h-3.5 w-3.5 ${platform?.color || "text-gray-600"}`}
-                                                                    />
-                                                                  </div>
-                                                                  <div className="flex-1 min-w-0">
-                                                                    <a
-                                                                      href={
-                                                                        link.url
-                                                                      }
-                                                                      target="_blank"
-                                                                      rel="noopener noreferrer"
-                                                                      className="text-sm text-blue-600 hover:underline truncate block"
-                                                                    >
-                                                                      {link.url
-                                                                        .length >
-                                                                      50
-                                                                        ? link.url.slice(
-                                                                            0,
-                                                                            50,
-                                                                          ) +
-                                                                          "..."
-                                                                        : link.url}
-                                                                    </a>
-                                                                    {link.postedAt && (
-                                                                      <span className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                                                                        <Clock className="h-2.5 w-2.5" />
-                                                                        {new Date(
-                                                                          link.postedAt,
-                                                                        ).toLocaleString(
-                                                                          "en-US",
-                                                                          {
-                                                                            month:
-                                                                              "short",
-                                                                            day: "numeric",
-                                                                            hour: "numeric",
-                                                                            minute:
-                                                                              "2-digit",
-                                                                            hour12: true,
-                                                                          },
-                                                                        )}
-                                                                      </span>
-                                                                    )}
-                                                                  </div>
-                                                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <Button
-                                                                      variant="ghost"
-                                                                      size="sm"
-                                                                      className="h-7 w-7 p-0"
-                                                                      onClick={(
-                                                                        e,
-                                                                      ) => {
-                                                                        e.stopPropagation();
-                                                                        setLinkUrl(
-                                                                          link.url,
-                                                                        );
-                                                                        if (
-                                                                          link.postedAt
-                                                                        ) {
-                                                                          const dt =
-                                                                            new Date(
-                                                                              link.postedAt,
-                                                                            );
-                                                                          setLinkPostedAt(
-                                                                            new Date(
-                                                                              dt.getTime() -
-                                                                                dt.getTimezoneOffset() *
-                                                                                  60000,
-                                                                            )
-                                                                              .toISOString()
-                                                                              .slice(
-                                                                                0,
-                                                                                16,
-                                                                              ),
-                                                                          );
-                                                                        }
-                                                                        setLinkDialog(
-                                                                          {
-                                                                            open: true,
-                                                                            taskId:
-                                                                              task.id,
-                                                                            platform:
-                                                                              pk,
-                                                                            mode: "edit",
-                                                                            existingUrl:
-                                                                              link.url,
-                                                                            existingPostedAt:
-                                                                              link.postedAt,
-                                                                          },
-                                                                        );
-                                                                      }}
-                                                                      title="Edit link"
-                                                                    >
-                                                                      <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                                                                    </Button>
-                                                                    <Button
-                                                                      variant="ghost"
-                                                                      size="sm"
-                                                                      className="h-7 w-7 p-0 hover:bg-red-50"
-                                                                      onClick={(
-                                                                        e,
-                                                                      ) => {
-                                                                        e.stopPropagation();
-                                                                        deleteSocialLink(
-                                                                          task.id,
-                                                                          link.platform,
-                                                                        );
-                                                                      }}
-                                                                      title="Remove link"
-                                                                    >
-                                                                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                                                                    </Button>
-                                                                  </div>
-                                                                </div>
-                                                              );
-                                                            },
-                                                          )}
-                                                        </div>
+                                                                  <Pencil className="h-3.5 w-3.5 text-gray-500" />
+                                                                </Button>
+                                                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-red-50"
+                                                                  onClick={(e) => { e.stopPropagation(); deleteSocialLink(task.id, link.platform); }}
+                                                                  title="Remove link"
+                                                                >
+                                                                  <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                                                </Button>
+                                                              </div>
+                                                            </div>
+                                                          );
+                                                        })}
                                                       </div>
-                                                    )}
+                                                    </div>
+                                                  )}
                                                 </div>
                                               </div>
 
                                               {/* Deliverable Info */}
-                                              {task.clientId &&
-                                                task.deliverable && (
-                                                  <div className="mt-4 pt-4 border-t">
-                                                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                                                      <Package className="h-4 w-4 text-indigo-500" />
-                                                      Deliverable Info
-                                                      <span className="text-xs font-normal text-muted-foreground">
-                                                        —{" "}
-                                                        {task.client
-                                                          ?.companyName ||
-                                                          task.client?.name ||
-                                                          "Client"}
-                                                      </span>
-                                                    </h4>
-                                                    <div className="p-3 rounded-lg border-2 border-indigo-200 bg-indigo-50">
-                                                      <div className="flex items-center justify-between mb-2">
-                                                        <div className="flex items-center gap-2">
-                                                          <span className="font-semibold text-sm">
-                                                            {
-                                                              task.deliverable
-                                                                .type
-                                                            }
-                                                          </span>
-                                                          {task.deliverable
-                                                            .isOneOff && (
-                                                            <Badge
-                                                              variant="outline"
-                                                              className="text-[10px] h-4 px-1 bg-amber-100 text-amber-700 border-amber-300"
-                                                            >
-                                                              One-Off
-                                                            </Badge>
-                                                          )}
-                                                        </div>
-                                                        {task.deliverable
-                                                          .quantity && (
-                                                          <Badge
-                                                            variant="secondary"
-                                                            className="text-xs font-bold"
-                                                          >
-                                                            ×
-                                                            {
-                                                              task.deliverable
-                                                                .quantity
-                                                            }
-                                                          </Badge>
+                                              {task.clientId && task.deliverable && (
+                                                <div className="mt-4 pt-4 border-t">
+                                                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                                    <Package className="h-4 w-4 text-indigo-500" />
+                                                    Deliverable Info
+                                                    <span className="text-xs font-normal text-muted-foreground">
+                                                      — {task.client?.companyName || task.client?.name || "Client"}
+                                                    </span>
+                                                  </h4>
+                                                  <div className="p-3 rounded-lg border-2 border-indigo-200 bg-indigo-50">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                      <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-sm">{task.deliverable.type}</span>
+                                                        {task.deliverable.isOneOff && (
+                                                          <Badge variant="outline" className="text-[10px] h-4 px-1 bg-amber-100 text-amber-700 border-amber-300">One-Off</Badge>
                                                         )}
                                                       </div>
-                                                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                                        {task.deliverable
-                                                          .postingSchedule && (
-                                                          <div className="flex items-center gap-1">
-                                                            <Calendar className="h-3 w-3" />
-                                                            <span className="capitalize">
-                                                              {
-                                                                task.deliverable
-                                                                  .postingSchedule
-                                                              }
-                                                            </span>
-                                                          </div>
-                                                        )}
-                                                        {task.deliverable
-                                                          .postingDays?.length >
-                                                          0 && (
-                                                          <span className="text-gray-500">
-                                                            {task.deliverable.postingDays.join(
-                                                              ", ",
-                                                            )}
-                                                          </span>
-                                                        )}
-                                                        {task.deliverable
-                                                          .postingTimes
-                                                          ?.length > 0 && (
-                                                          <div className="flex items-center gap-1">
-                                                            <Clock className="h-3 w-3" />
-                                                            <span>
-                                                              {formatPostingTimes(
-                                                                task.deliverable
-                                                                  .postingTimes,
-                                                              )}
-                                                            </span>
-                                                          </div>
-                                                        )}
-                                                        {task.deliverable
-                                                          .videosPerDay && (
-                                                          <span>
-                                                            {
-                                                              task.deliverable
-                                                                .videosPerDay
-                                                            }{" "}
-                                                            video
-                                                            {task.deliverable
-                                                              .videosPerDay > 1
-                                                              ? "s"
-                                                              : ""}
-                                                            /day
-                                                          </span>
-                                                        )}
-                                                      </div>
-                                                      {task.deliverable
-                                                        .platforms?.length >
-                                                        0 && (
-                                                        <div className="flex items-center gap-1 mt-2 flex-wrap">
-                                                          {task.deliverable.platforms.map(
-                                                            (p) => {
-                                                              const pk =
-                                                                p.toLowerCase() as PlatformKey;
-                                                              const pi =
-                                                                PLATFORMS[pk];
-                                                              if (!pi)
-                                                                return (
-                                                                  <Badge
-                                                                    key={p}
-                                                                    variant="outline"
-                                                                    className="text-[10px] h-5 px-1.5"
-                                                                  >
-                                                                    {p}
-                                                                  </Badge>
-                                                                );
-                                                              const PIcon =
-                                                                pi.icon;
-                                                              return (
-                                                                <div
-                                                                  key={p}
-                                                                  className={`inline-flex items-center justify-center w-6 h-6 rounded ${pi.bgColor}`}
-                                                                  title={p}
-                                                                >
-                                                                  <PIcon
-                                                                    className={`h-3.5 w-3.5 ${pi.color}`}
-                                                                  />
-                                                                </div>
-                                                              );
-                                                            },
-                                                          )}
-                                                        </div>
-                                                      )}
-                                                      {task.deliverable
-                                                        .description && (
-                                                        <p className="text-xs text-muted-foreground mt-2">
-                                                          {
-                                                            task.deliverable
-                                                              .description
-                                                          }
-                                                        </p>
+                                                      {task.deliverable.quantity && (
+                                                        <Badge variant="secondary" className="text-xs font-bold">×{task.deliverable.quantity}</Badge>
                                                       )}
                                                     </div>
+                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                                      {task.deliverable.postingSchedule && (
+                                                        <div className="flex items-center gap-1">
+                                                          <Calendar className="h-3 w-3" />
+                                                          <span className="capitalize">{task.deliverable.postingSchedule}</span>
+                                                        </div>
+                                                      )}
+                                                      {task.deliverable.postingDays?.length > 0 && (
+                                                        <span className="text-gray-500">{task.deliverable.postingDays.join(", ")}</span>
+                                                      )}
+                                                      {task.deliverable.postingTimes?.length > 0 && (
+                                                        <div className="flex items-center gap-1">
+                                                          <Clock className="h-3 w-3" />
+                                                          <span>{formatPostingTimes(task.deliverable.postingTimes)}</span>
+                                                        </div>
+                                                      )}
+                                                      {task.deliverable.videosPerDay && (
+                                                        <span>{task.deliverable.videosPerDay} video{task.deliverable.videosPerDay > 1 ? "s" : ""}/day</span>
+                                                      )}
+                                                    </div>
+                                                    {task.deliverable.platforms?.length > 0 && (
+                                                      <div className="flex items-center gap-1 mt-2 flex-wrap">
+                                                        {task.deliverable.platforms.map((p) => {
+                                                          const pk = p.toLowerCase() as PlatformKey;
+                                                          const pi = PLATFORMS[pk];
+                                                          if (!pi) return <Badge key={p} variant="outline" className="text-[10px] h-5 px-1.5">{p}</Badge>;
+                                                          const PIcon = pi.icon;
+                                                          return (
+                                                            <div key={p} className={`inline-flex items-center justify-center w-6 h-6 rounded ${pi.bgColor}`} title={p}>
+                                                              <PIcon className={`h-3.5 w-3.5 ${pi.color}`} />
+                                                            </div>
+                                                          );
+                                                        })}
+                                                      </div>
+                                                    )}
+                                                    {task.deliverable.description && (
+                                                      <p className="text-xs text-muted-foreground mt-2">{task.deliverable.description}</p>
+                                                    )}
                                                   </div>
-                                                )}
+                                                </div>
+                                              )}
 
                                               {/* Linked SF Tasks — shown for LF tasks */}
-                                              {[
-                                                task.deliverableType,
-                                                task.deliverable?.type,
-                                                task.title,
-                                              ].some(
-                                                (v) =>
-                                                  typeof v === "string" &&
-                                                  (v
-                                                    .toUpperCase()
-                                                    .includes("LF") ||
-                                                    v
-                                                      .toLowerCase()
-                                                      .includes("long form") ||
-                                                    v
-                                                      .toLowerCase()
-                                                      .includes("longform")),
+                                              {[task.deliverableType, task.deliverable?.type, task.title].some(
+                                                (v) => typeof v === "string" && (
+                                                  v.toUpperCase().includes("LF") ||
+                                                  v.toLowerCase().includes("long form") ||
+                                                  v.toLowerCase().includes("longform")
+                                                )
                                               ) && (
                                                 <div className="mt-4 pt-4 border-t">
-                                                  <LinkedSfTasks
-                                                    lfTaskId={task.id}
-                                                    clientId={task.clientId}
-                                                    canEdit={false}
-                                                  />
+                                                  <LinkedSfTasks lfTaskId={task.id} clientId={task.clientId} canEdit={false} />
                                                 </div>
                                               )}
                                             </td>
