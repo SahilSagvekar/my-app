@@ -38,15 +38,12 @@ async function sendMagicLinkEmail(params: {
             Full Service Video + Content
           </div>
         </div>
-
         <p style="font-size: 16px;">Hi ${params.clientName},</p>
-
         <p style="font-size: 15px; line-height: 1.7; color: #444;">
           Your proposal has been accepted and your E8 client portal is ready.
           Click the button below to get started — you'll watch a quick welcome video,
           set your password, and sign your contract all in one flow.
         </p>
-
         <div style="text-align: center; margin: 36px 0;">
           <a href="${params.magicLink}"
              style="background: #0066ff; color: #fff; padding: 16px 36px;
@@ -55,12 +52,10 @@ async function sendMagicLinkEmail(params: {
             Access Your Portal →
           </a>
         </div>
-
         <p style="font-size: 13px; color: #888; text-align: center;">
           This link is one-time use and expires in 48 hours.<br/>
           If you didn't expect this email, please ignore it.
         </p>
-
         <div style="border-top: 1px solid #eee; margin-top: 36px; padding-top: 16px;">
           <p style="font-size: 12px; color: #aaa; margin: 0;">
             E8 Productions, LLC ·
@@ -73,7 +68,6 @@ async function sendMagicLinkEmail(params: {
 }
 
 // POST /api/pre-clients/[id]/provision
-// Converts accepted pre-client → full Client → sends magic link
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -112,17 +106,15 @@ export async function POST(
       );
     }
 
-    const acceptedQuote = preClient.quotes[0];
-    if (!acceptedQuote) {
-      return NextResponse.json({ error: 'No accepted quote found' }, { status: 400 });
+    // Check if a client with this email already exists (idempotency)
+    const existingClient = await prisma.client.findFirst({
+      where: { email: preClient.email },
+    });
+    if (existingClient) {
+      return NextResponse.json({ error: 'A client with this email already exists' }, { status: 400 });
     }
 
-    // Check if already provisioned (idempotency)
-    if (preClient.clientId) {
-      return NextResponse.json({ error: 'Client already provisioned' }, { status: 400 });
-    }
-
-    // 1. Create R2 folders
+    // 1. Create R2 folders (outside DB — slow, keep separate)
     const folders = await createClientFolders(
       preClient.companyName || preClient.name
     ).catch(() => ({
@@ -132,72 +124,63 @@ export async function POST(
       outputsFolderId: null,
     }));
 
-    // 2. Create User + Client + OnboardingToken + ClientPortalAccess in one transaction
-    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48h
-
-    const { client, onboardingToken } = await prisma.$transaction(async (tx) => {
-      // Create the portal User (no password yet)
-      const portalUser = await tx.user.create({
-        data: {
-          name: preClient.name,
-          email: preClient.email,
-          password: null,
-          role: 'client',
-        },
-      });
-
-      // Create the full Client record
-      const client = await tx.client.create({
-        data: {
-          name: preClient.name,
-          email: preClient.email,
-          phone: preClient.phone || '',
-          companyName: preClient.companyName || null,
-          status: 'active',
-          startDate: new Date(),
-          lastActivity: new Date(),
-          preClientId: preClient.id,
-          portalPasswordSet: false,
-          welcomeVideoWatched: false,
-          driveFolderId: folders.mainFolderId,
-          rawFootageFolderId: folders.rawFolderId,
-          essentialsFolderId: folders.elementsFolderId,
-          outputsFolderId: folders.outputsFolderId,
-          currentProgress: { completed: 0, total: 0 },
-          user: { connect: { id: portalUser.id } },
-        },
-      });
-
-      // Create ClientPortalAccess — locked to ONBOARDING
-      await tx.clientPortalAccess.create({
-        data: {
-          clientId: client.id,
-          status: 'ONBOARDING',
-        },
-      });
-
-      // Create one-time onboarding token
-      const onboardingToken = await tx.onboardingToken.create({
-        data: {
-          clientId: client.id,
-          expiresAt,
-        },
-      });
-
-      // Mark pre-client as converted
-      await tx.preClient.update({
-        where: { id: preClientId },
-        data: { status: 'CONVERTED', clientId: client.id },
-      });
-
-      // Kick off recurring tasks
-      await createRecurringTasksForClient(client.id, tx);
-
-      return { client, onboardingToken };
+    // 2. Create portal User
+    const portalUser = await prisma.user.create({
+      data: {
+        name: preClient.name,
+        email: preClient.email,
+        password: null,
+        role: 'client',
+      },
     });
 
-    // 3. Send magic link email (non-blocking — don't fail if email fails)
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://e8productions.com';
+    // 3. Create Client record
+    const client = await prisma.client.create({
+      data: {
+        name: preClient.name,
+        email: preClient.email,
+        phone: preClient.phone || '',
+        companyName: preClient.companyName || null,
+        status: 'active',
+        startDate: new Date(),
+        lastActivity: new Date(),
+        preClientId: preClient.id,
+        portalPasswordSet: false,
+        welcomeVideoWatched: false,
+        driveFolderId: folders.mainFolderId,
+        rawFootageFolderId: folders.rawFolderId,
+        essentialsFolderId: folders.elementsFolderId,
+        outputsFolderId: folders.outputsFolderId,
+        currentProgress: { completed: 0, total: 0 },
+        user: { connect: { id: portalUser.id } },
+      },
+    });
+
+    // 4. Create ClientPortalAccess
+    await prisma.clientPortalAccess.create({
+      data: {
+        clientId: client.id,
+        status: 'ONBOARDING',
+      },
+    });
+
+    // 5. Create onboarding token
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const onboardingToken = await prisma.onboardingToken.create({
+      data: {
+        clientId: client.id,
+        expiresAt,
+      },
+    });
+
+    // 6. Mark pre-client as converted
+    await prisma.preClient.update({
+      where: { id: preClientId },
+      data: { status: 'CONVERTED' },
+    });
+
+    // 7. Non-blocking background tasks
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const magicLink = `${baseUrl}/onboarding/${onboardingToken.token}`;
 
     sendMagicLinkEmail({
@@ -206,13 +189,18 @@ export async function POST(
       magicLink,
     }).catch((err) => console.error('[Provision] Magic link email failed:', err));
 
-    // 4. Create Slack channel (non-blocking)
     createClientSlackChannel({
       clientId: client.id,
       companyName: preClient.companyName || preClient.name,
       clientName: preClient.name,
       clientEmail: preClient.email,
     }).catch((err) => console.error('[Provision] Slack channel failed:', err));
+
+    createRecurringTasksForClient(client.id).catch((err: any) =>
+      console.error('[Provision] Recurring tasks failed:', err)
+    );
+
+    console.log(`✅ [Provision] Client created: ${client.name} | Magic link: ${magicLink}`);
 
     return NextResponse.json({
       success: true,

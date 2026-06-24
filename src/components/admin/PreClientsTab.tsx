@@ -569,6 +569,25 @@ export function PreClientsTab() {
                           <Edit2 size={13} className="mr-1" /> Edit Latest Quote
                         </Button>
                       )}
+                      {pc.status === 'QUOTE_ACCEPTED' && (
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            if (!confirm(`Provision ${pc.name} as a full client and send welcome email?`)) return;
+                            const res = await fetch(`/api/pre-clients/${pc.id}/provision`, { method: 'POST' });
+                            const data = await res.json();
+                            if (data.success) {
+                              toast.success(`${pc.name} provisioned! Magic link sent to ${pc.email}`);
+                              load();
+                            } else {
+                              toast.error(data.error || 'Provisioning failed');
+                            }
+                          }}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <CheckCircle size={13} className="mr-1" /> Provision Client
+                        </Button>
+                      )}
                     </div>
 
                     {/* Quote history */}
