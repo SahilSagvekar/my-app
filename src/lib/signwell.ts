@@ -5,7 +5,7 @@ const SIGNWELL_API_URL = 'https://www.signwell.com/api/v1';
 function signwellHeaders(contentType = 'application/json') {
   
   return {
-    'X-Api-Token': process.env.SIGNWELL_API_KEY!,
+    'X-Api-Key': process.env.SIGNWELL_API_KEY!,
     'Content-Type': contentType,
   };
 }
