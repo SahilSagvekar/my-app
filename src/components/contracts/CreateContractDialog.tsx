@@ -1,316 +1,358 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Upload, Plus, Trash2, Loader2, FileText, UserPlus } from "lucide-react";
-import { useAuth } from "@/components/auth/AuthContext";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+    FileText,
+    Plus,
+    Search,
+    Send,
+    Download,
+    Clock,
+    CheckCircle2,
+    XCircle,
+    AlertCircle,
+    Eye,
+    Bell,
+    MoreHorizontal,
+    Filter,
+    Loader2,
+    Upload,
+} from "lucide-react";
+import dynamic from "next/dynamic";
+import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
+import { CreateContractDialog } from "./CreateContractDialog";
+import { UploadCompletedContractDialog } from "./UploadCompletedContractDialog";
+
+const ContractDetailView = dynamic(() => import("./ContractDetailView").then(mod => mod.ContractDetailView), {
+    ssr: false,
+    loading: () => (
+        <div className="flex items-center justify-center p-20">
+            <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
+                <p className="text-sm font-bold text-gray-400">Loading Document Details...</p>
+            </div>
+        </div>
+    )
+});
 
 interface Signer {
-  name: string;
-  email: string;
+    id: string;
+    name: string;
+    email: string;
+    status: string;
+    signedAt: string | null;
+    role: string;
 }
 
-interface CreateContractDialogProps {
-  onClose: () => void;
-  onCreated: () => void;
-  defaultClientId?: string;
-  defaultSigners?: Signer[];
+interface Contract {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    fileName: string;
+    fileSize: string;
+    message: string | null;
+    clientId: string | null;
+    expiresAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    signers: Signer[];
+    createdBy: { id: number; name: string | null; email: string };
 }
 
-export function CreateContractDialog({
-  onClose,
-  onCreated,
-  defaultClientId,
-  defaultSigners,
-}: CreateContractDialogProps) {
-  const { user } = useAuth();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [message, setMessage] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [signers, setSigners] = useState<Signer[]>(
-    defaultSigners || [{ name: "", email: "" }]
-  );
-  const [expiresInDays, setExpiresInDays] = useState(30);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [dragOver, setDragOver] = useState(false);
+const STATUS_TABS = [
+    { id: "all", label: "All", icon: FileText },
+    { id: "DRAFT", label: "Draft", icon: Clock },
+    { id: "SENT", label: "Sent", icon: Send },
+    { id: "PARTIALLY_SIGNED", label: "Partially Signed", icon: AlertCircle },
+    { id: "COMPLETED", label: "Completed", icon: CheckCircle2 },
+    { id: "CANCELLED", label: "Cancelled", icon: XCircle },
+];
 
-  const addMeAsSigner = () => {
-    if (!user) return;
-    const already = signers.some((s) => s.email.toLowerCase() === user.email.toLowerCase());
-    if (already) return;
-    const emptyIndex = signers.findIndex((s) => !s.name.trim() && !s.email.trim());
-    if (emptyIndex >= 0) {
-      const updated = [...signers];
-      updated[emptyIndex] = { name: user.name || "", email: user.email };
-      setSigners(updated);
-    } else {
-      setSigners([...signers, { name: user.name || "", email: user.email }]);
-    }
-  };
+export function ContractsDashboard() {
+    const [contracts, setContracts] = useState<Contract[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState("all");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [showUploadCompleted, setShowUploadCompleted] = useState(false);
+    const [selectedContract, setSelectedContract] = useState<string | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f && f.type === "application/pdf") {
-      setFile(f);
-      setError("");
-    } else if (f) {
-      setError("Only PDF files are supported");
-    }
-  };
+    const fetchContracts = useCallback(async () => {
+        try {
+            setLoading(true);
+            const params = new URLSearchParams();
+            if (activeTab !== "all") params.set("status", activeTab);
+            if (searchQuery) params.set("search", searchQuery);
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const f = e.dataTransfer.files[0];
-    if (f && f.type === "application/pdf") {
-      setFile(f);
-      setError("");
-    } else {
-      setError("Only PDF files are supported");
-    }
-  };
+            const res = await fetch(`/api/contracts?${params.toString()}`, {
+                credentials: "include",
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setContracts(data);
+            }
+        } catch (err) {
+            console.error("Failed to fetch contracts:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [activeTab, searchQuery]);
 
-  const handleSubmit = async () => {
-    setError("");
+    useEffect(() => {
+        fetchContracts();
+    }, [fetchContracts]);
 
-    if (!title.trim()) { setError("Title is required"); return; }
-    if (!file) { setError("Please upload a PDF file"); return; }
-    if (signers.some((s) => !s.name.trim() || !s.email.trim())) {
-      setError("All signers need a name and email");
-      return;
-    }
+    const getSignerSummary = (signers: Signer[]) => {
+        const signed = signers.filter((s) => s.status === "SIGNED").length;
+        return `${signed}/${signers.length}`;
+    };
 
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("title", title.trim());
-      if (description.trim()) formData.append("description", description.trim());
-      if (message.trim()) formData.append("message", message.trim());
-      if (defaultClientId) formData.append("clientId", defaultClientId);
-      formData.append("expiresInDays", String(expiresInDays));
-      formData.append("signers", JSON.stringify(signers));
-
-      const res = await fetch("/api/contracts", {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create contract");
-
-      onCreated();
-      onClose();
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-900">New Contract</h2>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-5">
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contract Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Service Agreement — Combatica"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+    if (selectedContract) {
+        return (
+            <ContractDetailView
+                contractId={selectedContract}
+                onBack={() => {
+                    setSelectedContract(null);
+                    fetchContracts();
+                }}
             />
-          </div>
+        );
+    }
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of this contract"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* PDF Upload */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contract PDF <span className="text-red-500">*</span>
-            </label>
-            {file ? (
-              <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-blue-900 truncate">{file.name}</p>
-                  <p className="text-xs text-blue-600">{(file.size / 1024).toFixed(0)} KB</p>
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                        Contracts
+                    </h1>
+                    <p className="text-muted-foreground mt-1 text-lg">
+                        Create, send, and track signed contracts
+                    </p>
                 </div>
-                <button
-                  onClick={() => setFile(null)}
-                  className="p-1 hover:bg-blue-100 rounded transition"
-                >
-                  <X className="h-4 w-4 text-blue-500" />
-                </button>
-              </div>
-            ) : (
-              <label
-                className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition ${
-                  dragOver
-                    ? "border-blue-400 bg-blue-50"
-                    : "border-gray-300 hover:border-blue-400 hover:bg-gray-50"
-                }`}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={handleDrop}
-              >
-                <Upload className="h-7 w-7 text-gray-400 mb-2" />
-                <p className="text-sm text-gray-600 font-medium">Drop PDF here or click to browse</p>
-                <p className="text-xs text-gray-400 mt-0.5">PDF files only</p>
-                <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleFileChange} />
-              </label>
-            )}
-          </div>
-
-          {/* Signers */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Signers <span className="text-red-500">*</span>
-              </label>
-              <button
-                onClick={addMeAsSigner}
-                className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-              >
-                <UserPlus className="h-3.5 w-3.5" /> Add me
-              </button>
-            </div>
-            <div className="space-y-2">
-              {signers.map((signer, i) => (
-                <div key={i} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={signer.name}
-                    onChange={(e) => {
-                      const updated = [...signers];
-                      updated[i] = { ...updated[i], name: e.target.value };
-                      setSigners(updated);
-                    }}
-                    placeholder="Full name"
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="email"
-                    value={signer.email}
-                    onChange={(e) => {
-                      const updated = [...signers];
-                      updated[i] = { ...updated[i], email: e.target.value };
-                      setSigners(updated);
-                    }}
-                    placeholder="Email address"
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {signers.length > 1 && (
+                <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setSigners(signers.filter((_, j) => j !== i))}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                        onClick={() => setShowUploadCompleted(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 text-green-700 rounded-lg font-semibold hover:bg-green-100 transition-colors border border-green-200"
                     >
-                      <Trash2 className="h-4 w-4" />
+                        <Upload className="h-4 w-4" />
+                        Upload Signed
                     </button>
-                  )}
+                    <button
+                        onClick={() => setShowCreateDialog(true)}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                    >
+                        <Plus className="h-4 w-4" />
+                        New Contract
+                    </button>
                 </div>
-              ))}
             </div>
-            <button
-              onClick={() => setSigners([...signers, { name: "", email: "" }])}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add signer
-            </button>
-          </div>
 
-          {/* Message to signers */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Message to signers <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={2}
-              placeholder="Any specific instructions for signers..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-          </div>
-
-          {/* Expires */}
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Expires in</label>
-            <input
-              type="number"
-              min={1}
-              max={365}
-              value={expiresInDays}
-              onChange={(e) => setExpiresInDays(Number(e.target.value) || 30)}
-              className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-500">days</span>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-              {error}
+            {/* Status Tabs */}
+            <div className="flex gap-1 p-1 bg-gray-100 rounded-xl overflow-x-auto">
+                {STATUS_TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    const count =
+                        tab.id === "all"
+                            ? contracts.length
+                            : contracts.filter((c) => c.status === tab.id).length;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab.id
+                                ? "bg-white text-gray-900 shadow-sm"
+                                : "text-gray-500 hover:text-gray-700"
+                                }`}
+                        >
+                            <Icon className="h-3.5 w-3.5" />
+                            {tab.label}
+                            {count > 0 && (
+                                <span
+                                    className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${activeTab === tab.id
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-gray-200 text-gray-600"
+                                        }`}
+                                >
+                                    {count}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
-          )}
 
-          {/* Info box */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-700">
-            <p className="font-medium mb-0.5">Powered by SignWell</p>
-            <p>The contract will be sent to signers via email. They can also sign directly inside the E8 portal.</p>
-          </div>
-        </div>
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search contracts..."
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                />
+            </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 py-2.5 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 flex items-center justify-center gap-2"
-          >
+            {/* Contracts List */}
             {loading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
+                <div className="flex items-center justify-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                </div>
+            ) : contracts.length === 0 ? (
+                <div className="text-center py-20 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                    <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-600 mb-1">
+                        No contracts yet
+                    </h3>
+                    <p className="text-sm text-gray-400 mb-4">
+                        Create your first contract to get started
+                    </p>
+                    <button
+                        onClick={() => setShowCreateDialog(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Create Contract
+                    </button>
+                </div>
             ) : (
-              "Send for Signing"
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b border-gray-100 bg-gray-50/50">
+                                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Contract
+                                </th>
+                                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Signers
+                                </th>
+                                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Created
+                                </th>
+                                <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {contracts.map((contract) => (
+                                <tr
+                                    key={contract.id}
+                                    className="hover:bg-blue-50/30 cursor-pointer transition-colors"
+                                    onClick={() => setSelectedContract(contract.id)}
+                                >
+                                    <td className="px-5 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-50 rounded-lg">
+                                                <FileText className="h-4 w-4 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-gray-900 text-sm">
+                                                    {contract.title}
+                                                </p>
+                                                <p className="text-xs text-gray-400 mt-0.5">
+                                                    {contract.fileName}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-4">
+                                        <ContractStatusBadge status={contract.status} />
+                                    </td>
+                                    <td className="px-5 py-4">
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex -space-x-1.5">
+                                                {contract.signers.slice(0, 3).map((signer) => (
+                                                    <div
+                                                        key={signer.id}
+                                                        className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold ${signer.status === "SIGNED"
+                                                            ? "bg-green-100 text-green-700"
+                                                            : signer.status === "VIEWED"
+                                                                ? "bg-blue-100 text-blue-700"
+                                                                : "bg-gray-100 text-gray-600"
+                                                            }`}
+                                                        title={`${signer.name} (${signer.status})`}
+                                                    >
+                                                        {signer.name
+                                                            .split(" ")
+                                                            .map((n) => n[0])
+                                                            .join("")
+                                                            .toUpperCase()
+                                                            .slice(0, 2)}
+                                                    </div>
+                                                ))}
+                                                {contract.signers.length > 3 && (
+                                                    <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600">
+                                                        +{contract.signers.length - 3}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className="text-xs text-gray-500 font-medium">
+                                                {getSignerSummary(contract.signers)} signed
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-4">
+                                        <div className="text-sm text-gray-600">
+                                            {new Date(contract.createdAt).toLocaleDateString(
+                                                "en-US",
+                                                {
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    year: "numeric",
+                                                }
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-gray-400">
+                                            by {contract.createdBy.name || contract.createdBy.email}
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-4 text-right">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedContract(contract.id);
+                                            }}
+                                            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
+                                        >
+                                            <Eye className="h-4 w-4 text-gray-400" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )}
-          </button>
+
+            {/* Create Dialog */}
+            {showCreateDialog && (
+                <CreateContractDialog
+                    onClose={() => setShowCreateDialog(false)}
+                    onCreated={() => {
+                        setShowCreateDialog(false);
+                        fetchContracts();
+                    }}
+                />
+            )}
+
+            {/* Upload Completed Dialog */}
+            {showUploadCompleted && (
+                <UploadCompletedContractDialog
+                    onClose={() => setShowUploadCompleted(false)}
+                    onCreated={() => {
+                        setShowUploadCompleted(false);
+                        fetchContracts();
+                    }}
+                />
+            )}
         </div>
-      </div>
-    </div>
-  );
+    );
 }
