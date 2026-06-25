@@ -46,6 +46,7 @@ export async function createSignWellDocumentFromFile(params: {
     subject: params.subject,
     message: params.message || '',
     send_email: true,
+    with_signature_page: true,
     embedded_signing: params.embeddedSigning ?? true,
     files: [
       {
