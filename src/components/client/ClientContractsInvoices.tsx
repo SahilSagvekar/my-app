@@ -333,9 +333,7 @@ export function ClientContractsInvoices({
         credentials: 'include',
       });
       const data = await res.json();
-      if (data.ok) {
-        setContracts(data.contracts || []);
-      }
+      setContracts(Array.isArray(data) ? data : data.contracts || []);
     } catch (error) {
       console.error('Error fetching contracts:', error);
     } finally {
