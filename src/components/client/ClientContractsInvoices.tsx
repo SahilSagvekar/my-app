@@ -57,6 +57,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useAuth } from '../auth/AuthContext';
+import { CreateContractDialog } from '../contracts/CreateContractDialog';
 
 // Types
 interface Contract {
@@ -233,6 +235,9 @@ export function ClientContractsInvoices({
   hasPostingServices = true,
 }: ClientContractsInvoicesProps) {
   // Contracts state
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+  const [showCreateContract, setShowCreateContract] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loadingContracts, setLoadingContracts] = useState(false);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
@@ -814,6 +819,16 @@ export function ClientContractsInvoices({
             </p>
           </div>
           <div className="flex gap-2">
+            {isAdmin && (
+              <Button
+                size="sm"
+                onClick={() => setShowCreateContract(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white gap-1"
+              >
+                <Plus className="h-4 w-4" />
+                New Contract
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -1782,6 +1797,19 @@ export function ClientContractsInvoices({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Admin: Create Contract Dialog */}
+      {showCreateContract && (
+        <CreateContractDialog
+          onClose={() => setShowCreateContract(false)}
+          onCreated={() => {
+            setShowCreateContract(false);
+            fetchContracts();
+          }}
+          defaultClientId={clientId}
+          defaultSigners={[{ name: clientName, email: clientEmail }]}
+        />
       )}
     </div>
   );
