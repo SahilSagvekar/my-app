@@ -53,6 +53,7 @@ import {
   Upload,
   X,
   Package,
+  PenLine,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -234,6 +235,9 @@ export function ClientContractsInvoices({
   // Contracts state
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loadingContracts, setLoadingContracts] = useState(false);
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [embeddedSignUrl, setEmbeddedSignUrl] = useState<string | null>(null);
+  const [loadingEmbedded, setLoadingEmbedded] = useState(false);
 
   // Upload completed contract state
   const [showUploadContract, setShowUploadContract] = useState(false);
@@ -818,23 +822,6 @@ export function ClientContractsInvoices({
             >
               <RefreshCw className={`h-4 w-4 ${loadingContracts ? 'animate-spin' : ''}`} />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowUploadContract(true)}
-              className="gap-1"
-            >
-              <Upload className="h-4 w-4" />
-              Upload Signed
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => window.open('/dashboard?page=contracts', '_blank')}
-              className="gap-1"
-            >
-              <Plus className="h-4 w-4" />
-              New Contract
-            </Button>
           </div>
         </div>
 
@@ -886,13 +873,33 @@ export function ClientContractsInvoices({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() =>
-                              window.open(`/contracts/${contract.id}`, '_blank')
-                            }
+                            onClick={() => setSelectedContractId(contract.id)}
                             title="View"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
+                          {contract.status !== 'COMPLETED' && contract.status !== 'CANCELLED' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={loadingEmbedded}
+                              title="Sign"
+                              onClick={async () => {
+                                setLoadingEmbedded(true);
+                                try {
+                                  const res = await fetch(`/api/contracts/${contract.id}/embedded-url`, { credentials: 'include' });
+                                  const data = await res.json();
+                                  if (res.ok && data.embeddedUrl) {
+                                    setEmbeddedSignUrl(data.embeddedUrl);
+                                  } else {
+                                    alert(data.error || 'Could not load signing page. Please check your email for the signing link.');
+                                  }
+                                } finally { setLoadingEmbedded(false); }
+                              }}
+                            >
+                              <PenLine className="h-4 w-4" />
+                            </Button>
+                          )}
                           {contract.status === 'COMPLETED' && (
                             <Button
                               variant="ghost"
@@ -1748,6 +1755,34 @@ export function ClientContractsInvoices({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Embedded SignWell signing modal */}
+      {embeddedSignUrl && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <PenLine className="h-4 w-4 text-blue-600" />
+                <span className="font-semibold text-gray-900 text-sm">Sign Contract</span>
+              </div>
+              <button
+                onClick={() => { setEmbeddedSignUrl(null); fetchContracts(); }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden rounded-b-2xl">
+              <iframe
+                src={embeddedSignUrl}
+                className="w-full h-full border-0"
+                title="Sign Contract"
+                allow="camera; microphone"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
