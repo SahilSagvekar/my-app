@@ -32,8 +32,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ContractStatusBadge, SignerStatusBadge } from "../components/contracts/ContractStatusBadge";
-import { ContractDetailView } from "../components/contracts/ContractDetailView";
+import { ContractStatusBadge, SignerStatusBadge } from "./contracts/ContractStatusBadge";
+import { ContractDetailView } from "./contracts/ContractDetailView";
 
 // Types
 interface MonthlyDeliverable {
