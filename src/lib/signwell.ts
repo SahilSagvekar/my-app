@@ -53,8 +53,8 @@ export async function createSignWellDocumentFromFile(params: {
         file_base64: params.fileBase64,
       },
     ],
-    signers: params.signers.map((s) => ({
-      id: s.id,
+    recipients: params.signers.map((s, index) => ({
+      id: s.id || `signer_${index + 1}`,
       name: s.name,
       email: s.email,
       send_email: s.send_email ?? true,
