@@ -16,6 +16,7 @@ import {
     MoreHorizontal,
     Filter,
     Loader2,
+    RefreshCw,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
@@ -75,6 +76,24 @@ export function ContractsDashboard() {
     const [searchQuery, setSearchQuery] = useState("");
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [selectedContract, setSelectedContract] = useState<string | null>(null);
+    const [syncing, setSyncing] = useState(false);
+
+    const syncWithSignWell = useCallback(async () => {
+        try {
+            setSyncing(true);
+            const res = await fetch("/api/contracts/sync");
+            if (res.ok) {
+                const data = await res.json();
+                if (data.syncedCount > 0) {
+                    await fetchContracts();
+                }
+            }
+        } catch (err) {
+            console.error("Failed to sync:", err);
+        } finally {
+            setSyncing(false);
+        }
+    }, [fetchContracts]);
 
     const fetchContracts = useCallback(async () => {
         try {
@@ -100,6 +119,13 @@ export function ContractsDashboard() {
     useEffect(() => {
         fetchContracts();
     }, [fetchContracts]);
+
+    // Automatically sync in the background on mount and every 30 seconds
+    useEffect(() => {
+        syncWithSignWell();
+        const intervalId = setInterval(syncWithSignWell, 30000);
+        return () => clearInterval(intervalId);
+    }, [syncWithSignWell]);
 
     const getSignerSummary = (signers: Signer[]) => {
         const signed = signers.filter((s) => s.status === "SIGNED").length;
@@ -131,6 +157,7 @@ export function ContractsDashboard() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {syncing && <RefreshCw className="h-4 w-4 text-gray-400 animate-spin mr-2" />}
                     <button
                         onClick={() => setShowCreateDialog(true)}
                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
