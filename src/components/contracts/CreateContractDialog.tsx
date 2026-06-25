@@ -89,8 +89,7 @@ export function CreateContractDialog({
         setFile(f);
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async () => {
         setError(null);
 
         if (!title.trim()) return setError("Title is required.");
@@ -144,7 +143,7 @@ export function CreateContractDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-1 space-y-4 py-2">
+                <div className="flex-1 overflow-y-auto pr-1 space-y-4 py-2">
                     {/* Error */}
                     {error && (
                         <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -303,7 +302,7 @@ export function CreateContractDialog({
                             ))}
                         </div>
                     </div>
-                </form>
+                </div>
 
                 <DialogFooter className="pt-4 border-t mt-2">
                     <p className="text-xs text-gray-400 mr-auto">
