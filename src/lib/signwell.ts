@@ -1,13 +1,11 @@
-// lib/signwell.ts
-// SignWell API integration for contract signing
+// lib/signwell.ts — SignWell API integration
 
 const SIGNWELL_API_URL = 'https://www.signwell.com/api/v1';
-const SIGNWELL_API_KEY = process.env.SIGNWELL_API_KEY!;
 
-function signwellHeaders() {
+function signwellHeaders(contentType = 'application/json') {
   return {
-    'X-Api-Token': SIGNWELL_API_KEY,
-    'Content-Type': 'application/json',
+    'X-Api-Token': process.env.SIGNWELL_API_KEY!,
+    'Content-Type': contentType,
   };
 }
 
@@ -16,39 +14,59 @@ export interface SignWellSigner {
   name: string;
   email: string;
   send_email?: boolean;
-  send_email_delay?: number;
 }
 
-export interface SignWellField {
-  api_id: string;
-  value: string;
-}
-
-// Create a document from a template and send for signing
-export async function createSignWellDocument(params: {
-  templateId: string;
+// ── Create document from a raw PDF file (base64) ─────────────────────────────
+// This is the main flow: admin uploads a PDF → we send it to SignWell
+export async function createSignWellDocumentFromFile(params: {
+  name: string;
   subject: string;
-  message: string;
+  message?: string;
+  fileBase64: string;       // base64 encoded PDF
+  fileName: string;
   signers: SignWellSigner[];
-  fields?: SignWellField[];
+  expiresInDays?: number;
   testMode?: boolean;
+  embeddedSigning?: boolean; // request embedded signing URLs
 }): Promise<{
   id: string;
   status: string;
-  signers: Array<{ id: string; name: string; email: string; embedded_signing_url?: string }>;
+  signers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    status: string;
+    embedded_signing_url?: string;
+  }>;
 }> {
-  const body = {
+  const body: any = {
     test_mode: params.testMode ?? process.env.NODE_ENV !== 'production',
-    template_id: params.templateId,
+    name: params.name,
     subject: params.subject,
-    message: params.message,
-    signers: params.signers,
-    fields: params.fields || [],
-    // Send via email by default (v1 — embedded is phase later)
+    message: params.message || '',
     send_email: true,
+    embedded_signing: params.embeddedSigning ?? true,
+    files: [
+      {
+        name: params.fileName,
+        file_base64: params.fileBase64,
+      },
+    ],
+    signers: params.signers.map((s) => ({
+      id: s.id,
+      name: s.name,
+      email: s.email,
+      send_email: s.send_email ?? true,
+    })),
   };
 
-  const res = await fetch(`${SIGNWELL_API_URL}/document_templates/documents`, {
+  if (params.expiresInDays) {
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + params.expiresInDays);
+    body.expires_at = expiry.toISOString();
+  }
+
+  const res = await fetch(`${SIGNWELL_API_URL}/documents`, {
     method: 'POST',
     headers: signwellHeaders(),
     body: JSON.stringify(body),
@@ -62,7 +80,7 @@ export async function createSignWellDocument(params: {
   return res.json();
 }
 
-// Get a document by ID
+// ── Get document status ───────────────────────────────────────────────────────
 export async function getSignWellDocument(documentId: string) {
   const res = await fetch(`${SIGNWELL_API_URL}/documents/${documentId}`, {
     headers: signwellHeaders(),
@@ -76,11 +94,12 @@ export async function getSignWellDocument(documentId: string) {
   return res.json();
 }
 
-// Download completed document PDF as a Buffer
+// ── Download completed signed PDF ─────────────────────────────────────────────
 export async function downloadSignWellPdf(documentId: string): Promise<Buffer> {
-  const res = await fetch(`${SIGNWELL_API_URL}/documents/${documentId}/completed_pdf`, {
-    headers: signwellHeaders(),
-  });
+  const res = await fetch(
+    `${SIGNWELL_API_URL}/documents/${documentId}/completed_pdf`,
+    { headers: signwellHeaders() }
+  );
 
   if (!res.ok) {
     const err = await res.text();
@@ -91,7 +110,20 @@ export async function downloadSignWellPdf(documentId: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
-// Void/cancel a document
+// ── Send reminder to pending signers ─────────────────────────────────────────
+export async function remindSignWellDocument(documentId: string): Promise<void> {
+  const res = await fetch(
+    `${SIGNWELL_API_URL}/documents/${documentId}/send_reminders`,
+    { method: 'POST', headers: signwellHeaders() }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`SignWell remind error (${res.status}): ${err}`);
+  }
+}
+
+// ── Void/cancel a document ───────────────────────────────────────────────────
 export async function voidSignWellDocument(documentId: string): Promise<void> {
   const res = await fetch(`${SIGNWELL_API_URL}/documents/${documentId}/void`, {
     method: 'PUT',
@@ -104,27 +136,41 @@ export async function voidSignWellDocument(documentId: string): Promise<void> {
   }
 }
 
-// Build the merge fields from a quote + client for the contract template
-export function buildContractFields(params: {
-  clientName: string;
-  companyName: string | null;
-  email: string;
-  totalAmount: number; // cents
-  services: Array<{ description: string; quantity: number; unitPrice: number; total: number }>;
-  startDate: string;
-}): SignWellField[] {
-  const total = `$${(params.totalAmount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-  const servicesSummary = params.services
-    .map((s) => `${s.description}: $${(s.total / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}/mo`)
-    .join('\n');
+// ── Get embedded signing URL for a specific signer ───────────────────────────
+export async function getEmbeddedSigningUrl(
+  documentId: string,
+  signerId: string
+): Promise<string> {
+  const doc = await getSignWellDocument(documentId);
+  const signer = doc.signers?.find((s: any) => s.id === signerId);
+  if (!signer?.embedded_signing_url) {
+    throw new Error('Embedded signing URL not available for this signer');
+  }
+  return signer.embedded_signing_url;
+}
 
-  return [
-    { api_id: 'client_name',      value: params.clientName },
-    { api_id: 'company_name',     value: params.companyName || params.clientName },
-    { api_id: 'client_email',     value: params.email },
-    { api_id: 'monthly_total',    value: total },
-    { api_id: 'services_summary', value: servicesSummary },
-    { api_id: 'start_date',       value: params.startDate },
-    { api_id: 'contract_date',    value: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) },
-  ];
+// ── Map SignWell status to our ContractStatus enum ───────────────────────────
+export function mapSignWellStatus(signwellStatus: string): string {
+  const map: Record<string, string> = {
+    draft:             'DRAFT',
+    pending:           'SENT',
+    in_progress:       'SENT',
+    awaiting_signature:'SENT',
+    completed:         'COMPLETED',
+    declined:          'CANCELLED',
+    voided:            'CANCELLED',
+    expired:           'EXPIRED',
+  };
+  return map[signwellStatus?.toLowerCase()] || 'SENT';
+}
+
+// ── Map SignWell signer status ────────────────────────────────────────────────
+export function mapSignWellSignerStatus(status: string): string {
+  const map: Record<string, string> = {
+    pending:  'PENDING',
+    viewed:   'VIEWED',
+    signed:   'SIGNED',
+    declined: 'DECLINED',
+  };
+  return map[status?.toLowerCase()] || 'PENDING';
 }

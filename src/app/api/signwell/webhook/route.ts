@@ -1,163 +1,208 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { downloadSignWellPdf } from '@/lib/signwell';
+import { downloadSignWellPdf, mapSignWellStatus, mapSignWellSignerStatus } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
 import nodemailer from 'nodemailer';
 
 // POST /api/signwell/webhook
-// SignWell sends events here when documents are signed/completed/declined
-// Configure in SignWell dashboard: Settings → Webhooks → Add endpoint
+// Register this URL in SignWell: Settings → Webhooks
 export async function POST(req: NextRequest) {
   try {
-    // Verify webhook secret if configured
-    const secret = process.env.SIGNWELL_WEBHOOK_SECRET;
-    if (secret) {
-      const sig = req.headers.get('x-signwell-signature');
-      if (sig !== secret) {
-        console.warn('[SignWell Webhook] Invalid signature');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
-    }
-
     const body = await req.json();
     const eventType: string = body.event_type || body.type || '';
     const document = body.document || body.data?.document || body;
 
     console.log(`📩 [SignWell Webhook] Event: ${eventType} | Doc: ${document?.id}`);
 
-    if (eventType === 'document_completed' || eventType === 'document.completed') {
-      await handleDocumentCompleted(document);
-    } else if (eventType === 'document_declined' || eventType === 'document.declined') {
-      await handleDocumentDeclined(document);
+    switch (eventType) {
+      case 'document_completed':
+      case 'document.completed':
+        await handleCompleted(document);
+        break;
+      case 'document_signed':
+      case 'document.signed':
+        await handleSignerSigned(document);
+        break;
+      case 'document_declined':
+      case 'document.declined':
+        await handleDeclined(document);
+        break;
+      case 'document_viewed':
+      case 'document.viewed':
+        await handleViewed(document);
+        break;
     }
 
     return NextResponse.json({ received: true });
   } catch (err: any) {
     console.error('[SignWell Webhook] Error:', err);
-    // Always return 200 to SignWell so it doesn't retry infinitely
+    // Always 200 so SignWell doesn't retry
     return NextResponse.json({ received: true, error: err.message });
   }
 }
 
-async function handleDocumentCompleted(document: any) {
-  const signwellDocId: string = document.id;
-  if (!signwellDocId) return;
-
-  // Find the contract record by signwell ID
-  const contract = await prisma.contract.findFirst({
+async function findContract(signwellDocId: string) {
+  return prisma.contract.findFirst({
     where: {
       OR: [
-        { signwellRequestId: signwellDocId },
         { signwellDocumentId: signwellDocId },
+        { signwellRequestId: signwellDocId },
       ],
     },
     include: {
+      signers: true,
       client: {
         include: { portalAccess: true },
       },
     } as any,
   });
+}
 
+async function handleCompleted(document: any) {
+  const contract = await findContract(document.id) as any;
   if (!contract) {
-    console.warn(`[SignWell Webhook] No contract found for doc: ${signwellDocId}`);
+    console.warn(`[SignWell] No contract found for doc: ${document.id}`);
     return;
   }
 
-  const client = (contract as any).client;
-
   try {
-    // 1. Download signed PDF from SignWell
-    const pdfBuffer = await downloadSignWellPdf(signwellDocId);
+    // Download signed PDF
+    const pdfBuffer = await downloadSignWellPdf(document.id);
 
-    // 2. Upload to R2 under client's Contracts folder
-    const safeName = (client.companyName || client.name)
-      .toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const filename = `signed-contract-${Date.now()}.pdf`;
-    const folderPrefix = `${client.companyName || client.name}/Contracts/`;
-
-    const { key, url } = await uploadBufferToS3({
+    // Save to R2
+    const clientName = (contract.client as any)?.companyName ||
+                       (contract.client as any)?.name ||
+                       'client';
+    const { key } = await uploadBufferToS3({
       buffer: pdfBuffer,
-      folderPrefix,
-      filename,
+      folderPrefix: `${clientName}/Contracts/`,
+      filename: `signed-${contract.fileName || 'contract.pdf'}`,
       mimeType: 'application/pdf',
     });
 
-    // 3. Update contract record
+    // Update contract
     await prisma.contract.update({
       where: { id: contract.id },
       data: {
         status: 'COMPLETED',
         completedAt: new Date(),
         signedS3Key: key,
+        signers: {
+          updateMany: {
+            where: {},
+            data: { status: 'SIGNED', signedAt: new Date() },
+          },
+        },
       },
     });
 
-    // 4. Advance portal to PAYMENT_PENDING
+    // Advance portal if pipeline client
+    const client = (contract as any).client;
     if (client?.portalAccess) {
-      await prisma.clientPortalAccess.update({
-        where: { clientId: client.id },
-        data: { status: 'PAYMENT_PENDING' },
-      });
+      const currentStatus = client.portalAccess.status;
+      if (currentStatus === 'CONTRACT_PENDING' || currentStatus === 'ONBOARDING') {
+        await prisma.clientPortalAccess.update({
+          where: { clientId: client.id },
+          data: { status: 'PAYMENT_PENDING' },
+        });
+        console.log(`✅ [Portal] Advanced to PAYMENT_PENDING for ${client.name}`);
+      }
     }
 
-    // 5. Update client portalPasswordSet flag (confirm contract signed)
-    await prisma.client.update({
-      where: { id: client.id },
-      data: { status: 'active' },
-    });
+    // Notify admin
+    await notifyAdmin(
+      `✅ Contract signed — ${contract.title}`,
+      `The contract "${contract.title}" has been fully signed by all parties. Signed PDF saved to R2.`
+    );
 
-    console.log(`✅ [SignWell] Contract completed for ${client.name} | PDF saved: ${key}`);
-
-    // 6. Send notification to admin
-    await sendContractSignedAdminNotification(client.name, client.email);
-
+    console.log(`✅ [SignWell] Contract completed: ${contract.id}`);
   } catch (err: any) {
-    console.error(`[SignWell] Error processing completed doc ${signwellDocId}:`, err);
+    console.error(`[SignWell] Error handling completed doc:`, err);
   }
 }
 
-async function handleDocumentDeclined(document: any) {
-  const signwellDocId: string = document.id;
-  if (!signwellDocId) return;
+async function handleSignerSigned(document: any) {
+  const contract = await findContract(document.id) as any;
+  if (!contract) return;
 
-  const contract = await prisma.contract.findFirst({
-    where: {
-      OR: [
-        { signwellRequestId: signwellDocId },
-        { signwellDocumentId: signwellDocId },
-      ],
-    },
-  });
+  // Update the individual signer status
+  const signwellSigners: any[] = document.signers || [];
+  for (const swSigner of signwellSigners) {
+    if (swSigner.status === 'signed' || swSigner.status === 'completed') {
+      // Find matching signer by email
+      const dbSigner = contract.signers.find(
+        (s: any) => s.email?.toLowerCase() === swSigner.email?.toLowerCase()
+      );
+      if (dbSigner && dbSigner.status !== 'SIGNED') {
+        await prisma.contractSigner.update({
+          where: { id: dbSigner.id },
+          data: { status: 'SIGNED', signedAt: new Date() },
+        });
+      }
+    }
+  }
 
-  if (contract) {
+  // Check if all signed → mark as PARTIALLY_SIGNED or keep SENT
+  const allSigned = contract.signers.every((s: any) => s.status === 'SIGNED');
+  if (!allSigned && contract.status === 'SENT') {
     await prisma.contract.update({
       where: { id: contract.id },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
+      data: { status: 'PARTIALLY_SIGNED' },
     });
-    console.log(`⚠️ [SignWell] Document declined for contract: ${contract.id}`);
+  }
+
+  console.log(`✍️ [SignWell] Signer signed on contract: ${contract.id}`);
+}
+
+async function handleDeclined(document: any) {
+  const contract = await findContract(document.id) as any;
+  if (!contract) return;
+
+  await prisma.contract.update({
+    where: { id: contract.id },
+    data: { status: 'CANCELLED' },
+  });
+
+  await notifyAdmin(
+    `❌ Contract declined — ${contract.title}`,
+    `A signer has declined to sign "${contract.title}". The contract has been cancelled.`
+  );
+
+  console.log(`❌ [SignWell] Contract declined: ${contract.id}`);
+}
+
+async function handleViewed(document: any) {
+  const contract = await findContract(document.id) as any;
+  if (!contract) return;
+
+  // Update signer status to VIEWED
+  const signwellSigners: any[] = document.signers || [];
+  for (const swSigner of signwellSigners) {
+    if (swSigner.status === 'viewed') {
+      const dbSigner = contract.signers.find(
+        (s: any) => s.email?.toLowerCase() === swSigner.email?.toLowerCase()
+      );
+      if (dbSigner && dbSigner.status === 'PENDING') {
+        await prisma.contractSigner.update({
+          where: { id: dbSigner.id },
+          data: { status: 'VIEWED', viewedAt: new Date() },
+        });
+      }
+    }
   }
 }
 
-async function sendContractSignedAdminNotification(clientName: string, clientEmail: string) {
+async function notifyAdmin(subject: string, body: string) {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
-
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    host: 'smtp.gmail.com', port: 465, secure: true,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   });
-
   await transporter.sendMail({
-    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    from: `"E8 App" <${process.env.SMTP_USER}>`,
     to: 'eric@e8productions.com',
-    subject: `✅ Contract signed — ${clientName}`,
-    html: `
-      <p><strong>${clientName}</strong> (${clientEmail}) has signed their service agreement.</p>
-      <p>Their portal is now in <strong>PAYMENT_PENDING</strong> state —
-         they need to complete their first payment to unlock full access.</p>
-      <p>The signed PDF has been saved to their R2 folder under <code>Contracts/</code>.</p>
-    `,
+    subject,
+    html: `<p>${body}</p>`,
   }).catch(console.error);
 }

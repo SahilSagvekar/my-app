@@ -1,541 +1,316 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import {
-    X, Upload, Plus, Trash2, Loader2, FileText, UserPlus,
-    Eye, EyeOff, Type, Square, MousePointer, PenLine
-} from "lucide-react";
+import React, { useState } from "react";
+import { X, Upload, Plus, Trash2, Loader2, FileText, UserPlus } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
 
-interface Annotation {
-    id: string;
-    type: "text" | "rect" | "signature-field";
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    text?: string;
-    page: number;
-}
-
 interface Signer {
-    name: string;
-    email: string;
-    role: string;
+  name: string;
+  email: string;
 }
 
 interface CreateContractDialogProps {
-    onClose: () => void;
-    onCreated: () => void;
+  onClose: () => void;
+  onCreated: () => void;
+  defaultClientId?: string;
+  defaultSigners?: Signer[];
 }
 
-export function CreateContractDialog({ onClose, onCreated }: CreateContractDialogProps) {
-    const { user } = useAuth();
-    const [title, setTitle] = useState("");
-    const [description, setDescription] = useState("");
-    const [message, setMessage] = useState("");
-    const [file, setFile] = useState<File | null>(null);
-    const [signers, setSigners] = useState<Signer[]>([{ name: "", email: "", role: "signer" }]);
-    const [expiresAt, setExpiresAt] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [dragOver, setDragOver] = useState(false);
-    const [showPreview, setShowPreview] = useState(false);
-    const [annotations, setAnnotations] = useState<Annotation[]>([]);
-    const [activeTool, setActiveTool] = useState<"select" | "text" | "rect" | "signature-field">("select");
-    const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null);
+export function CreateContractDialog({
+  onClose,
+  onCreated,
+  defaultClientId,
+  defaultSigners,
+}: CreateContractDialogProps) {
+  const { user } = useAuth();
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [message, setMessage] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [signers, setSigners] = useState<Signer[]>(
+    defaultSigners || [{ name: "", email: "" }]
+  );
+  const [expiresInDays, setExpiresInDays] = useState(30);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
 
-    const pdfPreviewUrl = useMemo(() => {
-        if (file) return URL.createObjectURL(file);
-        return null;
-    }, [file]);
+  const addMeAsSigner = () => {
+    if (!user) return;
+    const already = signers.some((s) => s.email.toLowerCase() === user.email.toLowerCase());
+    if (already) return;
+    const emptyIndex = signers.findIndex((s) => !s.name.trim() && !s.email.trim());
+    if (emptyIndex >= 0) {
+      const updated = [...signers];
+      updated[emptyIndex] = { name: user.name || "", email: user.email };
+      setSigners(updated);
+    } else {
+      setSigners([...signers, { name: user.name || "", email: user.email }]);
+    }
+  };
 
-    const isAlreadyAdded = signers.some(
-        (s) => s.email.toLowerCase() === (user?.email || "").toLowerCase()
-    );
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f && f.type === "application/pdf") {
+      setFile(f);
+      setError("");
+    } else if (f) {
+      setError("Only PDF files are supported");
+    }
+  };
 
-    const addMeAsSigner = () => {
-        if (!user || isAlreadyAdded) return;
-        // Replace first empty signer row or add a new one
-        const emptyIndex = signers.findIndex((s) => !s.name.trim() && !s.email.trim());
-        if (emptyIndex >= 0) {
-            const updated = [...signers];
-            updated[emptyIndex] = { name: user.name || "", email: user.email, role: "signer" };
-            setSigners(updated);
-        } else {
-            setSigners([...signers, { name: user.name || "", email: user.email, role: "signer" }]);
-        }
-    };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files[0];
+    if (f && f.type === "application/pdf") {
+      setFile(f);
+      setError("");
+    } else {
+      setError("Only PDF files are supported");
+    }
+  };
 
-    const addSigner = () => {
-        setSigners([...signers, { name: "", email: "", role: "signer" }]);
-    };
+  const handleSubmit = async () => {
+    setError("");
 
-    const removeSigner = (index: number) => {
-        if (signers.length > 1) {
-            setSigners(signers.filter((_, i) => i !== index));
-        }
-    };
+    if (!title.trim()) { setError("Title is required"); return; }
+    if (!file) { setError("Please upload a PDF file"); return; }
+    if (signers.some((s) => !s.name.trim() || !s.email.trim())) {
+      setError("All signers need a name and email");
+      return;
+    }
 
-    const updateSigner = (index: number, field: keyof Signer, value: string) => {
-        const updated = [...signers];
-        updated[index] = { ...updated[index], [field]: value };
-        setSigners(updated);
-    };
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("title", title.trim());
+      if (description.trim()) formData.append("description", description.trim());
+      if (message.trim()) formData.append("message", message.trim());
+      if (defaultClientId) formData.append("clientId", defaultClientId);
+      formData.append("expiresInDays", String(expiresInDays));
+      formData.append("signers", JSON.stringify(signers));
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const f = e.target.files?.[0];
-        if (f && f.type === "application/pdf") {
-            setFile(f);
-            setError("");
-        } else {
-            setError("Please select a PDF file");
-        }
-    };
+      const res = await fetch("/api/contracts", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
 
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setDragOver(false);
-        const f = e.dataTransfer.files?.[0];
-        if (f && f.type === "application/pdf") {
-            setFile(f);
-            setError("");
-        } else {
-            setError("Please drop a PDF file");
-        }
-    };
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create contract");
 
-    const handleSubmit = async (asDraft: boolean) => {
-        if (!title.trim()) {
-            setError("Title is required");
-            return;
-        }
-        if (!file) {
-            setError("Please upload a PDF file");
-            return;
-        }
+      onCreated();
+      onClose();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        const validSigners = signers.filter((s) => s.name.trim() && s.email.trim());
-        if (!asDraft && validSigners.length === 0) {
-            setError("At least one signer is required to send");
-            return;
-        }
-
-        setLoading(true);
-        setError("");
-
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("title", title.trim());
-            if (description.trim()) formData.append("description", description.trim());
-            if (message.trim()) formData.append("message", message.trim());
-            if (expiresAt) formData.append("expiresAt", expiresAt);
-            formData.append("signers", JSON.stringify(validSigners));
-            if (annotations.length > 0) {
-                formData.append("annotations", JSON.stringify(annotations));
-            }
-
-            const res = await fetch("/api/contracts", {
-                method: "POST",
-                credentials: "include",
-                body: formData,
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || "Failed to create contract");
-            }
-
-            const contract = await res.json();
-
-            if (!asDraft) {
-                // Send immediately
-                await fetch(`/api/contracts/${contract.id}/send`, {
-                    method: "POST",
-                    credentials: "include",
-                });
-            }
-
-            onCreated();
-        } catch (err: any) {
-            setError(err.message || "Something went wrong");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                {/* Header */}
-                <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900">New Contract</h2>
-                        <p className="text-sm text-gray-500 mt-0.5">Upload a PDF and add signers</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                        <X className="h-5 w-5 text-gray-400" />
-                    </button>
-                </div>
-
-                <div className="p-6 space-y-6">
-                    {error && (
-                        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3">
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Title */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            Contract Title *
-                        </label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="e.g., Service Agreement - Client Name"
-                            className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                    </div>
-
-                    {/* Description */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            Description
-                        </label>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Brief description of this contract..."
-                            rows={2}
-                            className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                        />
-                    </div>
-
-                    {/* File Upload */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            Contract PDF *
-                        </label>
-                        <div
-                            className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragOver
-                                ? "border-blue-400 bg-blue-50"
-                                : file
-                                    ? "border-green-300 bg-green-50"
-                                    : "border-gray-200 hover:border-gray-300"
-                                }`}
-                            onDragOver={(e) => {
-                                e.preventDefault();
-                                setDragOver(true);
-                            }}
-                            onDragLeave={() => setDragOver(false)}
-                            onDrop={handleDrop}
-                        >
-                            {file ? (
-                                <div className="flex items-center justify-center gap-3">
-                                    <FileText className="h-8 w-8 text-green-500" />
-                                    <div className="text-left">
-                                        <p className="font-semibold text-gray-900 text-sm">{file.name}</p>
-                                        <p className="text-xs text-gray-500">
-                                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setFile(null);
-                                            setAnnotations([]);
-                                            setShowPreview(false);
-                                            setSelectedAnnotation(null);
-                                        }}
-                                        className="p-1.5 hover:bg-red-50 rounded-lg"
-                                    >
-                                        <Trash2 className="h-4 w-4 text-red-400" />
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    <Upload className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                                    <p className="text-sm text-gray-600 font-medium">
-                                        Drag & drop your PDF here, or{" "}
-                                        <label className="text-blue-600 cursor-pointer hover:underline">
-                                            browse
-                                            <input
-                                                type="file"
-                                                accept=".pdf"
-                                                onChange={handleFileChange}
-                                                className="hidden"
-                                            />
-                                        </label>
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">PDF files only</p>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* PDF Preview & Editor */}
-                    {file && (
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="text-sm font-semibold text-gray-700">Document Preview & Edit</label>
-                                <button
-                                    onClick={() => setShowPreview(!showPreview)}
-                                    className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                >
-                                    {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                                    {showPreview ? "Hide Preview" : "Show Preview"}
-                                </button>
-                            </div>
-
-                            {showPreview && pdfPreviewUrl && (
-                                <div className="border border-gray-200 rounded-xl overflow-hidden">
-                                    {/* Mini Toolbar */}
-                                    <div className="flex items-center gap-1 bg-gray-50 px-3 py-2 border-b border-gray-200">
-                                        {[
-                                            { id: "select" as const, icon: MousePointer, label: "Select" },
-                                            { id: "text" as const, icon: Type, label: "Text" },
-                                            { id: "rect" as const, icon: Square, label: "Highlight" },
-                                            { id: "signature-field" as const, icon: PenLine, label: "Sig Field" },
-                                        ].map((tool) => {
-                                            const Icon = tool.icon;
-                                            return (
-                                                <button
-                                                    key={tool.id}
-                                                    onClick={() => setActiveTool(tool.id)}
-                                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${activeTool === tool.id
-                                                        ? "bg-blue-100 text-blue-700"
-                                                        : "text-gray-500 hover:bg-gray-100"
-                                                        }`}
-                                                    title={tool.label}
-                                                >
-                                                    <Icon className="h-3.5 w-3.5" />
-                                                    {tool.label}
-                                                </button>
-                                            );
-                                        })}
-
-                                        {selectedAnnotation && (
-                                            <button
-                                                onClick={() => {
-                                                    setAnnotations(annotations.filter(a => a.id !== selectedAnnotation));
-                                                    setSelectedAnnotation(null);
-                                                }}
-                                                className="inline-flex items-center gap-1 px-2 py-1 text-red-600 hover:bg-red-50 rounded text-xs font-medium ml-1"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                                Delete
-                                            </button>
-                                        )}
-
-                                        {annotations.length > 0 && (
-                                            <span className="text-[10px] text-gray-400 ml-auto">
-                                                {annotations.length} annotation{annotations.length !== 1 ? "s" : ""}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* PDF + Overlay */}
-                                    <div
-                                        className="relative bg-white"
-                                        onClick={(e) => {
-                                            if (activeTool === "select") return;
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            const x = ((e.clientX - rect.left) / rect.width) * 100;
-                                            const y = ((e.clientY - rect.top) / rect.height) * 100;
-                                            const newAnn: Annotation = {
-                                                id: `ann-${Date.now()}`,
-                                                type: activeTool,
-                                                x, y,
-                                                width: activeTool === "text" ? 20 : 25,
-                                                height: activeTool === "text" ? 4 : activeTool === "signature-field" ? 8 : 5,
-                                                text: activeTool === "text" ? "Click to edit" : undefined,
-                                                page: 0,
-                                            };
-                                            setAnnotations([...annotations, newAnn]);
-                                            setSelectedAnnotation(newAnn.id);
-                                            setActiveTool("select");
-                                        }}
-                                    >
-                                        <iframe
-                                            src={`${pdfPreviewUrl}#toolbar=0`}
-                                            className="w-full pointer-events-none"
-                                            style={{ height: "500px" }}
-                                            title="PDF Preview"
-                                        />
-                                        {/* Annotation Overlay */}
-                                        <div className="absolute inset-0">
-                                            {annotations.map((ann) => (
-                                                <div
-                                                    key={ann.id}
-                                                    className={`absolute cursor-pointer transition-all ${selectedAnnotation === ann.id ? "ring-2 ring-blue-500 ring-offset-1" : ""
-                                                        }`}
-                                                    style={{
-                                                        left: `${ann.x}%`, top: `${ann.y}%`,
-                                                        width: `${ann.width}%`, height: `${ann.height}%`,
-                                                    }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedAnnotation(ann.id);
-                                                    }}
-                                                >
-                                                    {ann.type === "text" && (
-                                                        <div
-                                                            className="w-full h-full bg-yellow-100/80 border border-yellow-300 rounded p-1 text-xs"
-                                                            suppressContentEditableWarning
-                                                            contentEditable
-                                                            onBlur={(e) => {
-                                                                setAnnotations(annotations.map(a =>
-                                                                    a.id === ann.id ? { ...a, text: e.currentTarget.textContent || "" } : a
-                                                                ));
-                                                            }}
-                                                        >
-                                                            {ann.text}
-                                                        </div>
-                                                    )}
-                                                    {ann.type === "rect" && (
-                                                        <div className="w-full h-full bg-red-200/30 border-2 border-red-400 rounded" />
-                                                    )}
-                                                    {ann.type === "signature-field" && (
-                                                        <div className="w-full h-full border-2 border-dashed border-blue-500 bg-blue-50/40 rounded flex items-center justify-center">
-                                                            <span className="text-[10px] text-blue-600 font-semibold">✍️ Sign Here</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Tip */}
-                                    <div className="px-3 py-2 bg-amber-50 border-t border-amber-100 text-[11px] text-amber-700">
-                                        💡 Select a tool above, then click on the PDF to place annotations. Click items to select, then delete.
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Signers */}
-                    <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-semibold text-gray-700">Signers</label>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={addMeAsSigner}
-                                    disabled={isAlreadyAdded}
-                                    className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${isAlreadyAdded
-                                        ? "bg-green-50 text-green-600 cursor-default"
-                                        : "bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
-                                        }`}
-                                    title={isAlreadyAdded ? "You're already added as a signer" : "Add yourself as a signer"}
-                                >
-                                    <UserPlus className="h-3.5 w-3.5" />
-                                    {isAlreadyAdded ? "Me ✓" : "Add Me"}
-                                </button>
-                                <button
-                                    onClick={addSigner}
-                                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    Add Signer
-                                </button>
-                            </div>
-                        </div>
-                        <div className="space-y-3">
-                            {signers.map((signer, index) => (
-                                <div
-                                    key={index}
-                                    className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-100"
-                                >
-                                    <input
-                                        type="text"
-                                        value={signer.name}
-                                        onChange={(e) => updateSigner(index, "name", e.target.value)}
-                                        placeholder="Full name"
-                                        className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                    />
-                                    <input
-                                        type="email"
-                                        value={signer.email}
-                                        onChange={(e) => updateSigner(index, "email", e.target.value)}
-                                        placeholder="Email address"
-                                        className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                    />
-                                    {signers.length > 1 && (
-                                        <button
-                                            onClick={() => removeSigner(index)}
-                                            className="p-1.5 hover:bg-red-50 rounded-md"
-                                        >
-                                            <Trash2 className="h-4 w-4 text-red-400" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Message */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            Message to Signers
-                        </label>
-                        <textarea
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            placeholder="Optional message included in the signing invitation email..."
-                            rows={2}
-                            className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                        />
-                    </div>
-
-                    {/* Expiration */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            Expiration Date (optional)
-                        </label>
-                        <input
-                            type="date"
-                            value={expiresAt}
-                            onChange={(e) => setExpiresAt(e.target.value)}
-                            min={new Date().toISOString().split("T")[0]}
-                            className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                    </div>
-                </div>
-
-                {/* Footer Actions */}
-                <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
-                    <button
-                        onClick={onClose}
-                        disabled={loading}
-                        className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={() => handleSubmit(true)}
-                        disabled={loading}
-                        className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save as Draft"}
-                    </button>
-                    <button
-                        onClick={() => handleSubmit(false)}
-                        disabled={loading}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 shadow-sm"
-                    >
-                        {loading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <>
-                                <Upload className="h-4 w-4" />
-                                Create & Send
-                            </>
-                        )}
-                    </button>
-                </div>
-            </div>
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-blue-600" />
+            <h2 className="text-lg font-semibold text-gray-900">New Contract</h2>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
         </div>
-    );
+
+        <div className="px-6 py-5 space-y-5">
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Contract Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Service Agreement — Combatica"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of this contract"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* PDF Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Contract PDF <span className="text-red-500">*</span>
+            </label>
+            {file ? (
+              <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-900 truncate">{file.name}</p>
+                  <p className="text-xs text-blue-600">{(file.size / 1024).toFixed(0)} KB</p>
+                </div>
+                <button
+                  onClick={() => setFile(null)}
+                  className="p-1 hover:bg-blue-100 rounded transition"
+                >
+                  <X className="h-4 w-4 text-blue-500" />
+                </button>
+              </div>
+            ) : (
+              <label
+                className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                  dragOver
+                    ? "border-blue-400 bg-blue-50"
+                    : "border-gray-300 hover:border-blue-400 hover:bg-gray-50"
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+              >
+                <Upload className="h-7 w-7 text-gray-400 mb-2" />
+                <p className="text-sm text-gray-600 font-medium">Drop PDF here or click to browse</p>
+                <p className="text-xs text-gray-400 mt-0.5">PDF files only</p>
+                <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleFileChange} />
+              </label>
+            )}
+          </div>
+
+          {/* Signers */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Signers <span className="text-red-500">*</span>
+              </label>
+              <button
+                onClick={addMeAsSigner}
+                className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              >
+                <UserPlus className="h-3.5 w-3.5" /> Add me
+              </button>
+            </div>
+            <div className="space-y-2">
+              {signers.map((signer, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={signer.name}
+                    onChange={(e) => {
+                      const updated = [...signers];
+                      updated[i] = { ...updated[i], name: e.target.value };
+                      setSigners(updated);
+                    }}
+                    placeholder="Full name"
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    type="email"
+                    value={signer.email}
+                    onChange={(e) => {
+                      const updated = [...signers];
+                      updated[i] = { ...updated[i], email: e.target.value };
+                      setSigners(updated);
+                    }}
+                    placeholder="Email address"
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {signers.length > 1 && (
+                    <button
+                      onClick={() => setSigners(signers.filter((_, j) => j !== i))}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setSigners([...signers, { name: "", email: "" }])}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add signer
+            </button>
+          </div>
+
+          {/* Message to signers */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Message to signers <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={2}
+              placeholder="Any specific instructions for signers..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+          </div>
+
+          {/* Expires */}
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700">Expires in</label>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={expiresInDays}
+              onChange={(e) => setExpiresInDays(Number(e.target.value) || 30)}
+              className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-500">days</span>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* Info box */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-700">
+            <p className="font-medium mb-0.5">Powered by SignWell</p>
+            <p>The contract will be sent to signers via email. They can also sign directly inside the E8 portal.</p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 bg-white">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 py-2.5 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
+            ) : (
+              "Send for Signing"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
