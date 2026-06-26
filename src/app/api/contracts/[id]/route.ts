@@ -47,7 +47,10 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json(contract);
+    return NextResponse.json({
+      ...contract,
+      fileSize: contract.fileSize?.toString() || '0',
+    });
   } catch (err: any) {
     console.error(`GET /api/contracts/[id] error:`, err);
     return NextResponse.json({ error: err.message }, { status: 500 });
