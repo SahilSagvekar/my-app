@@ -203,6 +203,22 @@ export function ClientPortalPage() {
     fetchData();
   }, [fetchData]);
 
+  // Handle returning from Stripe payment
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('payment') === 'success') {
+      fetch('/api/portal/verify-payment')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.status === 'ACTIVE') {
+            // Hard reload to clear query param and re-fetch global app state (unlocking the portal UI)
+            window.location.href = window.location.pathname;
+          }
+        })
+        .catch(console.error);
+    }
+  }, []);
+
   // Contract download
   const handleDownload = async (contractId: string, type: "original" | "signed") => {
     try {
