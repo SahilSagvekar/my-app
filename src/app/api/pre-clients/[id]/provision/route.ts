@@ -26,7 +26,7 @@ async function sendMagicLinkEmail(params: {
 }) {
   const transporter = getTransporter();
   await transporter.sendMail({
-    from: `"E8 Productions" <eric@e8productions.com>`,
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
     to: params.email,
     subject: `Welcome to E8 Productions — Set up your portal`,
     html: `
@@ -179,15 +179,24 @@ export async function POST(
       data: { status: 'CONVERTED' },
     });
 
-    // 7. Non-blocking background tasks
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const magicLink = `${baseUrl}/onboarding/${onboardingToken.token}`;
 
-    sendMagicLinkEmail({
-      clientName: preClient.name,
-      email: preClient.email,
-      magicLink,
-    }).catch((err) => console.error('[Provision] Magic link email failed:', err));
+    // Send magic link email — await so errors surface instead of being silently swallowed
+    let emailSent = false;
+    try {
+      await sendMagicLinkEmail({
+        clientName: preClient.name,
+        email: preClient.email,
+        magicLink,
+      });
+      emailSent = true;
+      console.log(`✅ [Provision] Magic link email sent to ${preClient.email}`);
+    } catch (emailErr: any) {
+      console.error('[Provision] Magic link email FAILED:', emailErr?.message || emailErr);
+      // Don't block — client is created, log the link for manual use
+      console.log(`[Provision] Manual magic link: ${magicLink}`);
+    }
 
     createClientSlackChannel({
       clientId: client.id,
@@ -206,6 +215,7 @@ export async function POST(
       success: true,
       clientId: client.id,
       magicLink,
+      emailSent,
     });
   } catch (err: any) {
     console.error('POST /api/pre-clients/[id]/provision error:', err);
