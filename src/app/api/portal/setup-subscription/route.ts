@@ -24,7 +24,6 @@ export async function POST(req: NextRequest) {
       },
       include: {
         portalAccess: true,
-        preClientId: false,
       },
     });
 
@@ -39,13 +38,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get the accepted quote to know the amount
+    // Get the accepted (or latest) quote to know the amount
     const preClient = client.preClientId
       ? await prisma.preClient.findUnique({
           where: { id: client.preClientId },
           include: {
             quotes: {
-              where: { status: 'ACCEPTED' },
               orderBy: { version: 'desc' },
               take: 1,
             },
@@ -57,6 +55,7 @@ export async function POST(req: NextRequest) {
     const amountCents: number = acceptedQuote?.totalAmount ?? 0;
 
     if (amountCents <= 0) {
+      console.error(`[Setup Subscription] No valid quote amount found for client ${client.id}. PreClient ID: ${client.preClientId}, Quote ID: ${acceptedQuote?.id}, Amount: ${acceptedQuote?.totalAmount}`);
       return NextResponse.json({ error: 'No quote amount found' }, { status: 400 });
     }
 
