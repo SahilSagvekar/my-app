@@ -125,7 +125,7 @@ export const getDefaultPage = (role: string): string => {
     case 'qc': return 'review-queue';
     case 'scheduler': return 'approved-queue';
     case 'manager': return 'dashboard';
-    case 'client': return 'approvals';
+    case 'client': return 'contracts';
     case 'videographer': return 'dashboard';
     case 'sales': return 'dashboard';
     default: return 'dashboard';

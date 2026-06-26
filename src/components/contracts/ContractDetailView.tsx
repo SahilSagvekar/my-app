@@ -66,7 +66,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
   const handleSyncStatus = async () => {
     setActionLoading("sync");
     try {
-      const res = await fetch(`/api/contracts/${contractId}/send`, {
+      const res = await fetch(`/api/contracts/${contractId}/sync`, {
         method: "POST", credentials: "include",
       });
       if (res.ok) {
@@ -127,7 +127,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
             <ArrowLeft className="h-4 w-4" /> Back to Contracts
           </button>
           <div className="flex items-center gap-2">
-            {isAdmin && contract.status !== "COMPLETED" && contract.status !== "CANCELLED" && (
+            {contract.status !== "COMPLETED" && contract.status !== "CANCELLED" && (
               <>
                 <button
                   onClick={handleSyncStatus}
@@ -137,7 +137,7 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                   <RefreshCw className={`h-3.5 w-3.5 ${actionLoading === "sync" ? "animate-spin" : ""}`} />
                   Sync Status
                 </button>
-                {pendingSigners.length > 0 && (
+                {isAdmin && pendingSigners.length > 0 && (
                   <button
                     onClick={handleRemind}
                     disabled={!!actionLoading}

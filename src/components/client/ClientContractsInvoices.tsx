@@ -59,6 +59,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useAuth } from '../auth/AuthContext';
 import { CreateContractDialog } from '../contracts/CreateContractDialog';
+import { ContractDetailView } from '../contracts/ContractDetailView';
 
 // Types
 interface Contract {
@@ -799,6 +800,15 @@ export function ClientContractsInvoices({
       <div className="text-center py-8 text-gray-500">
         Save the client first to manage contracts and invoices
       </div>
+    );
+  }
+
+  if (selectedContractId) {
+    return (
+      <ContractDetailView 
+        contractId={selectedContractId} 
+        onBack={() => setSelectedContractId(null)} 
+      />
     );
   }
 
