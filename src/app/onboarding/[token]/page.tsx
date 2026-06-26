@@ -49,22 +49,57 @@ export default function OnboardingPage() {
       .catch(() => setStage("invalid"));
   }, [token]);
 
-  // Listen for Loom message events (video end)
+  // Listen for Loom message events (video end + progress)
   useEffect(() => {
+    let durationSecs = 0;
+
     function handleMessage(e: MessageEvent) {
-      if (!e.data) return;
-      // Loom sends: { type: 'loom:video-ended' } or progress events
-      if (e.data.type === "loom:video-ended" || e.data?.type === "video-ended") {
+      if (!e.data || typeof e.data !== 'object') return;
+      const { type } = e.data;
+
+      // Video ended
+      if (type === 'loom:video-ended' || type === 'video-ended') {
         setVideoEnded(true);
         setVideoProgress(100);
       }
-      if (e.data.type === "loom:video:progress" && e.data.progress) {
-        setVideoProgress(Math.round(e.data.progress * 100));
+
+      // Progress via currentTime (most reliable Loom event)
+      if (type === 'loom:currentTime' && e.data.currentTime != null) {
+        if (durationSecs > 0) {
+          const pct = Math.min(100, Math.round((e.data.currentTime / durationSecs) * 100));
+          setVideoProgress(pct);
+          // Unlock at 85% — accounts for Loom sometimes not firing ended event
+          if (pct >= 85) {
+            setVideoEnded(true);
+          }
+        }
+      }
+
+      // Duration event — capture video length
+      if (type === 'loom:duration' && e.data.duration) {
+        durationSecs = e.data.duration;
+      }
+
+      // Legacy progress event
+      if (type === 'loom:video:progress' && e.data.progress != null) {
+        const pct = Math.round(e.data.progress * 100);
+        setVideoProgress(pct);
+        if (pct >= 85) setVideoEnded(true);
       }
     }
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
+
+  // Fallback: show manual "I've finished" button after 30 seconds
+  // in case Loom postMessages never fire (iframe sandboxing, cross-origin, etc.)
+  const [showManualContinue, setShowManualContinue] = useState(false);
+  useEffect(() => {
+    if (stage !== 'video') return;
+    const t = setTimeout(() => setShowManualContinue(true), 30_000);
+    return () => clearTimeout(t);
+  }, [stage]);
 
   async function handleSetPassword() {
     setError("");
@@ -194,8 +229,8 @@ export default function OnboardingPage() {
           </p>
         </div>
 
-        {/* Loom embed — locked, no skip */}
-        <div className="w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl bg-black relative">
+        {/* Loom embed — fullscreen allowed, no overlay blocking */}
+        <div className="w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl bg-black">
           <div className="relative pb-[56.25%] h-0">
             <iframe
               src={`${LOOM_VIDEO_URL}?autoplay=1&hideEmbedTopBar=true&hide_owner=true&hide_share=true&hide_title=true`}
@@ -205,15 +240,6 @@ export default function OnboardingPage() {
               allow="autoplay; fullscreen"
             />
           </div>
-
-          {/* Overlay that blocks interaction until video ends */}
-          {!videoEnded && (
-            <div
-              className="absolute inset-0 cursor-not-allowed"
-              style={{ background: "transparent" }}
-              onClick={(e) => e.preventDefault()}
-            />
-          )}
         </div>
 
         {/* Progress hint */}
@@ -221,22 +247,33 @@ export default function OnboardingPage() {
           <p className="text-gray-500 text-xs mt-4">{videoProgress}% watched</p>
         )}
 
-        {/* Continue button — only shows after video ends */}
-        <div className={`mt-8 transition-all duration-500 ${videoEnded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}>
+        {/* Continue button — appears after video ends (or 85% watched) */}
+        <div className={`mt-8 transition-all duration-500 ${
+          videoEnded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}>
           <button
-            onClick={() => setStage("password")}
+            onClick={() => setStage('password')}
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-10 py-4 rounded-xl text-base transition"
           >
             Continue — Set up my password →
           </button>
         </div>
 
-        {/* Dev skip in development */}
-
-        {process.env.NODE_ENV === "development" && !videoEnded && (
+        {/* Fallback: manual continue if postMessages never fire (after 30s) */}
+        {!videoEnded && showManualContinue && (
           <button
             onClick={() => setVideoEnded(true)}
-            className="mt-4 text-xs text-gray-600 hover:text-gray-400 underline"
+            className="mt-6 text-xs text-gray-500 hover:text-gray-300 underline transition"
+          >
+            Finished watching? Click here to continue →
+          </button>
+        )}
+
+        {/* Dev skip */}
+        {process.env.NODE_ENV === 'development' && !videoEnded && (
+          <button
+            onClick={() => setVideoEnded(true)}
+            className="mt-3 text-xs text-gray-700 hover:text-gray-500 underline"
           >
             [dev] skip video
           </button>
