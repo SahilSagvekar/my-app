@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function findContract(signwellDocId: string) {
-  return prisma.contract.findFirst({
+  const contract = await prisma.contract.findFirst({
     where: {
       OR: [
         { signwellDocumentId: signwellDocId },
@@ -52,11 +52,18 @@ async function findContract(signwellDocId: string) {
     },
     include: {
       signers: true,
-      client: {
-        include: { portalAccess: true },
-      },
-    } as any,
+    },
   });
+
+  if (contract?.clientId) {
+    const client = await prisma.client.findUnique({
+      where: { id: contract.clientId },
+      include: { portalAccess: true },
+    });
+    (contract as any).client = client;
+  }
+
+  return contract;
 }
 
 async function handleCompleted(document: any) {

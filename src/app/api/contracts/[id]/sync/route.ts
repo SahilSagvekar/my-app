@@ -19,14 +19,19 @@ export async function POST(
       where: { id: contractId },
       include: {
         signers: true,
-        client: {
-          include: { portalAccess: true },
-        },
-      } as any,
+      },
     });
 
     if (!contract) {
       return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+    }
+
+    if (contract.clientId) {
+      const client = await prisma.client.findUnique({
+        where: { id: contract.clientId },
+        include: { portalAccess: true }
+      });
+      (contract as any).client = client;
     }
 
     // Access check

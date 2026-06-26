@@ -21,11 +21,18 @@ export async function GET(req: NextRequest) {
       },
       include: {
         signers: true,
-        client: {
-          include: { portalAccess: true },
-        },
-      } as any,
+      },
     });
+
+    for (let contract of pendingContracts) {
+      if (contract.clientId) {
+        const client = await prisma.client.findUnique({
+          where: { id: contract.clientId },
+          include: { portalAccess: true }
+        });
+        (contract as any).client = client;
+      }
+    }
 
     let syncedCount = 0;
 

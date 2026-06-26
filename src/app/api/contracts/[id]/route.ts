@@ -18,17 +18,22 @@ export async function GET(
       where: { id: contractId },
       include: {
         signers: true,
-        client: {
-          select: { id: true, name: true, companyName: true, email: true }
-        },
         createdBy: {
           select: { id: true, name: true, email: true }
         }
-      } as any,
+      },
     });
 
     if (!contract) {
       return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+    }
+
+    if (contract.clientId) {
+      const client = await prisma.client.findUnique({
+        where: { id: contract.clientId },
+        select: { id: true, name: true, companyName: true, email: true }
+      });
+      (contract as any).client = client;
     }
 
     // Access check
