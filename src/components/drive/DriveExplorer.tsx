@@ -924,111 +924,89 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
-  // ─── Zip download helpers ─────────────────────────────────────────────────
+  // ─── Download helpers ────────────────────────────────────────────────────────
+  // Instead of zipping on the server (which OOMs on 3.9GB RAM with large video folders),
+  // we fetch presigned R2 URLs and trigger individual file downloads in the browser.
+  // Files download directly from R2 — zero server memory usage.
 
-  const triggerZipDownload = (blob: Blob, name: string) => {
-    const url = URL.createObjectURL(blob);
+  const triggerFileDownload = (url: string, filename: string) => {
     const a = document.createElement('a');
     a.href = url;
-    a.download = name;
+    a.download = filename;
+    a.target = '_blank';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  // Fetch presigned URLs for a folder/keys, then open each file download sequentially
+  const downloadFilesFromUrls = async (
+    body: { folderPrefix?: string; keys?: string[]; zipName?: string },
+    label: string,
+  ) => {
+    setIsZipping(true);
+    setZipProgress(`Preparing "${label}"…`);
+    try {
+      const res = await fetch('/api/drive/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ error: 'Failed' }));
+        throw new Error(e.error || `Server error (${res.status})`);
+      }
+      const data = await res.json() as { files: { key: string; name: string; url: string }[]; folderName: string };
+
+      if (!data.files?.length) throw new Error('No files found');
+
+      // Open each file download with a small delay so the browser doesn't block them
+      setZipProgress(`Downloading ${data.files.length} file${data.files.length !== 1 ? 's' : ''}…`);
+      for (let i = 0; i < data.files.length; i++) {
+        const file = data.files[i];
+        const filename = file.name.split('/').pop() || file.name;
+        triggerFileDownload(file.url, filename);
+        setZipProgress(`Downloading ${i + 1}/${data.files.length}: ${filename}`);
+        // Small delay between downloads to avoid browser blocking them as popups
+        if (i < data.files.length - 1) await new Promise(r => setTimeout(r, 300));
+      }
+      toast.success(`Started ${data.files.length} download${data.files.length !== 1 ? 's' : ''} from "${label}"`);
+    } catch (err: any) {
+      toast.error(err.message || 'Download failed');
+    } finally { setIsZipping(false); setZipProgress(''); }
   };
 
   const handleDownloadFolder = async (item: DriveItem) => {
     const s3Key = item.s3Key || getS3Key(item);
     const folderPrefix = s3Key.endsWith('/') ? s3Key : `${s3Key}/`;
-    setIsZipping(true);
-    setZipProgress(`Preparing "${item.name}"…`);
-    try {
-      const res = await fetch('/api/drive/download-zip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPrefix, zipName: `${item.name}.zip` }),
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({ error: 'Download failed' }));
-        throw new Error(e.error || `Server error (${res.status})`);
-      }
-      setZipProgress(`Downloading "${item.name}.zip"…`);
-      triggerZipDownload(await res.blob(), `${item.name}.zip`);
-      toast.success(`Downloaded "${item.name}.zip"`);
-    } catch (err: any) {
-      toast.error(err.message || 'Zip failed');
-    } finally { setIsZipping(false); setZipProgress(''); }
+    await downloadFilesFromUrls({ folderPrefix, zipName: item.name }, item.name);
   };
 
   const handleDownloadAll = async () => {
     const currentPrefix = getCurrentFolderS3Path();
     const folderName = breadcrumb[breadcrumb.length - 1]?.name || 'download';
-    setIsZipping(true);
-    setZipProgress(`Zipping "${folderName}"…`);
-    try {
-      const res = await fetch('/api/drive/download-zip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPrefix: currentPrefix, zipName: `${folderName}.zip` }),
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({ error: 'Download failed' }));
-        throw new Error(e.error || `Server error (${res.status})`);
-      }
-      setZipProgress(`Downloading "${folderName}.zip"…`);
-      triggerZipDownload(await res.blob(), `${folderName}.zip`);
-      toast.success(`Downloaded "${folderName}.zip"`);
-    } catch (err: any) {
-      toast.error(err.message || 'Zip failed');
-    } finally { setIsZipping(false); setZipProgress(''); }
+    await downloadFilesFromUrls({ folderPrefix: currentPrefix, zipName: folderName }, folderName);
   };
 
   const handleDownloadSelected = async () => {
     const keys = Array.from(checkedItems);
     if (keys.length === 0) return;
-    setIsZipping(true);
-    setZipProgress(`Zipping ${keys.length} item${keys.length !== 1 ? 's' : ''}…`);
-    try {
-      const fileKeys: string[] = [];
-      for (const key of keys) {
-        const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
-        if (item?.type === 'folder') {
-          setZipProgress(`Zipping folder "${item.name}"…`);
-          const res = await fetch('/api/drive/download-zip', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderPrefix: key.endsWith('/') ? key : `${key}/`, zipName: `${item.name}.zip` }),
-          });
-          if (res.ok) {
-            triggerZipDownload(await res.blob(), `${item.name}.zip`);
-          } else {
-            const e = await res.json().catch(() => ({ error: 'Failed' }));
-            toast.error(`"${item.name}": ${e.error}`);
-          }
-        } else {
-          fileKeys.push(key);
-        }
-      }
-      if (fileKeys.length > 0) {
-        setZipProgress(`Zipping ${fileKeys.length} file${fileKeys.length !== 1 ? 's' : ''}…`);
-        const res = await fetch('/api/drive/download-zip', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keys: fileKeys, zipName: 'selected-files.zip' }),
-        });
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({ error: 'Download failed' }));
-          throw new Error(e.error || `Server error (${res.status})`);
-        }
-        triggerZipDownload(await res.blob(), 'selected-files.zip');
-      }
-      toast.success('Download complete');
-      setCheckedItems(new Set());
-      setIsSelectionMode(false);
-    } catch (err: any) {
-      toast.error(err.message || 'Zip failed');
-    } finally { setIsZipping(false); setZipProgress(''); }
+    // Separate folders and files
+    const folderKeys = keys.filter(key => filteredItems.find(i => (i.s3Key || getS3Key(i)) === key)?.type === 'folder');
+    const fileKeys = keys.filter(key => !folderKeys.includes(key));
+    // Download each selected folder's contents
+    for (const key of folderKeys) {
+      const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
+      if (item) await downloadFilesFromUrls({ folderPrefix: key.endsWith('/') ? key : `${key}/` }, item.name);
+    }
+    // Download selected individual files
+    if (fileKeys.length > 0) {
+      await downloadFilesFromUrls({ keys: fileKeys }, `${fileKeys.length} files`);
+    }
+    setCheckedItems(new Set());
+    setIsSelectionMode(false);
   };
+
 
   const toggleChecked = (item: DriveItem, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1775,7 +1753,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               {isZipping && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span className="hidden sm:inline">{zipProgress || 'Preparing zip…'}</span>
+                  <span className="hidden sm:inline">{zipProgress || 'Preparing downloads…'}</span>
                 </div>
               )}
 
