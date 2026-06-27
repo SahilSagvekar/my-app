@@ -149,6 +149,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState<string>('');
 
+  // ─── Download queue modal ─────────────────────────────────────────────────
+  const [downloadQueue, setDownloadQueue] = useState<{ key: string; name: string; url: string; filename: string }[]>([]);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadedSet, setDownloadedSet] = useState<Set<number>>(new Set());
+  const [autoDownloading, setAutoDownloading] = useState(false);
+  const autoDownloadRef = useRef(false);
+
   // Share states
   const [shareLink, setShareLink] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -929,20 +936,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // we fetch presigned R2 URLs and trigger individual file downloads in the browser.
   // Files download directly from R2 — zero server memory usage.
 
-  // Use a hidden iframe per file — bypasses browser popup blocking that kills
-  // window.open and <a>.click() after the first file when not in direct user gesture.
-  // Presigned R2 URLs respond with Content-Disposition: attachment so the iframe
-  // immediately triggers a download and never shows any visible page.
-  const triggerFileDownload = (url: string) => {
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = url;
-    document.body.appendChild(iframe);
-    // Remove after 60s — enough time for the download to start
-    setTimeout(() => document.body.removeChild(iframe), 60_000);
+  // Trigger a single file download via <a> click — works when called from direct user gesture
+  const triggerSingleDownload = (url: string, filename: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
-  // Fetch presigned URLs for a folder/keys, then trigger each as an iframe download
+  // Fetch presigned URLs then open a download queue modal
   const downloadFilesFromUrls = async (
     body: { folderPrefix?: string; keys?: string[]; zipName?: string },
     label: string,
@@ -960,30 +965,38 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         throw new Error(e.error || `Server error (${res.status})`);
       }
       const data = await res.json() as { files: { key: string; name: string; url: string }[]; folderName: string };
-
       if (!data.files?.length) throw new Error('No files found');
 
-      const total = data.files.length;
-      setZipProgress(`Starting ${total} download${total !== 1 ? 's' : ''}…`);
+      const queue = data.files.map(f => ({
+        ...f,
+        filename: f.name.split('/').pop() || f.name,
+      }));
 
-      // Stagger iframe creation in batches — browsers handle ~5 concurrent downloads well
-      // For large folders warn the user upfront
-      if (total > 20) {
-        toast.info(`Starting ${total} individual file downloads — they will appear in your downloads folder`);
-      }
-
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < total; i += BATCH_SIZE) {
-        const batch = data.files.slice(i, i + BATCH_SIZE);
-        batch.forEach(f => triggerFileDownload(f.url));
-        setZipProgress(`Queued ${Math.min(i + BATCH_SIZE, total)}/${total} downloads…`);
-        if (i + BATCH_SIZE < total) await new Promise(r => setTimeout(r, 1000));
-      }
-
-      toast.success(`${total} download${total !== 1 ? 's' : ''} started — check your downloads folder`);
+      setDownloadQueue(queue);
+      setDownloadedSet(new Set());
+      setAutoDownloading(false);
+      autoDownloadRef.current = false;
+      setShowDownloadModal(true);
     } catch (err: any) {
       toast.error(err.message || 'Download failed');
     } finally { setIsZipping(false); setZipProgress(''); }
+  };
+
+  // Auto-download all files sequentially — each triggered by the loop itself
+  // which runs inside a user-gesture context from the button click that started it
+  const startAutoDownload = async () => {
+    setAutoDownloading(true);
+    autoDownloadRef.current = true;
+    for (let i = 0; i < downloadQueue.length; i++) {
+      if (!autoDownloadRef.current) break; // user cancelled
+      const file = downloadQueue[i];
+      triggerSingleDownload(file.url, file.filename);
+      setDownloadedSet(prev => new Set([...prev, i]));
+      // Wait 1.5s between downloads — enough for browser to register each one
+      if (i < downloadQueue.length - 1) await new Promise(r => setTimeout(r, 1500));
+    }
+    setAutoDownloading(false);
+    autoDownloadRef.current = false;
   };
 
   const handleDownloadFolder = async (item: DriveItem) => {
@@ -2166,5 +2179,80 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         </ScrollArea>
       </div>
     </div>
+
+      {/* ─── Download Queue Modal ──────────────────────────────────────────── */}
+      <Dialog open={showDownloadModal} onOpenChange={(open) => {
+        if (!open) { autoDownloadRef.current = false; setAutoDownloading(false); }
+        setShowDownloadModal(open);
+      }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Download Files ({downloadQueue.length})
+            </DialogTitle>
+            <DialogDescription>
+              {downloadedSet.size === 0
+                ? `${downloadQueue.length} file${downloadQueue.length !== 1 ? 's' : ''} ready. Click "Download All" to start, or download individually.`
+                : autoDownloading
+                  ? `Downloading… ${downloadedSet.size}/${downloadQueue.length} done`
+                  : `${downloadedSet.size}/${downloadQueue.length} downloaded`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Progress bar */}
+          {downloadedSet.size > 0 && (
+            <div className="w-full bg-muted rounded-full h-1.5">
+              <div
+                className="bg-primary h-1.5 rounded-full transition-all"
+                style={{ width: `${(downloadedSet.size / downloadQueue.length) * 100}%` }}
+              />
+            </div>
+          )}
+
+          {/* File list */}
+          <div className="overflow-y-auto flex-1 border rounded-md divide-y">
+            {downloadQueue.map((file, i) => (
+              <div key={file.key} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50">
+                <div className="flex-1 truncate text-muted-foreground" title={file.filename}>
+                  {file.filename}
+                </div>
+                {downloadedSet.has(i) ? (
+                  <span className="text-xs text-green-600 font-medium shrink-0">✓ Done</span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 shrink-0"
+                    onClick={() => {
+                      triggerSingleDownload(file.url, file.filename);
+                      setDownloadedSet(prev => new Set([...prev, i]));
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => { autoDownloadRef.current = false; setShowDownloadModal(false); }}>
+              Close
+            </Button>
+            {autoDownloading ? (
+              <Button variant="destructive" onClick={() => { autoDownloadRef.current = false; setAutoDownloading(false); }}>
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Stop
+              </Button>
+            ) : (
+              <Button onClick={startAutoDownload} disabled={downloadedSet.size === downloadQueue.length}>
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                {downloadedSet.size > 0 ? 'Resume' : 'Download All'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
   );
 }
