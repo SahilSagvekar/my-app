@@ -203,7 +203,7 @@ export function ClientDashboard() {
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
-  const [currentFilter, setCurrentFilter] = useState<'all' | 'pending' | 'approved' | 'posted'>('pending');
+  const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted'>('pending');
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -910,7 +910,6 @@ export function ClientDashboard() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
-      if (currentFilter === 'all') return true;
       // if (currentFilter === 'pending') {
       //   return !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED');
       // }
@@ -983,20 +982,6 @@ export function ClientDashboard() {
             >
               <TabsList className="bg-zinc-100 p-1 flex-nowrap">
                 <TabsTrigger
-                  value="all"
-                  className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
-                >
-                  All Tasks
-                  {tasks.length > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
-                    >
-                      {tasks.length}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger
                   value="pending"
                   className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
                 >
@@ -1052,9 +1037,7 @@ export function ClientDashboard() {
               <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-40 text-emerald-500" />
               <p className="font-medium">No tasks found</p>
               <p className="text-sm mt-1">
-                {currentFilter === "all"
-                  ? "No content available yet"
-                  : `No tasks currently in ${currentFilter} status`}
+                {`No tasks currently in ${currentFilter} status`}
               </p>
             </div>
           ) : (
