@@ -948,7 +948,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folderPrefix, zipName: `${item.name}.zip` }),
       });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ error: 'Download failed' }));
+        throw new Error(e.error || `Server error (${res.status})`);
+      }
+      setZipProgress(`Downloading "${item.name}.zip"…`);
       triggerZipDownload(await res.blob(), `${item.name}.zip`);
       toast.success(`Downloaded "${item.name}.zip"`);
     } catch (err: any) {
@@ -967,7 +971,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folderPrefix: currentPrefix, zipName: `${folderName}.zip` }),
       });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ error: 'Download failed' }));
+        throw new Error(e.error || `Server error (${res.status})`);
+      }
+      setZipProgress(`Downloading "${folderName}.zip"…`);
       triggerZipDownload(await res.blob(), `${folderName}.zip`);
       toast.success(`Downloaded "${folderName}.zip"`);
     } catch (err: any) {
@@ -985,26 +993,36 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       for (const key of keys) {
         const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
         if (item?.type === 'folder') {
+          setZipProgress(`Zipping folder "${item.name}"…`);
           const res = await fetch('/api/drive/download-zip', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ folderPrefix: key.endsWith('/') ? key : `${key}/`, zipName: `${item.name}.zip` }),
           });
-          if (res.ok) triggerZipDownload(await res.blob(), `${item.name}.zip`);
+          if (res.ok) {
+            triggerZipDownload(await res.blob(), `${item.name}.zip`);
+          } else {
+            const e = await res.json().catch(() => ({ error: 'Failed' }));
+            toast.error(`"${item.name}": ${e.error}`);
+          }
         } else {
           fileKeys.push(key);
         }
       }
       if (fileKeys.length > 0) {
+        setZipProgress(`Zipping ${fileKeys.length} file${fileKeys.length !== 1 ? 's' : ''}…`);
         const res = await fetch('/api/drive/download-zip', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ keys: fileKeys, zipName: 'selected-files.zip' }),
         });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({ error: 'Download failed' }));
+          throw new Error(e.error || `Server error (${res.status})`);
+        }
         triggerZipDownload(await res.blob(), 'selected-files.zip');
       }
-      toast.success('Download started');
+      toast.success('Download complete');
       setCheckedItems(new Set());
       setIsSelectionMode(false);
     } catch (err: any) {
