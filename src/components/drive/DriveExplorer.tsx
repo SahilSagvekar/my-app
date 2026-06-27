@@ -1342,6 +1342,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }
 
   return (
+    <>
     <div className="flex flex-col sm:flex-row h-screen bg-background">
 
       {/* Delete Confirmation Dialog */}
@@ -2254,5 +2255,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
   );
 }
