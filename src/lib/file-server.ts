@@ -54,8 +54,8 @@ async function fsRequest(
 }
 
 export async function getStructure(userId: number | string, role: string, prefix: string) {
-  // Structure can be slow for large prefixes on a remote file server — 60s timeout
-  const res = await fsRequest('GET', '/structure', userId, role, undefined, { prefix, role }, 60_000);
+  // Structure can be slow for large prefixes on a remote file server — 5 min timeout
+  const res = await fsRequest('GET', '/structure', userId, role, undefined, { prefix, role }, 300_000);
   if (!res.ok) throw new Error(`File server error: ${res.status}`);
   return res.json();
 }
