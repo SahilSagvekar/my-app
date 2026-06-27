@@ -54,8 +54,7 @@ async function fsRequest(
 }
 
 export async function getStructure(userId: number | string, role: string, prefix: string) {
-  // Structure can be slow for large prefixes on a remote file server — 5 min timeout
-  const res = await fsRequest('GET', '/structure', userId, role, undefined, { prefix, role }, 300_000);
+  const res = await fsRequest('GET', '/structure', userId, role, undefined, { prefix, role });
   if (!res.ok) throw new Error(`File server error: ${res.status}`);
   return res.json();
 }
@@ -78,38 +77,18 @@ export async function presignDownload(userId: number | string, role: string, s3K
   return res.json() as Promise<{ downloadUrl: string }>;
 }
 
-export async function issueZipToken(
-  userId: number | string,
-  role: string,
-  opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
-): Promise<{ token: string; url: string }> {
-  // Next.js can't reliably stream large binary responses — it buffers/times out.
-  // Instead: get a short-lived single-use token from the file server, then
-  // redirect the browser to hit the file server directly for the actual zip.
-  const res = await fsRequest('POST', '/zip-token', userId, role, opts);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `File server zip-token failed: ${res.status}`);
-  }
-  return res.json() as Promise<{ token: string; url: string }>;
-}
-
 export async function streamZip(
   userId: number | string,
   role: string,
   opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
 ): Promise<Response> {
-  // Legacy — kept for any callers outside the drive download flow.
-  // New code should use issueZipToken() instead.
-  const token = makeToken(userId, role);
-  return fetch(`${FILE_SERVER_URL}/download-zip`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(opts),
-  });
+  // Zip generation streams every file from R2 sequentially before finishing —
+  // unlike metadata calls (structure/search/presign), this scales with file
+  // count and size, so it needs a much longer timeout than the default 20s.
+  // Multiple large video files can easily take well past 20s to fully stream
+  // and archive; 20s was previously shared with every other fast call here,
+  // which silently aborted multi-file/folder downloads before they finished.
+  return fsRequest('POST', '/download-zip', userId, role, opts, undefined, 300_000);
 }
 
 export async function deleteItem(userId: number | string, role: string, s3Key: string, type: 'file' | 'folder') {
