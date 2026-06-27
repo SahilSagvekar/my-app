@@ -929,17 +929,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // we fetch presigned R2 URLs and trigger individual file downloads in the browser.
   // Files download directly from R2 — zero server memory usage.
 
-  const triggerFileDownload = (url: string, filename: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  // Use a hidden iframe per file — bypasses browser popup blocking that kills
+  // window.open and <a>.click() after the first file when not in direct user gesture.
+  // Presigned R2 URLs respond with Content-Disposition: attachment so the iframe
+  // immediately triggers a download and never shows any visible page.
+  const triggerFileDownload = (url: string) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    // Remove after 60s — enough time for the download to start
+    setTimeout(() => document.body.removeChild(iframe), 60_000);
   };
 
-  // Fetch presigned URLs for a folder/keys, then open each file download sequentially
+  // Fetch presigned URLs for a folder/keys, then trigger each as an iframe download
   const downloadFilesFromUrls = async (
     body: { folderPrefix?: string; keys?: string[]; zipName?: string },
     label: string,
@@ -960,17 +963,24 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       if (!data.files?.length) throw new Error('No files found');
 
-      // Open each file download with a small delay so the browser doesn't block them
-      setZipProgress(`Downloading ${data.files.length} file${data.files.length !== 1 ? 's' : ''}…`);
-      for (let i = 0; i < data.files.length; i++) {
-        const file = data.files[i];
-        const filename = file.name.split('/').pop() || file.name;
-        triggerFileDownload(file.url, filename);
-        setZipProgress(`Downloading ${i + 1}/${data.files.length}: ${filename}`);
-        // Small delay between downloads to avoid browser blocking them as popups
-        if (i < data.files.length - 1) await new Promise(r => setTimeout(r, 300));
+      const total = data.files.length;
+      setZipProgress(`Starting ${total} download${total !== 1 ? 's' : ''}…`);
+
+      // Stagger iframe creation in batches — browsers handle ~5 concurrent downloads well
+      // For large folders warn the user upfront
+      if (total > 20) {
+        toast.info(`Starting ${total} individual file downloads — they will appear in your downloads folder`);
       }
-      toast.success(`Started ${data.files.length} download${data.files.length !== 1 ? 's' : ''} from "${label}"`);
+
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = data.files.slice(i, i + BATCH_SIZE);
+        batch.forEach(f => triggerFileDownload(f.url));
+        setZipProgress(`Queued ${Math.min(i + BATCH_SIZE, total)}/${total} downloads…`);
+        if (i + BATCH_SIZE < total) await new Promise(r => setTimeout(r, 1000));
+      }
+
+      toast.success(`${total} download${total !== 1 ? 's' : ''} started — check your downloads folder`);
     } catch (err: any) {
       toast.error(err.message || 'Download failed');
     } finally { setIsZipping(false); setZipProgress(''); }
