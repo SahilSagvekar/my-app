@@ -77,16 +77,29 @@ export async function presignDownload(userId: number | string, role: string, s3K
   return res.json() as Promise<{ downloadUrl: string }>;
 }
 
+export async function issueZipToken(
+  userId: number | string,
+  role: string,
+  opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
+): Promise<{ token: string; url: string }> {
+  // Next.js can't reliably stream large binary responses — it buffers/times out.
+  // Instead: get a short-lived single-use token from the file server, then
+  // redirect the browser to hit the file server directly for the actual zip.
+  const res = await fsRequest('POST', '/zip-token', userId, role, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `File server zip-token failed: ${res.status}`);
+  }
+  return res.json() as Promise<{ token: string; url: string }>;
+}
+
 export async function streamZip(
   userId: number | string,
   role: string,
   opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
 ): Promise<Response> {
-  // Zip streams can run for many minutes on large folders — DO NOT use
-  // AbortSignal here. AbortSignal.timeout() aborts the entire fetch lifecycle
-  // including body piping, which kills the stream mid-transfer and causes
-  // Next.js to throw "failed to pipe response". Raw fetch with no signal
-  // lets the file server stream at its own pace until the archive finalizes.
+  // Legacy — kept for any callers outside the drive download flow.
+  // New code should use issueZipToken() instead.
   const token = makeToken(userId, role);
   return fetch(`${FILE_SERVER_URL}/download-zip`, {
     method: 'POST',
@@ -95,7 +108,6 @@ export async function streamZip(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(opts),
-    // No signal — zip duration is unbounded
   });
 }
 

@@ -926,17 +926,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   // ─── Zip download helpers ─────────────────────────────────────────────────
 
-  const triggerZipDownload = (blob: Blob, name: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  };
-
   const handleDownloadFolder = async (item: DriveItem) => {
     const s3Key = item.s3Key || getS3Key(item);
     const folderPrefix = s3Key.endsWith('/') ? s3Key : `${s3Key}/`;
@@ -949,8 +938,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         body: JSON.stringify({ folderPrefix, zipName: `${item.name}.zip` }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
-      triggerZipDownload(await res.blob(), `${item.name}.zip`);
-      toast.success(`Downloaded "${item.name}.zip"`);
+      const { url } = await res.json();
+      window.location.href = url;
+      toast.success(`Downloading "${item.name}.zip"…`);
     } catch (err: any) {
       toast.error(err.message || 'Zip failed');
     } finally { setIsZipping(false); setZipProgress(''); }
@@ -968,8 +958,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         body: JSON.stringify({ folderPrefix: currentPrefix, zipName: `${folderName}.zip` }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
-      triggerZipDownload(await res.blob(), `${folderName}.zip`);
-      toast.success(`Downloaded "${folderName}.zip"`);
+      const { url } = await res.json();
+      window.location.href = url;
+      toast.success(`Downloading "${folderName}.zip"…`);
     } catch (err: any) {
       toast.error(err.message || 'Zip failed');
     } finally { setIsZipping(false); setZipProgress(''); }
@@ -981,16 +972,21 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     setIsZipping(true);
     setZipProgress(`Zipping ${keys.length} item${keys.length !== 1 ? 's' : ''}…`);
     try {
+      // Separate folders from files — folders each get their own zip
       const fileKeys: string[] = [];
       for (const key of keys) {
         const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
         if (item?.type === 'folder') {
+          const folderPrefix = key.endsWith('/') ? key : `${key}/`;
           const res = await fetch('/api/drive/download-zip', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderPrefix: key.endsWith('/') ? key : `${key}/`, zipName: `${item.name}.zip` }),
+            body: JSON.stringify({ folderPrefix, zipName: `${item.name}.zip` }),
           });
-          if (res.ok) triggerZipDownload(await res.blob(), `${item.name}.zip`);
+          if (res.ok) {
+            const { url } = await res.json();
+            window.open(url, '_blank');
+          }
         } else {
           fileKeys.push(key);
         }
@@ -1002,7 +998,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           body: JSON.stringify({ keys: fileKeys, zipName: 'selected-files.zip' }),
         });
         if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
-        triggerZipDownload(await res.blob(), 'selected-files.zip');
+        const { url } = await res.json();
+        window.location.href = url;
       }
       toast.success('Download started');
       setCheckedItems(new Set());
