@@ -82,13 +82,21 @@ export async function streamZip(
   role: string,
   opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
 ): Promise<Response> {
-  // Zip generation streams every file from R2 sequentially before finishing —
-  // unlike metadata calls (structure/search/presign), this scales with file
-  // count and size, so it needs a much longer timeout than the default 20s.
-  // Multiple large video files can easily take well past 20s to fully stream
-  // and archive; 20s was previously shared with every other fast call here,
-  // which silently aborted multi-file/folder downloads before they finished.
-  return fsRequest('POST', '/download-zip', userId, role, opts, undefined, 300_000);
+  // Zip streams can run for many minutes on large folders — DO NOT use
+  // AbortSignal here. AbortSignal.timeout() aborts the entire fetch lifecycle
+  // including body piping, which kills the stream mid-transfer and causes
+  // Next.js to throw "failed to pipe response". Raw fetch with no signal
+  // lets the file server stream at its own pace until the archive finalizes.
+  const token = makeToken(userId, role);
+  return fetch(`${FILE_SERVER_URL}/download-zip`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(opts),
+    // No signal — zip duration is unbounded
+  });
 }
 
 export async function deleteItem(userId: number | string, role: string, s3Key: string, type: 'file' | 'folder') {

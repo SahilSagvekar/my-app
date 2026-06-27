@@ -69,12 +69,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(err, { status: fsRes.status });
     }
 
-    return new NextResponse(fsRes.body, {
+    if (!fsRes.body) {
+      return NextResponse.json({ error: 'No response body from file server' }, { status: 500 });
+    }
+
+    // Pipe the file server's zip stream directly to the client without buffering.
+    // Using ReadableStream.from() + a manual pump avoids Next.js trying to
+    // buffer the entire zip before sending — which causes timeout on large folders.
+    const { readable, writable } = new TransformStream();
+    fsRes.body.pipeTo(writable).catch(() => {/* client disconnected — ignore */});
+
+    const disposition = fsRes.headers.get('Content-Disposition') || `attachment; filename="${zipName || 'download.zip'}"`;
+
+    return new NextResponse(readable, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': fsRes.headers.get('Content-Disposition') || 'attachment; filename="download.zip"',
-        'Transfer-Encoding': 'chunked',
+        'Content-Disposition': disposition,
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
       },
     });
   } catch (err: any) {
