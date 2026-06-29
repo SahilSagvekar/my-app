@@ -220,7 +220,7 @@ function QuoteBuilderDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 gap-0">
+      <DialogContent className="w-[95vw] max-w-5xl max-h-[92vh] overflow-y-auto p-0 gap-0">
 
         {/* ── Top action bar ── */}
         <div style={{ background: '#1e3a8a', padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '8px 8px 0 0', flexShrink: 0 }}>
@@ -255,8 +255,8 @@ function QuoteBuilderDialog({
         </div>
 
         {/* ── Document area ── */}
-        <div style={{ background: '#e5e7eb', padding: '16px 0 24px' }}>
-          <div style={{ background: '#fff', margin: '0 auto', maxWidth: 720, boxShadow: '0 2px 16px rgba(0,0,0,0.12)', fontFamily: 'Georgia, Times New Roman, serif', fontSize: 13, color: '#1a1a1a', lineHeight: 1.65 }}>
+        <div style={{ background: '#e5e7eb', padding: '16px 24px 24px' }}>
+          <div style={{ background: '#fff', margin: '0 auto', width: '100%', boxShadow: '0 2px 16px rgba(0,0,0,0.12)', fontFamily: 'Georgia, Times New Roman, serif', fontSize: 13, color: '#1a1a1a', lineHeight: 1.65 }}>
 
             {/* Header */}
             <div style={{ padding: '20px 32px 0' }}>
