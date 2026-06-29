@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!preClient) return NextResponse.json({ error: 'Pre-client not found' }, { status: 404 });
 
     const body = await req.json();
-    const { services, notes, validDays } = body;
+    const { services, notes, validDays, preparedBy, inclusions, terms, acceptanceText } = body;
 
     if (!services || !Array.isArray(services) || services.length === 0) {
       return NextResponse.json({ error: 'At least one service line item is required' }, { status: 400 });
@@ -57,6 +57,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         notes: notes || null,
         validDays: validDays || 30,
         status: 'DRAFT',
+        preparedBy: preparedBy || null,
+        inclusions: inclusions || [],
+        terms: terms || [],
+        acceptanceText: acceptanceText || null,
       },
     });
 
@@ -72,4 +76,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('POST quote error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
-}
+}

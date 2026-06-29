@@ -1880,6 +1880,11 @@ model Quote {
   changeRequest   String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+  // ── Document content fields ──
+  preparedBy      String?     // e.g. "Gabe Rabinowitz + Eric Davis"
+  inclusions      Json        @default("[]")  // string[] — "What's Included" bullets
+  terms           Json        @default("[]")  // { title: string, body: string }[] — numbered terms
+  acceptanceText  String?     // Paragraph shown above the signature line
   preClient       PreClient   @relation(fields: [preClientId], references: [id], onDelete: Cascade)
 
   @@index([preClientId])

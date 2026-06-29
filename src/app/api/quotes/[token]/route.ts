@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
@@ -32,9 +33,62 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       createdAt: quote.createdAt,
       sentAt: quote.sentAt,
       preClient: quote.preClient,
+      // ── Document content fields ──
+      preparedBy: quote.preparedBy ?? 'Gabe Rabinowitz + Eric Davis',
+      inclusions: (quote.inclusions as string[]) ?? [],
+      terms: (quote.terms as { title: string; body: string }[]) ?? [],
+      acceptanceText: quote.acceptanceText ?? null,
     });
   } catch (err) {
     console.error('GET /api/quotes/[token] error:', err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+
+/** PATCH — admin inline edit. Requires active admin/manager session. */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  try {
+    const user = await getCurrentUser2(req);
+    if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { token } = await params;
+    const quote = await prisma.quote.findUnique({ where: { shareToken: token } });
+    if (!quote) return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
+
+    const body = await req.json();
+
+    // Only allow patching document-content fields + services
+    const allowedFields = ['preparedBy', 'inclusions', 'terms', 'acceptanceText', 'services', 'notes', 'totalAmount', 'validDays'];
+    const updateData: Record<string, unknown> = {};
+
+    for (const field of allowedFields) {
+      if (field in body) {
+        updateData[field] = body[field];
+      }
+    }
+
+    // Recalculate totalAmount if services changed
+    if (updateData.services && Array.isArray(updateData.services)) {
+      updateData.totalAmount = (updateData.services as { total: number }[]).reduce(
+        (sum, s) => sum + (s.total || 0),
+        0
+      );
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
+    const updated = await prisma.quote.update({
+      where: { id: quote.id },
+      data: updateData,
+    });
+
+    return NextResponse.json({ success: true, totalAmount: updated.totalAmount });
+  } catch (err) {
+    console.error('PATCH /api/quotes/[token] error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
