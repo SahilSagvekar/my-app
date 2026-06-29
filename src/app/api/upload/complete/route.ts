@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
-import { completeMultipart } from '@/lib/file-server';
+import { completeMultipart, invalidateCache } from '@/lib/file-server';
 import { pushUploadJob } from '@/lib/upload-queue';
 import { prisma } from "@/lib/prisma";
 
@@ -223,15 +223,27 @@ export async function POST(request: NextRequest) {
         requiresClientReview,
         clientId,
         isDriveUpload,
-        // Pass fileRecordId so worker doesn't need to re-create the file
         fileRecordId: fileRecord?.id || null,
-        // Admin-selected editors to tag in Slack — falls back to auto-tag-all if omitted
         taggedEditorIds: Array.isArray(taggedEditorIds) && taggedEditorIds.length > 0 ? taggedEditorIds : null,
       });
 
       console.log(`📬 Background job queued: ${jobId} for ${fileName}`);
 
-      // ── STEP 6: Return success — file is already in DB ────────────────────
+      // ── STEP 6: Bust file server cache so the new file shows immediately ───
+      // The file server caches the folder tree for 5 minutes. Without this,
+      // the UI reloads the stale tree and the uploaded file stays invisible
+      // until the TTL expires or the page hard-reloads.
+      try {
+        // Invalidate at the client-root prefix (e.g. "ClientName/") so the
+        // whole subtree is refreshed — covers elements/, raw-footage/, outputs/.
+        const keyPrefix = key.split('/').slice(0, 2).join('/') + '/';
+        await invalidateCache(userId, user.role || 'admin', keyPrefix);
+      } catch (cacheErr) {
+        // Non-fatal — worst case the user sees stale data for up to 5 minutes
+        console.warn('⚠️  Cache invalidation failed (non-fatal):', cacheErr);
+      }
+
+      // ── STEP 7: Return success — file is already in DB ────────────────────
       return NextResponse.json({
         success: true,
         fileUrl,
