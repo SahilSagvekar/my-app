@@ -220,7 +220,7 @@ function QuoteBuilderDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-5xl max-h-[92vh] overflow-y-auto p-0 gap-0">
+      <DialogContent className="w-[95vw] sm:max-w-5xl max-h-[92vh] overflow-y-auto p-0 gap-0">
 
         {/* ── Top action bar ── */}
         <div style={{ background: '#1e3a8a', padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '8px 8px 0 0', flexShrink: 0 }}>
