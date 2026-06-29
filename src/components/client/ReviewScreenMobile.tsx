@@ -300,6 +300,9 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                 className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                                 onClick={() => { p.setConfirmFinal(true); p.handleStatusChange('approved'); setShowApproveConfirm(false); }}
                                 disabled={p.asset.approvalLocked || p.comments.length > 0}
+                            >
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                Approve & Send
                             </Button>
                         </div>
                     </div>
