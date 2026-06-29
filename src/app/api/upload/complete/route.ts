@@ -223,23 +223,24 @@ export async function POST(request: NextRequest) {
         requiresClientReview,
         clientId,
         isDriveUpload,
+        // Pass fileRecordId so worker doesn't need to re-create the file
         fileRecordId: fileRecord?.id || null,
+        // Admin-selected editors to tag in Slack — falls back to auto-tag-all if omitted
         taggedEditorIds: Array.isArray(taggedEditorIds) && taggedEditorIds.length > 0 ? taggedEditorIds : null,
       });
 
       console.log(`📬 Background job queued: ${jobId} for ${fileName}`);
 
       // ── STEP 6: Bust file server cache so the new file shows immediately ───
-      // The file server caches the folder tree for 5 minutes. Without this,
-      // the UI reloads the stale tree and the uploaded file stays invisible
-      // until the TTL expires or the page hard-reloads.
+      // The file server caches the folder tree per (role, prefix). Sending no
+      // prefix triggers invalidateAll() on the file server — clears every role's
+      // cache at once. Safe: cache rebuilds on next request (~1-2s cold hit).
+      // Without this, the UI reloads a stale tree and the new file stays
+      // invisible until the 5-min TTL expires.
       try {
-        // Invalidate at the client-root prefix (e.g. "ClientName/") so the
-        // whole subtree is refreshed — covers elements/, raw-footage/, outputs/.
-        const keyPrefix = key.split('/').slice(0, 2).join('/') + '/';
-        await invalidateCache(userId, user.role || 'admin', keyPrefix);
+        await invalidateCache(userId, user.role || 'admin'); // no prefix = invalidateAll on file server
       } catch (cacheErr) {
-        // Non-fatal — worst case the user sees stale data for up to 5 minutes
+        // Non-fatal — worst case stale data for up to 5 minutes
         console.warn('⚠️  Cache invalidation failed (non-fatal):', cacheErr);
       }
 
