@@ -39,24 +39,77 @@ export async function DELETE(
   req: Request,
   context: { params: { employeeId: string; docId: string } },
 ) {
-  const user = await getCurrentUser2(req as any);
-  if (!user || user.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const admin = await requireAdmin(req as any);
+
+    const params = await context.params;
+    const { employeeId } = params;
+    const id = Number(employeeId);
+    if (!Number.isFinite(id)) {
+      return NextResponse.json({ error: 'Invalid employee id' }, { status: 400 });
+    }
+
+    const employee = await prisma.user.findUnique({ where: { id } });
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    const form = await req.formData();
+    const file = form.get('file') as File | null;
+    const title = (form.get('title') as string) || file?.name || 'Document';
+
+    if (!file) {
+      return NextResponse.json({ error: 'Missing file' }, { status: 400 });
+    }
+    const ALLOWED_MIME_TYPES = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif'
+    ];
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      return NextResponse.json({ error: 'Unsupported file type. Please upload a PDF, Word, Excel, PowerPoint, Text file, or image.' }, { status: 400 });
+    }
+    const MAX_SIZE = 25 * 1024 * 1024; // 25MB
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json({ error: 'File too large (max 25MB)' }, { status: 400 });
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const folderPrefix = `employee-documents/${id}/`;
+
+    const upload = await uploadBufferToS3({
+      buffer,
+      folderPrefix,
+      filename: `${Date.now()}_${safeName}`,
+      mimeType: file.type,
+    });
+
+    const document = await prisma.employeeDocument.create({
+      data: {
+        employeeId: id,
+        title,
+        s3Key: upload.key,
+        fileName: file.name,
+        fileSize: file.size,
+        uploadedById: admin.id,
+      },
+    });
+
+    return NextResponse.json({ document });
+  } catch (err: any) {
+    console.error('[employee/documents POST]', err);
+    const status = err?.status || 500;
+    const msg = err?.message || 'Upload failed';
+    return NextResponse.json({ error: msg }, { status });
   }
-
-  const { employeeId, docId } = context.params;
-  const id = Number(employeeId);
-
-  const document = await prisma.employeeDocument.findUnique({ where: { id: docId } });
-  if (!document || document.employeeId !== id) {
-    return NextResponse.json({ error: 'Document not found' }, { status: 404 });
-  }
-
-  await prisma.employeeDocument.delete({ where: { id: docId } });
-  // Note: this only removes the DB record, not the underlying R2 object —
-  // consistent with how other "soft" deletes in this app work. Add an
-  // explicit deleteFromS3(document.s3Key) call here if you'd rather
-  // reclaim storage immediately.
-
-  return NextResponse.json({ ok: true });
 }

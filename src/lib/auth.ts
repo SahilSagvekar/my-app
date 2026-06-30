@@ -171,31 +171,19 @@ export function getUserFromRequest(req: Request) {
 }
 
 export async function requireAdmin(req: NextRequest) {
-  // stub: replace with your real session lookup
-  // e.g., getToken(req) or getServerSession()
-  function getTokenFromCookies(req: Request) {
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-    const match = cookieHeader.match(/authToken=([^;]+)/);
-    return match ? match[1] : null;
+  const user = await getCurrentUser2(req);
+  if (!user) {
+    throw { status: 401, message: "Unauthorized" };
   }
 
-  const token = getTokenFromCookies(req);
-  if (!token)
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-
-  const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-  const { role, userId } = decoded;
-
-  // const userId = Number(req.headers.get('x-user-id')); // temporary: client must send this
-  // if (!userId) throw { status: 401, message: 'Unauthorized' };
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user || (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com'))
+  if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
     throw { status: 403, message: "Account deactivated" };
+  }
 
-  if (user.role !== "admin" && user.role !== "manager")
+  const userRole = user.role?.toLowerCase();
+  if (userRole !== "admin" && userRole !== "manager") {
     throw { status: 403, message: "Admin required" };
+  }
   return user;
 }
 
