@@ -91,8 +91,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Provide keys[] or folderPrefix' }, { status: 400 });
     }
 
-    const { url } = await issueZipToken(user.id, user.role, { keys, folderPrefix, zipName });
-    return NextResponse.json({ url });
+    const { token } = await issueZipToken(user.id, user.role, { keys, folderPrefix, zipName });
+    return NextResponse.json({ url: `/api/drive/download-zip-stream?token=${encodeURIComponent(token)}` });
   } catch (error: unknown) {
     console.error('[download-zip] Failed to issue download URL:', error);
     return NextResponse.json(

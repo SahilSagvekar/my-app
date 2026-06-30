@@ -81,16 +81,35 @@ export async function issueZipToken(
   userId: number | string,
   role: string,
   opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
-): Promise<{ token: string; url: string }> {
-  // The browser downloads directly from the file server. This avoids both
-  // browser multi-download throttling and proxying a potentially huge archive
-  // through the Next.js process.
+): Promise<{ token: string }> {
+  // The file server stashes the actual job (keys/folderPrefix/zipName) behind
+  // a one-time token. We hand the browser our OWN proxy URL (see
+  // /api/drive/download-zip-stream), not the file server's address directly —
+  // a plain browser navigation can't carry the Bearer header the file server
+  // requires, so our route mints a fresh token server-side and pipes the
+  // response through.
   const res = await fsRequest('POST', '/zip-token', userId, role, opts);
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
     throw new Error(error.error || `File server zip-token failed: ${res.status}`);
   }
-  return res.json() as Promise<{ token: string; url: string }>;
+  return res.json() as Promise<{ token: string }>;
+}
+
+// Fetches the actual zip stream from the file server using a token minted by
+// issueZipToken. Returns the raw Response so the caller can pipe its body
+// straight through to the browser without buffering the whole archive.
+export async function fetchZipStream(
+  userId: number | string,
+  role: string,
+  token: string,
+): Promise<Response> {
+  const internalToken = makeToken(userId, role);
+  const url = `${FILE_SERVER_URL}/download-zip-stream?token=${encodeURIComponent(token)}`;
+  return fetch(url, {
+    headers: { Authorization: `Bearer ${internalToken}` },
+    signal: AbortSignal.timeout(300_000),
+  });
 }
 
 export async function streamZip(
