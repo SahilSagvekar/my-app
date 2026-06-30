@@ -169,10 +169,11 @@ export function mapSignWellStatus(signwellStatus: string): string {
 // ── Map SignWell signer status ────────────────────────────────────────────────
 export function mapSignWellSignerStatus(status: string): string {
   const map: Record<string, string> = {
-    pending:  'PENDING',
-    viewed:   'VIEWED',
-    signed:   'SIGNED',
-    declined: 'DECLINED',
+    pending:   'PENDING',
+    viewed:    'VIEWED',
+    signed:    'SIGNED',
+    completed: 'SIGNED',   // SignWell also returns 'completed' at signer level
+    declined:  'DECLINED',
   };
   return map[status?.toLowerCase()] || 'PENDING';
 }

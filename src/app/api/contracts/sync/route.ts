@@ -13,11 +13,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Find all pending contracts
+    // Find contracts that need syncing:
+    // 1. Active contracts (SENT / PARTIALLY_SIGNED)
+    // 2. COMPLETED contracts that still have PENDING signers — the most common
+    //    cause of signers showing as "pending" even after everyone has signed.
     const pendingContracts = await prisma.contract.findMany({
       where: {
-        status: { in: ['SENT', 'PARTIALLY_SIGNED'] },
         signwellDocumentId: { not: null },
+        OR: [
+          { status: { in: ['SENT', 'PARTIALLY_SIGNED'] } },
+          {
+            status: 'COMPLETED',
+            signers: { some: { status: 'PENDING' } },
+          },
+        ],
       },
       include: {
         signers: true,

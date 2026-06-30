@@ -88,6 +88,8 @@ export function ContractsDashboard() {
     const [viewModal, setViewModal] = useState<ViewModal | null>(null);
     const [viewLoading, setViewLoading] = useState<string | null>(null);
     const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
+    const [syncingAll, setSyncingAll] = useState(false);
+    const [syncAllResult, setSyncAllResult] = useState<string | null>(null);
 
     const syncWithSignWell = useCallback(async () => {
         try {
@@ -103,6 +105,34 @@ export function ContractsDashboard() {
             console.error("Failed to sync:", err);
         } finally {
             setSyncing(false);
+        }
+    }, [fetchContracts]);
+
+    // Fix all stuck PENDING signers across all contracts in one shot
+    const syncAllSigners = useCallback(async () => {
+        setSyncingAll(true);
+        setSyncAllResult(null);
+        try {
+            const res = await fetch('/api/contracts/sync-all-signers', {
+                method: 'POST',
+                credentials: 'include',
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSyncAllResult(
+                    `Fixed ${data.signersFixed} signer(s) across ${data.contractsFixed} contract(s).`
+                );
+                await fetchContracts();
+            } else {
+                setSyncAllResult(data.error || 'Sync failed');
+            }
+        } catch (err) {
+            setSyncAllResult('Network error — check console');
+            console.error('syncAllSigners failed:', err);
+        } finally {
+            setSyncingAll(false);
+            // Clear the result message after 5 seconds
+            setTimeout(() => setSyncAllResult(null), 5000);
         }
     }, [fetchContracts]);
 
@@ -225,6 +255,17 @@ export function ContractsDashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                     {syncing && <RefreshCw className="h-4 w-4 text-gray-400 animate-spin mr-2" />}
+                    {/* Fix stuck signer statuses */}
+                    <button
+                        onClick={syncAllSigners}
+                        disabled={syncingAll}
+                        title="Re-sync all signer statuses from SignWell — fixes signers showing as Pending after signing"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 text-sm"
+                    >
+                        {syncingAll
+                            ? <><RefreshCw className="h-4 w-4 animate-spin" /> Syncing...</>
+                            : <><RefreshCw className="h-4 w-4" /> Sync Signers</>}
+                    </button>
                     <button
                         onClick={() => setShowCreateDialog(true)}
                         className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
@@ -234,6 +275,14 @@ export function ContractsDashboard() {
                     </button>
                 </div>
             </div>
+
+            {/* Sync result toast */}
+            {syncAllResult && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                    <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    {syncAllResult}
+                </div>
+            )}
 
             {/* Status Tabs */}
             <div className="flex gap-1 p-1 bg-gray-100 rounded-xl overflow-x-auto">
