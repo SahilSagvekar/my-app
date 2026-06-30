@@ -1,135 +1,93 @@
 import { Navigation } from '@/components/landing/Navigation';
 import { Footer } from '@/components/landing/Footer';
 import ContactForm from '@/components/landing/ContactForm';
-import { Mail, Phone, MapPin, Instagram, Linkedin, Youtube } from 'lucide-react';
-import { buildMetadata } from '@/lib/seo';
+import { CalendlyEmbed } from '@/components/landing/CalendlyEmbed';
+import { Mail, Phone, MapPin, Calendar } from 'lucide-react';
 
-export const metadata = buildMetadata({
-  title: 'Contact — E8 Productions',
-  description: 'Get in touch with E8 Productions. Reach out for video production, social media management, and content strategy.',
-  pathname: '/contact',
-});
-
-export default function ContactPage() {
+export default function ContactPage() {  // ← Changed: Added "default"
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
-
-      <section className="pt-28 sm:pt-32 pb-20 sm:pb-28 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-
-          {/* Page header */}
-          <div className="text-center mb-14 sm:mb-20">
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-black mb-4">
-              Let's Work Together
-            </h1>
-            <p className="text-base sm:text-lg text-black/60 max-w-2xl mx-auto">
-              Ready to grow your brand? Reach out and we'll get back to you within 24 hours.
+      <div className="pt-12 sm:pt-14">
+        <section className="pt-12 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-8 sm:mb-12">
+             <h2 className="text-3xl sm:text-4xl lg:text-5xl text-black mb-4 sm:mb-5">
+              Get in Touch
+            </h2>
+            <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
+              Ready to start your project? Have questions about our services? We love to hear from you.
             </p>
           </div>
 
-          {/* Two column layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-12 lg:gap-20">
-
-            {/* Left: contact info */}
-            <div className="lg:col-span-2 space-y-10">
-              {/* Contact details */}
-              <div className="space-y-6">
-                <a
-                  href="mailto:info@e8productions.com"
-                  className="flex items-center gap-4 group"
-                >
-                  <div className="w-11 h-11 bg-black rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <Mail className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-0.5">General</p>
-                    <p className="text-sm sm:text-base text-black group-hover:underline">info@e8productions.com</p>
-                  </div>
-                </a>
-
-                <a
-                  href="mailto:legal@e8productions.com"
-                  className="flex items-center gap-4 group"
-                >
-                  <div className="w-11 h-11 bg-black rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <Mail className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-0.5">Legal</p>
-                    <p className="text-sm sm:text-base text-black group-hover:underline">legal@e8productions.com</p>
-                  </div>
-                </a>
-
-                <a
-                  href="tel:+18432672841"
-                  className="flex items-center gap-4 group"
-                >
-                  <div className="w-11 h-11 bg-black rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <Phone className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-0.5">Phone</p>
-                    <p className="text-sm sm:text-base text-black group-hover:underline">(843) 267-2841</p>
-                  </div>
-                </a>
-
-                <div className="flex items-center gap-4">
-                  <div className="w-11 h-11 bg-black rounded-xl flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-0.5">Location</p>
-                    <p className="text-sm sm:text-base text-black">Based in Fort Lauderdale, Florida</p>
-                    <p className="text-sm text-black/50">Remote-first · Serving clients globally</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-black/5" />
-
-              {/* Social links */}
-              <div>
-                <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-4">Follow Us</p>
-                <div className="flex gap-3">
-                  <a
-                    href="https://www.instagram.com/e8inc"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-xl bg-black/5 hover:bg-black hover:text-white text-black flex items-center justify-center transition-all group"
-                  >
-                    <Instagram className="w-4 h-4" />
-                  </a>
-                  <a
-                    href="https://www.linkedin.com/company/e8productionsllc/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-xl bg-black/5 hover:bg-black hover:text-white text-black flex items-center justify-center transition-all"
-                  >
-                    <Linkedin className="w-4 h-4" />
-                  </a>
-                  <a
-                    href="https://www.youtube.com/@e8productions"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-10 h-10 rounded-xl bg-black/5 hover:bg-black hover:text-white text-black flex items-center justify-center transition-all"
-                  >
-                    <Youtube className="w-4 h-4" />
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Right: form */}
-            <div className="lg:col-span-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 px-4 sm:px-0">
+            {/* Contact Form */}
+            <div className="bg-white border border-black/5 rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-lg">
+              <h3 className="text-lg sm:text-xl text-black mb-4 sm:mb-6">
+                Send Us A Message
+              </h3>
               <ContactForm />
             </div>
 
-          </div>
-        </div>
-      </section>
+            {/* Contact Info */}
+            <div className="space-y-6 sm:space-y-8">
+              <div>
+                <h3 className="text-lg sm:text-xl text-black mb-4 sm:mb-6">
+                  Contact Information
+                </h3>
+                <div className="space-y-4 sm:space-y-6">
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0">
+                      <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-black/70" />
+                    </div>
+                    <div>
+                      <p className="text-base sm:text-base text-black mb-1">Email</p>
+                      <a href="mailto:info@e8productions.com" className="text-sm sm:text-sm text-black/60 hover:text-black transition-colors break-all">
+                        info@e8productions.com
+                      </a>
+                    </div>
+                  </div>
 
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0">
+                      <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-black/70" />
+                    </div>
+                    <div>
+                      <p className="text-base sm:text-base text-black mb-1">Phone</p>
+                      <a href="tel:+18088590875" className="text-sm sm:text-sm text-black/60 hover:text-black transition-colors">
+                        (808) 859-0875
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black/5 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0">
+                      <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-black/70" />
+                    </div>
+                    <div>
+                      <p className="text-base sm:text-base text-black mb-1">Location</p>
+                      <p className="text-sm sm:text-sm text-black/60">
+                        Remote-first team<br />
+                        Serving clients globally
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-black rounded-2xl sm:rounded-3xl p-6 sm:p-8 text-white shadow-xl">
+                <h4 className="text-base sm:text-lg mb-2 sm:mb-3">
+                  Quick Response
+                </h4>
+                <p className="text-base sm:text-base text-white/70">
+                  We typically respond to all inquiries within 24 hours during business days.
+                </p>
+              </div>
+            </div>
+          </div>
+          </div>
+        </section>
+      </div>
       <Footer />
     </div>
   );

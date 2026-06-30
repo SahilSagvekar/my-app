@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronDown, Video, Lightbulb, Share2, Cpu, Send, Scissors, DollarSign, Tv, Camera } from 'lucide-react';
+import { ChevronDown, Video, Lightbulb, Share2, Cpu, Scissors, DollarSign, Tv, Camera } from 'lucide-react';
 import logoImage from '../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
 
 const services = [
@@ -32,7 +32,7 @@ const services = [
     href: '/services/ugc-content',
   },
   {
-    icon: Send,
+    icon: Cpu,
     title: 'Posting & Distribution',
     description: 'Automated scheduling',
     href: '/services/posting-distribution',
@@ -144,9 +144,6 @@ export function Navigation() {
                 </div>
               </div>
 
-              <Link href="/e8-app" className="text-black/70 transition-colors hover:text-black">
-                E8 App
-              </Link>
               <Link href="/shows" className="text-black/70 transition-colors hover:text-black">
                 Original Shows
               </Link>
@@ -226,13 +223,6 @@ export function Navigation() {
                 )}
               </div>
 
-              <Link
-                href="/e8-app"
-                className="block px-5 py-3.5 text-base text-black/70 hover:text-black hover:bg-black/5 rounded-xl transition-all active:bg-black/10"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                E8 App
-              </Link>
               <Link
                 href="/shows"
                 className="block px-5 py-3.5 text-base text-black/70 hover:text-black hover:bg-black/5 rounded-xl transition-all active:bg-black/10"

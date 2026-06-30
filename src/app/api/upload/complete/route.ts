@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
-import { completeMultipart } from '@/lib/file-server';
+import { completeMultipart, invalidateCache } from '@/lib/file-server';
 import { pushUploadJob } from '@/lib/upload-queue';
 import { prisma } from "@/lib/prisma";
 
@@ -231,7 +231,20 @@ export async function POST(request: NextRequest) {
 
       console.log(`📬 Background job queued: ${jobId} for ${fileName}`);
 
-      // ── STEP 6: Return success — file is already in DB ────────────────────
+      // ── STEP 6: Bust file server cache so the new file shows immediately ───
+      // The file server caches the folder tree per (role, prefix). Sending no
+      // prefix triggers invalidateAll() on the file server — clears every role's
+      // cache at once. Safe: cache rebuilds on next request (~1-2s cold hit).
+      // Without this, the UI reloads a stale tree and the new file stays
+      // invisible until the 5-min TTL expires.
+      try {
+        await invalidateCache(userId, user.role || 'admin'); // no prefix = invalidateAll on file server
+      } catch (cacheErr) {
+        // Non-fatal — worst case stale data for up to 5 minutes
+        console.warn('⚠️  Cache invalidation failed (non-fatal):', cacheErr);
+      }
+
+      // ── STEP 7: Return success — file is already in DB ────────────────────
       return NextResponse.json({
         success: true,
         fileUrl,

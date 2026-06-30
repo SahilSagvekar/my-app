@@ -28,15 +28,15 @@ export function OriginalShows() {
   return (
     <section
       id="shows"
-      className="pt-28 sm:pt-32 pb-16 sm:pb-24 px-5 sm:px-6 lg:px-8 bg-white"
+      className="pt-14 sm:pt-16 pb-16 sm:pb-24 px-5 sm:px-6 lg:px-8 bg-white"
     >
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-8 sm:mb-12 lg:mb-16">
-           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-black mb-4">
+           <h2 className="text-3xl sm:text-4xl lg:text-5xl text-black mb-4 sm:mb-5">
             Original Shows
-          </h1>
-          <p className="text-base sm:text-lg text-black/60 max-w-2xl mx-auto">
+          </h2>
+          <p className="text-base sm:text-base text-black/60 max-w-2xl mx-auto px-4 sm:px-0">
             Premium entertainment produced by E8 Productions. Watch what happens
             when creativity meets innovation.
           </p>

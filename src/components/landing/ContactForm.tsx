@@ -58,46 +58,44 @@ export default function ContactForm() {
         </div>
       ) : null}
 
-      {/* Name + Email on same row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="name" className="block text-sm text-black/70 mb-2 font-medium">
-            Name
-          </label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            type="text"
-            id="name"
-            className="w-full px-4 py-3 text-base border border-black/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/30 transition-all"
-            placeholder="Your name"
-          />
-        </div>
-        <div>
-          <label htmlFor="email" className="block text-sm text-black/70 mb-2 font-medium">
-            Email
-          </label>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            id="email"
-            className="w-full px-4 py-3 text-base border border-black/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/30 transition-all"
-            placeholder="your@email.com"
-          />
-        </div>
+      <div>
+        <label htmlFor="name" className="block text-sm sm:text-base text-black/70 mb-2 sm:mb-2.5 font-medium">
+          Name
+        </label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          type="text"
+          id="name"
+          className="w-full px-4 sm:px-5 py-3.5 sm:py-4 text-base sm:text-base border border-black/10 rounded-xl sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/30 transition-all"
+          placeholder="Your name"
+        />
       </div>
 
       <div>
-        <label htmlFor="message" className="block text-sm text-black/70 mb-2 font-medium">
+        <label htmlFor="email" className="block text-sm sm:text-base text-black/70 mb-2 sm:mb-2.5 font-medium">
+          Email
+        </label>
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          type="email"
+          id="email"
+          className="w-full px-4 sm:px-5 py-3.5 sm:py-4 text-base sm:text-base border border-black/10 rounded-xl sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/30 transition-all"
+          placeholder="your@email.com"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="message" className="block text-sm sm:text-base text-black/70 mb-2 sm:mb-2.5 font-medium">
           Message
         </label>
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           id="message"
-          rows={4}
-          className="w-full px-4 py-3 text-base border border-black/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/30 transition-all resize-none"
+          rows={6}
+          className="w-full px-4 sm:px-5 py-3.5 sm:py-4 text-base sm:text-base border border-black/10 rounded-xl sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/30 transition-all resize-none"
           placeholder="Tell us about your project..."
         />
       </div>

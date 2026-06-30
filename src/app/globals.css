@@ -122,18 +122,6 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-@keyframes gradient-shift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.animated-dark-gradient {
-  background: linear-gradient(135deg, #09090b, #18181b, #1e1b4b, #09090b, #1a1a2e);
-  background-size: 300% 300%;
-  animation: gradient-shift 8s ease infinite;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
