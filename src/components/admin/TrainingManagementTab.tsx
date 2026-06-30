@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { Plus, Video, Edit, Trash2, Loader2 } from "lucide-react";
+import { Plus, Video, Edit, Trash2, Loader2, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 
 interface TrainingVideoType {
@@ -30,6 +30,19 @@ interface TrainingVideoType {
   title: string;
   description: string;
   videoUrl: string;
+  role: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TrainingDocumentType {
+  id: string;
+  title: string;
+  description: string;
+  fileName: string;
+  fileSize: number;
+  url: string | null;
   role: string;
   order: number;
   createdAt: string;
@@ -61,6 +74,144 @@ export function TrainingManagementTab() {
     videoUrl: "",
   });
   const [file, setFile] = useState<File | null>(null);
+
+  // ── Training Documents (PDFs/guides) ──────────────────────────────────────
+  const [documents, setDocuments] = useState<TrainingDocumentType[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
+  const [docRoleFilter, setDocRoleFilter] = useState<string>("all");
+  const [showAddDocDialog, setShowAddDocDialog] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<TrainingDocumentType | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docFormData, setDocFormData] = useState({
+    title: "",
+    description: "",
+    role: "editor",
+    order: "0",
+  });
+  const [docFile, setDocFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  async function loadDocuments() {
+    try {
+      setLoadingDocs(true);
+      const res = await fetch("/api/training/documents");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load");
+      setDocuments(data.documents || []);
+    } catch (e) {
+      console.error("Failed to load training documents", e);
+      toast.error("Failed to load training documents");
+    } finally {
+      setLoadingDocs(false);
+    }
+  }
+
+  const handleDocSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!docFormData.title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+
+    if (editingDocument) {
+      try {
+        const res = await fetch(`/api/training/documents/${editingDocument.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: docFormData.title.trim(),
+            description: docFormData.description.trim(),
+            role: docFormData.role,
+            order: parseInt(docFormData.order, 10) || 0,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Update failed");
+        toast.success("Document updated");
+        setShowAddDocDialog(false);
+        setEditingDocument(null);
+        resetDocForm();
+        loadDocuments();
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Update failed");
+      }
+      return;
+    }
+
+    if (!docFile) {
+      toast.error("Select a file to upload");
+      return;
+    }
+
+    setUploadingDoc(true);
+    try {
+      const fd = new FormData();
+      fd.set("title", docFormData.title.trim());
+      fd.set("description", docFormData.description.trim());
+      fd.set("role", docFormData.role);
+      fd.set("order", docFormData.order || "0");
+      fd.set("file", docFile);
+      const res = await fetch("/api/training/documents", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      toast.success("Document uploaded");
+      setShowAddDocDialog(false);
+      resetDocForm();
+      setDocFile(null);
+      loadDocuments();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  function resetDocForm() {
+    setDocFormData({ title: "", description: "", role: "editor", order: "0" });
+  }
+
+  const handleDeleteDocument = async (id: string) => {
+    if (!confirm("Delete this training document?")) return;
+    try {
+      const res = await fetch(`/api/training/documents/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Delete failed");
+      }
+      toast.success("Document deleted");
+      loadDocuments();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
+
+  const openEditDocument = (d: TrainingDocumentType) => {
+    setEditingDocument(d);
+    setDocFormData({
+      title: d.title,
+      description: d.description,
+      role: d.role,
+      order: String(d.order),
+    });
+    setDocFile(null);
+    setShowAddDocDialog(true);
+  };
+
+  const filteredDocuments = docRoleFilter === "all"
+    ? [...documents].sort((a, b) => a.role.localeCompare(b.role) || a.order - b.order)
+    : [...documents].filter((d) => d.role === docRoleFilter).sort((a, b) => a.order - b.order);
+
+  const docsByRole = filteredDocuments.reduce<Record<string, TrainingDocumentType[]>>((acc, d) => {
+    if (!acc[d.role]) acc[d.role] = [];
+    acc[d.role].push(d);
+    return acc;
+  }, {});
 
   useEffect(() => {
     loadVideos();
@@ -405,6 +556,192 @@ export function TrainingManagementTab() {
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(v.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Training Documents
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Select value={docRoleFilter} onValueChange={setDocRoleFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Filter by role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All roles</SelectItem>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Dialog
+                open={showAddDocDialog}
+                onOpenChange={(open) => {
+                  setShowAddDocDialog(open);
+                  if (!open) {
+                    setEditingDocument(null);
+                    resetDocForm();
+                    setDocFile(null);
+                  }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Document
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingDocument ? "Edit Document" : "Add Training Document"}</DialogTitle>
+                    <DialogDescription>
+                      {editingDocument
+                        ? "Update title, description, role, and order."
+                        : "Upload a PDF or other document. Set role and order for the course."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleDocSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Title</Label>
+                      <Input
+                        value={docFormData.title}
+                        onChange={(e) => setDocFormData({ ...docFormData, title: e.target.value })}
+                        placeholder="e.g. Editor Style Guide"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description (optional)</Label>
+                      <Textarea
+                        value={docFormData.description}
+                        onChange={(e) => setDocFormData({ ...docFormData, description: e.target.value })}
+                        placeholder="Short description"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Role</Label>
+                        <Select
+                          value={docFormData.role}
+                          onValueChange={(val) => setDocFormData({ ...docFormData, role: val })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROLES.map((r) => (
+                              <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Order in course</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={docFormData.order}
+                          onChange={(e) => setDocFormData({ ...docFormData, order: e.target.value })}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    {!editingDocument && (
+                      <div className="space-y-2">
+                        <Label>File (PDF, up to 25MB)</Label>
+                        <Input
+                          type="file"
+                          accept="application/pdf,.doc,.docx,.ppt,.pptx"
+                          onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+                        />
+                      </div>
+                    )}
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setShowAddDocDialog(false);
+                          setEditingDocument(null);
+                          resetDocForm();
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={uploadingDoc}>
+                        {uploadingDoc && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        {editingDocument ? "Save" : "Add Document"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingDocs ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredDocuments.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No training documents yet. Add one to get started.</p>
+          ) : (
+            <div className="space-y-6">
+              {Object.entries(docsByRole).map(([role, list]) => (
+                <div key={role}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                      {ROLES.find((r) => r.id === role)?.name || role}
+                    </h3>
+                    <span className="text-xs text-muted-foreground">
+                      {list.length} document{list.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {list.map((d, index) => (
+                      <li
+                        key={d.id}
+                        className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-card hover:bg-muted/60 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-muted-foreground font-mono text-sm w-6">
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{d.title}</p>
+                            {d.description && (
+                              <p className="text-sm text-muted-foreground truncate">{d.description}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {d.url && (
+                            <Button variant="outline" size="icon" asChild title="Download">
+                              <a href={d.url} target="_blank" rel="noopener noreferrer">
+                                <Download className="h-4 w-4" />
+                              </a>
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" onClick={() => openEditDocument(d)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteDocument(d.id)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>

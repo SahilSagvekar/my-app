@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "../ui/dialog";
-import { PlayCircle, Video, Loader2, X } from "lucide-react";
+import { PlayCircle, Video, Loader2, X, FileText, Download } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { toast } from "sonner";
 
@@ -25,6 +25,19 @@ interface TrainingVideoType {
   title: string;
   description: string;
   videoUrl: string;
+  role: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TrainingDocumentType {
+  id: string;
+  title: string;
+  description: string;
+  fileName: string;
+  fileSize: number;
+  url: string | null;
   role: string;
   order: number;
   createdAt: string;
@@ -45,9 +58,33 @@ export function TrainingPortalPage() {
   const [videos, setVideos] = useState<TrainingVideoType[]>([]);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState<TrainingVideoType | null>(null);
+  const [documents, setDocuments] = useState<TrainingDocumentType[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
 
   const role = (user?.role || "").toLowerCase();
   const courseTitle = role ? `${ROLE_LABELS[role] || role} Training` : "Training";
+
+  useEffect(() => {
+    loadVideos();
+    loadDocuments();
+  }, []);
+
+  async function loadDocuments() {
+    try {
+      setLoadingDocs(true);
+      const res = await fetch("/api/training/documents");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load");
+      const list = (data.documents || []).sort(
+        (a: TrainingDocumentType, b: TrainingDocumentType) => a.order - b.order
+      );
+      setDocuments(list);
+    } catch (e) {
+      console.error("Failed to load training documents", e);
+    } finally {
+      setLoadingDocs(false);
+    }
+  }
 
   useEffect(() => {
     loadVideos();
@@ -121,6 +158,69 @@ export function TrainingPortalPage() {
                   >
                     <PlayCircle className="h-4 w-4 mr-2" />
                     Watch
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-6 w-6" />
+            Documents
+          </CardTitle>
+          <CardDescription>
+            Reference guides and materials for your role.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingDocs ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : documents.length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center">
+              No documents assigned for your role yet. Check back later.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {documents.map((d, index) => (
+                <li
+                  key={d.id}
+                  className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <span className="shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{d.title}</p>
+                      {d.description && (
+                        <p className="text-sm text-muted-foreground truncate mt-0.5">{d.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={!d.url}
+                    asChild={!!d.url}
+                  >
+                    {d.url ? (
+                      <a href={d.url} target="_blank" rel="noopener noreferrer">
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </a>
+                    ) : (
+                      <span>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </span>
+                    )}
                   </Button>
                 </li>
               ))}

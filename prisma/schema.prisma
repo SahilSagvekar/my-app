@@ -1279,10 +1279,31 @@ model TrainingCourse {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   videos      TrainingVideo[]
+  documents   TrainingDocument[]
 
   @@index([role])
   @@index([role, order])
 }
+
+model TrainingDocument {
+  id          String          @id @default(cuid())
+  title       String
+  description String          @default("")
+  s3Key       String
+  fileName    String
+  fileSize    Int
+  role        Role
+  order       Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  courseId    String?
+  course      TrainingCourse? @relation(fields: [courseId], references: [id])
+
+  @@index([role])
+  @@index([role, order])
+  @@index([courseId, order])
+}
+
 
 model TrainingVideo {
   id          String          @id @default(cuid())
