@@ -69,8 +69,22 @@ export async function POST(
     if (!file) {
       return NextResponse.json({ error: 'Missing file' }, { status: 400 });
     }
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ error: 'Only PDF files are supported' }, { status: 400 });
+    const ALLOWED_MIME_TYPES = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif'
+    ];
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      return NextResponse.json({ error: 'Unsupported file type. Please upload a PDF, Word, Excel, PowerPoint, Text file, or image.' }, { status: 400 });
     }
     const MAX_SIZE = 25 * 1024 * 1024; // 25MB
     if (file.size > MAX_SIZE) {
