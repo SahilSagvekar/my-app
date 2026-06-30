@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   FileText,
   CheckCircle2,
@@ -148,7 +149,13 @@ interface PortalAccess {
   lockedAt: string | null;
 }
 
-export function ClientPortalPage() {
+interface ClientPortalPageProps {
+  clientId?: string;
+}
+
+export function ClientPortalPage({ clientId: propClientId }: ClientPortalPageProps = {}) {
+  const searchParams = useSearchParams();
+  const urlClientId = propClientId || searchParams?.get("clientId") || undefined;
   const [loading, setLoading] = useState(true);
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -163,14 +170,22 @@ export function ClientPortalPage() {
     try {
       setLoading(true);
 
+      const clientUrl = `/api/client/me${urlClientId ? `?clientId=${urlClientId}` : ""}`;
+      
+      const contractsParam = urlClientId ? `clientId=${urlClientId}` : "";
+      const searchParam = searchQuery ? `search=${searchQuery}` : "";
+      const contractsQuery = [contractsParam, searchParam].filter(Boolean).join("&");
+      const contractsUrl = `/api/contracts${contractsQuery ? `?${contractsQuery}` : ""}`;
+      
+      const invoicesUrl = `/api/billing/invoices${urlClientId ? `?clientId=${urlClientId}` : ""}`;
+      const accessUrl = `/api/portal/access${urlClientId ? `?clientId=${urlClientId}` : ""}`;
+
       // Fetch client info, contracts, invoices, and portal access in parallel
       const [clientRes, contractsRes, invoicesRes, accessRes] = await Promise.all([
-        fetch("/api/client/me", { credentials: "include" }),
-        fetch(`/api/contracts${searchQuery ? `?search=${searchQuery}` : ""}`, {
-          credentials: "include",
-        }),
-        fetch("/api/billing/invoices", { credentials: "include" }),
-        fetch("/api/portal/access", { credentials: "include" }),
+        fetch(clientUrl, { credentials: "include" }),
+        fetch(contractsUrl, { credentials: "include" }),
+        fetch(invoicesUrl, { credentials: "include" }),
+        fetch(accessUrl, { credentials: "include" }),
       ]);
 
       if (clientRes.ok) {
@@ -198,13 +213,13 @@ export function ClientPortalPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, urlClientId]);
 
   const handleSyncAll = async () => {
     try {
       setSyncing(true);
       // 1. Sync Stripe billing data
-      const stripeRes = await fetch("/api/billing/sync", { credentials: "include" });
+      const stripeRes = await fetch(`/api/billing/sync${urlClientId ? `?clientId=${urlClientId}` : ""}`, { credentials: "include" });
       const stripeData = await stripeRes.json();
       
       // 2. Sync pending SignWell contracts

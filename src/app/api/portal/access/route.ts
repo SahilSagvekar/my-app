@@ -10,14 +10,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Find the client linked to this user
+    const { searchParams } = new URL(req.url);
+    const clientIdParam = searchParams.get('clientId');
+    const isAdmin = ['admin', 'manager'].includes(user.role?.toLowerCase() ?? '');
+
+    // Find the client
     const client = await prisma.client.findFirst({
-      where: {
-        OR: [
-          { userId: user.id },
-          { email: user.email },
-        ],
-      },
+      where: (isAdmin && clientIdParam)
+        ? { id: clientIdParam }
+        : {
+            OR: [
+              { userId: user.id },
+              { email: user.email },
+            ],
+          },
       include: { portalAccess: true },
     });
 

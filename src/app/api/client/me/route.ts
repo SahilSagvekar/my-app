@@ -20,8 +20,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get the client ID - either from linkedClientId or from client relation
-    const clientId = user.linkedClientId || user.client?.id;
+    const { searchParams } = new URL(req.url);
+    const clientIdParam = searchParams.get('clientId');
+    const isAdmin = ['admin', 'manager'].includes(jwtUser.role?.toLowerCase() ?? '');
+
+    // Get the client ID - either from search param (for admin/manager) or linkedClientId/client relation
+    let clientId = user.linkedClientId || user.client?.id;
+    if (isAdmin && clientIdParam) {
+      clientId = clientIdParam;
+    }
 
     if (!clientId) {
       return NextResponse.json(
