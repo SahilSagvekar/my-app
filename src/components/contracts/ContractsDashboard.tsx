@@ -13,10 +13,11 @@ import {
     AlertCircle,
     Eye,
     Bell,
-    MoreHorizontal,
-    Filter,
     Loader2,
     RefreshCw,
+    X,
+    PenLine,
+    ExternalLink,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
@@ -69,6 +70,13 @@ const STATUS_TABS = [
     { id: "CANCELLED", label: "Cancelled", icon: XCircle },
 ];
 
+interface ViewModal {
+    contractId: string;
+    viewUrl: string;
+    title: string;
+    mode: 'sign' | 'view' | 'external';
+}
+
 export function ContractsDashboard() {
     const [contracts, setContracts] = useState<Contract[]>([]);
     const [loading, setLoading] = useState(true);
@@ -77,6 +85,9 @@ export function ContractsDashboard() {
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [selectedContract, setSelectedContract] = useState<string | null>(null);
     const [syncing, setSyncing] = useState(false);
+    const [viewModal, setViewModal] = useState<ViewModal | null>(null);
+    const [viewLoading, setViewLoading] = useState<string | null>(null);
+    const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
 
     const syncWithSignWell = useCallback(async () => {
         try {
@@ -131,6 +142,61 @@ export function ContractsDashboard() {
         const signed = signers.filter((s) => s.status === "SIGNED").length;
         return `${signed}/${signers.length}`;
     };
+
+    const handleViewContract = useCallback(async (contractId: string, contractTitle: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setViewLoading(contractId);
+        try {
+            const res = await fetch(`/api/contracts/${contractId}/view-url`, { credentials: 'include' });
+            const data = await res.json();
+            if (res.ok && data.viewUrl) {
+                if (data.mode === 'external') {
+                    // Open SignWell web portal in a new tab
+                    window.open(data.viewUrl, '_blank');
+                } else {
+                    setViewModal({
+                        contractId,
+                        viewUrl: data.viewUrl,
+                        title: contractTitle,
+                        mode: data.mode,
+                    });
+                }
+            } else {
+                alert(data.error || 'Could not load contract viewer');
+            }
+        } catch (err) {
+            console.error('View contract failed:', err);
+            alert('Failed to load contract viewer');
+        } finally {
+            setViewLoading(null);
+        }
+    }, []);
+
+    const handleDownloadContract = useCallback(async (contractId: string, contractTitle: string, status: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDownloadLoading(contractId);
+        const type = status === 'COMPLETED' ? 'signed' : 'original';
+        try {
+            const res = await fetch(`/api/contracts/${contractId}/download?type=${type}`, { credentials: 'include' });
+            const data = await res.json();
+            if (res.ok && data.downloadUrl) {
+                // Trigger browser download
+                const a = document.createElement('a');
+                a.href = data.downloadUrl;
+                a.download = data.filename || `${contractTitle}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } else {
+                alert(data.error || 'Download failed — no PDF available yet');
+            }
+        } catch (err) {
+            console.error('Download failed:', err);
+            alert('Failed to download contract');
+        } finally {
+            setDownloadLoading(null);
+        }
+    }, []);
 
     if (selectedContract) {
         return (
@@ -332,15 +398,30 @@ export function ContractsDashboard() {
                                         </div>
                                     </td>
                                     <td className="px-5 py-4 text-right">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedContract(contract.id);
-                                            }}
-                                            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
-                                        >
-                                            <Eye className="h-4 w-4 text-gray-400" />
-                                        </button>
+                                        <div className="flex items-center justify-end gap-1">
+                                            {/* Eye — opens SignWell contract viewer in modal */}
+                                            <button
+                                                onClick={(e) => handleViewContract(contract.id, contract.title, e)}
+                                                disabled={viewLoading === contract.id}
+                                                title="View contract"
+                                                className="p-1.5 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 group"
+                                            >
+                                                {viewLoading === contract.id
+                                                    ? <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+                                                    : <Eye className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />}
+                                            </button>
+                                            {/* Download — triggers PDF download */}
+                                            <button
+                                                onClick={(e) => handleDownloadContract(contract.id, contract.title, contract.status, e)}
+                                                disabled={downloadLoading === contract.id}
+                                                title={contract.status === 'COMPLETED' ? 'Download signed PDF' : 'Download original PDF'}
+                                                className="p-1.5 hover:bg-green-50 rounded-md transition-colors disabled:opacity-50 group"
+                                            >
+                                                {downloadLoading === contract.id
+                                                    ? <Loader2 className="h-4 w-4 text-green-400 animate-spin" />
+                                                    : <Download className="h-4 w-4 text-gray-400 group-hover:text-green-600" />}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -360,5 +441,49 @@ export function ContractsDashboard() {
                 />
             )}
         </div>
+
+        {/* Contract Viewer Modal */}
+        {viewModal && (
+            <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col">
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 flex-shrink-0">
+                        <div className="flex items-center gap-2">
+                            <PenLine className="h-4 w-4 text-blue-600" />
+                            <span className="font-semibold text-gray-900 text-sm">
+                                {viewModal.mode === 'sign' ? 'Sign Contract' : 'View Contract'}
+                            </span>
+                            <span className="text-xs text-gray-400">— {viewModal.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <a
+                                href={viewModal.viewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-500 hover:text-gray-700"
+                                title="Open in new tab"
+                            >
+                                <ExternalLink className="h-4 w-4" />
+                            </a>
+                            <button
+                                onClick={() => setViewModal(null)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                            >
+                                <X className="h-4 w-4 text-gray-500" />
+                            </button>
+                        </div>
+                    </div>
+                    {/* Iframe */}
+                    <div className="flex-1 overflow-hidden rounded-b-2xl">
+                        <iframe
+                            src={viewModal.viewUrl}
+                            className="w-full h-full border-0"
+                            title={viewModal.title}
+                            allow="camera; microphone"
+                        />
+                    </div>
+                </div>
+            </div>
+        )}
     );
 }
