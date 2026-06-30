@@ -2,8 +2,9 @@ import { Navigation } from '@/components/landing/Navigation';
 import Image from 'next/image';
 import { Hero } from '@/components/landing/Hero';
 import { Footer } from '@/components/landing/Footer';
+import { ClientPortalMockup } from '@/components/e8app/ClientPortalMockup';
 import Link from "next/link";
-import { ArrowRight, Tv, TrendingUp, Users, Video, Target, Scissors, Send, DollarSign, Camera, Lightbulb, Share2, Cpu } from 'lucide-react';
+import { ArrowRight, Tv, TrendingUp, Users, Video, Target, Scissors, Send, DollarSign, Camera, Lightbulb, Share2, Cpu, Cpu as AppIcon, CheckCircle, BarChart2, ShieldCheck } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import showsImage from '../../public/assets/c6ec00e7c877a01cc4af52907abc860d47df5b5d.png';
 import Image2 from '../../public/assets/landing/photo.jpg';
@@ -73,7 +74,7 @@ export default function LandingPage() {
 
                   {/* Posting & Distribution */}
                   <Link href="/services/posting-distribution" className="bg-black/[0.04] rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/10 active:scale-95 transition-all group">
-                    <Cpu className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
+                    <Send className="w-5 h-5 sm:w-6 sm:h-6 text-black mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">Distribution</span>
                   </Link>
 
@@ -95,14 +96,17 @@ export default function LandingPage() {
                     <span className="text-black text-[11px] sm:text-xs text-center leading-tight font-medium">UGC Content</span>
                   </Link>
 
-                  {/* Blank Tile */}
-                  <div className="bg-black/[0.02] rounded-xl sm:rounded-xl"></div>
+                  {/* E8 App Tile */}
+                  <Link href="/e8-app" className="bg-black rounded-xl sm:rounded-xl flex flex-col items-center justify-center p-2.5 sm:p-3 hover:bg-black/80 active:scale-95 transition-all group">
+                    <Cpu className="w-5 h-5 sm:w-6 sm:h-6 text-white mb-1 sm:mb-1.5 group-hover:scale-110 transition-transform" />
+                    <span className="text-white text-[11px] sm:text-xs text-center leading-tight font-medium">E8 App</span>
+                  </Link>
                 </div>
               </div>
             </div>
 
             <div className="flex-1 order-1 md:order-2 w-full md:w-auto">
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-black mb-3 sm:mb-4 text-center md:text-left">What We Do</h2>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-black mb-3 sm:mb-4 text-center md:text-left">What E8 Does</h2>
               <p className="text-sm sm:text-base text-black/60 mb-5 sm:mb-6 text-center md:text-left leading-relaxed">
                 We provide end-to-end social media and content solutions for modern businesses. From strategy and video production to editing, posting, distribution, and ongoing management, we help brands grow through consistent, high-quality content and original shows.
               </p>
@@ -179,18 +183,71 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* E8 App Preview */}
+      <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center gap-8 sm:gap-10 lg:gap-12">
+
+            {/* Left: mockup */}
+            <div className="flex-1 w-full md:w-auto flex justify-center rounded-2xl p-4 sm:p-6 animated-dark-gradient">
+              <ClientPortalMockup />
+            </div>
+
+            {/* Right: copy */}
+            <div className="flex-1 w-full md:w-auto">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-black text-white text-xs sm:text-sm rounded-full mb-4">
+                <AppIcon className="w-3.5 h-3.5" />
+                Powered by E8 App
+              </div>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-black mb-3 sm:mb-4 text-center md:text-left">
+                You're Always in the Loop
+              </h2>
+              <p className="text-sm sm:text-base text-black/60 mb-5 sm:mb-6 text-center md:text-left leading-relaxed">
+                Every client gets their own login to the E8 App — our proprietary platform built to keep you in full control of your content. Review videos, approve deliverables, track analytics, and manage invoices, all in one place.
+              </p>
+
+              <ul className="space-y-3 mb-6 sm:mb-8">
+                {[
+                  { icon: CheckCircle, text: 'Review & approve every video before it goes live' },
+                  { icon: BarChart2,   text: 'See your real analytics: views, growth, and engagement' },
+                  { icon: ShieldCheck, text: 'Every deliverable passes QC before you ever see it' },
+                ].map(({ icon: Icon, text }) => (
+                  <li key={text} className="flex items-center gap-3 justify-center md:justify-start">
+                    <div className="w-6 h-6 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <span className="text-sm text-black/70">{text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="flex justify-center md:justify-start">
+                <Link
+                  href="/e8-app"
+                  className="inline-flex items-center gap-2 px-6 py-3.5 sm:py-3 text-sm sm:text-base bg-black text-white rounded-full hover:bg-black/90 active:scale-95 transition-all group w-full sm:w-auto justify-center md:justify-start font-medium shadow-lg shadow-black/10"
+                >
+                  See the E8 App
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
       {/* Original Shows Preview */}
       <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-black/[0.02] overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-8 sm:gap-10 lg:gap-12">
-            <div className="flex-1 order-2 md:order-1 w-full md:w-auto">
+            <div className="flex-1 order-2 md:order-2 w-full md:w-auto">
               <div className="aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl">
                 <Image src={showsImage} alt="Original show production"
                   className="w-full h-full object-cover" />
               </div>
             </div>
 
-            <div className="flex-1 order-1 md:order-2 w-full md:w-auto">
+            <div className="flex-1 order-1 md:order-1 w-full md:w-auto">
               <div className="flex justify-center md:justify-start mb-3 sm:mb-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-black text-white text-xs sm:text-sm rounded-full">
                   <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />

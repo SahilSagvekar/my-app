@@ -131,12 +131,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
   const [driveStructure, setDriveStructure] = useState<DriveItem | null>(null);
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
-  const [breadcrumb, setBreadcrumbState] = useState<DriveItem[]>([]);
-  const breadcrumbRef = useRef<DriveItem[]>([]);
-  const setBreadcrumb = (val: DriveItem[]) => {
-    breadcrumbRef.current = val;
-    setBreadcrumbState(val);
-  };
+  const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
@@ -529,9 +524,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   const loadDriveStructure = async (clientIdOverride?: string | null) => {
     // Capture current path BEFORE reload so we can restore it after
-    const liveBreadcrumb = breadcrumbRef.current;
-    const currentNavPath = liveBreadcrumb.length > 1
-      ? liveBreadcrumb.slice(1).map(b => b.name).join("/")
+    const currentNavPath = breadcrumb.length > 1
+      ? breadcrumb.slice(1).map(b => b.name).join("/")
       : "";
     // On first load, use URL path. On subsequent reloads, use current breadcrumb path.
     const pathToRestore = hasRestoredRef.current
@@ -1349,969 +1343,849 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row h-screen bg-background">
-        {/* Delete Confirmation Dialog */}
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-                Delete {itemToDelete?.type === "folder" ? "folder" : "file"}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete{" "}
-                <strong>{itemToDelete?.name}</strong>?
-                {itemToDelete?.type === "folder" && (
-                  <span className="block mt-2 text-red-600">
-                    This will delete the folder and all its contents
-                    permanently.
-                  </span>
-                )}
-                <span className="block mt-2">
-                  This action cannot be undone.
+    <div className="flex flex-col sm:flex-row h-screen bg-background">
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Delete {itemToDelete?.type === "folder" ? "folder" : "file"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete{" "}
+              <strong>{itemToDelete?.name}</strong>?
+              {itemToDelete?.type === "folder" && (
+                <span className="block mt-2 text-red-600">
+                  This will delete the folder and all its contents permanently.
                 </span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={cancelDelete} disabled={isDeleting}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                disabled={isDeleting}
-                className="bg-red-500 hover:bg-red-600"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+              )}
+              <span className="block mt-2">This action cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelDelete} disabled={isDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-        {/* Share Dialog */}
-        <ShareDialog
-          open={showShareDialog}
-          onOpenChange={setShowShareDialog}
-          shareLink={shareLink}
-          onCopy={handleCopyLink}
-          copied={copied}
-        />
+      {/* Share Dialog */}
+      <ShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        shareLink={shareLink}
+        onCopy={handleCopyLink}
+        copied={copied}
+      />
 
-        {/* Create Folder Dialog */}
-        <Dialog
-          open={showCreateFolderDialog}
-          onOpenChange={setShowCreateFolderDialog}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Folder className="h-5 w-5" />
-                Create New Folder
-              </DialogTitle>
-              <DialogDescription>
-                Create a new folder in the current directory
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Folder Name</label>
-                <Input
-                  placeholder="e.g., beach-shoot, product-photos"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !isCreatingFolder) {
-                      handleCreateFolder();
-                    }
-                  }}
-                  disabled={isCreatingFolder}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowCreateFolderDialog(false);
-                  setNewFolderName("");
+      {/* Create Folder Dialog */}
+      <Dialog open={showCreateFolderDialog} onOpenChange={setShowCreateFolderDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Folder className="h-5 w-5" />
+              Create New Folder
+            </DialogTitle>
+            <DialogDescription>
+              Create a new folder in the current directory
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Folder Name</label>
+              <Input
+                placeholder="e.g., beach-shoot, product-photos"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isCreatingFolder) {
+                    handleCreateFolder();
+                  }
                 }}
                 disabled={isCreatingFolder}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateFolder}
-                disabled={isCreatingFolder || !newFolderName.trim()}
-              >
-                {isCreatingFolder ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  "Create Folder"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Rename Dialog */}
-        <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                Rename {itemToRename?.type === "folder" ? "Folder" : "File"}
-              </DialogTitle>
-              <DialogDescription>
-                Enter a new name for &quot;{itemToRename?.name}&quot;
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">New Name</label>
-                <Input
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !isRenaming) {
-                      confirmRename();
-                    }
-                  }}
-                  disabled={isRenaming}
-                />
-              </div>
+              />
             </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowRenameDialog(false);
-                  setItemToRename(null);
-                  setRenameValue("");
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateFolderDialog(false);
+                setNewFolderName('');
+              }}
+              disabled={isCreatingFolder}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFolder} disabled={isCreatingFolder || !newFolderName.trim()}>
+              {isCreatingFolder ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Folder'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Dialog */}
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename {itemToRename?.type === 'folder' ? 'Folder' : 'File'}</DialogTitle>
+            <DialogDescription>
+              Enter a new name for &quot;{itemToRename?.name}&quot;
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">New Name</label>
+              <Input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isRenaming) {
+                    confirmRename();
+                  }
                 }}
                 disabled={isRenaming}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={confirmRename}
-                disabled={isRenaming || !renameValue.trim()}
-              >
-                {isRenaming ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Renaming...
-                  </>
-                ) : (
-                  "Rename"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRenameDialog(false);
+                setItemToRename(null);
+                setRenameValue('');
+              }}
+              disabled={isRenaming}
+            >
+              Cancel
+            </Button>
+            <Button onClick={confirmRename} disabled={isRenaming || !renameValue.trim()}>
+              {isRenaming ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Renaming...
+                </>
+              ) : (
+                'Rename'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Storage Limit Modal */}
-        {storageInfo && storageInfo.percentage !== undefined && (
-          <StorageLimitModal
-            open={showStorageLimitModal}
-            onOpenChange={setShowStorageLimitModal}
-            storageInfo={storageInfo}
-            clientId={effectiveClientId || undefined}
-          />
+      {/* Storage Limit Modal */}
+      {storageInfo && storageInfo.percentage !== undefined && (
+        <StorageLimitModal
+          open={showStorageLimitModal}
+          onOpenChange={setShowStorageLimitModal}
+          storageInfo={storageInfo}
+          clientId={effectiveClientId || undefined}
+        />
+      )}
+
+      {/* Main Content Area */}
+      <div className="relative flex-1 flex flex-col min-w-0">
+        {isMoving && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm pointer-events-none">
+            <div className="flex items-center gap-2 bg-card border rounded-full px-4 py-2 shadow-md text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              Moving…
+            </div>
+          </div>
         )}
 
-        {/* Main Content Area */}
-        <div className="relative flex-1 flex flex-col min-w-0">
-          {isMoving && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm pointer-events-none">
-              <div className="flex items-center gap-2 bg-card border rounded-full px-4 py-2 shadow-md text-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                Moving…
-              </div>
+        {isClientStorageLocked && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/90 backdrop-blur-sm">
+            <div className="mx-4 max-w-sm rounded-lg border bg-card p-5 text-center shadow-lg">
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-red-500" />
+              <h3 className="text-base font-semibold">Storage full</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Drive is locked until more storage is added.
+              </p>
+              <Button className="mt-4 w-full" onClick={() => setShowStorageLimitModal(true)}>
+                Get more storage
+              </Button>
             </div>
-          )}
+          </div>
+        )}
 
-          {isClientStorageLocked && (
-            <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/90 backdrop-blur-sm">
-              <div className="mx-4 max-w-sm rounded-lg border bg-card p-5 text-center shadow-lg">
-                <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-red-500" />
-                <h3 className="text-base font-semibold">Storage full</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Drive is locked until more storage is added.
-                </p>
-                <Button
-                  className="mt-4 w-full"
-                  onClick={() => setShowStorageLimitModal(true)}
-                >
-                  Get more storage
-                </Button>
-              </div>
-            </div>
-          )}
+        {/* Top Toolbar */}
+        <div className="border-b bg-card">
+          <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 flex-wrap">
+            {/* Left: Upload Button */}
+            {canUpload && !(role === 'client' && storageInfo?.isAtLimit) && (
+              shouldShowRawFootageDialog ? (
+                <RawFootageUploadDialog
+                  clientId={effectiveClientId!}
+                  companyName={effectiveCompanyName}
+                  role={role}
+                  onUploadComplete={() => {
+                    const cid = effectiveClientId || browsingClientId;
+                    setTimeout(() => loadDriveStructure(cid), 1000);
+                    if (cid) {
+                      fetch(`/api/clients/${cid}/storage`)
+                        .then(res => res.json())
+                        .then(setStorageInfo)
+                        .catch(console.error);
+                    }
+                  }}
+                  trigger={
+                    <Button className="gap-2 shrink-0 h-10 px-4">
+                      <Upload className="h-4 w-4" />
+                      <span className="hidden sm:inline font-medium">Upload Raw Footage</span>
+                    </Button>
+                  }
+                />
+              ) : shouldShowElementsDialog ? (
+                <RawFootageUploadDialog
+                  clientId={effectiveClientId!}
+                  companyName={effectiveCompanyName}
+                  mode="elements"
+                  onUploadComplete={() => {
+                    const cid = effectiveClientId || browsingClientId;
+                    setTimeout(() => loadDriveStructure(cid), 1000);
+                  }}
+                  trigger={
+                    <Button className="gap-2 shrink-0 h-10 px-4">
+                      <Upload className="h-4 w-4" />
+                      <span className="hidden sm:inline font-medium">Upload to Elements</span>
+                    </Button>
+                  }
+                />
+              ) : (
+                <FileUploadDialog
+                  folderType="drive"
+                  subfolder={getCurrentFolderS3Path()}
+                  onUploadComplete={() => {
+                    const cid = effectiveClientId || browsingClientId;
+                    setTimeout(() => loadDriveStructure(cid), 1000);
+                  }}
+                  trigger={
+                    <Button className="gap-2 shrink-0 h-10 px-4">
+                      <Upload className="h-4 w-4" />
+                      <span className="hidden sm:inline font-medium">Upload</span>
+                    </Button>
+                  }
+                />
+              )
+            )}
 
-          {/* Top Toolbar */}
-          <div className="border-b bg-card">
-            <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 flex-wrap">
-              {/* Left: Upload Button */}
-              {canUpload &&
-                !(role === "client" && storageInfo?.isAtLimit) &&
-                (shouldShowRawFootageDialog ? (
-                  <RawFootageUploadDialog
-                    clientId={effectiveClientId!}
-                    companyName={effectiveCompanyName}
-                    role={role}
-                    onUploadComplete={() => {
-                      const cid = effectiveClientId || browsingClientId;
-                      loadDriveStructure(cid);
-                      if (cid) {
-                        fetch(`/api/clients/${cid}/storage`)
-                          .then((res) => res.json())
-                          .then(setStorageInfo)
-                          .catch(console.error);
-                      }
-                    }}
-                    trigger={
-                      <Button className="gap-2 shrink-0 h-10 px-4">
-                        <Upload className="h-4 w-4" />
-                        <span className="hidden sm:inline font-medium">
-                          Upload Raw Footage
-                        </span>
-                      </Button>
-                    }
-                  />
-                ) : shouldShowElementsDialog ? (
-                  <RawFootageUploadDialog
-                    clientId={effectiveClientId!}
-                    companyName={effectiveCompanyName}
-                    mode="elements"
-                    onUploadComplete={() => {
-                      const cid = effectiveClientId || browsingClientId;
-                      loadDriveStructure(cid);
-                    }}
-                    trigger={
-                      <Button className="gap-2 shrink-0 h-10 px-4">
-                        <Upload className="h-4 w-4" />
-                        <span className="hidden sm:inline font-medium">
-                          Upload to Elements
-                        </span>
-                      </Button>
-                    }
-                  />
-                ) : (
-                  <FileUploadDialog
-                    folderType="drive"
-                    subfolder={getCurrentFolderS3Path()}
-                    onUploadComplete={() => {
-                      const cid = effectiveClientId || browsingClientId;
-                      loadDriveStructure(cid);
-                    }}
-                    trigger={
-                      <Button className="gap-2 shrink-0 h-10 px-4">
-                        <Upload className="h-4 w-4" />
-                        <span className="hidden sm:inline font-medium">
-                          Upload
-                        </span>
-                      </Button>
-                    }
-                  />
-                ))}
+            {/* Storage Full button */}
+            {role === 'client' && storageInfo?.isAtLimit && isInRawFootage && (
+              <Button
+                className="gap-2 shrink-0 h-10 px-4"
+                variant="destructive"
+                onClick={() => setShowStorageLimitModal(true)}
+              >
+                <AlertTriangle className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Storage Full - Upgrade</span>
+              </Button>
+            )}
 
-              {/* Storage Full button */}
-              {role === "client" &&
-                storageInfo?.isAtLimit &&
-                isInRawFootage && (
+            {/* New Folder Button */}
+            {isClientInDeliverableFolder && (
+              <Button
+                variant="outline"
+                className="gap-2 shrink-0 h-10 px-4"
+                onClick={() => setShowCreateFolderDialog(true)}
+              >
+                <Folder className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">New Folder</span>
+              </Button>
+            )}
+
+            {/* Add External Link Button */}
+            {isInRawFootage && canAddFootageLinks && (
+              <Button
+                variant="outline"
+                className="gap-2 shrink-0 h-10 px-4"
+                onClick={() => { setShowAddLinkInput(true); }}
+              >
+                <LinkIcon className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Add Link</span>
+              </Button>
+            )}
+
+            {/* ─── Admin/Manager: Client Selector ─── */}
+            {(role === 'admin' || role === 'manager') && adminClientList.length > 0 && (
+              <Select value={adminSelectedClientId} onValueChange={setAdminSelectedClientId}>
+                <SelectTrigger className="w-[200px] h-10 shrink-0">
+                  <SelectValue placeholder="Select client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {adminClientList.map(client => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* ─── Editor: Client Selector (only when assigned to multiple clients) ─── */}
+            {role === 'editor' && editorClientList.length > 1 && (
+              <Select value={editorSelectedClientId} onValueChange={setEditorSelectedClientId}>
+                <SelectTrigger className="w-[200px] h-10 shrink-0">
+                  <SelectValue placeholder="Select client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {editorClientList.map(client => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
+            {deliverableTypes.length > 0 && (
+              // Show when: at company root (seeing outputs folder), OR inside outputs at depth 0-1
+              (currentFolder?.children?.some(c => c.name === 'outputs') || (isInOutputs && depthFromOutputs < 2))
+            ) && (
+              <Select
+                value={selectedDeliverableFilter}
+                onValueChange={setSelectedDeliverableFilter}
+              >
+                <SelectTrigger className="w-[180px] h-10 shrink-0">
+                  <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Filter type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {deliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {SHORT_CODE_LABELS[type] || type} ({type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* ─── FEATURE 3: Global Search Bar ─── */}
+            <div className="flex-1 max-w-2xl mx-auto relative">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                <Input
+                  placeholder="Search across all folders..."
+                  className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
+                  value={globalSearchQuery}
+                  onChange={(e) => handleSearchInputChange(e.target.value)}
+                  onFocus={() => {
+                    // Re-show results if we have them
+                    if (globalSearchResults.length > 0 && globalSearchQuery.length >= 2) {
+                      setShowGlobalResults(true);
+                    }
+                  }}
+                />
+                {globalSearchQuery && (
                   <Button
-                    className="gap-2 shrink-0 h-10 px-4"
-                    variant="destructive"
-                    onClick={() => setShowStorageLimitModal(true)}
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                    onClick={() => {
+                      setGlobalSearchQuery("");
+                      setSearchQuery("");
+                      setGlobalSearchResults([]);
+                      setShowGlobalResults(false);
+                    }}
                   >
-                    <AlertTriangle className="h-4 w-4" />
-                    <span className="hidden sm:inline font-medium">
-                      Storage Full - Upgrade
-                    </span>
+                    <X className="h-4 w-4" />
                   </Button>
                 )}
+              </div>
 
-              {/* New Folder Button */}
-              {isClientInDeliverableFolder && (
-                <Button
-                  variant="outline"
-                  className="gap-2 shrink-0 h-10 px-4"
-                  onClick={() => setShowCreateFolderDialog(true)}
-                >
-                  <Folder className="h-4 w-4" />
-                  <span className="hidden sm:inline font-medium">
-                    New Folder
+              {/* ─── FEATURE 3: Search Results Dropdown ─── */}
+              {showGlobalResults && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-card border rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
+                  {isGlobalSearching ? (
+                    <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Searching all folders...
+                    </div>
+                  ) : globalSearchResults.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground text-center">
+                      No files found matching &quot;{globalSearchQuery}&quot;
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+                        {globalSearchResults.length} result{globalSearchResults.length !== 1 ? 's' : ''} found across all folders
+                      </div>
+                      {globalSearchResults.map((result, idx) => (
+                        <div
+                          key={`${result.s3Key}-${idx}`}
+                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent cursor-pointer transition-colors border-b last:border-b-0"
+                          onClick={() => navigateToSearchResult(result)}
+                        >
+                          <div className="flex-shrink-0 scale-75">
+                            {getFileIcon(result.name)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{result.name}</p>
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground truncate">
+                              <FolderOpen className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate">
+                                {result.breadcrumbParts.join(' / ')}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 text-right">
+                            {result.size && (
+                              <span className="text-[11px] text-muted-foreground">
+                                {formatBytes(result.size)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right: Download All, Select, View toggle, Refresh */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+
+              {/* Zip progress indicator */}
+              {isZipping && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span className="hidden sm:inline">{zipProgress || 'Preparing downloads…'}</span>
+                </div>
+              )}
+
+              {/* Selection mode active: show count + actions */}
+              {isSelectionMode && checkedItems.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {checkedItems.size} selected
                   </span>
-                </Button>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="gap-1.5 h-9"
+                    onClick={handleDownloadSelected}
+                    disabled={isZipping}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Download</span>
+                    <span className="sm:hidden">{checkedItems.size}</span>
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-9 px-2" onClick={clearChecked}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               )}
 
-              {/* Add External Link Button */}
-              {isInRawFootage && canAddFootageLinks && (
+              {/* Download All button */}
+              {filteredItems.some(i => i.type === 'file') && (
                 <Button
                   variant="outline"
-                  className="gap-2 shrink-0 h-10 px-4"
-                  onClick={() => {
-                    setShowAddLinkInput(true);
-                  }}
+                  size="sm"
+                  className="gap-1.5 h-9 shrink-0"
+                  onClick={handleDownloadAll}
+                  disabled={isZipping}
                 >
-                  <LinkIcon className="h-4 w-4" />
-                  <span className="hidden sm:inline font-medium">Add Link</span>
+                  <FolderDown className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Download All</span>
                 </Button>
               )}
 
-              {/* ─── Admin/Manager: Client Selector ─── */}
-              {(role === "admin" || role === "manager") &&
-                adminClientList.length > 0 && (
-                  <Select
-                    value={adminSelectedClientId}
-                    onValueChange={setAdminSelectedClientId}
-                  >
-                    <SelectTrigger className="w-[200px] h-10 shrink-0">
-                      <SelectValue placeholder="Select client..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {adminClientList.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+              {/* Select mode toggle */}
+              <Button
+                variant={isSelectionMode ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1.5 h-9 shrink-0"
+                onClick={() => { setIsSelectionMode(s => !s); if (isSelectionMode) clearChecked(); }}
+              >
+                {isSelectionMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{isSelectionMode ? 'Done' : 'Select'}</span>
+              </Button>
 
-              {/* ─── Editor: Client Selector (only when assigned to multiple clients) ─── */}
-              {role === "editor" && editorClientList.length > 1 && (
-                <Select
-                  value={editorSelectedClientId}
-                  onValueChange={setEditorSelectedClientId}
-                >
-                  <SelectTrigger className="w-[200px] h-10 shrink-0">
-                    <SelectValue placeholder="Select client..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {editorClientList.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Select All (shown only in selection mode) */}
+              {isSelectionMode && (
+                <Button size="sm" variant="ghost" className="h-9 px-2 text-xs" onClick={selectAllFiles}>
+                  All
+                </Button>
               )}
 
-              {/* ─── FEATURE 1: Deliverable Type Filter Dropdown ─── */}
-              {deliverableTypes.length > 0 &&
-                // Show when: at company root (seeing outputs folder), OR inside outputs at depth 0-1
-                (currentFolder?.children?.some((c) => c.name === "outputs") ||
-                  (isInOutputs && depthFromOutputs < 2)) && (
-                  <Select
-                    value={selectedDeliverableFilter}
-                    onValueChange={setSelectedDeliverableFilter}
-                  >
-                    <SelectTrigger className="w-[180px] h-10 shrink-0">
-                      <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <SelectValue placeholder="Filter type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      {deliverableTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {SHORT_CODE_LABELS[type] || type} ({type})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 hover:bg-secondary/50 rounded-full"
+                onClick={loadDriveStructure}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
 
-              {/* ─── FEATURE 3: Global Search Bar ─── */}
-              <div className="flex-1 max-w-2xl mx-auto relative">
-                <div className="relative group">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
-                  <Input
-                    placeholder="Search across all folders..."
-                    className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
-                    value={globalSearchQuery}
-                    onChange={(e) => handleSearchInputChange(e.target.value)}
-                    onFocus={() => {
-                      // Re-show results if we have them
-                      if (
-                        globalSearchResults.length > 0 &&
-                        globalSearchQuery.length >= 2
-                      ) {
-                        setShowGlobalResults(true);
-                      }
-                    }}
-                  />
-                  {globalSearchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                      onClick={() => {
-                        setGlobalSearchQuery("");
-                        setSearchQuery("");
-                        setGlobalSearchResults([]);
-                        setShowGlobalResults(false);
-                      }}
+          {/* Breadcrumb */}
+          <div className="px-3 sm:px-4 pb-2 sm:pb-3 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm overflow-x-auto">
+            {breadcrumb.map((folder, index) => (
+              <div key={folder.path} className="flex items-center gap-2">
+                {index > 0 && (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigateToFolder(folder)}
+                  className={cn(
+                    "h-7 px-2",
+                    index === breadcrumb.length - 1 && "font-semibold"
+                  )}
+                >
+                  {folder.name}
+                </Button>
+              </div>
+            ))}
+
+            {/* ─── FEATURE 1: Active filter badge ─── */}
+            {selectedDeliverableFilter !== "all" && (
+              <div className="flex items-center gap-1 ml-2">
+                <span className="text-[11px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full flex items-center gap-1">
+                  <Filter className="h-3 w-3" />
+                  {SHORT_CODE_LABELS[selectedDeliverableFilter] || selectedDeliverableFilter} ({selectedDeliverableFilter})
+                  <button
+                    onClick={() => setSelectedDeliverableFilter("all")}
+                    className="ml-1 hover:text-blue-900"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Files Area */}
+        <ScrollArea className="flex-1">
+          <div className="p-3 sm:p-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mb-4">
+                <p className="font-medium">Error loading files</p>
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* ── External Footage Links — shown inside raw-footage folders ── */}
+            {isInRawFootage && (footageLinks.length > 0 || canAddFootageLinks) && (
+              <div className="mb-5 border rounded-xl bg-card overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/40">
+                  <div className="flex items-center gap-2">
+                    <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">External Links</span>
+                    {footageLinks.length > 0 && (
+                      <span className="text-[10px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">{footageLinks.length}</span>
+                    )}
+                  </div>
+                  {canAddFootageLinks && !showAddLinkInput && (
+                    <button
+                      onClick={() => setShowAddLinkInput(true)}
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
                     >
-                      <X className="h-4 w-4" />
-                    </Button>
+                      <span className="text-base leading-none">+</span> Add Link
+                    </button>
                   )}
                 </div>
 
-                {/* ─── FEATURE 3: Search Results Dropdown ─── */}
-                {showGlobalResults && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border rounded-lg shadow-lg z-50 max-h-[400px] overflow-y-auto">
-                    {isGlobalSearching ? (
-                      <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Searching all folders...
-                      </div>
-                    ) : globalSearchResults.length === 0 ? (
-                      <div className="p-4 text-sm text-muted-foreground text-center">
-                        No files found matching &quot;{globalSearchQuery}&quot;
-                      </div>
-                    ) : (
-                      <>
-                        <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
-                          {globalSearchResults.length} result
-                          {globalSearchResults.length !== 1 ? "s" : ""} found
-                          across all folders
-                        </div>
-                        {globalSearchResults.map((result, idx) => (
-                          <div
-                            key={`${result.s3Key}-${idx}`}
-                            className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent cursor-pointer transition-colors border-b last:border-b-0"
-                            onClick={() => navigateToSearchResult(result)}
-                          >
-                            <div className="flex-shrink-0 scale-75">
-                              {getFileIcon(result.name)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">
-                                {result.name}
-                              </p>
-                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground truncate">
-                                <FolderOpen className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
-                                  {result.breadcrumbParts.join(" / ")}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex-shrink-0 text-right">
-                              {result.size && (
-                                <span className="text-[11px] text-muted-foreground">
-                                  {formatBytes(result.size)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Right: Download All, Select, View toggle, Refresh */}
-              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                {/* Zip progress indicator */}
-                {isZipping && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span className="hidden sm:inline">
-                      {zipProgress || "Preparing downloads…"}
-                    </span>
-                  </div>
-                )}
-
-                {/* Selection mode active: show count + actions */}
-                {isSelectionMode && checkedItems.size > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground hidden sm:inline">
-                      {checkedItems.size} selected
-                    </span>
+                {/* Add link input */}
+                {showAddLinkInput && (
+                  <div className="px-4 py-3 border-b bg-muted/20 flex items-center gap-2">
+                    <Input
+                      autoFocus
+                      placeholder="Paste Google Drive, Dropbox, Frame.io link..."
+                      value={newLinkUrl}
+                      onChange={e => setNewLinkUrl(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleAddFootageLink();
+                        if (e.key === 'Escape') { setShowAddLinkInput(false); setNewLinkUrl(''); }
+                      }}
+                      className="h-8 text-xs flex-1"
+                    />
                     <Button
                       size="sm"
-                      variant="default"
-                      className="gap-1.5 h-9"
-                      onClick={handleDownloadSelected}
-                      disabled={isZipping}
+                      className="h-8 text-xs px-3"
+                      disabled={!newLinkUrl.trim() || addingLink}
+                      onClick={handleAddFootageLink}
                     >
-                      <Download className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Download</span>
-                      <span className="sm:hidden">{checkedItems.size}</span>
+                      {addingLink ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Add'}
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-9 px-2"
-                      onClick={clearChecked}
+                      className="h-8 text-xs px-2"
+                      onClick={() => { setShowAddLinkInput(false); setNewLinkUrl(''); }}
                     >
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 )}
 
-                {/* Download All button */}
-                {filteredItems.some((i) => i.type === "file") && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 h-9 shrink-0"
-                    onClick={handleDownloadAll}
-                    disabled={isZipping}
-                  >
-                    <FolderDown className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Download All</span>
-                  </Button>
-                )}
-
-                {/* Select mode toggle */}
-                <Button
-                  variant={isSelectionMode ? "secondary" : "ghost"}
-                  size="sm"
-                  className="gap-1.5 h-9 shrink-0"
-                  onClick={() => {
-                    setIsSelectionMode((s) => !s);
-                    if (isSelectionMode) clearChecked();
-                  }}
-                >
-                  {isSelectionMode ? (
-                    <CheckSquare className="h-3.5 w-3.5" />
-                  ) : (
-                    <Square className="h-3.5 w-3.5" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {isSelectionMode ? "Done" : "Select"}
-                  </span>
-                </Button>
-
-                {/* Select All (shown only in selection mode) */}
-                {isSelectionMode && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-9 px-2 text-xs"
-                    onClick={selectAllFiles}
-                  >
-                    All
-                  </Button>
-                )}
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 hover:bg-secondary/50 rounded-full"
-                  onClick={loadDriveStructure}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Breadcrumb */}
-            <div className="px-3 sm:px-4 pb-2 sm:pb-3 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm overflow-x-auto">
-              {breadcrumb.map((folder, index) => (
-                <div key={folder.path} className="flex items-center gap-2">
-                  {index > 0 && (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigateToFolder(folder)}
-                    className={cn(
-                      "h-7 px-2",
-                      index === breadcrumb.length - 1 && "font-semibold",
-                    )}
-                  >
-                    {folder.name}
-                  </Button>
-                </div>
-              ))}
-
-              {/* ─── FEATURE 1: Active filter badge ─── */}
-              {selectedDeliverableFilter !== "all" && (
-                <div className="flex items-center gap-1 ml-2">
-                  <span className="text-[11px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full flex items-center gap-1">
-                    <Filter className="h-3 w-3" />
-                    {SHORT_CODE_LABELS[selectedDeliverableFilter] ||
-                      selectedDeliverableFilter}{" "}
-                    ({selectedDeliverableFilter})
-                    <button
-                      onClick={() => setSelectedDeliverableFilter("all")}
-                      className="ml-1 hover:text-blue-900"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Files Area */}
-          <ScrollArea className="flex-1">
-            <div className="p-3 sm:p-6">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mb-4">
-                  <p className="font-medium">Error loading files</p>
-                  <p className="text-sm">{error}</p>
-                </div>
-              )}
-
-              {/* ── External Footage Links — shown inside raw-footage folders ── */}
-              {isInRawFootage &&
-                (footageLinks.length > 0 || canAddFootageLinks) && (
-                  <div className="mb-5 border rounded-xl bg-card overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/40">
-                      <div className="flex items-center gap-2">
-                        <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                          External Links
-                        </span>
-                        {footageLinks.length > 0 && (
-                          <span className="text-[10px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">
-                            {footageLinks.length}
-                          </span>
+                {/* Links list */}
+                {loadingLinks ? (
+                  <div className="flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading links...
+                  </div>
+                ) : footageLinks.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-muted-foreground">
+                    No external links yet. {canAddFootageLinks ? 'Click "+ Add Link" to attach a Google Drive, Dropbox, or Frame.io link.' : ''}
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {footageLinks.map(link => (
+                      <div key={link.id} className="flex items-center gap-3 px-4 py-2.5 group hover:bg-muted/30 transition-colors">
+                        <LinkIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline truncate block font-medium"
+                          >
+                            {link.label || link.url}
+                          </a>
+                          {link.label && (
+                            <p className="text-[10px] text-muted-foreground truncate">{link.url}</p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Added by {link.addedByName} · {new Date(link.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        </div>
+                        {canAddFootageLinks && (
+                          <button
+                            onClick={() => handleDeleteFootageLink(link.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500"
+                            title="Remove link"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         )}
                       </div>
-                      {canAddFootageLinks && !showAddLinkInput && (
-                        <button
-                          onClick={() => setShowAddLinkInput(true)}
-                          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-                        >
-                          <span className="text-base leading-none">+</span> Add
-                          Link
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Add link input */}
-                    {showAddLinkInput && (
-                      <div className="px-4 py-3 border-b bg-muted/20 flex items-center gap-2">
-                        <Input
-                          autoFocus
-                          placeholder="Paste Google Drive, Dropbox, Frame.io link..."
-                          value={newLinkUrl}
-                          onChange={(e) => setNewLinkUrl(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleAddFootageLink();
-                            if (e.key === "Escape") {
-                              setShowAddLinkInput(false);
-                              setNewLinkUrl("");
-                            }
-                          }}
-                          className="h-8 text-xs flex-1"
-                        />
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs px-3"
-                          disabled={!newLinkUrl.trim() || addingLink}
-                          onClick={handleAddFootageLink}
-                        >
-                          {addingLink ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            "Add"
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 text-xs px-2"
-                          onClick={() => {
-                            setShowAddLinkInput(false);
-                            setNewLinkUrl("");
-                          }}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Links list */}
-                    {loadingLinks ? (
-                      <div className="flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Loading
-                        links...
-                      </div>
-                    ) : footageLinks.length === 0 ? (
-                      <div className="px-4 py-3 text-xs text-muted-foreground">
-                        No external links yet.{" "}
-                        {canAddFootageLinks
-                          ? 'Click "+ Add Link" to attach a Google Drive, Dropbox, or Frame.io link.'
-                          : ""}
-                      </div>
-                    ) : (
-                      <div className="divide-y">
-                        {footageLinks.map((link) => (
-                          <div
-                            key={link.id}
-                            className="flex items-center gap-3 px-4 py-2.5 group hover:bg-muted/30 transition-colors"
-                          >
-                            <LinkIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <a
-                                href={link.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline truncate block font-medium"
-                              >
-                                {link.label || link.url}
-                              </a>
-                              {link.label && (
-                                <p className="text-[10px] text-muted-foreground truncate">
-                                  {link.url}
-                                </p>
-                              )}
-                              <p className="text-[10px] text-muted-foreground mt-0.5">
-                                Added by {link.addedByName} ·{" "}
-                                {new Date(link.addedAt).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  },
-                                )}
-                              </p>
-                            </div>
-                            {canAddFootageLinks && (
-                              <button
-                                onClick={() => handleDeleteFootageLink(link.id)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500"
-                                title="Remove link"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    ))}
                   </div>
                 )}
+              </div>
+            )}
 
-              {filteredItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
-                  <Folder className="h-16 w-16 mb-4 opacity-20" />
-                  <p className="text-lg font-medium">
-                    {searchQuery
-                      ? "No files found"
-                      : selectedDeliverableFilter !== "all"
-                        ? `No ${selectedDeliverableFilter} folders here`
-                        : "This folder is empty"}
-                  </p>
-                  <p className="text-sm mb-4">
-                    {searchQuery
-                      ? "Try a different search term"
-                      : selectedDeliverableFilter !== "all"
-                        ? "Try clearing the filter"
-                        : "Upload files to get started"}
-                  </p>
-                </div>
-              ) : (
-                // Grid View
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                  {filteredItems.map((item) => (
-                    <div
-                      key={item.path}
-                      draggable={role !== "client"}
-                      onDragStart={(e) => handleDragStart(e, item)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={
-                        item.type === "folder"
-                          ? (e) => handleDragOver(e, item)
-                          : undefined
-                      }
-                      onDragLeave={
-                        item.type === "folder" ? handleDragLeave : undefined
-                      }
-                      onDrop={
-                        item.type === "folder"
-                          ? (e) => handleDrop(e, item)
-                          : undefined
-                      }
-                      className={cn(
-                        "group relative border rounded-lg p-2 sm:p-4 cursor-pointer hover:bg-accent transition-colors",
-                        selectedItems.has(item.path) &&
-                          "bg-accent border-primary",
-                        checkedItems.has(item.s3Key || getS3Key(item)) &&
-                          "ring-2 ring-primary bg-primary/5",
-                        draggedItem?.path === item.path &&
-                          "opacity-40 scale-95",
-                        dragOverTarget === item.path &&
-                          item.type === "folder" &&
-                          "ring-2 ring-blue-400 bg-blue-50/60",
-                      )}
-                      onClick={() =>
-                        isSelectionMode
-                          ? toggleChecked(item, {
-                              stopPropagation: () => {},
-                            } as any)
-                          : handleItemClick(item)
-                      }
-                      onDoubleClick={() => handleItemDoubleClick(item)}
-                    >
-                      {/* Selection checkbox */}
-                      {(isSelectionMode ||
-                        checkedItems.has(item.s3Key || getS3Key(item))) && (
-                        <div
-                          className="absolute top-2 left-2 z-10"
-                          onClick={(e) => toggleChecked(item, e)}
-                        >
-                          {checkedItems.has(item.s3Key || getS3Key(item)) ? (
-                            <CheckSquare className="h-4 w-4 text-primary" />
-                          ) : (
-                            <Square className="h-4 w-4 text-muted-foreground" />
-                          )}
+            {filteredItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground">
+                <Folder className="h-16 w-16 mb-4 opacity-20" />
+                <p className="text-lg font-medium">
+                  {searchQuery
+                    ? "No files found"
+                    : selectedDeliverableFilter !== "all"
+                      ? `No ${selectedDeliverableFilter} folders here`
+                      : "This folder is empty"}
+                </p>
+                <p className="text-sm mb-4">
+                  {searchQuery
+                    ? "Try a different search term"
+                    : selectedDeliverableFilter !== "all"
+                      ? "Try clearing the filter"
+                      : "Upload files to get started"}
+                </p>
+                {/* {!searchQuery && selectedDeliverableFilter === "all" && canUpload && (
+                  <FileUploadDialog
+                    folderType="drive"
+                    subfolder={getCurrentFolderS3Path()}
+                    onUploadComplete={() => {
+                      setTimeout(loadDriveStructure, 1000);
+                    }}
+                    trigger={
+                      <Button>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload files
+                      </Button>
+                    }
+                  />
+                )} */}
+              </div>
+            ) : (
+              // Grid View
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                {filteredItems.map((item) => (
+                  <div
+                    key={item.path}
+                    draggable={role !== 'client'}
+                    onDragStart={(e) => handleDragStart(e, item)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={item.type === 'folder' ? (e) => handleDragOver(e, item) : undefined}
+                    onDragLeave={item.type === 'folder' ? handleDragLeave : undefined}
+                    onDrop={item.type === 'folder' ? (e) => handleDrop(e, item) : undefined}
+                    className={cn(
+                      "group relative border rounded-lg p-2 sm:p-4 cursor-pointer hover:bg-accent transition-colors",
+                      selectedItems.has(item.path) && "bg-accent border-primary",
+                      checkedItems.has(item.s3Key || getS3Key(item)) && "ring-2 ring-primary bg-primary/5",
+                      draggedItem?.path === item.path && "opacity-40 scale-95",
+                      dragOverTarget === item.path && item.type === 'folder' && "ring-2 ring-blue-400 bg-blue-50/60",
+                    )}
+                    onClick={() => isSelectionMode ? toggleChecked(item, { stopPropagation: () => {} } as any) : handleItemClick(item)}
+                    onDoubleClick={() => handleItemDoubleClick(item)}
+                  >
+                    {/* Selection checkbox */}
+                    {(isSelectionMode || checkedItems.has(item.s3Key || getS3Key(item))) && (
+                      <div
+                        className="absolute top-2 left-2 z-10"
+                        onClick={(e) => toggleChecked(item, e)}
+                      >
+                        {checkedItems.has(item.s3Key || getS3Key(item))
+                          ? <CheckSquare className="h-4 w-4 text-primary" />
+                          : <Square className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                    )}
+
+                    <div className="flex flex-col items-center text-center">
+                      {item.type === "folder" ? (
+                        <Folder className="h-12 w-12 sm:h-16 sm:w-16 text-blue-500 mb-1 sm:mb-2" />
+                      ) : (
+                        <div className="mb-1 sm:mb-2 scale-75 sm:scale-100">
+                          {getFileIcon(item.name)}
                         </div>
                       )}
 
-                      <div className="flex flex-col items-center text-center">
-                        {item.type === "folder" ? (
-                          <Folder className="h-12 w-12 sm:h-16 sm:w-16 text-blue-500 mb-1 sm:mb-2" />
-                        ) : (
-                          <div className="mb-1 sm:mb-2 scale-75 sm:scale-100">
-                            {getFileIcon(item.name)}
-                          </div>
-                        )}
+                      <p className="text-xs sm:text-sm font-medium truncate w-full px-1">
+                        {item.name}
+                      </p>
 
-                        <p className="text-xs sm:text-sm font-medium truncate w-full px-1">
-                          {item.name}
+                      {item.type === "file" && (
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                          {item.size && formatBytes(item.size)}
                         </p>
-
-                        {item.type === "file" && (
-                          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                            {item.size && formatBytes(item.size)}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Actions Menu */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {item.type === "folder" && (
-                            <>
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadFolder(item);
-                                }}
-                                disabled={isZipping}
-                              >
-                                <FolderDown className="h-4 w-4 mr-2" />
-                                Download folder
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                            </>
-                          )}
-                          {item.type === "file" && item.url && (
-                            <>
-                              <DropdownMenuItem
-                                onClick={() => window.open(item.url, "_blank")}
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                Open
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadClick(item);
-                                }}
-                              >
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                            </>
-                          )}
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleChecked(item, e);
-                              if (!isSelectionMode) setIsSelectionMode(true);
-                            }}
-                          >
-                            <CheckSquare className="h-4 w-4 mr-2" />
-                            {checkedItems.has(item.s3Key || getS3Key(item))
-                              ? "Deselect"
-                              : "Select"}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShareClick(item);
-                            }}
-                            disabled={isSharing}
-                          >
-                            {isSharing ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Share2 className="h-4 w-4 mr-2" />
-                            )}
-                            Copy shareable link
-                          </DropdownMenuItem>
-                          {isClientInDeliverableFolder &&
-                            item.type === "folder" && (
-                              <DropdownMenuItem
-                                onClick={() => handleRenameClick(item)}
-                              >
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Rename
-                              </DropdownMenuItem>
-                            )}
-                          {clientCanModify && (
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteClick(item)}
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </div>
+
+                    {/* Actions Menu */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {item.type === "folder" && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); handleDownloadFolder(item); }}
+                              disabled={isZipping}
+                            >
+                              <FolderDown className="h-4 w-4 mr-2" />
+                              Download folder
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        {item.type === "file" && item.url && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => window.open(item.url, "_blank")}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              Open
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadClick(item);
+                              }}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Download
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleChecked(item, e);
+                            if (!isSelectionMode) setIsSelectionMode(true);
+                          }}
+                        >
+                          <CheckSquare className="h-4 w-4 mr-2" />
+                          {checkedItems.has(item.s3Key || getS3Key(item)) ? 'Deselect' : 'Select'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShareClick(item);
+                          }}
+                          disabled={isSharing}
+                        >
+                          {isSharing ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Share2 className="h-4 w-4 mr-2" />
+                          )}
+                          Copy shareable link
+                        </DropdownMenuItem>
+                        {isClientInDeliverableFolder && item.type === "folder" && (
+                          <DropdownMenuItem
+                            onClick={() => handleRenameClick(item)}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                        )}
+                        {clientCanModify && (
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteClick(item)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       </div>
+    </div>
 
       {/* ─── Download Queue Modal ──────────────────────────────────────────── */}
-      <Dialog
-        open={showDownloadModal}
-        onOpenChange={(open) => {
-          if (!open) {
-            autoDownloadRef.current = false;
-            setAutoDownloading(false);
-          }
-          setShowDownloadModal(open);
-        }}
-      >
+      <Dialog open={showDownloadModal} onOpenChange={(open) => {
+        if (!open) { autoDownloadRef.current = false; setAutoDownloading(false); }
+        setShowDownloadModal(open);
+      }}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2320,7 +2194,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             </DialogTitle>
             <DialogDescription>
               {downloadedSet.size === 0
-                ? `${downloadQueue.length} file${downloadQueue.length !== 1 ? "s" : ""} ready. Click "Download All" to start, or download individually.`
+                ? `${downloadQueue.length} file${downloadQueue.length !== 1 ? 's' : ''} ready. Click "Download All" to start, or download individually.`
                 : autoDownloading
                   ? `Downloading… ${downloadedSet.size}/${downloadQueue.length} done`
                   : `${downloadedSet.size}/${downloadQueue.length} downloaded`}
@@ -2332,9 +2206,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             <div className="w-full bg-muted rounded-full h-1.5">
               <div
                 className="bg-primary h-1.5 rounded-full transition-all"
-                style={{
-                  width: `${(downloadedSet.size / downloadQueue.length) * 100}%`,
-                }}
+                style={{ width: `${(downloadedSet.size / downloadQueue.length) * 100}%` }}
               />
             </div>
           )}
@@ -2342,20 +2214,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           {/* File list */}
           <div className="overflow-y-auto flex-1 border rounded-md divide-y">
             {downloadQueue.map((file, i) => (
-              <div
-                key={file.key}
-                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50"
-              >
-                <div
-                  className="flex-1 truncate text-muted-foreground"
-                  title={file.filename}
-                >
+              <div key={file.key} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50">
+                <div className="flex-1 truncate text-muted-foreground" title={file.filename}>
                   {file.filename}
                 </div>
                 {downloadedSet.has(i) ? (
-                  <span className="text-xs text-green-600 font-medium shrink-0">
-                    ✓ Done
-                  </span>
+                  <span className="text-xs text-green-600 font-medium shrink-0">✓ Done</span>
                 ) : (
                   <Button
                     size="sm"
@@ -2363,7 +2227,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     className="h-7 px-2 shrink-0"
                     onClick={() => {
                       triggerSingleDownload(file.url, file.filename);
-                      setDownloadedSet((prev) => new Set([...prev, i]));
+                      setDownloadedSet(prev => new Set([...prev, i]));
                     }}
                   >
                     <Download className="h-3.5 w-3.5" />
@@ -2374,33 +2238,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => {
-                autoDownloadRef.current = false;
-                setShowDownloadModal(false);
-              }}
-            >
+            <Button variant="outline" onClick={() => { autoDownloadRef.current = false; setShowDownloadModal(false); }}>
               Close
             </Button>
             {autoDownloading ? (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  autoDownloadRef.current = false;
-                  setAutoDownloading(false);
-                }}
-              >
+              <Button variant="destructive" onClick={() => { autoDownloadRef.current = false; setAutoDownloading(false); }}>
                 <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                 Stop
               </Button>
             ) : (
-              <Button
-                onClick={startAutoDownload}
-                disabled={downloadedSet.size === downloadQueue.length}
-              >
+              <Button onClick={startAutoDownload} disabled={downloadedSet.size === downloadQueue.length}>
                 <Download className="h-3.5 w-3.5 mr-1.5" />
-                {downloadedSet.size > 0 ? "Resume" : "Download All"}
+                {downloadedSet.size > 0 ? 'Resume' : 'Download All'}
               </Button>
             )}
           </DialogFooter>

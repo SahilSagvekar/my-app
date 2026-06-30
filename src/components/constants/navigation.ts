@@ -47,7 +47,6 @@ export const NAVIGATION_ITEMS = {
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
-    { id: 'rename-folders', label: 'Folder Rename', icon: MessageSquare },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
   ],
   editor: [

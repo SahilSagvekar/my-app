@@ -710,7 +710,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         <div className="p-4 pb-6 border-t border-[var(--review-border)] flex flex-col gap-2.5 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
                             {p.userRole === 'qc' ? (
                                 <>
-                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={p.asset.approvalLocked || p.savingFeedback || p.comments.length > 0}>
+                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={p.asset.approvalLocked || p.savingFeedback}>
                                         {p.requiresClientReview
                                             ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Client</>
                                             : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Scheduler</>
@@ -736,7 +736,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             I confirm this is the final version for publishing
                                         </label>
                                     </div>
-                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={!p.confirmFinal || p.asset.approvalLocked || p.comments.length > 0}>
+                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={!p.confirmFinal || p.asset.approvalLocked}>
                                         <CheckCircle2 className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Scheduler
                                     </Button>
                                     <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0}>

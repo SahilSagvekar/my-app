@@ -2,7 +2,6 @@ import React from "react";
 // import { AdminDashboard } from "../dashboards/AdminDashboard";
 import { EditorDashboard } from "../dashboards/EditorDashboard";
 import { EditorUploadHistory } from "../dashboards/EditorUploadHistory";
-import { FolderRenameTool } from "../admin/FolderRenameTool";
 import { NasBackupAdmin } from "../admin/NasBackupAdmin";
 import { QCDashboard } from "../dashboards/QCDashboard";
 import { QCCompletedPage } from "../dashboards/QCCompletedPage";
@@ -221,8 +220,6 @@ export function renderPage(
         );
       case "repair-folders":
         return <FolderRepairTool />;
-      case "rename-folders":
-        return <FolderRenameTool />;
       case "nas-backup":
         return (
           <div className="p-6">
