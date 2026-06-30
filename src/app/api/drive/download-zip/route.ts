@@ -9,7 +9,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getS3, BUCKET } from '@/lib/s3';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { issueZipToken } from '@/lib/file-server';
 import { presignDownload } from '@/lib/file-server';
 
 async function listAllKeys(prefix: string): Promise<{ key: string; size: number }[]> {
@@ -27,7 +26,7 @@ async function listAllKeys(prefix: string): Promise<{ key: string; size: number 
   return objects;
 }
 
-async function presignFilesIndividually(req: NextRequest) {
+export async function POST(req: NextRequest) {
   const user = await getCurrentUser2(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -76,28 +75,4 @@ async function presignFilesIndividually(req: NextRequest) {
   console.log(`[download-zip] user=${user.id} | ${files.length} presigned URLs for "${zipName || folderPrefix}"`);
 
   return NextResponse.json({ files, folderName: zipName?.replace('.zip', '') || folderPrefix?.split('/').filter(Boolean).pop() || 'download' });
-}
-export async function POST(req: NextRequest) {
-  try {
-    const user = await getCurrentUser2(req);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { keys, folderPrefix, zipName } = await req.json() as {
-      keys?: string[];
-      folderPrefix?: string;
-      zipName?: string;
-    };
-    if (!keys?.length && !folderPrefix) {
-      return NextResponse.json({ error: 'Provide keys[] or folderPrefix' }, { status: 400 });
-    }
-
-    const { token } = await issueZipToken(user.id, user.role, { keys, folderPrefix, zipName });
-    return NextResponse.json({ url: `/api/drive/download-zip-stream?token=${encodeURIComponent(token)}` });
-  } catch (error: unknown) {
-    console.error('[download-zip] Failed to issue download URL:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to prepare folder download' },
-      { status: 500 },
-    );
-  }
 }
