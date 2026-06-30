@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
+import { sendRoleAssignedEmail } from '@/lib/email';
 
 
 const PatchSchema = z.object({
@@ -52,6 +53,14 @@ export async function PATCH(
     const id = Number(params.employeeId);
 
     console.log("Updating employee with ID:", id, "Payload:", payload.hoursPerWeek);
+
+    // Grab the pre-update role so we only email when it actually changes —
+    // PATCH is also used for unrelated edits (rate, hours, status, etc.)
+    // that shouldn't trigger a "your role changed" notification.
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
 
     // Sanitize phone - treat "N/A", empty strings, etc. as null
     let sanitizedPhone: string | null | undefined = undefined;
@@ -102,6 +111,21 @@ export async function PATCH(
         linkedClientId: body.clientId || null,
       },
     });
+
+    // Notify the user by email when their role actually changed — admins no
+    // longer need to tell people manually after assigning a new role.
+    const roleChanged = !!payload.role && payload.role !== existingUser?.role;
+    if (roleChanged && user.email) {
+      sendRoleAssignedEmail({
+        email: user.email,
+        name: user.name || 'there',
+        newRole: payload.role!,
+        previousRole: existingUser?.role ?? null,
+      }).catch((err) => {
+        // Don't fail the role-update request just because the email failed
+        console.error('❌ Failed to send role assignment email:', err);
+      });
+    }
 
     return NextResponse.json({ ok: true, user });
   } catch (err: any) {
