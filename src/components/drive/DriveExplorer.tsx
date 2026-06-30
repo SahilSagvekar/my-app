@@ -964,19 +964,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         const e = await res.json().catch(() => ({ error: 'Failed' }));
         throw new Error(e.error || `Server error (${res.status})`);
       }
-      const data = await res.json() as { files: { key: string; name: string; url: string }[]; folderName: string };
-      if (!data.files?.length) throw new Error('No files found');
+      const data = await res.json() as { url?: string };
+      if (!data.url) throw new Error('Download URL was not returned');
 
-      const queue = data.files.map(f => ({
-        ...f,
-        filename: f.name.split('/').pop() || f.name,
-      }));
-
-      setDownloadQueue(queue);
-      setDownloadedSet(new Set());
-      setAutoDownloading(false);
-      autoDownloadRef.current = false;
-      setShowDownloadModal(true);
+      window.location.assign(data.url);
+      toast.success(`Downloading "${label}.zip"...`);
     } catch (err: any) {
       toast.error(err.message || 'Download failed');
     } finally { setIsZipping(false); setZipProgress(''); }
@@ -1002,13 +994,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const handleDownloadFolder = async (item: DriveItem) => {
     const s3Key = item.s3Key || getS3Key(item);
     const folderPrefix = s3Key.endsWith('/') ? s3Key : `${s3Key}/`;
-    await downloadFilesFromUrls({ folderPrefix, zipName: item.name }, item.name);
+    await downloadFilesFromUrls({ folderPrefix, zipName: `${item.name}.zip` }, item.name);
   };
 
   const handleDownloadAll = async () => {
     const currentPrefix = getCurrentFolderS3Path();
     const folderName = breadcrumb[breadcrumb.length - 1]?.name || 'download';
-    await downloadFilesFromUrls({ folderPrefix: currentPrefix, zipName: folderName }, folderName);
+    await downloadFilesFromUrls({ folderPrefix: currentPrefix, zipName: `${folderName}.zip` }, folderName);
   };
 
   const handleDownloadSelected = async () => {
@@ -1020,11 +1012,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     // Download each selected folder's contents
     for (const key of folderKeys) {
       const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
-      if (item) await downloadFilesFromUrls({ folderPrefix: key.endsWith('/') ? key : `${key}/` }, item.name);
+      if (item) await downloadFilesFromUrls({ folderPrefix: key.endsWith('/') ? key : `${key}/`, zipName: `${item.name}.zip` }, item.name);
     }
     // Download selected individual files
     if (fileKeys.length > 0) {
-      await downloadFilesFromUrls({ keys: fileKeys }, `${fileKeys.length} files`);
+      await downloadFilesFromUrls({ keys: fileKeys, zipName: 'selected-files.zip' }, `${fileKeys.length} files`);
     }
     setCheckedItems(new Set());
     setIsSelectionMode(false);

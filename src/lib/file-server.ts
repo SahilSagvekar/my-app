@@ -77,6 +77,22 @@ export async function presignDownload(userId: number | string, role: string, s3K
   return res.json() as Promise<{ downloadUrl: string }>;
 }
 
+export async function issueZipToken(
+  userId: number | string,
+  role: string,
+  opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
+): Promise<{ token: string; url: string }> {
+  // The browser downloads directly from the file server. This avoids both
+  // browser multi-download throttling and proxying a potentially huge archive
+  // through the Next.js process.
+  const res = await fsRequest('POST', '/zip-token', userId, role, opts);
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.error || `File server zip-token failed: ${res.status}`);
+  }
+  return res.json() as Promise<{ token: string; url: string }>;
+}
+
 export async function streamZip(
   userId: number | string,
   role: string,
