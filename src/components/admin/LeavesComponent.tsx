@@ -60,6 +60,9 @@ import {
   Gift,
   Loader2,
   ShieldAlert,
+  FileText,
+  Upload,
+  Download,
 } from "lucide-react";
 import { SimpleCalendar } from "../ui/simple-calendar";
 // import {
@@ -374,6 +377,11 @@ export default function LeavesComponent() {
   const [loadingLeaves, setLoadingLeaves] = useState(true);
   const [editEmployeeModalOpen, setEditEmployeeModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
+  const [employeeDocuments, setEmployeeDocuments] = useState<any[]>([]);
+  const [loadingEmployeeDocuments, setLoadingEmployeeDocuments] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [documentTitle, setDocumentTitle] = useState("");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [isEditingEmployee, setIsEditingEmployee] = useState(false);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRow | null>(null);
@@ -696,6 +704,9 @@ export default function LeavesComponent() {
 
     setEditingEmployee(employee);
     setBonusAmount(""); // Reset bonus amount when opening modal
+    setDocumentTitle("");
+    setDocumentFile(null);
+    loadEmployeeDocuments(employee.id);
 
     // Use setTimeout to batch state updates
     setTimeout(() => {
@@ -713,6 +724,84 @@ export default function LeavesComponent() {
       });
       setEditEmployeeModalOpen(true);
     }, 0);
+  };
+
+  const loadEmployeeDocuments = async (employeeId: number) => {
+    setLoadingEmployeeDocuments(true);
+    try {
+      const data = await apiFetch(`/api/employee/${employeeId}/documents`);
+      setEmployeeDocuments(data.documents || []);
+    } catch (err: any) {
+      console.error("Failed to load employee documents:", err);
+      setEmployeeDocuments([]);
+    } finally {
+      setLoadingEmployeeDocuments(false);
+    }
+  };
+
+  const handleUploadDocument = async () => {
+    if (!editingEmployee || !documentFile) return;
+    setUploadingDocument(true);
+    try {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const formData = new FormData();
+      formData.append("file", documentFile);
+      formData.append("title", documentTitle || documentFile.name);
+
+      const res = await fetch(`/api/employee/${editingEmployee.id}/documents`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Upload failed");
+
+      toast.success("Document uploaded", {
+        description: `${documentFile.name} is now visible to ${editingEmployee.name}.`,
+      });
+      setDocumentTitle("");
+      setDocumentFile(null);
+      await loadEmployeeDocuments(editingEmployee.id);
+    } catch (err: any) {
+      console.error("Document upload error:", err);
+      toast.error("Failed to upload document", {
+        description: err.message || "An error occurred.",
+      });
+    } finally {
+      setUploadingDocument(false);
+    }
+  };
+
+  const handleDownloadDocument = async (docId: string) => {
+    if (!editingEmployee) return;
+    try {
+      const data = await apiFetch(
+        `/api/employee/${editingEmployee.id}/documents/${docId}`
+      );
+      if (data.url) window.open(data.url, "_blank");
+    } catch (err: any) {
+      toast.error("Failed to get download link", {
+        description: err.message || "An error occurred.",
+      });
+    }
+  };
+
+  const handleDeleteDocument = async (docId: string) => {
+    if (!editingEmployee) return;
+    if (!confirm("Remove this document? This cannot be undone.")) return;
+    try {
+      await apiFetch(
+        `/api/employee/${editingEmployee.id}/documents/${docId}`,
+        { method: "DELETE" }
+      );
+      toast.success("Document removed");
+      await loadEmployeeDocuments(editingEmployee.id);
+    } catch (err: any) {
+      toast.error("Failed to remove document", {
+        description: err.message || "An error occurred.",
+      });
+    }
   };
 
   const router = useRouter();
@@ -2193,6 +2282,88 @@ export default function LeavesComponent() {
               <p className="text-xs text-muted-foreground mt-1">
                 This bonus will be included in the next payroll calculation.
               </p>
+            </div>
+
+            {/* Employee Documents Section */}
+            <div className="border-t pt-4 mt-4">
+              <label className="text-sm font-medium flex items-center gap-2 mb-2">
+                <FileText className="h-4 w-4 text-indigo-600" />
+                Documents
+              </label>
+              <p className="text-xs text-muted-foreground mb-3">
+                Upload a PDF (e.g. employment contract, offer letter). The employee can view and download it from their Employment Info page.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  placeholder="Document title (optional)"
+                  value={documentTitle}
+                  onChange={(e) => setDocumentTitle(e.target.value)}
+                  className="sm:flex-1"
+                />
+                <Input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setDocumentFile(e.target.files?.[0] || null)}
+                  className="sm:flex-1"
+                />
+                <Button
+                  onClick={handleUploadDocument}
+                  disabled={uploadingDocument || !documentFile}
+                  variant="outline"
+                  className="border-indigo-500 text-indigo-600 hover:bg-indigo-50 shrink-0"
+                >
+                  {uploadingDocument ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  Upload
+                </Button>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                {loadingEmployeeDocuments ? (
+                  <p className="text-xs text-muted-foreground">Loading documents...</p>
+                ) : employeeDocuments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No documents uploaded yet.</p>
+                ) : (
+                  employeeDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between bg-muted rounded-md px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{doc.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {doc.fileName} · {(doc.fileSize / 1024).toFixed(0)} KB ·{" "}
+                          {new Date(doc.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => handleDownloadDocument(doc.id)}
+                          title="Download"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-red-500 hover:text-red-600"
+                          onClick={() => handleDeleteDocument(doc.id)}
+                          title="Remove"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
