@@ -156,6 +156,7 @@ export function ClientPortalPage() {
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [portalAccess, setPortalAccess] = useState<PortalAccess | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   // Fetch all data
   const fetchData = useCallback(async () => {
@@ -198,6 +199,35 @@ export function ClientPortalPage() {
       setLoading(false);
     }
   }, [searchQuery]);
+
+  const handleSyncAll = async () => {
+    try {
+      setSyncing(true);
+      // 1. Sync Stripe billing data
+      const stripeRes = await fetch("/api/billing/sync", { credentials: "include" });
+      const stripeData = await stripeRes.json();
+      
+      // 2. Sync pending SignWell contracts
+      const pendingContracts = contracts.filter(c => c.status === "SENT" || c.status === "PARTIALLY_SIGNED");
+      if (pendingContracts.length > 0) {
+        await Promise.all(
+          pendingContracts.map(c =>
+            fetch(`/api/contracts/${c.id}/sync`, {
+              method: "POST",
+              credentials: "include",
+            }).catch(err => console.error(`Failed to sync contract ${c.id}:`, err))
+          )
+        );
+      }
+      
+      // 3. Reload data
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to sync payments and contracts:", err);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -296,31 +326,43 @@ export function ClientPortalPage() {
     return (
       <div className="space-y-6 pb-12">
         {/* Lock banner */}
-        <div className={`rounded-xl px-6 py-4 flex items-start gap-4 border ${
+        <div className={`rounded-xl px-6 py-4 flex items-center justify-between gap-4 border ${
           portalAccess.status === 'LOCKED'
             ? 'bg-red-50 border-red-200'
             : 'bg-blue-50 border-blue-200'
         }`}>
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-            portalAccess.status === 'LOCKED' ? 'bg-red-100' : 'bg-blue-100'
-          }`}>
-            {portalAccess.status === 'LOCKED'
-              ? <CreditCard className="w-5 h-5 text-red-600" />
-              : <FileSignature className="w-5 h-5 text-blue-600" />
-            }
-          </div>
-          <div>
-            <p className={`font-semibold ${portalAccess.status === 'LOCKED' ? 'text-red-800' : 'text-blue-800'}`}>
+          <div className="flex items-start gap-4">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+              portalAccess.status === 'LOCKED' ? 'bg-red-100' : 'bg-blue-100'
+            }`}>
               {portalAccess.status === 'LOCKED'
-                ? 'Portal locked — payment required'
-                : portalAccess.status === 'CONTRACT_PENDING'
-                ? 'One more step — please sign your contract'
-                : 'Almost there — complete your first payment to unlock the portal'}
-            </p>
-            <p className={`text-sm mt-0.5 ${portalAccess.status === 'LOCKED' ? 'text-red-600' : 'text-blue-600'}`}>
-              {portalAccess.message}
-            </p>
+                ? <CreditCard className="w-5 h-5 text-red-600" />
+                : <FileSignature className="w-5 h-5 text-blue-600" />
+              }
+            </div>
+            <div>
+              <p className={`font-semibold ${portalAccess.status === 'LOCKED' ? 'text-red-800' : 'text-blue-800'}`}>
+                {portalAccess.status === 'LOCKED'
+                  ? 'Portal locked — payment required'
+                  : portalAccess.status === 'CONTRACT_PENDING'
+                  ? 'One more step — please sign your contract'
+                  : 'Almost there — complete your first payment to unlock the portal'}
+              </p>
+              <p className={`text-sm mt-0.5 ${portalAccess.status === 'LOCKED' ? 'text-red-600' : 'text-blue-600'}`}>
+                {portalAccess.message}
+              </p>
+            </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSyncAll}
+            disabled={syncing}
+            className="flex-shrink-0 border-current hover:bg-black/5"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+            Sync Status
+          </Button>
         </div>
 
         {/* Contracts section */}
@@ -349,7 +391,7 @@ export function ClientPortalPage() {
                 <InvoiceCard
                   key={inv.id}
                   invoice={inv}
-                  onPay={handleInvoiceAction}
+                  onPay={handlePayInvoice}
                 />
               ))}
             </div>
@@ -732,9 +774,9 @@ export function ClientPortalPage() {
               View and pay your invoices
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+          <Button variant="outline" size="sm" onClick={handleSyncAll} disabled={syncing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+            Sync & Refresh
           </Button>
         </div>
 

@@ -204,6 +204,7 @@ export function FinanceTab() {
   const [subscriptions, setSubscriptions] = useState<RealSubscription[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
+  const [syncingStripe, setSyncingStripe] = useState(false);
 
   // Payroll + employees (existing backend)
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -300,6 +301,23 @@ export function FinanceTab() {
       setLoadingSubscriptions(false);
     }
   }, []);
+
+  const syncStripe = useCallback(async () => {
+    try {
+      setSyncingStripe(true);
+      const data = await apiFetch("/api/billing/sync");
+      if (data?.success) {
+        toast("Stripe Sync Complete", { description: data.message });
+        await Promise.all([loadInvoices(), loadSubscriptions()]);
+      } else {
+        toast("Stripe Sync Failed", { description: data?.error || "Unknown error" });
+      }
+    } catch (err: any) {
+      toast("Stripe Sync Error", { description: err.message });
+    } finally {
+      setSyncingStripe(false);
+    }
+  }, [loadInvoices, loadSubscriptions]);
 
   const loadEmployees = useCallback(async () => {
     try {
@@ -603,6 +621,10 @@ export function FinanceTab() {
                 <Button variant="outline" size="sm" onClick={loadInvoices} disabled={loadingInvoices}>
                   <RefreshCw className={`h-4 w-4 ${loadingInvoices ? "animate-spin" : ""}`} />
                 </Button>
+                <Button variant="outline" size="sm" onClick={syncStripe} disabled={syncingStripe} title="Sync Invoices from Stripe">
+                  <RefreshCw className={`h-4 w-4 mr-2 ${syncingStripe ? "animate-spin" : ""}`} />
+                  Sync Stripe
+                </Button>
               </div>
               <Dialog open={showNewInvoiceDialog} onOpenChange={setShowNewInvoiceDialog}>
                 <DialogTrigger asChild>
@@ -759,9 +781,15 @@ export function FinanceTab() {
                 {subscriptions.filter(s => s.status === "ACTIVE").length} active subscriptions ·{" "}
                 MRR: <span className="font-medium text-foreground">{centsToDisplay(activeSubsMonthly)}</span>
               </p>
-              <Button variant="outline" size="sm" onClick={loadSubscriptions} disabled={loadingSubscriptions}>
-                <RefreshCw className={`h-4 w-4 ${loadingSubscriptions ? "animate-spin" : ""}`} />
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={loadSubscriptions} disabled={loadingSubscriptions}>
+                  <RefreshCw className={`h-4 w-4 ${loadingSubscriptions ? "animate-spin" : ""}`} />
+                </Button>
+                <Button variant="outline" size="sm" onClick={syncStripe} disabled={syncingStripe} title="Sync Subscriptions from Stripe">
+                  <RefreshCw className={`h-4 w-4 mr-2 ${syncingStripe ? "animate-spin" : ""}`} />
+                  Sync Stripe
+                </Button>
+              </div>
             </div>
 
             {loadingSubscriptions ? (
