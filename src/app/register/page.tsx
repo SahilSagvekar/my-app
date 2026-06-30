@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
+import logo from "../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png";
 
 export default function RegisterPage() {
   const [firstName, setFirstName] = useState("");
@@ -54,12 +56,29 @@ export default function RegisterPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4 sm:px-6">
+      <div className="w-full max-w-md space-y-6">
+
+        {/* Logo */}
+        <div className="flex justify-center">
+          <Image
+            src={logo}
+            alt="E8 Productions"
+            width={56}
+            height={56}
+            className="h-12 w-auto object-contain"
+          />
+        </div>
+
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900">Create an Account</h1>
+          <p className="text-gray-500 mt-2 text-sm">Join E8 Productions and get access to the E8 App</p>
+        </div>
+
       <form
         onSubmit={handleRegister}
-        className="bg-white p-5 sm:p-6 rounded-xl shadow-md w-full max-w-md"
+        className="bg-white p-5 sm:p-6 rounded-xl shadow-md w-full"
       >
-        <h1 className="text-xl sm:text-2xl font-bold text-center mb-5 sm:mb-6">Create an Account</h1>
-
         {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
         {success && <p className="text-green-500 text-sm mb-2">{success}</p>}
 
@@ -158,6 +177,16 @@ export default function RegisterPage() {
           {loading ? "Registering..." : "Register"}
         </button>
       </form>
+
+        {/* Footer */}
+        <p className="text-center text-sm text-gray-500">
+          Already have an account?{" "}
+          <a href="/login" className="text-gray-900 font-medium hover:underline">
+            Sign in
+          </a>
+        </p>
+
+      </div>
     </div>
   );
 }

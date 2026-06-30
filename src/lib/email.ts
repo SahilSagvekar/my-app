@@ -345,6 +345,80 @@ export async function sendWelcomeEmail({
   }
 }
 
+// ============================================================================
+// ROLE ASSIGNMENT NOTIFICATION
+// ============================================================================
+export async function sendRoleAssignedEmail(data: {
+  email: string;
+  name: string;
+  newRole: string;
+  previousRole?: string | null;
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log(`📧 [DEV] Role assigned: ${data.email} → ${data.newRole}`);
+    return { success: true, debug: true };
+  }
+
+  const formatRole = (r: string) =>
+    r.charAt(0).toUpperCase() + r.slice(1).toLowerCase();
+
+  const mailOptions = {
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: data.email,
+    subject: `Your role has been updated — ${formatRole(data.newRole)}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
+            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+            .role-box { background: white; border: 2px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+            .role-value { font-size: 22px; font-weight: 700; color: #667eea; }
+            .role-prev { font-size: 13px; color: #9ca3af; text-decoration: line-through; margin-bottom: 4px; }
+            .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 20px 0; }
+            .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>🔄 Your Role Has Been Updated</h1>
+          </div>
+          <div class="content">
+            <p>Hi <strong>${data.name}</strong>,</p>
+            <p>Your role on the E8 Productions platform has been updated by an admin.</p>
+            <div class="role-box">
+              ${data.previousRole ? `<div class="role-prev">${formatRole(data.previousRole)}</div>` : ''}
+              <div class="role-value">${formatRole(data.newRole)}</div>
+            </div>
+            <p>This may change what you see and what you're able to do on the dashboard. If anything looks off, log back in to refresh your access.</p>
+            <div style="text-align: center;">
+              <a href="${process.env.BASE_URLL || process.env.BASE_URL || 'http://localhost:3000'}/dashboard" class="button">
+                Go to Dashboard →
+              </a>
+            </div>
+            <p>If you weren't expecting this change, please reach out to your manager or the admin team.</p>
+          </div>
+          <div class="footer">
+            <p>This email was sent from E8 Productions Management System</p>
+          </div>
+        </body>
+      </html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Role assignment email sent to ${data.email} (${data.previousRole || '—'} → ${data.newRole})`);
+    return { success: true };
+  } catch (error) {
+    console.error(`❌ Failed to send role assignment email to ${data.email}:`, error);
+    return { success: false, error };
+  }
+}
+
 // Test email configuration
 export async function testEmailConfig() {
   try {

@@ -149,6 +149,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState<string>('');
 
+  // ─── Download queue modal ─────────────────────────────────────────────────
+  const [downloadQueue, setDownloadQueue] = useState<{ key: string; name: string; url: string; filename: string }[]>([]);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadedSet, setDownloadedSet] = useState<Set<number>>(new Set());
+  const [autoDownloading, setAutoDownloading] = useState(false);
+  const autoDownloadRef = useRef(false);
+
   // Share states
   const [shareLink, setShareLink] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -924,93 +931,105 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
-  // ─── Zip download helpers ─────────────────────────────────────────────────
+  // ─── Download helpers ────────────────────────────────────────────────────────
+  // Instead of zipping on the server (which OOMs on 3.9GB RAM with large video folders),
+  // we fetch presigned R2 URLs and trigger individual file downloads in the browser.
+  // Files download directly from R2 — zero server memory usage.
 
-  const triggerZipDownload = (blob: Blob, name: string) => {
-    const url = URL.createObjectURL(blob);
+  // Trigger a single file download via <a> click — works when called from direct user gesture
+  const triggerSingleDownload = (url: string, filename: string) => {
     const a = document.createElement('a');
     a.href = url;
-    a.download = name;
+    a.download = filename;
+    a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  // Fetch presigned URLs then open a download queue modal
+  const downloadFilesFromUrls = async (
+    body: { folderPrefix?: string; keys?: string[]; zipName?: string },
+    label: string,
+  ) => {
+    setIsZipping(true);
+    setZipProgress(`Preparing "${label}"…`);
+    try {
+      const res = await fetch('/api/drive/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ error: 'Failed' }));
+        throw new Error(e.error || `Server error (${res.status})`);
+      }
+      const data = await res.json() as { files: { key: string; name: string; url: string }[]; folderName: string };
+      if (!data.files?.length) throw new Error('No files found');
+
+      const queue = data.files.map(f => ({
+        ...f,
+        filename: f.name.split('/').pop() || f.name,
+      }));
+
+      setDownloadQueue(queue);
+      setDownloadedSet(new Set());
+      setAutoDownloading(false);
+      autoDownloadRef.current = false;
+      setShowDownloadModal(true);
+    } catch (err: any) {
+      toast.error(err.message || 'Download failed');
+    } finally { setIsZipping(false); setZipProgress(''); }
+  };
+
+  // Auto-download all files sequentially — each triggered by the loop itself
+  // which runs inside a user-gesture context from the button click that started it
+  const startAutoDownload = async () => {
+    setAutoDownloading(true);
+    autoDownloadRef.current = true;
+    for (let i = 0; i < downloadQueue.length; i++) {
+      if (!autoDownloadRef.current) break; // user cancelled
+      const file = downloadQueue[i];
+      triggerSingleDownload(file.url, file.filename);
+      setDownloadedSet(prev => new Set([...prev, i]));
+      // Wait 1.5s between downloads — enough for browser to register each one
+      if (i < downloadQueue.length - 1) await new Promise(r => setTimeout(r, 1500));
+    }
+    setAutoDownloading(false);
+    autoDownloadRef.current = false;
   };
 
   const handleDownloadFolder = async (item: DriveItem) => {
     const s3Key = item.s3Key || getS3Key(item);
     const folderPrefix = s3Key.endsWith('/') ? s3Key : `${s3Key}/`;
-    setIsZipping(true);
-    setZipProgress(`Preparing "${item.name}"…`);
-    try {
-      const res = await fetch('/api/drive/download-zip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPrefix, zipName: `${item.name}.zip` }),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
-      triggerZipDownload(await res.blob(), `${item.name}.zip`);
-      toast.success(`Downloaded "${item.name}.zip"`);
-    } catch (err: any) {
-      toast.error(err.message || 'Zip failed');
-    } finally { setIsZipping(false); setZipProgress(''); }
+    await downloadFilesFromUrls({ folderPrefix, zipName: item.name }, item.name);
   };
 
   const handleDownloadAll = async () => {
     const currentPrefix = getCurrentFolderS3Path();
     const folderName = breadcrumb[breadcrumb.length - 1]?.name || 'download';
-    setIsZipping(true);
-    setZipProgress(`Zipping "${folderName}"…`);
-    try {
-      const res = await fetch('/api/drive/download-zip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderPrefix: currentPrefix, zipName: `${folderName}.zip` }),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
-      triggerZipDownload(await res.blob(), `${folderName}.zip`);
-      toast.success(`Downloaded "${folderName}.zip"`);
-    } catch (err: any) {
-      toast.error(err.message || 'Zip failed');
-    } finally { setIsZipping(false); setZipProgress(''); }
+    await downloadFilesFromUrls({ folderPrefix: currentPrefix, zipName: folderName }, folderName);
   };
 
   const handleDownloadSelected = async () => {
     const keys = Array.from(checkedItems);
     if (keys.length === 0) return;
-    setIsZipping(true);
-    setZipProgress(`Zipping ${keys.length} item${keys.length !== 1 ? 's' : ''}…`);
-    try {
-      const fileKeys: string[] = [];
-      for (const key of keys) {
-        const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
-        if (item?.type === 'folder') {
-          const res = await fetch('/api/drive/download-zip', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderPrefix: key.endsWith('/') ? key : `${key}/`, zipName: `${item.name}.zip` }),
-          });
-          if (res.ok) triggerZipDownload(await res.blob(), `${item.name}.zip`);
-        } else {
-          fileKeys.push(key);
-        }
-      }
-      if (fileKeys.length > 0) {
-        const res = await fetch('/api/drive/download-zip', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keys: fileKeys, zipName: 'selected-files.zip' }),
-        });
-        if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
-        triggerZipDownload(await res.blob(), 'selected-files.zip');
-      }
-      toast.success('Download started');
-      setCheckedItems(new Set());
-      setIsSelectionMode(false);
-    } catch (err: any) {
-      toast.error(err.message || 'Zip failed');
-    } finally { setIsZipping(false); setZipProgress(''); }
+    // Separate folders and files
+    const folderKeys = keys.filter(key => filteredItems.find(i => (i.s3Key || getS3Key(i)) === key)?.type === 'folder');
+    const fileKeys = keys.filter(key => !folderKeys.includes(key));
+    // Download each selected folder's contents
+    for (const key of folderKeys) {
+      const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
+      if (item) await downloadFilesFromUrls({ folderPrefix: key.endsWith('/') ? key : `${key}/` }, item.name);
+    }
+    // Download selected individual files
+    if (fileKeys.length > 0) {
+      await downloadFilesFromUrls({ keys: fileKeys }, `${fileKeys.length} files`);
+    }
+    setCheckedItems(new Set());
+    setIsSelectionMode(false);
   };
+
 
   const toggleChecked = (item: DriveItem, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1323,6 +1342,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }
 
   return (
+    <>
     <div className="flex flex-col sm:flex-row h-screen bg-background">
 
       {/* Delete Confirmation Dialog */}
@@ -1757,7 +1777,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               {isZipping && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span className="hidden sm:inline">{zipProgress || 'Preparing zip…'}</span>
+                  <span className="hidden sm:inline">{zipProgress || 'Preparing downloads…'}</span>
                 </div>
               )}
 
@@ -2160,5 +2180,81 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         </ScrollArea>
       </div>
     </div>
+
+      {/* ─── Download Queue Modal ──────────────────────────────────────────── */}
+      <Dialog open={showDownloadModal} onOpenChange={(open) => {
+        if (!open) { autoDownloadRef.current = false; setAutoDownloading(false); }
+        setShowDownloadModal(open);
+      }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Download Files ({downloadQueue.length})
+            </DialogTitle>
+            <DialogDescription>
+              {downloadedSet.size === 0
+                ? `${downloadQueue.length} file${downloadQueue.length !== 1 ? 's' : ''} ready. Click "Download All" to start, or download individually.`
+                : autoDownloading
+                  ? `Downloading… ${downloadedSet.size}/${downloadQueue.length} done`
+                  : `${downloadedSet.size}/${downloadQueue.length} downloaded`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Progress bar */}
+          {downloadedSet.size > 0 && (
+            <div className="w-full bg-muted rounded-full h-1.5">
+              <div
+                className="bg-primary h-1.5 rounded-full transition-all"
+                style={{ width: `${(downloadedSet.size / downloadQueue.length) * 100}%` }}
+              />
+            </div>
+          )}
+
+          {/* File list */}
+          <div className="overflow-y-auto flex-1 border rounded-md divide-y">
+            {downloadQueue.map((file, i) => (
+              <div key={file.key} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50">
+                <div className="flex-1 truncate text-muted-foreground" title={file.filename}>
+                  {file.filename}
+                </div>
+                {downloadedSet.has(i) ? (
+                  <span className="text-xs text-green-600 font-medium shrink-0">✓ Done</span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 shrink-0"
+                    onClick={() => {
+                      triggerSingleDownload(file.url, file.filename);
+                      setDownloadedSet(prev => new Set([...prev, i]));
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => { autoDownloadRef.current = false; setShowDownloadModal(false); }}>
+              Close
+            </Button>
+            {autoDownloading ? (
+              <Button variant="destructive" onClick={() => { autoDownloadRef.current = false; setAutoDownloading(false); }}>
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Stop
+              </Button>
+            ) : (
+              <Button onClick={startAutoDownload} disabled={downloadedSet.size === downloadQueue.length}>
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                {downloadedSet.size > 0 ? 'Resume' : 'Download All'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
