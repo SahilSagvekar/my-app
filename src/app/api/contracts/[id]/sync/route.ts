@@ -55,7 +55,7 @@ export async function POST(
     const newStatus = mapSignWellStatus(swDoc.status);
     
     // Update signer statuses
-    const swSigners = swDoc.signers || [];
+    const swSigners = swDoc.recipients || swDoc.signers || [];
     let anySignerUpdated = false;
 
     for (const swSigner of swSigners) {

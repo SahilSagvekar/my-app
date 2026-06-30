@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     for (const contract of contracts) {
       try {
         const swDoc = await getSignWellDocument(contract.signwellDocumentId!);
-        const swSigners: any[] = swDoc.signers || [];
+        const swSigners: any[] = swDoc.recipients || swDoc.signers || [];
         let anyUpdated = false;
 
         for (const swSigner of swSigners) {

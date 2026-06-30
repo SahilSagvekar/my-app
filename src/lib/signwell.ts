@@ -32,7 +32,14 @@ export async function createSignWellDocumentFromFile(params: {
 }): Promise<{
   id: string;
   status: string;
-  signers: Array<{
+  recipients?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    status: string;
+    embedded_signing_url?: string;
+  }>;
+  signers?: Array<{
     id: string;
     name: string;
     email: string;
@@ -144,7 +151,8 @@ export async function getEmbeddedSigningUrl(
   signerId: string
 ): Promise<string> {
   const doc = await getSignWellDocument(documentId);
-  const signer = doc.signers?.find((s: any) => s.id === signerId);
+  const swSigners = doc.recipients || doc.signers || [];
+  const signer = swSigners.find((s: any) => s.id === signerId);
   if (!signer?.embedded_signing_url) {
     throw new Error('Embedded signing URL not available for this signer');
   }

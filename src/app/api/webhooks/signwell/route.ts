@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Update individual signer statuses ──────────────────────────────────────
-    const swSigners: any[] = doc.signers || [];
+    const swSigners: any[] = doc.recipients || doc.signers || [];
     for (const swSigner of swSigners) {
       const dbSigner = contract.signers.find(
         (s) => s.email?.toLowerCase() === swSigner.email?.toLowerCase()
