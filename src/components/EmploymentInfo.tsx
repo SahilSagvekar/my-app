@@ -18,6 +18,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Download,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./auth/AuthContext";
@@ -29,12 +30,47 @@ interface EmploymentInfoProps {
 export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
   const [employee, setEmployee] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(true);
   const router = useRouter();
   const { user } = useAuth();
 
   useEffect(() => {
     fetchEmployeeInfo();
   }, []);
+
+  useEffect(() => {
+    if (employee?.id) fetchDocuments(employee.id);
+  }, [employee?.id]);
+
+  const fetchDocuments = async (employeeId: number) => {
+    try {
+      setLoadingDocuments(true);
+      const response = await fetch(`/api/employee/${employeeId}/documents`, {
+        credentials: "include",
+      });
+      const data = await response.json();
+      setDocuments(data.documents || []);
+    } catch (err) {
+      console.error("Failed to fetch documents:", err);
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  const handleDownloadDocument = async (docId: string) => {
+    if (!employee?.id) return;
+    try {
+      const response = await fetch(
+        `/api/employee/${employee.id}/documents/${docId}`,
+        { credentials: "include" }
+      );
+      const data = await response.json();
+      if (data.url) window.open(data.url, "_blank");
+    } catch (err) {
+      console.error("Failed to get download link:", err);
+    }
+  };
 
   const fetchEmployeeInfo = async () => {
     try {
@@ -221,6 +257,51 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* My Documents Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            My Documents
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingDocuments ? (
+            <p className="text-sm text-muted-foreground">Loading documents...</p>
+          ) : documents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No documents have been uploaded for you yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between bg-muted rounded-md px-3 py-2 sm:px-4 sm:py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{doc.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {doc.fileName} · {(doc.fileSize / 1024).toFixed(0)} KB ·{" "}
+                      {new Date(doc.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => handleDownloadDocument(doc.id)}
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    Download
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
