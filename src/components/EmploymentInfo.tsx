@@ -62,7 +62,7 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
     if (!employee?.id) return;
     try {
       const response = await fetch(
-        `/api/employee/${employee.id}/documents/${docId}`,
+        `/api/employee/${employee.id}/documents/${docId}/download`,
         { credentials: "include" }
       );
       const data = await response.json();

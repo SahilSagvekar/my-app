@@ -777,7 +777,7 @@ export default function LeavesComponent() {
     if (!editingEmployee) return;
     try {
       const data = await apiFetch(
-        `/api/employee/${editingEmployee.id}/documents/${docId}`
+        `/api/employee/${editingEmployee.id}/documents/${docId}/download`
       );
       if (data.url) window.open(data.url, "_blank");
     } catch (err: any) {

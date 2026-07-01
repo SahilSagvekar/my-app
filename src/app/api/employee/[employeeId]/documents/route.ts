@@ -2,17 +2,18 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser2 } from '@/lib/auth';
-import { generateDownloadUrl } from '@/lib/s3';
+import { getCurrentUser2, requireAdmin } from '@/lib/auth';
+import { uploadBufferToS3 } from '@/lib/s3';
 
-// GET /api/employee/[employeeId]/documents/[docId]/download
-// Accessible by admins (any employee's docs) or the employee themself.
-// Returns a short-lived presigned R2 URL the browser can navigate to.
+// GET /api/employee/[employeeId]/documents
+// Lists an employee's documents (metadata only — no signed URLs here;
+// use GET .../documents/[docId]/download for an actual download link).
+// Accessible by admins/managers (any employee) or the employee themself.
 export async function GET(
   req: Request,
-  context: { params: { employeeId: string; docId: string } },
+  context: { params: { employeeId: string } },
 ) {
-  const { employeeId, docId } = context.params;
+  const { employeeId } = await context.params;
   const id = Number(employeeId);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid employee id' }, { status: 400 });
@@ -20,30 +21,42 @@ export async function GET(
 
   const user = await getCurrentUser2(req as any);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role !== 'admin' && user.id !== id) {
+
+  const role = user.role?.toLowerCase();
+  const isSelf = user.id === id;
+  const isAdmin = role === 'admin' || role === 'manager';
+  if (!isSelf && !isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const document = await prisma.employeeDocument.findUnique({ where: { id: docId } });
-  if (!document || document.employeeId !== id) {
-    return NextResponse.json({ error: 'Document not found' }, { status: 404 });
-  }
+  const documents = await prisma.employeeDocument.findMany({
+    where: { employeeId: id },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      title: true,
+      fileName: true,
+      fileSize: true,
+      createdAt: true,
+      uploadedById: true,
+    },
+  });
 
-  const url = await generateDownloadUrl(document.s3Key, document.fileName, 300); // 5 min
-  return NextResponse.json({ url });
+  return NextResponse.json({ documents });
 }
 
-// DELETE /api/employee/[employeeId]/documents/[docId]
-// Admin-only.
-export async function DELETE(
+// POST /api/employee/[employeeId]/documents
+// Admin/manager-only. Uploads a document (e.g. employment contract, offer
+// letter) to R2 and attaches it to the employee's record. The employee can
+// then view and download it from their own Employment Info page.
+export async function POST(
   req: Request,
-  context: { params: { employeeId: string; docId: string } },
+  context: { params: { employeeId: string } },
 ) {
   try {
     const admin = await requireAdmin(req as any);
 
-    const params = await context.params;
-    const { employeeId } = params;
+    const { employeeId } = await context.params;
     const id = Number(employeeId);
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: 'Invalid employee id' }, { status: 400 });
@@ -61,6 +74,7 @@ export async function DELETE(
     if (!file) {
       return NextResponse.json({ error: 'Missing file' }, { status: 400 });
     }
+
     const ALLOWED_MIME_TYPES = [
       'application/pdf',
       'application/msword',
@@ -73,11 +87,15 @@ export async function DELETE(
       'image/jpeg',
       'image/png',
       'image/webp',
-      'image/gif'
+      'image/gif',
     ];
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'Unsupported file type. Please upload a PDF, Word, Excel, PowerPoint, Text file, or image.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Unsupported file type. Please upload a PDF, Word, Excel, PowerPoint, Text file, or image.' },
+        { status: 400 },
+      );
     }
+
     const MAX_SIZE = 25 * 1024 * 1024; // 25MB
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: 'File too large (max 25MB)' }, { status: 400 });
