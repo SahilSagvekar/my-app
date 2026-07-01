@@ -37,9 +37,11 @@ export async function GET(req: NextRequest) {
           status: { in: ['SENT', 'PARTIALLY_SIGNED'] }
         },
         {
-          signers: { some: { email: user.email } },
           status: 'COMPLETED',
-          signers: { some: { status: 'PENDING' } }
+          AND: [
+            { signers: { some: { email: user.email } } },
+            { signers: { some: { status: 'PENDING' } } }
+          ]
         }
       ];
     } else {
@@ -63,8 +65,11 @@ export async function GET(req: NextRequest) {
       if (contract.clientId) {
         const client = await prisma.client.findUnique({
           where: { id: contract.clientId },
-          include: { portalAccess: true }
+          include: { ClientPortalAccess: true }
         });
+        if (client) {
+          (client as any).portalAccess = client.ClientPortalAccess;
+        }
         (contract as any).client = client;
       }
     }
