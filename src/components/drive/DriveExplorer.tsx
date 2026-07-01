@@ -34,6 +34,8 @@ import {
   Square,
   FolderDown,
   PackageOpen,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
@@ -133,6 +135,17 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+
+  // ─── View mode (grid / list) — persisted per-browser ───
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? window.localStorage.getItem("drive-view-mode") : null;
+    if (stored === "grid" || stored === "list") setViewMode(stored);
+  }, []);
+  const toggleViewMode = (mode: "grid" | "list") => {
+    setViewMode(mode);
+    if (typeof window !== "undefined") window.localStorage.setItem("drive-view-mode", mode);
+  };
 
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1836,6 +1849,28 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 </Button>
               )}
 
+              {/* View mode toggle */}
+              <div className="flex items-center border rounded-md h-9 p-0.5 shrink-0">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => toggleViewMode("grid")}
+                  title="Grid view"
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => toggleViewMode("list")}
+                  title="List view"
+                >
+                  <List className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -2030,6 +2065,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 )} */}
               </div>
             ) : (
+              viewMode === "grid" ? (
               // Grid View
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                 {filteredItems.map((item) => (
@@ -2175,6 +2211,166 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   </div>
                 ))}
               </div>
+              ) : (
+              // List View
+              <div className="border rounded-lg overflow-hidden">
+                <div className="hidden sm:flex items-center gap-3 px-3 py-2 border-b bg-muted/40 text-xs font-medium text-muted-foreground">
+                  <div className="w-5 shrink-0" />
+                  <div className="w-6 shrink-0" />
+                  <div className="flex-1">Name</div>
+                  <div className="w-24 text-right shrink-0">Size</div>
+                  <div className="w-32 text-right shrink-0">Modified</div>
+                  <div className="w-8 shrink-0" />
+                </div>
+                <div className="divide-y">
+                  {filteredItems.map((item) => (
+                    <div
+                      key={item.path}
+                      draggable={role !== 'client'}
+                      onDragStart={(e) => handleDragStart(e, item)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={item.type === 'folder' ? (e) => handleDragOver(e, item) : undefined}
+                      onDragLeave={item.type === 'folder' ? handleDragLeave : undefined}
+                      onDrop={item.type === 'folder' ? (e) => handleDrop(e, item) : undefined}
+                      className={cn(
+                        "group relative flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent transition-colors",
+                        selectedItems.has(item.path) && "bg-accent",
+                        checkedItems.has(item.s3Key || getS3Key(item)) && "ring-1 ring-inset ring-primary bg-primary/5",
+                        draggedItem?.path === item.path && "opacity-40",
+                        dragOverTarget === item.path && item.type === 'folder' && "ring-2 ring-blue-400 bg-blue-50/60",
+                      )}
+                      onClick={() => isSelectionMode ? toggleChecked(item, { stopPropagation: () => {} } as any) : handleItemClick(item)}
+                      onDoubleClick={() => handleItemDoubleClick(item)}
+                    >
+                      {/* Selection checkbox */}
+                      <div className="w-5 shrink-0 flex items-center justify-center">
+                        {(isSelectionMode || checkedItems.has(item.s3Key || getS3Key(item))) && (
+                          <div onClick={(e) => toggleChecked(item, e)}>
+                            {checkedItems.has(item.s3Key || getS3Key(item))
+                              ? <CheckSquare className="h-4 w-4 text-primary" />
+                              : <Square className="h-4 w-4 text-muted-foreground" />}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Icon */}
+                      <div className="w-6 shrink-0 flex items-center justify-center">
+                        {item.type === "folder" ? (
+                          <Folder className="h-5 w-5 text-blue-500" />
+                        ) : (
+                          <div className="scale-90">{getFileIcon(item.name)}</div>
+                        )}
+                      </div>
+
+                      {/* Name */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{item.name}</p>
+                        {/* Size shown inline on mobile since the column is hidden */}
+                        {item.type === "file" && (
+                          <p className="text-[11px] text-muted-foreground sm:hidden">
+                            {item.size && formatBytes(item.size)}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Size */}
+                      <div className="hidden sm:block w-24 text-right text-xs text-muted-foreground shrink-0">
+                        {item.type === "file" && item.size ? formatBytes(item.size) : "—"}
+                      </div>
+
+                      {/* Modified */}
+                      <div className="hidden sm:block w-32 text-right text-xs text-muted-foreground shrink-0">
+                        {item.lastModified
+                          ? new Date(item.lastModified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : "—"}
+                      </div>
+
+                      {/* Actions Menu */}
+                      <div className="w-8 shrink-0 flex items-center justify-end">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {item.type === "folder" && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); handleDownloadFolder(item); }}
+                                  disabled={isZipping}
+                                >
+                                  <FolderDown className="h-4 w-4 mr-2" />
+                                  Download folder
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            {item.type === "file" && item.url && (
+                              <>
+                                <DropdownMenuItem onClick={() => window.open(item.url, "_blank")}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Open
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); handleDownloadClick(item); }}
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleChecked(item, e);
+                                if (!isSelectionMode) setIsSelectionMode(true);
+                              }}
+                            >
+                              <CheckSquare className="h-4 w-4 mr-2" />
+                              {checkedItems.has(item.s3Key || getS3Key(item)) ? 'Deselect' : 'Select'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); handleShareClick(item); }}
+                              disabled={isSharing}
+                            >
+                              {isSharing ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Share2 className="h-4 w-4 mr-2" />
+                              )}
+                              Copy shareable link
+                            </DropdownMenuItem>
+                            {isClientInDeliverableFolder && item.type === "folder" && (
+                              <DropdownMenuItem onClick={() => handleRenameClick(item)}>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Rename
+                              </DropdownMenuItem>
+                            )}
+                            {clientCanModify && (
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteClick(item)}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              )
             )}
           </div>
         </ScrollArea>
