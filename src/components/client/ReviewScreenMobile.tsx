@@ -12,7 +12,7 @@ import {
     CheckCircle2, MessageSquare, Calendar, AlertCircle,
     SkipBack, SkipForward, ArrowLeft, Copy, Check,
     UserCheck, Plus, Monitor, ChevronDown, ChevronUp,
-    RotateCcw, ThumbsUp, ThumbsDown, Send, PenLine,
+    RotateCcw, ThumbsUp, ThumbsDown, Send, PenLine, ImageIcon,
 } from 'lucide-react';
 import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
@@ -344,6 +344,18 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                 ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                 : <Share className="h-4 w-4" />
                             }
+                        </Button>
+                    )}
+                    {/* 🖼️ Switch to thumbnail review — only shown when the task has thumbnails */}
+                    {p.onSwitchToThumbnail && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={p.onSwitchToThumbnail}
+                            className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
+                            title="Switch to Thumbnail Review"
+                        >
+                            <ImageIcon className="h-4 w-4" />
                         </Button>
                     )}
                     {/* 🖥 Switch to desktop view */}

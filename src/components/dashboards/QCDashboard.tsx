@@ -216,7 +216,6 @@ export function QCDashboard() {
   const { viewingAsRole, isViewingAsOther } = useViewAsRole();
 
   const [qcTasks, setQCTasks] = useState<EnhancedWorkflowTask[]>([]);
-  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<EnhancedWorkflowTask | null>(null);
   const [selectedFile, setSelectedFile] = useState<TaskFile | null>(null);
@@ -426,6 +425,25 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
     } else {
       setShowFilePreview(true);
     }
+  };
+
+  // Used by the video ⇄ thumbnail switch buttons inside the review modals —
+  // finds the counterpart file on the same task so QC can jump between the
+  // two without closing the review screen.
+  const getPrimaryVideoFile = (task: typeof selectedTask) => {
+    if (!task) return null;
+    return (
+      task.files?.find(
+        (f) => getMimeType(f).startsWith('video/') && (f.folderType || 'main') === 'main'
+      ) || null
+    );
+  };
+
+  const getPrimaryThumbnailFile = (task: typeof selectedTask) => {
+    if (!task) return null;
+    return (
+      task.files?.find((f) => getMimeType(f).startsWith('image/') && f.folderType === 'thumbnails') || null
+    );
   };
 
   const handleThumbnailApprove = async (file: TaskFile) => {
@@ -733,7 +751,6 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
       return;
     }
     setSelectedTask(task);
-    setExpandedFolders({});
     // 🔥 Initialize posting-content lists from whatever was already saved on this task
     setQcPostingTitles((task as any).postingTitles || []);
     setQcPostingDescriptions((task as any).postingDescriptions || []);
@@ -984,6 +1001,12 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
   const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all";
   const pendingReviews = filteredTasks.length;
   const totalPending = qcTasks.length;
+
+  // Counterpart files for the review-modal switch buttons — only set (and
+  // thus only rendered) when the task actually has both a video and a
+  // thumbnail to review.
+  const switchToThumbnailFile = getPrimaryThumbnailFile(selectedTask);
+  const switchToVideoFile = getPrimaryVideoFile(selectedTask);
 
   return (
     <>
@@ -1335,7 +1358,7 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
 
         {selectedTask && (
           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-            <DialogContent className="max-w-7xl w-[90vw] max-h-[85vh]">
+            <DialogContent className="max-w-6xl max-h-[85vh]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Eye className="h-5 w-5" />
@@ -1388,122 +1411,98 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
                               <p className="text-xs mt-1">No files uploaded for this section</p>
                             </div>
                           ) : (
-                            <>
-                              {(expandedFolders[group.folderType] ? group.files : group.files.slice(0, 1)).map((file, index) => (
-                                <div
-                                  key={file.id}
-                                  className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false ? "opacity-60 bg-muted/20" : ""}`}
-                                  onClick={() => handleFileSelect(file)}
-                                >
-                                  <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith("video/") ? "bg-blue-100" : file.mimeType?.startsWith("image/") ? "bg-green-100" : "bg-gray-100"}`}>
-                                      {getFileIcon(file.mimeType)}
-                                    </div>
+                            group.files.map((file, index) => (
+                              <div
+                                key={file.id}
+                                className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false ? "opacity-60 bg-muted/20" : ""}`}
+                                onClick={() => handleFileSelect(file)}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith("video/") ? "bg-blue-100" : file.mimeType?.startsWith("image/") ? "bg-green-100" : "bg-gray-100"}`}>
+                                    {getFileIcon(file.mimeType)}
+                                  </div>
 
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <p className="font-medium text-sm truncate max-w-[300px]">{file.name}</p>
-                                        <Badge variant={file.isActive !== false ? "default" : "secondary"} className="text-xs">
-                                          V{file.version || 1}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <p className="font-medium text-sm truncate max-w-[300px]">{file.name}</p>
+                                      <Badge variant={file.isActive !== false ? "default" : "secondary"} className="text-xs">
+                                        V{file.version || 1}
+                                      </Badge>
+                                      {file.isActive !== false && index === 0 && (
+                                        <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                          Latest
                                         </Badge>
-                                        {file.isActive !== false && index === 0 && (
-                                          <Badge variant="outline" className="text-xs text-green-600 border-green-300">
-                                            <CheckCircle className="h-3 w-3 mr-1" />
-                                            Latest
-                                          </Badge>
-                                        )}
-                                        {file.isActive === false && (
-                                          <Badge variant="outline" className="text-xs text-muted-foreground">
-                                            Replaced
-                                          </Badge>
-                                        )}
-                                        <Badge variant="secondary" className="text-xs">
-                                          {getFileTypeLabel(file.mimeType)}
+                                      )}
+                                      {file.isActive === false && (
+                                        <Badge variant="outline" className="text-xs text-muted-foreground">
+                                          Replaced
                                         </Badge>
-                                      </div>
-                                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                                        <span>{formatFileSize(file.size)}</span>
-                                        <span>•</span>
-                                        <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
-                                        {file.revisionNote && (
-                                          <>
-                                            <span>•</span>
-                                            <span className="text-orange-600" title={file.revisionNote}>
-                                              📝 Has revision note
-                                            </span>
-                                          </>
-                                        )}
-                                      </div>
+                                      )}
+                                      <Badge variant="secondary" className="text-xs">
+                                        {getFileTypeLabel(file.mimeType)}
+                                      </Badge>
                                     </div>
-
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      {file.mimeType?.startsWith("video/") ? (
-                                        <div className="flex items-center gap-2">
-                                          {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
-                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
-                                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                              <span>Optimizing...</span>
-                                            </div>
-                                          ) : (
-                                            <>
-                                              <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
-                                                <Play className="h-4 w-4 mr-2" />
-                                                Review
-                                              </Button>
-                                              <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download Video" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
-                                                <Download className="h-4 w-4" />
-                                              </Button>
-                                            </>
-                                          )}
-                                        </div>
-                                      ) : file.mimeType?.startsWith('image/') ? (
-                                        <div className="flex items-center gap-2">
-                                          <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
-                                            <Eye className="h-4 w-4 mr-2" />
-                                            Review
-                                          </Button>
-                                          <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
-                                            <Download className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center gap-2">
-                                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
-                                            <ExternalLink className="h-4 w-4 mr-2" />
-                                            View
-                                          </Button>
-                                          <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
-                                            <Download className="h-4 w-4" />
-                                          </Button>
-                                        </div>
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                      <span>{formatFileSize(file.size)}</span>
+                                      <span>•</span>
+                                      <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
+                                      {file.revisionNote && (
+                                        <>
+                                          <span>•</span>
+                                          <span className="text-orange-600" title={file.revisionNote}>
+                                            📝 Has revision note
+                                          </span>
+                                        </>
                                       )}
                                     </div>
                                   </div>
-                                </div>
-                              ))}
-                              {group.files.length > 1 && (
-                                <div className="p-3 bg-muted/5 flex justify-center border-t">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:bg-muted/30 h-8 px-3 rounded-md transition-colors"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedFolders((prev) => ({
-                                        ...prev,
-                                        [group.folderType]: !prev[group.folderType],
-                                      }));
-                                    }}
-                                  >
-                                    {expandedFolders[group.folderType] ? (
-                                      <>Show Less</>
+
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {file.mimeType?.startsWith("video/") ? (
+                                      <div className="flex items-center gap-2">
+                                        {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
+                                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
+                                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                            <span>Optimizing...</span>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                              <Play className="h-4 w-4 mr-2" />
+                                              Review
+                                            </Button>
+                                            <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download Video" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                              <Download className="h-4 w-4" />
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
+                                    ) : file.mimeType?.startsWith('image/') ? (
+                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                          <Eye className="h-4 w-4 mr-2" />
+                                          Review
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </div>
                                     ) : (
-                                      <>Read More ({group.files.length - 1} older version{group.files.length - 1 !== 1 ? "s" : ""})</>
+                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                          <ExternalLink className="h-4 w-4 mr-2" />
+                                          View
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </div>
                                     )}
-                                  </Button>
+                                  </div>
                                 </div>
-                              )}
-                            </>
+                              </div>
+                            ))
                           )}
                         </div>
                       </div>
@@ -1536,6 +1535,11 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
             onApprove={() => { }}
             onRequestRevisions={() => { }}
             userRole="qc"
+            // 🔀 Switch to thumbnail review without leaving the modal — only
+            // offered when this task actually has a thumbnail to review.
+            onSwitchToThumbnail={
+              switchToThumbnailFile ? () => handleFileSelect(switchToThumbnailFile) : undefined
+            }
             onSendToClient={handleSendToClient}
             onSendBackToEditor={handleSendBackToEditor}
             taskId={selectedTask.id}
@@ -1571,6 +1575,11 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
             onApprove={handleThumbnailApprove}
             onRequestRevisions={handleThumbnailRequestRevisions}
             userRole="qc"
+            // 🔀 Switch to video review without leaving the modal — only
+            // offered when this task actually has a main video to review.
+            onSwitchToVideo={
+              switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined
+            }
             postingTitles={qcPostingTitles}
             postingDescriptions={qcPostingDescriptions}
             postingTags={qcPostingTags}

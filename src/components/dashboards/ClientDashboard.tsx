@@ -692,6 +692,23 @@ export function ClientDashboard() {
     }
   };
 
+  // Used by the video ⇄ thumbnail switch buttons inside the review modals —
+  // finds the counterpart file on the same task so the client/QC can jump
+  // between the two without closing the review screen.
+  const getPrimaryVideoFile = (task: typeof selectedTask) => {
+    if (!task) return null;
+    return (
+      task.files?.find(
+        (f) => f.mimeType?.startsWith('video/') && (f.folderType || 'main') === 'main'
+      ) || null
+    );
+  };
+
+  const getPrimaryThumbnailFile = (task: typeof selectedTask) => {
+    if (!task) return null;
+    return task.files?.find((f) => f.mimeType?.startsWith('image/') && f.folderType === 'thumbnails') || null;
+  };
+
   const getVideoAssetFromFile = (file: TaskFile) => {
     if (!selectedTask) return null;
 
@@ -928,6 +945,12 @@ export function ClientDashboard() {
   }, [tasks, currentFilter]);
 
   /* -------------------------------------------------------------------------- */
+
+  // Counterpart files for the review-modal switch buttons — only set (and
+  // thus only rendered) when the task actually has both a video and a
+  // thumbnail to review.
+  const switchToThumbnailFile = getPrimaryThumbnailFile(selectedTask);
+  const switchToVideoFile = getPrimaryVideoFile(selectedTask);
 
   return (
     <TooltipProvider>
@@ -1431,6 +1454,13 @@ export function ClientDashboard() {
               onApprove={handleVideoApprove}
               onRequestRevisions={handleVideoRequestRevisions}
               userRole="client"
+              // 🔀 Switch to thumbnail review without leaving the modal — only
+              // offered when this task actually has a thumbnail to review.
+              onSwitchToThumbnail={
+                switchToThumbnailFile
+                  ? () => handleFileSelect(switchToThumbnailFile)
+                  : undefined
+              }
               // 🔥 Pass file info for version-tracked feedback
               taskId={selectedTask.id}
               currentFileSection={{
@@ -1485,6 +1515,11 @@ export function ClientDashboard() {
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
               userRole="client"
+              // 🔀 Switch to video review without leaving the modal — only
+              // offered when this task actually has a main video to review.
+              onSwitchToVideo={
+                switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined
+              }
               // 🔥 Posting content lists
               postingTitles={postingTitles}
               postingDescriptions={postingDescriptions}

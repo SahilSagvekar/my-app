@@ -20,6 +20,7 @@ import {
     LayoutGrid,
     Check,
     PenLine,
+    Film,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ReviewCommentCard, CommentInput } from '../review';
@@ -54,6 +55,7 @@ interface ThumbnailReviewModalProps {
     taskTitle: string;
     onApprove: (file: TaskFile) => void | Promise<void>;
     onRequestRevisions: (file: TaskFile, feedback: any[]) => void | Promise<void>;
+    onSwitchToVideo?: () => void;
     userRole?: 'client' | 'qc';
     // 🔥 Multi-item posting content lists
     postingTitles?: { id: string; text: string }[];
@@ -186,6 +188,7 @@ export function ThumbnailReviewModal({
     taskTitle,
     onApprove,
     onRequestRevisions,
+    onSwitchToVideo,
     userRole = 'client',
     postingTitles = [],
     postingDescriptions = [],
@@ -409,6 +412,21 @@ export function ThumbnailReviewModal({
                             </div>
 
                             <div className="flex items-center gap-3">
+                                {/* 🎬 Switch to video review — only shown when the task has a main video */}
+                                {onSwitchToVideo && (
+                                    <>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={onSwitchToVideo}
+                                            className="text-zinc-400 hover:text-white"
+                                        >
+                                            <Film className="h-4 w-4 mr-2" />
+                                            Video
+                                        </Button>
+                                        <div className="h-6 w-px bg-white/10 mx-2" />
+                                    </>
+                                )}
                                 <Button
                                     variant="ghost"
                                     size="sm"

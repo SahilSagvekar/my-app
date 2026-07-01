@@ -18,7 +18,7 @@ import {
     CheckCircle2, MessageSquare, Calendar, ChevronRight,
     AlertCircle, SkipBack, SkipForward, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
-    RotateCcw, HardDrive, PenLine,
+    RotateCcw, HardDrive, PenLine, ImageIcon,
 } from 'lucide-react';import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
@@ -125,6 +125,7 @@ export interface ReviewScreenProps {
     /* view toggle */
     onSwitchToMobile: () => void;
     onSwitchToDesktop?: () => void;
+    onSwitchToThumbnail?: () => void;
 }
 
 /* ─────────────────────────────────────────────────────────────── */
@@ -331,6 +332,24 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent side="bottom">Share link</TooltipContent>
+                                </Tooltip>
+                            )}
+
+                            {/* 🖼️ Switch to thumbnail review — only shown when the task has thumbnails */}
+                            {p.onSwitchToThumbnail && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={p.onSwitchToThumbnail}
+                                            className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 px-2 gap-1.5"
+                                        >
+                                            <ImageIcon className="h-4 w-4" />
+                                            <span className="text-xs hidden sm:inline">Thumbnails</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">Switch to Thumbnail Review</TooltipContent>
                                 </Tooltip>
                             )}
 
