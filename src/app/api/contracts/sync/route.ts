@@ -9,7 +9,7 @@ import { uploadBufferToS3 } from '@/lib/s3';
 export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser2(req);
-    if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
+    if (!user || !['admin', 'manager', 'client'].includes(user.role ?? '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -17,17 +17,43 @@ export async function GET(req: NextRequest) {
     // 1. Active contracts (SENT / PARTIALLY_SIGNED)
     // 2. COMPLETED contracts that still have PENDING signers — the most common
     //    cause of signers showing as "pending" even after everyone has signed.
+    let where: any = {
+      signwellDocumentId: { not: null },
+    };
+
+    if (user.role === 'client') {
+      where.OR = [
+        {
+          clientId: user.linkedClientId,
+          status: { in: ['SENT', 'PARTIALLY_SIGNED'] }
+        },
+        {
+          clientId: user.linkedClientId,
+          status: 'COMPLETED',
+          signers: { some: { status: 'PENDING' } }
+        },
+        {
+          signers: { some: { email: user.email } },
+          status: { in: ['SENT', 'PARTIALLY_SIGNED'] }
+        },
+        {
+          signers: { some: { email: user.email } },
+          status: 'COMPLETED',
+          signers: { some: { status: 'PENDING' } }
+        }
+      ];
+    } else {
+      where.OR = [
+        { status: { in: ['SENT', 'PARTIALLY_SIGNED'] } },
+        {
+          status: 'COMPLETED',
+          signers: { some: { status: 'PENDING' } },
+        },
+      ];
+    }
+
     const pendingContracts = await prisma.contract.findMany({
-      where: {
-        signwellDocumentId: { not: null },
-        OR: [
-          { status: { in: ['SENT', 'PARTIALLY_SIGNED'] } },
-          {
-            status: 'COMPLETED',
-            signers: { some: { status: 'PENDING' } },
-          },
-        ],
-      },
+      where,
       include: {
         signers: true,
       },

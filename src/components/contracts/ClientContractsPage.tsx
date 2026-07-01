@@ -11,6 +11,7 @@ import {
     ExternalLink,
     AlertCircle,
     Search,
+    RefreshCw,
 } from "lucide-react";
 
 import { ContractStatusBadge, SignerStatusBadge } from "./ContractStatusBadge";
@@ -19,12 +20,13 @@ import { ContractDetailView } from "./ContractDetailView";
 export function ClientContractsPage() {
     const [contracts, setContracts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
     const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
 
-    const fetchContracts = useCallback(async () => {
+    const fetchContracts = useCallback(async (showLoading = true) => {
         try {
-            setLoading(true);
+            if (showLoading) setLoading(true);
             const params = new URLSearchParams();
             if (searchQuery) params.set("search", searchQuery);
 
@@ -38,13 +40,38 @@ export function ClientContractsPage() {
         } catch (err) {
             console.error("Failed to fetch contracts:", err);
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
         }
     }, [searchQuery]);
 
+    const syncWithSignWell = useCallback(async () => {
+        try {
+            setSyncing(true);
+            const res = await fetch("/api/contracts/sync", {
+                credentials: "include"
+            });
+            const data = await res.json();
+            if (res.ok) {
+                if (data.syncedCount > 0) {
+                    fetchContracts(false);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to sync:", err);
+        } finally {
+            setSyncing(false);
+        }
+    }, [fetchContracts]);
+
     useEffect(() => {
-        fetchContracts();
+        fetchContracts(true);
     }, [fetchContracts, searchQuery]);
+
+    useEffect(() => {
+        syncWithSignWell();
+        const intervalId = setInterval(syncWithSignWell, 30000);
+        return () => clearInterval(intervalId);
+    }, [syncWithSignWell]);
 
 
     const handleDownload = async (contractId: string, type: "original" | "signed") => {
@@ -99,8 +126,9 @@ export function ClientContractsPage() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
                         My Contracts
+                        {syncing && <RefreshCw className="h-5 w-5 text-gray-400 animate-spin" />}
                     </h1>
                     <p className="text-muted-foreground mt-1 text-lg">
                         Review and sign your legal documents safely
