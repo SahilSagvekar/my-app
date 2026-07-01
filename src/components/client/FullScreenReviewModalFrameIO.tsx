@@ -57,6 +57,7 @@ interface FullScreenReviewModalProps {
     onApprove: (asset: ReviewAsset, confirmFinal: boolean) => void;
     onRequestRevisions: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
     onNextAsset?: () => void;
+    onSwitchToThumbnail?: () => void;
     userRole?: 'client' | 'qc';
     onSendToClient?: (asset: ReviewAsset) => void;
     onSendBackToEditor?: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
@@ -172,6 +173,7 @@ export function FullScreenReviewModalFrameIO({
     onApprove,
     onRequestRevisions,
     onNextAsset,
+    onSwitchToThumbnail,
     userRole = 'client',
     onSendToClient,
     onSendBackToEditor,
@@ -1034,6 +1036,7 @@ export function FullScreenReviewModalFrameIO({
         handleCopyLink,
         onOpenChange,
         onNextAsset,
+        onSwitchToThumbnail,
         formatTime,
         onSwitchToMobile: () => setViewMode('mobile'),
         onSwitchToDesktop: () => setViewMode('desktop'),
