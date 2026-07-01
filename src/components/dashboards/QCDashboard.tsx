@@ -20,7 +20,7 @@ import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
-import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2 } from 'lucide-react';
+import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
@@ -220,6 +220,17 @@ export function QCDashboard() {
   const [selectedTask, setSelectedTask] = useState<EnhancedWorkflowTask | null>(null);
   const [selectedFile, setSelectedFile] = useState<TaskFile | null>(null);
   const [showFileSelector, setShowFileSelector] = useState(false);
+  // Tracks which folder-type sections in "Review Files by Section" have been
+  // expanded to show older versions (collapsed to latest-only by default).
+  const [expandedFileGroups, setExpandedFileGroups] = useState<Set<string>>(new Set());
+  const toggleFileGroupExpanded = (folderType: string) => {
+    setExpandedFileGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderType)) next.delete(folderType);
+      else next.add(folderType);
+      return next;
+    });
+  };
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
@@ -755,6 +766,7 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
     setQcPostingTitles((task as any).postingTitles || []);
     setQcPostingDescriptions((task as any).postingDescriptions || []);
     setQcPostingTags((task as any).postingTags || []);
+    setExpandedFileGroups(new Set());
     setShowFileSelector(true);
   };
 
@@ -1411,7 +1423,7 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
                               <p className="text-xs mt-1">No files uploaded for this section</p>
                             </div>
                           ) : (
-                            group.files.map((file, index) => (
+                            (expandedFileGroups.has(group.folderType) ? group.files : group.files.slice(0, 1)).map((file, index) => (
                               <div
                                 key={file.id}
                                 className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false ? "opacity-60 bg-muted/20" : ""}`}
@@ -1503,6 +1515,28 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
                                 </div>
                               </div>
                             ))
+                          )}
+                          {group.files.length > 1 && (
+                            <div className="p-2.5 text-center bg-muted/20">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                                onClick={() => toggleFileGroupExpanded(group.folderType)}
+                              >
+                                {expandedFileGroups.has(group.folderType) ? (
+                                  <>
+                                    <ChevronUp className="h-3.5 w-3.5 mr-1" />
+                                    Show less
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="h-3.5 w-3.5 mr-1" />
+                                    Read more ({group.files.length - 1} older version{group.files.length - 1 !== 1 ? "s" : ""})
+                                  </>
+                                )}
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>
