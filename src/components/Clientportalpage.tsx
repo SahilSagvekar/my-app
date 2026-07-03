@@ -937,12 +937,12 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
       </section>
 
       {/* ===== SECTION 4: ONBOARDING INTAKE (Phase 5 — shown after payment) ===== */}
-      {portalAccess?.fullAccess && (
+      {/* {portalAccess?.fullAccess && (
         <>
           <Separator />
           <IntakeFormSection />
         </>
-      )}
+      )} */}
     </div>
   );
 }
