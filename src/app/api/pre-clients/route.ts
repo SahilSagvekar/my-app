@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
+import { randomUUID } from 'crypto';
 
 // GET /api/pre-clients
 export async function GET(req: NextRequest) {
@@ -61,11 +62,13 @@ export async function POST(req: NextRequest) {
 
     const preClient = await prisma.preClient.create({
       data: {
+        id: randomUUID(),
         name,
         email,
         phone: phone || null,
         companyName: companyName || null,
         createdById: user.id,
+        updatedAt: new Date(),
       },
       include: {
         createdBy: { select: { id: true, name: true, email: true } },
