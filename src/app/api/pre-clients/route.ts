@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, email, phone, companyName } = body;
 
+
     if (!name || !email) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
     }
