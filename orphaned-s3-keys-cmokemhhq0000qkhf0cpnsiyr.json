@@ -1,0 +1,104 @@
+[
+  {
+    "id": "cmq5c7czb001fqk69bc3n1zv7",
+    "name": "cduerkdraft7_4k.mp4",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF2/1780930027615-cduerkdraft7_4k.mp4",
+    "nasPath": null
+  },
+  {
+    "id": "cmq5cc7yr001hqk69evkwamba",
+    "name": "thumbnail1.png",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF2/thumbnails/1780930995856-thumbnail1.png",
+    "nasPath": null
+  },
+  {
+    "id": "cmq5cd50f001jqk69scpym4h1",
+    "name": "whiskey-in-the-jar-1048278-License-1048278-7993104.pdf",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF2/music-license/1780931046029-whiskey-in-the-jar-1048278-License-1048278-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmq5cdbb8001nqk69rztc3636",
+    "name": "new-life-begins-1192597-License-1192597-7993104.pdf",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF2/music-license/1780931053975-new-life-begins-1192597-License-1192597-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmq5cd7p2001lqk69bwbcjfuf",
+    "name": "dramatic-shock-transition-1430138-License-1430138-7993104.pdf",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF2/music-license/1780931050404-dramatic-shock-transition-1430138-License-1430138-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmq5cde4q001sqk69jscwr90y",
+    "name": "notifications-beeps-1180811-License-1180811-7993104.pdf",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF2/music-license/1780931058601-notifications-beeps-1180811-License-1180811-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmpzs1hz5001cqktsq9fxw4rc",
+    "name": "CduerkLFdraft6subs.mp4",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF1/1780594331091-CduerkLFdraft6subs.mp4",
+    "nasPath": null
+  },
+  {
+    "id": "cmpzs1yta001eqktsz5hybuxf",
+    "name": "thumbnail1.png",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF1/thumbnails/1780594603438-thumbnail1.png",
+    "nasPath": null
+  },
+  {
+    "id": "cmpzs2prv001gqktsbmgtkbfw",
+    "name": "dramatic-shock-transition-1430138-License-1430138-7993104.pdf",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF1/music-license/1780594638470-dramatic-shock-transition-1430138-License-1430138-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmpzs2tuz001iqktshhopdsdo",
+    "name": "new-life-begins-1192597-License-1192597-7993104.pdf",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF1/music-license/1780594643674-new-life-begins-1192597-License-1192597-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmpzs31sn001mqktsphm9766n",
+    "name": "whiskey-in-the-jar-1048278-License-1048278-7993104.pdf",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF1/music-license/1780594654169-whiskey-in-the-jar-1048278-License-1048278-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmpzs2xt8001kqkts9hgtjfaz",
+    "name": "notifications-beeps-1180811-License-1180811-7993104.pdf",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-29-2026_LF1/music-license/1780594648867-notifications-beeps-1180811-License-1180811-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmpsnz9fo0005qkjpsneibcdn",
+    "name": "thumbnail1.png",
+    "s3Key": "cduerk/outputs/May-2026/cduerk_04-01-2026_LF1/thumbnails/1780164493350-thumbnail1.png",
+    "nasPath": null
+  },
+  {
+    "id": "cmpsncwqs0001qkjp5hpl3u2j",
+    "name": "whiskey-in-the-jar-1048278-License-1048278-7993104.pdf",
+    "s3Key": "cduerk/outputs/May-2026/cduerk_04-01-2026_LF1/music-license/1780163452425-whiskey-in-the-jar-1048278-License-1048278-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmpu8p71s0005qk93shmh51d9",
+    "name": "dramatic-shock-transition-1430138-License-1430138-7993104.pdf",
+    "s3Key": "cduerk/outputs/May-2026/cduerk_04-01-2026_LF1/music-license/1780259764227-dramatic-shock-transition-1430138-License-1430138-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmpu8p3bt0003qk93zipwv177",
+    "name": "notifications-beeps-1180811-License-1180811-7993104.pdf",
+    "s3Key": "cduerk/outputs/May-2026/cduerk_04-01-2026_LF1/music-license/1780259759326-notifications-beeps-1180811-License-1180811-7993104.pdf",
+    "nasPath": null
+  },
+  {
+    "id": "cmpvaeeh70014qk3cc7nzjkvz",
+    "name": "CduerkLFdrarft5.mp4",
+    "s3Key": "cduerk/outputs/June-2026/cduerk_04-01-2026_LF1/1780322755377-CduerkLFdrarft5.mp4",
+    "nasPath": null
+  }
+]
