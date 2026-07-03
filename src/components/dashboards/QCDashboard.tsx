@@ -756,17 +756,39 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
     return anyImage?.url || null;
   };
 
+  const isHardPostTask = (task: EnhancedWorkflowTask) => {
+    const type = ((task as any).deliverableType || task.taskType || '').toLowerCase();
+    return type.includes('hard post') || type.includes('graphic image');
+  };
+
   const handleTaskClick = (task: EnhancedWorkflowTask) => {
     if (selectionMode && isViewingAsOther) {
       toggleTaskSelection(task.id);
       return;
     }
     setSelectedTask(task);
-    // 🔥 Initialize posting-content lists from whatever was already saved on this task
     setQcPostingTitles((task as any).postingTitles || []);
     setQcPostingDescriptions((task as any).postingDescriptions || []);
     setQcPostingTags((task as any).postingTags || []);
     setExpandedFileGroups(new Set());
+
+    // Hard post tasks → open ThumbnailReviewModal directly with sequential images
+    if (isHardPostTask(task)) {
+      const images = (task.files || [])
+        .filter(f => {
+          const mime = getMimeType(f);
+          return (mime.startsWith('image/png') || mime.startsWith('image/jpeg') || mime.startsWith('image/jpg') || mime.startsWith('image/webp') || mime.startsWith('image/'))
+            && f.isActive !== false;
+        })
+        .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+
+      if (images.length > 0) {
+        setSelectedFile(images[0]);
+        setShowThumbnailReview(true);
+        return;
+      }
+    }
+
     setShowFileSelector(true);
   };
 
@@ -1609,8 +1631,7 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
             onApprove={handleThumbnailApprove}
             onRequestRevisions={handleThumbnailRequestRevisions}
             userRole="qc"
-            // 🔀 Switch to video review without leaving the modal — only
-            // offered when this task actually has a main video to review.
+            imageLabel={isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
             onSwitchToVideo={
               switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined
             }

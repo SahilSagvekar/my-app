@@ -384,7 +384,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   // ── Load client list for admin/manager selector ──────────────────────────
   useEffect(() => {
-    if (role !== 'admin' && role !== 'manager') return;
+    if (role !== 'admin' && role !== 'manager' && role !== 'scheduler') return;
     fetch('/api/clients')
       .then(r => r.ok ? r.json() : { clients: [] })
       .then(data => {
@@ -1645,7 +1645,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             )}
 
             {/* ─── Admin/Manager: Client Selector ─── */}
-            {(role === 'admin' || role === 'manager') && adminClientList.length > 0 && (
+            {(role === 'admin' || role === 'manager' || role === 'scheduler') && adminClientList.length > 0 && (
               <Select value={adminSelectedClientId} onValueChange={setAdminSelectedClientId}>
                 <SelectTrigger className="w-[200px] h-10 shrink-0">
                   <SelectValue placeholder="Select client..." />

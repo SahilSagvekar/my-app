@@ -907,11 +907,29 @@ export function ClientDashboard() {
 
   const isOverdue = (task: ClientTask) => new Date(task.dueDate) < new Date();
 
+  const isHardPostTask = (task: ClientTask) => {
+    const type = ((task as any).deliverableType || (task as any).taskType || '').toLowerCase();
+    return type.includes('hard post') || type.includes('graphic image');
+  };
+
   const handleTaskClick = (task: ClientTask) => {
     setSelectedTask(task);
     setPostingTitles(task.postingTitles || []);
     setPostingDescriptions(task.postingDescriptions || []);
     setPostingTags(task.postingTags || []);
+
+    // Hard post tasks → skip file selector, open ThumbnailReviewModal with images
+    if (isHardPostTask(task)) {
+      const images = (task.files || [])
+        .filter(f => f.mimeType?.startsWith('image/') && f.isActive !== false)
+        .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+      if (images.length > 0) {
+        setSelectedFile(images[0]);
+        setShowThumbnailReview(true);
+        return;
+      }
+    }
+
     setShowFileSelector(true);
   };
 
@@ -1515,8 +1533,7 @@ export function ClientDashboard() {
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
               userRole="client"
-              // 🔀 Switch to video review without leaving the modal — only
-              // offered when this task actually has a main video to review.
+              imageLabel={selectedTask && isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
               onSwitchToVideo={
                 switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined
               }
