@@ -57,7 +57,7 @@ interface ThumbnailReviewModalProps {
     onRequestRevisions: (file: TaskFile, feedback: any[]) => void | Promise<void>;
     onSwitchToVideo?: () => void;
     userRole?: 'client' | 'qc';
-    // 🔥 Multi-item posting content lists
+    imageLabel?: string;
     postingTitles?: { id: string; text: string }[];
     postingDescriptions?: { id: string; text: string }[];
     postingTags?: { id: string; text: string }[];
@@ -190,6 +190,7 @@ export function ThumbnailReviewModal({
     onRequestRevisions,
     onSwitchToVideo,
     userRole = 'client',
+    imageLabel = 'Thumbnails',
     postingTitles = [],
     postingDescriptions = [],
     postingTags = [],
@@ -547,7 +548,7 @@ export function ThumbnailReviewModal({
 
                                         {/* Simple Numbered Switcher (Floating Bottom) */}
                                         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#1a1a1a]/80 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl">
-                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mr-2">Thumbnails</span>
+                                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mr-2">{imageLabel}</span>
                                             {orderedThumbnails.map((t, idx) => (
                                                 <button
                                                     key={t.id}
