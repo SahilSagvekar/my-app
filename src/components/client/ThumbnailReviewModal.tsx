@@ -667,7 +667,7 @@ export function ThumbnailReviewModal({
                                         size="sm"
                                         className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium"
                                         onClick={handleApproveClick}
-                                        disabled={savingFeedback}
+                                        disabled={savingFeedback || unresolvedCount > 0}
                                     >
                                         <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
                                         Approve Final
