@@ -567,7 +567,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 {p.userRole === 'qc' ? (
                     <button
                         onClick={() => p.handleStatusChange('approved')}
-                        disabled={p.asset.approvalLocked || p.savingFeedback}
+                        disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <ThumbsUp className="h-3.5 w-3.5" />
@@ -576,7 +576,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 ) : (
                     <button
                         onClick={() => setShowApproveConfirm(true)}
-                        disabled={p.asset.approvalLocked}
+                        disabled={p.asset.approvalLocked || unresolvedCount > 0}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <ThumbsUp className="h-3.5 w-3.5" />
@@ -818,7 +818,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                             p.handleStatusChange('approved');
                                         }
                                     }}
-                                    disabled={p.asset.approvalLocked || p.savingFeedback || (p.userRole === 'client' && !p.confirmFinal)}
+                                    disabled={p.asset.approvalLocked || p.savingFeedback || (p.userRole === 'client' && !p.confirmFinal) || unresolvedCount > 0}
                                 >
                                     {p.userRole === 'qc'
                                         ? p.requiresClientReview
