@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, constructWebhookEvent, STRIPE_WEBHOOK_EVENTS } from '@/lib/stripe';
+import { stripe, constructWebhookEvent, STRIPE_WEBHOOK_EVENTS, generateInvoiceNumber } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
 import { sendPaymentNotificationEmail } from '@/lib/email';
@@ -513,6 +513,7 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
     include: { client: { include: { portalAccess: true } } },
   });
 
+  if (!stripeCustomer) return;
   const client = (stripeCustomer as any)?.client;
   if (!client?.portalAccess) return;
 
@@ -520,6 +521,49 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
   const nextBilling = new Date(now);
   nextBilling.setMonth(nextBilling.getMonth() + 1);
 
+  // Create Invoice record so it shows in admin + client billing pages
+  const invoice = await prisma.invoice.create({
+    data: {
+      stripeCustomerId: stripeCustomer.id,
+      stripeInvoiceId: stripeInvoice.id,
+      invoiceNumber: stripeInvoice.number || generateInvoiceNumber(),
+      status: 'PAID',
+      amount: stripeInvoice.amount_due,
+      amountPaid: stripeInvoice.amount_paid,
+      currency: stripeInvoice.currency || 'usd',
+      paidAt: now,
+      isRecurring: true,
+      stripeHostedInvoiceUrl: stripeInvoice.hosted_invoice_url || null,
+      stripePdfUrl: stripeInvoice.invoice_pdf || null,
+      stripePaymentIntentId: stripeInvoice.payment_intent as string | null,
+      lineItems: [
+        {
+          description: `Monthly Service — ${client.companyName || client.name}`,
+          quantity: 1,
+          unitPrice: stripeInvoice.amount_due,
+          total: stripeInvoice.amount_due,
+        },
+      ],
+      description: `Monthly retainer — ${client.companyName || client.name}`,
+      sentAt: now,
+    },
+  });
+
+  // Create Payment record
+  if (stripeInvoice.payment_intent) {
+    await prisma.payment.create({
+      data: {
+        invoiceId: invoice.id,
+        stripePaymentIntentId: stripeInvoice.payment_intent as string,
+        amount: stripeInvoice.amount_paid,
+        currency: stripeInvoice.currency || 'usd',
+        status: 'SUCCEEDED',
+        paymentMethod: 'card',
+      },
+    });
+  }
+
+  // Unlock portal
   const updateData: any = {
     status: 'ACTIVE',
     lockedAt: null,
@@ -535,7 +579,7 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
     data: updateData,
   });
 
-  console.log(`🔓 [Portal] First payment — unlocked for: ${client.name}`);
+  console.log(`🔓 [Portal] First payment — unlocked for: ${client.name}, invoice: ${invoice.invoiceNumber}`);
 }
 
 // Send billing warning email 3 days before billing date
