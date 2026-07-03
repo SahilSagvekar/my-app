@@ -1796,7 +1796,7 @@ model Quote {
   inclusions      Json        @default("[]")
   preparedBy      String?
   terms           Json        @default("[]")
-  PreClient       PreClient   @relation(fields: [preClientId], references: [id], onDelete: Cascade)
+  preClient       PreClient   @relation(fields: [preClientId], references: [id], onDelete: Cascade)
 
   @@index([preClientId])
   @@index([shareToken])
