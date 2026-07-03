@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
     if (!jwtUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
 
     // Get the user with their linked client
     const user = await prisma.user.findFirst({
