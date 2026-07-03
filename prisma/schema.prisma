@@ -1775,7 +1775,7 @@ model PreClient {
 }
 
 model Quote {
-  id              String      @id
+  id              String      @id @default(cuid())
   preClientId     String
   version         Int         @default(1)
   status          QuoteStatus @default(DRAFT)
@@ -1783,7 +1783,7 @@ model Quote {
   totalAmount     Int
   notes           String?
   validDays       Int         @default(30)
-  shareToken      String      @unique
+  shareToken      String      @unique @default(cuid())
   sentAt          DateTime?
   viewedAt        DateTime?
   acceptedAt      DateTime?
@@ -1791,7 +1791,7 @@ model Quote {
   rejectionReason String?
   changeRequest   String?
   createdAt       DateTime    @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime    @updatedAt
   acceptanceText  String?
   inclusions      Json        @default("[]")
   preparedBy      String?
