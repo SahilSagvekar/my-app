@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
-import { randomUUID } from 'crypto';
 
 // GET /api/pre-clients
 export async function GET(req: NextRequest) {
@@ -18,16 +17,6 @@ export async function GET(req: NextRequest) {
         createdBy: { select: { id: true, name: true, email: true } },
         quotes: {
           orderBy: { version: 'desc' },
-          take: 1,
-          select: {
-            id: true,
-            version: true,
-            status: true,
-            totalAmount: true,
-            sentAt: true,
-            acceptedAt: true,
-            rejectedAt: true,
-          },
         },
       },
     });
@@ -63,7 +52,6 @@ export async function POST(req: NextRequest) {
 
     const preClient = await prisma.preClient.create({
       data: {
-        id: randomUUID(),
         name,
         email,
         phone: phone || null,

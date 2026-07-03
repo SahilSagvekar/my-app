@@ -1728,7 +1728,7 @@ model NasSyncLog {
 }
 
 model ClientPortalAccess {
-  id                String             @id
+  id                String             @id @default(cuid())
   clientId          String             @unique
   status            PortalAccessStatus @default(ONBOARDING)
   billingAnchorDate DateTime?
@@ -1738,7 +1738,7 @@ model ClientPortalAccess {
   adminUnlockedAt   DateTime?
   lockedAt          DateTime?
   createdAt         DateTime           @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime           @updatedAt
   User              User?              @relation(fields: [adminUnlockedById], references: [id])
   Client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
@@ -1747,9 +1747,9 @@ model ClientPortalAccess {
 }
 
 model OnboardingToken {
-  id        String    @id
+  id        String    @id @default(cuid())
   clientId  String    @unique
-  token     String    @unique
+  token     String    @unique @default(cuid())
   used      Boolean   @default(false)
   usedAt    DateTime?
   expiresAt DateTime
@@ -1758,7 +1758,7 @@ model OnboardingToken {
 }
 
 model PreClient {
-  id          String          @id
+  id          String          @id @default(cuid())
   name        String
   email       String
   phone       String?

@@ -40,6 +40,10 @@ interface Quote {
   rejectionReason: string | null;
   changeRequest: string | null;
   createdAt: string;
+  preparedBy: string | null;
+  inclusions: string[];
+  terms: { title: string; body: string }[];
+  acceptanceText: string | null;
 }
 
 interface PreClient {
@@ -133,10 +137,10 @@ function QuoteBuilderDialog({
   );
   const [notes, setNotes]                   = useState(existingQuote?.notes ?? '');
   const [validDays, setValidDays]           = useState(existingQuote?.validDays ?? 30);
-  const [preparedBy, setPreparedBy]         = useState('Gabe Rabinowitz + Eric Davis');
-  const [inclusions, setInclusions]         = useState<string[]>(DEFAULT_INCLUSIONS);
-  const [terms, setTerms]                   = useState<{ title: string; body: string }[]>(DEFAULT_TERMS);
-  const [acceptanceText, setAcceptanceText] = useState(DEFAULT_ACCEPTANCE);
+  const [preparedBy, setPreparedBy]         = useState(existingQuote?.preparedBy ?? 'Gabe Rabinowitz + Eric Davis');
+  const [inclusions, setInclusions]         = useState<string[]>(existingQuote?.inclusions?.length ? existingQuote.inclusions : DEFAULT_INCLUSIONS);
+  const [terms, setTerms]                   = useState<{ title: string; body: string }[]>(existingQuote?.terms?.length ? existingQuote.terms : DEFAULT_TERMS);
+  const [acceptanceText, setAcceptanceText] = useState(existingQuote?.acceptanceText ?? DEFAULT_ACCEPTANCE);
   const [saving, setSaving]                 = useState(false);
   const [sending, setSending]               = useState(false);
   const [savedQuote, setSavedQuote]         = useState<Quote | null>(existingQuote);
@@ -808,7 +812,7 @@ export function PreClientsTab() {
                     )}
 
                     {/* Rejection feedback */}
-                    {latestQuote?.status === 'REJECTED' && (latestQuote.rejectionReason || latestQuote.changeRequest) && (
+                    {(latestQuote?.rejectionReason || latestQuote?.changeRequest) && (
                       <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
                         <div className="text-xs font-semibold text-red-700 uppercase tracking-wider mb-1 flex items-center gap-1">
                           <AlertCircle size={12} /> Client Feedback
