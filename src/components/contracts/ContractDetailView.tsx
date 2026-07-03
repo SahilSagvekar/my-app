@@ -92,6 +92,23 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
     } finally { setEmbeddedLoading(false); }
   };
 
+  useEffect(() => {
+    if (!showSignModal) return;
+    const handler = (e: MessageEvent) => {
+      const type = e.data?.type || e.data?.event || e.data;
+      if (
+        typeof type === 'string' &&
+        (type.includes('complet') || type.includes('signed') || type.includes('declin'))
+      ) {
+        setShowSignModal(false);
+        setEmbeddedUrl(null);
+        fetchContract();
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [showSignModal, fetchContract]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -322,12 +339,20 @@ export function ContractDetailView({ contractId, onBack }: ContractDetailViewPro
                 <span className="font-semibold text-gray-900 text-sm">Sign Contract</span>
                 <span className="text-xs text-gray-400">— {contract.title}</span>
               </div>
-              <button
-                onClick={() => { setShowSignModal(false); setEmbeddedUrl(null); fetchContract(); }}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                <X className="h-4 w-4 text-gray-500" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowSignModal(false); setEmbeddedUrl(null); fetchContract(); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Done Signing
+                </button>
+                <button
+                  onClick={() => { setShowSignModal(false); setEmbeddedUrl(null); fetchContract(); }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden rounded-b-2xl">
               <iframe

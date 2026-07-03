@@ -168,6 +168,23 @@ export function ContractsDashboard() {
         return () => clearInterval(intervalId);
     }, [syncWithSignWell]);
 
+    // Close signing modal when SignWell signals completion via postMessage
+    useEffect(() => {
+        if (!viewModal) return;
+        const handler = (e: MessageEvent) => {
+            const type = e.data?.type || e.data?.event || e.data;
+            if (
+                typeof type === 'string' &&
+                (type.includes('complet') || type.includes('signed') || type.includes('declin'))
+            ) {
+                setViewModal(null);
+                fetchContracts();
+            }
+        };
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
+    }, [viewModal, fetchContracts]);
+
     const getSignerSummary = (signers: Signer[]) => {
         const signed = signers.filter((s) => s.status === "SIGNED").length;
         return `${signed}/${signers.length}`;
@@ -506,6 +523,14 @@ export function ContractsDashboard() {
                             <span className="text-xs text-gray-400">— {viewModal.title}</span>
                         </div>
                         <div className="flex items-center gap-2">
+                            {viewModal.mode === 'sign' && (
+                                <button
+                                    onClick={() => { setViewModal(null); fetchContracts(); }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium"
+                                >
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Done Signing
+                                </button>
+                            )}
                             <a
                                 href={viewModal.viewUrl}
                                 target="_blank"
@@ -516,7 +541,7 @@ export function ContractsDashboard() {
                                 <ExternalLink className="h-4 w-4" />
                             </a>
                             <button
-                                onClick={() => setViewModal(null)}
+                                onClick={() => { setViewModal(null); fetchContracts(); }}
                                 className="p-2 hover:bg-gray-100 rounded-lg transition"
                             >
                                 <X className="h-4 w-4 text-gray-500" />
