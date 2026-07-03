@@ -83,15 +83,21 @@ export function TaskUploadSections({
   const [showHistory, setShowHistory] = useState<Record<string, boolean>>({});
   const [showFeedback, setShowFeedback] = useState<Record<string, boolean>>({});
 
+  const isHardPostDeliverable = (deliverableType: string) => {
+    const t = (deliverableType || '').toLowerCase();
+    return t.includes('hard post') || t.includes('graphic image');
+  };
+
   const getUploadSections = (deliverableType: string): UploadSection[] => {
     const mainSection: UploadSection = {
       folderType: "main",
-      label: "Main Task File",
+      label: isHardPostDeliverable(deliverableType) ? "Images (PNG / JPG)" : "Main Task File",
       required: true,
-      icon: "img:/icons/main-task-file.svg",
+      icon: isHardPostDeliverable(deliverableType) ? "🖼️" : "img:/icons/main-task-file.svg",
       uploaded: false,
     };
 
+    if (isHardPostDeliverable(deliverableType)) return [mainSection];
     const additionalSections = getAdditionalSections(deliverableType);
     return [mainSection, ...additionalSections];
   };
