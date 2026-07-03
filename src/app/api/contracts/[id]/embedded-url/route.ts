@@ -34,7 +34,8 @@ export async function GET(
     const doc = await getSignWellDocument(contract.signwellDocumentId);
 
     // Find the signer that matches the current user's email
-    const matchingSigner = doc.signers?.find(
+    const swSigners = doc.recipients || doc.signers || [];
+    const matchingSigner = swSigners.find(
       (s: any) => s.email?.toLowerCase() === user.email?.toLowerCase()
     );
 

@@ -44,7 +44,8 @@ export async function GET(
     const doc = await getSignWellDocument(contract.signwellDocumentId);
 
     // Try to find an embedded signing URL for the current user first
-    const mySignerRecord = doc.signers?.find(
+    const swSigners = doc.recipients || doc.signers || [];
+    const mySignerRecord = swSigners.find(
       (s: any) => s.email?.toLowerCase() === user.email?.toLowerCase()
     );
 
@@ -57,7 +58,7 @@ export async function GET(
 
     // For admins/managers or already-signed clients, return the first available embedded URL
     // This allows viewing the document in the iframe
-    const anySignerUrl = doc.signers?.find((s: any) => s.embedded_signing_url)?.embedded_signing_url;
+    const anySignerUrl = swSigners.find((s: any) => s.embedded_signing_url)?.embedded_signing_url;
 
     if (anySignerUrl) {
       return NextResponse.json({
