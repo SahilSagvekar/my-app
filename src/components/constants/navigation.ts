@@ -73,6 +73,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
     { id: 'daily-targets', label: 'Daily Targets', icon: Target },
     { id: 'content-titling', label: 'Content Titling', icon: Sparkles },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'reports', label: 'Analytics', icon: FileSpreadsheet },
     { id: 'training', label: 'Training', icon: Layout },

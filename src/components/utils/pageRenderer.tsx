@@ -305,6 +305,8 @@ export function renderPage(
         return <SchedulerResourcesPage />;
       case "reports":
         return <SchedulerReportsPage />;
+      case "drive":
+        return <DriveExplorer role={role} />;
       case "training":
         return <TrainingPortalPage />;
       case "employment-info":

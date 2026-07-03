@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       const companyName = clientRecord.companyName || clientRecord.name;
       prefix = `${companyName}/`;
 
-    } else if (role === 'admin' || role === 'manager') {
+    } else if (role === 'admin' || role === 'manager' || role === 'scheduler') {
       // Admin/manager must pass a clientId — file server blocks empty-prefix scans
       if (clientId) {
         const clientRecord = await prisma.client.findUnique({
