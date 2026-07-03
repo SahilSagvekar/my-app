@@ -68,7 +68,6 @@ export async function POST(req: NextRequest) {
         phone: phone || null,
         companyName: companyName || null,
         createdById: user.id,
-        updatedAt: new Date(),
       },
       include: {
         createdBy: { select: { id: true, name: true, email: true } },
