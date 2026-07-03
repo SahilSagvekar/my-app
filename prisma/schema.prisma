@@ -1754,7 +1754,7 @@ model OnboardingToken {
   usedAt    DateTime?
   expiresAt DateTime
   createdAt DateTime  @default(now())
-  Client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
 
 model PreClient {
