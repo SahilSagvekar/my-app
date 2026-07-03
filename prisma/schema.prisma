@@ -336,7 +336,7 @@ model Client {
   welcomeVideoWatched          Boolean                  @default(false)
   brandAssets                  BrandAsset[]
   user                         User?                    @relation(fields: [userId], references: [id])
-  ClientPortalAccess           ClientPortalAccess?
+  portalAccess                 ClientPortalAccess?
   revenues                     ClientRevenue[]
   editorClientPermissions      EditorClientPermission[] @relation("EditorClientPerms")
   facebookPages                FacebookPage[]

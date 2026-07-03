@@ -29,10 +29,10 @@ export async function POST(
     if (contract.clientId) {
       const client = await prisma.client.findUnique({
         where: { id: contract.clientId },
-        include: { ClientPortalAccess: true }
+        include: { portalAccess: true }
       });
       if (client) {
-        (client as any).portalAccess = client.ClientPortalAccess;
+        (client as any).portalAccess = client.portalAccess;
       }
       (contract as any).client = client;
     }
