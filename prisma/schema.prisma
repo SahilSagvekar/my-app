@@ -1767,8 +1767,8 @@ model PreClient {
   createdById Int
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-  User        User            @relation(fields: [createdById], references: [id])
-  Quote       Quote[]
+  createdBy   User            @relation(fields: [createdById], references: [id])
+  quotes      Quote[]
 
   @@index([createdById])
   @@index([status])
