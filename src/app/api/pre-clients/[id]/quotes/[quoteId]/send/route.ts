@@ -43,7 +43,7 @@ export async function POST(
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://e8productions.com';
     const quoteUrl = `${baseUrl}/quote/${quote.shareToken}`;
-    const isResend = quote.sentAt !== null;
+    const isResend = quote.sentAt !== null || quote.version > 1;
 
     const transporter = getTransporter();
     await transporter.sendMail({

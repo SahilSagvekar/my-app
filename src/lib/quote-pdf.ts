@@ -53,10 +53,7 @@ function wrapText(text: string, maxWidth: number, font: any, fontSize: number): 
 }
 
 export async function generateQuotePdf(quote: Quote, preClient: PreClient): Promise<Buffer> {
-  const pdfDoc = await PDFDocument.load(
-    // Create an empty PDF to write on
-    await (await PDFDocument.create()).save()
-  );
+  const pdfDoc = await PDFDocument.create();
   
   const font = await pdfDoc.embedFont('Helvetica');
   const boldFont = await pdfDoc.embedFont('Helvetica-Bold');

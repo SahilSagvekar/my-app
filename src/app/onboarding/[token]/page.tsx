@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-const LOOM_VIDEO_URL = process.env.NEXT_PUBLIC_LOOM_ONBOARDING_URL || "";
-const LOOM_URL_VALID =
-  LOOM_VIDEO_URL.includes("loom.com/embed/") &&
-  !LOOM_VIDEO_URL.includes("YOUR_LOOM_ID_HERE");
+const GDRIVE_VIDEO_URL = process.env.NEXT_PUBLIC_GDRIVE_ONBOARDING_URL || "";
+const GDRIVE_URL_VALID =
+  GDRIVE_VIDEO_URL.includes("drive.google.com") &&
+  !GDRIVE_VIDEO_URL.includes("YOUR_FILE_ID_HERE");
 
 type Stage = "loading" | "invalid" | "expired" | "used" | "video" | "password" | "done";
 
@@ -49,48 +49,23 @@ export default function OnboardingPage() {
       .catch(() => setStage("invalid"));
   }, [token]);
 
-  // Listen for Loom message events (video end + progress)
+  // Google Drive doesn't emit postMessages — use a timer to track watch progress
   useEffect(() => {
-    let durationSecs = 0;
-
-    function handleMessage(e: MessageEvent) {
-      if (!e.data || typeof e.data !== 'object') return;
-      const { type } = e.data;
-
-      // Video ended
-      if (type === 'loom:video-ended' || type === 'video-ended') {
+    if (stage !== 'video') return;
+    // Tick every second and simulate progress over 120s (adjust to your video length)
+    const VIDEO_DURATION_S = 120;
+    let elapsed = 0;
+    const interval = setInterval(() => {
+      elapsed += 1;
+      const pct = Math.min(100, Math.round((elapsed / VIDEO_DURATION_S) * 100));
+      setVideoProgress(pct);
+      if (pct >= 85) {
         setVideoEnded(true);
-        setVideoProgress(100);
+        clearInterval(interval);
       }
-
-      // Progress via currentTime (most reliable Loom event)
-      if (type === 'loom:currentTime' && e.data.currentTime != null) {
-        if (durationSecs > 0) {
-          const pct = Math.min(100, Math.round((e.data.currentTime / durationSecs) * 100));
-          setVideoProgress(pct);
-          // Unlock at 85% — accounts for Loom sometimes not firing ended event
-          if (pct >= 85) {
-            setVideoEnded(true);
-          }
-        }
-      }
-
-      // Duration event — capture video length
-      if (type === 'loom:duration' && e.data.duration) {
-        durationSecs = e.data.duration;
-      }
-
-      // Legacy progress event
-      if (type === 'loom:video:progress' && e.data.progress != null) {
-        const pct = Math.round(e.data.progress * 100);
-        setVideoProgress(pct);
-        if (pct >= 85) setVideoEnded(true);
-      }
-    }
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [stage]);
 
   // Fallback: show manual "I've finished" button after 30 seconds
   // in case Loom postMessages never fire (iframe sandboxing, cross-origin, etc.)
@@ -189,12 +164,12 @@ export default function OnboardingPage() {
 
   // ── Video stage ──────────────────────────────────────────────────────────
   if (stage === "video") {
-    // Guard: misconfigured Loom URL
-    if (!LOOM_URL_VALID) {
+    // Guard: misconfigured Google Drive URL
+    if (!GDRIVE_URL_VALID) {
       console.error(
-        "[Onboarding] NEXT_PUBLIC_LOOM_ONBOARDING_URL is missing or invalid.",
-        "Set it to a Loom embed URL like: https://www.loom.com/embed/3b9e9c1ba72b4e3aa9e7451aaac52044",
-        "Current value:", LOOM_VIDEO_URL || "(empty)"
+        "[Onboarding] NEXT_PUBLIC_GDRIVE_ONBOARDING_URL is missing or invalid.",
+        "Set it to a Google Drive embed URL like: https://drive.google.com/file/d/FILE_ID/preview",
+        "Current value:", GDRIVE_VIDEO_URL || "(empty)"
       );
       return (
         <FullScreen>
@@ -229,11 +204,11 @@ export default function OnboardingPage() {
           </p>
         </div>
 
-        {/* Loom embed — fullscreen allowed, no overlay blocking */}
+        {/* Google Drive embed */}
         <div className="w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl bg-black">
           <div className="relative pb-[56.25%] h-0">
             <iframe
-              src={`${LOOM_VIDEO_URL}?autoplay=1&hideEmbedTopBar=true&hide_owner=true&hide_share=true&hide_title=true`}
+              src={GDRIVE_VIDEO_URL}
               className="absolute top-0 left-0 w-full h-full"
               frameBorder="0"
               allowFullScreen
@@ -290,10 +265,8 @@ export default function OnboardingPage() {
           {/* Header */}
           <div className="text-center mb-8">
             <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg viewBox="0 0 40 40" className="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <text x="50%" y="56%" dominantBaseline="middle" textAnchor="middle"
-                  fontFamily="Arial, sans-serif" fontWeight="900" fontSize="18" fill="#1d4ed8"
-                  letterSpacing="1">E8</text>
+              <svg viewBox="0 0 370.08 496.58" className="w-8 h-8" fill="#1d4ed8" xmlns="http://www.w3.org/2000/svg">
+                <path d="M370.08,111.08v274.43l-.99,10.88c-7.12,55.78-54.98,98.68-111.19,100.2H111.71c-56-2.02-103.16-43.93-110.72-99.48L0,387.42C0,294.67.01,201.91,0,109.16,2.69,51.08,50.91,2.78,109.07,0h151.7c59.51,2.98,107.01,51.79,109.31,111.08ZM254.64,14.64H110.27C57.77,17.38,16.53,59.7,14.63,112.15v271.81c1.87,54.01,44.72,96.62,98.76,97.99h141.25v-72.69H114.83c-14.27-.41-26.11-11.55-27.23-25.79v-98.95s97.44,0,97.44,0v-72.68h-97.44v-98.71c.97-13.67,11.91-24.67,25.55-25.8h141.49s0-72.68,0-72.68ZM267.6,197.2v-84.56c0-4.53-6.98-10.84-11.64-10.67-47.95.22-95.99-.47-143.88.35-4.92,1.13-9.83,6.62-9.83,11.76v83.12h165.36ZM267.6,299.15H102.24v83.12c0,5.81,5.68,11.63,11.39,12.12h143.05c4.54-.18,10.92-6.2,10.92-10.68v-84.56Z" />
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Create your password</h2>
