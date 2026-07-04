@@ -306,7 +306,7 @@ function QuoteBuilderDialog({
             <div style={{ padding: '12px 32px 6px' }}>
               <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>
                 Thank you for the opportunity. Below is your monthly engagement for{' '}
-                <span style={{ color: '#1a56db' }}>full-service social media content production, publishing, and management across five platforms.</span>
+                <span style={{ color: '#374151' }}>full-service social media content production, publishing, and management across five platforms.</span>
               </p>
             </div>
 
