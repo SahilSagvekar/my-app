@@ -132,6 +132,8 @@ function getFileBadgeCounts(files: SchedulerTask['files']) {
             counts.thumbnails++;
         } else if (ft === 'music-license') {
             counts.musicLicenses++;
+        } else if (ft === 'main' && f.mimeType?.startsWith('image/')) {
+            counts.thumbnails++; // hard post images in main folder
         } else if (ft === 'main' || f.mimeType?.startsWith('video/')) {
             counts.videos++;
         } else {
@@ -997,8 +999,9 @@ export function SchedulerSpreadsheetView() {
                                                           ([a], [b]) => (order[a] ?? 5) - (order[b] ?? 5)
                                                         );
                                                       })().map(([folderType, folderFiles]) => {
+                                                        const isHardPostImages = folderType === 'main' && folderFiles.every(f => f.mimeType?.startsWith('image/'));
                                                         const folderLabels: Record<string, string> = {
-                                                          main: 'Main Video',
+                                                          main: isHardPostImages ? 'Images' : 'Main Video',
                                                           thumbnails: 'Thumbnails',
                                                           'music-license': 'Music Licenses',
                                                           covers: 'Covers',
@@ -1013,7 +1016,7 @@ export function SchedulerSpreadsheetView() {
                                                             <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-gray-100 px-2 py-1 rounded inline-flex items-center gap-1.5">
                                                               {folderType === 'thumbnails' && <ImageIcon className="h-3 w-3" />}
                                                               {folderType === 'music-license' && <Music className="h-3 w-3" />}
-                                                              {folderType === 'main' && <Video className="h-3 w-3" />}
+                                                              {folderType === 'main' && folderFiles.every(f => f.mimeType?.startsWith('image/')) ? <ImageIcon className="h-3 w-3" /> : folderType === 'main' && <Video className="h-3 w-3" />}
                                                               {label}
                                                               <span className="font-normal opacity-60">({folderFiles.length})</span>
                                                             </h5>
@@ -1031,7 +1034,7 @@ export function SchedulerSpreadsheetView() {
                                                                         <Video className="h-4 w-4 text-blue-500 flex-shrink-0" />
                                                                       ) : isImage ? (
                                                                         <img
-                                                                          src={file.url}
+                                                                          src={getFileUrl(file)}
                                                                           alt={file.name}
                                                                           className="h-10 w-14 object-cover rounded flex-shrink-0 border border-zinc-200"
                                                                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
