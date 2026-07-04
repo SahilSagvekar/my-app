@@ -146,12 +146,16 @@ function QuoteBuilderDialog({
   const [savedQuote, setSavedQuote]         = useState<Quote | null>(existingQuote);
 
   const total = services.reduce((s, l) => s + l.total, 0);
-  const quoteNumber = savedQuote
+  const defaultQuoteNumber = savedQuote
     ? `E8-${new Date(savedQuote.createdAt).getFullYear()}-${String(savedQuote.version).padStart(4, '0')}`
     : 'E8-DRAFT';
-  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const validUntil = new Date(Date.now() + validDays * 86400000)
+  const defaultDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const defaultValidUntil = new Date(Date.now() + validDays * 86400000)
     .toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const [quoteNumberEdit, setQuoteNumberEdit] = useState(defaultQuoteNumber);
+  const [quoteDateEdit, setQuoteDateEdit]     = useState(defaultDate);
+  const [validUntilEdit, setValidUntilEdit]   = useState(defaultValidUntil);
 
   function updateLine(i: number, field: keyof ServiceLine | 'details', raw: string) {
     setServices((prev) => {
@@ -233,15 +237,6 @@ function QuoteBuilderDialog({
             {savedQuote && <span style={{ color: '#60a5fa', fontSize: 11, marginLeft: 8 }}>v{savedQuote.version} saved ✓</span>}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#93c5fd', fontSize: 12 }}>
-              <span>Valid for</span>
-              <input
-                type="number" min={1} max={90} value={validDays}
-                onChange={(e) => setValidDays(parseInt(e.target.value) || 30)}
-                style={{ width: 46, border: '1px solid #3b82f6', borderRadius: 4, padding: '2px 6px', fontSize: 12, textAlign: 'center', background: '#1e40af', color: '#fff', outline: 'none' }}
-              />
-              <span>days</span>
-            </div>
             <button
               onClick={handleSave} disabled={saving}
               style={{ background: '#fff', color: '#1e3a8a', border: 'none', borderRadius: 6, padding: '6px 18px', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}
@@ -273,9 +268,30 @@ function QuoteBuilderDialog({
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', fontFamily: 'Arial, sans-serif', fontSize: 11, color: '#374151', lineHeight: 2 }}>
-                  <div>Quote No. <strong>{quoteNumber}</strong></div>
-                  <div>Date <strong>{today}</strong></div>
-                  <div>Valid Until <strong style={{ color: '#1a56db' }}>{validUntil}</strong></div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                    Quote No.&nbsp;
+                    <input
+                      value={quoteNumberEdit}
+                      onChange={(e) => setQuoteNumberEdit(e.target.value)}
+                      style={{ ...inStyle, width: 120, fontSize: 11, fontWeight: 700, padding: '1px 5px', textAlign: 'right' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                    Date&nbsp;
+                    <input
+                      value={quoteDateEdit}
+                      onChange={(e) => setQuoteDateEdit(e.target.value)}
+                      style={{ ...inStyle, width: 140, fontSize: 11, fontWeight: 700, padding: '1px 5px', textAlign: 'right' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                    Valid Until&nbsp;
+                    <input
+                      value={validUntilEdit}
+                      onChange={(e) => setValidUntilEdit(e.target.value)}
+                      style={{ ...inStyle, width: 140, fontSize: 11, fontWeight: 700, padding: '1px 5px', textAlign: 'right', color: '#1a56db' }}
+                    />
+                  </div>
                 </div>
               </div>
               <div style={{ borderTop: '2.5px solid #1a56db', marginTop: 16, marginBottom: 14 }} />
@@ -390,22 +406,16 @@ function QuoteBuilderDialog({
               <div style={{ fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', color: '#1a56db', textTransform: 'uppercase', marginBottom: 8 }}>{"What's Included Every Month:"}</div>
               <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.9 }}>
                 {inclusions.map((item, i) => (
-                  <li key={i} style={{ marginBottom: 4 }}>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input
-                        value={item}
-                        onChange={(e) => { const n = [...inclusions]; n[i] = e.target.value; setInclusions(n); }}
-                        style={{ ...inStyle, flex: 1, fontSize: 12, resize: 'none' as const }}
-                      />
-                      <button
-                        onClick={() => setInclusions((p) => p.filter((_, j) => j !== i))}
-                        style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', padding: 3, borderRadius: 4, flexShrink: 0 }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#d1d5db'; }}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                  <li key={i} style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ flex: 1, fontSize: 12, fontFamily: 'Arial, sans-serif', color: '#374151' }}>{item}</span>
+                    <button
+                      onClick={() => setInclusions((p) => p.filter((_, j) => j !== i))}
+                      style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', padding: 3, borderRadius: 4, flexShrink: 0 }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#d1d5db'; }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </li>
                 ))}
               </ul>
