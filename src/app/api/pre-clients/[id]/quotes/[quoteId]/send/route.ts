@@ -43,12 +43,15 @@ export async function POST(
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://e8productions.com';
     const quoteUrl = `${baseUrl}/quote/${quote.shareToken}`;
+    const isResend = quote.sentAt !== null;
 
     const transporter = getTransporter();
     await transporter.sendMail({
       from: `"E8 Productions" <eric@e8productions.com>`,
       to: quote.preClient.email,
-      subject: `Your Quote from E8 Productions — ${quote.preClient.name}`,
+      subject: isResend
+        ? `Your Revised Quote from E8 Productions — ${quote.preClient.name}`
+        : `Your Quote from E8 Productions — ${quote.preClient.name}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
           <div style="border-bottom: 3px solid #0066ff; padding-bottom: 16px; margin-bottom: 24px;">

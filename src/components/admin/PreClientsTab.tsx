@@ -404,7 +404,7 @@ function QuoteBuilderDialog({
             {/* What's Included */}
             <div style={{ padding: '18px 32px 0' }}>
               <div style={{ fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', color: '#1a56db', textTransform: 'uppercase', marginBottom: 8 }}>{"What's Included Every Month:"}</div>
-              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.9 }}>
+              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.9, listStyleType: "disc" }}>
                 {inclusions.map((item, i) => (
                   <li key={i} style={{ marginBottom: 4 }}>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -436,7 +436,7 @@ function QuoteBuilderDialog({
             {/* Terms */}
             <div style={{ padding: '18px 32px 0' }}>
               <div style={{ fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', color: '#1a56db', textTransform: 'uppercase', marginBottom: 8 }}>Terms:</div>
-              <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
+              <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8, listStyleType: "decimal" }}>
                 {terms.map((term, i) => (
                   <li key={i} style={{ marginBottom: 10 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

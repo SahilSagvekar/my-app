@@ -558,7 +558,7 @@ export default function QuotePage() {
         {/* ── WHAT'S INCLUDED ── */}
         <div style={{ padding: "22px 36px 0" }}>
           <div style={sectionTitle}>What's Included Every Month:</div>
-          <ul style={{ margin: 0, paddingLeft: 18, color: "#1a1a1a", lineHeight: 2 }}>
+          <ul style={{ margin: 0, paddingLeft: 18, color: "#1a1a1a", lineHeight: 2, listStyleType: "disc" }}>
             {localInclusions.map((item, i) => (
               <li key={i} style={{ marginBottom: isEdit ? 6 : 2 }}>
                 {isEdit ? (
@@ -584,7 +584,7 @@ export default function QuotePage() {
         {/* ── TERMS ── */}
         <div style={{ padding: "22px 36px 0" }}>
           <div style={sectionTitle}>Terms:</div>
-          <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
+          <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8, listStyleType: "decimal" }}>
             {localTerms.map((term, i) => (
               <li key={i} style={{ marginBottom: isEdit ? 10 : 6 }}>
                 {isEdit ? (
