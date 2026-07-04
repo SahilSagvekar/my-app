@@ -47,9 +47,10 @@ async function sendMagicLinkEmail(params: {
         </div>
         <p style="font-size: 16px;">Hi ${params.clientName},</p>
         <p style="font-size: 15px; line-height: 1.7; color: #444;">
-          Your proposal has been accepted and your E8 client portal is ready.
-          Click the button below to get started — you'll watch a quick welcome video,
-          set your password, and sign your contract all in one flow.
+          Your proposal has been accepted and it is attached below for
+          your records. Next step is your E8 client portal is ready. Click the 
+          button below to get started — you'll watch a quick welcome
+          video, set your password, and sign the agreements all at once.
         </p>
         <div style="text-align: center; margin: 36px 0;">
           <a href="${params.magicLink}"
