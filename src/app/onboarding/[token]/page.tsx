@@ -195,17 +195,22 @@ export default function OnboardingPage() {
     }
 
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 py-10">
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4 py-8">
         {/* E8 header */}
-        <div className="mb-8 text-center">
-          <div className="text-white font-bold text-2xl tracking-tight">E8 Productions</div>
-          <p className="text-gray-400 text-sm mt-1">
+        <div className="mb-6 text-center flex flex-col items-center">
+          <div className="flex items-center gap-3 mb-1">
+            <svg viewBox="0 0 370.08 496.58" className="w-7 h-9" fill="white" xmlns="http://www.w3.org/2000/svg">
+              <path d="M370.08,111.08v274.43l-.99,10.88c-7.12,55.78-54.98,98.68-111.19,100.2H111.71c-56-2.02-103.16-43.93-110.72-99.48L0,387.42C0,294.67.01,201.91,0,109.16,2.69,51.08,50.91,2.78,109.07,0h151.7c59.51,2.98,107.01,51.79,109.31,111.08ZM254.64,14.64H110.27C57.77,17.38,16.53,59.7,14.63,112.15v271.81c1.87,54.01,44.72,96.62,98.76,97.99h141.25v-72.69H114.83c-14.27-.41-26.11-11.55-27.23-25.79v-98.95s97.44,0,97.44,0v-72.68h-97.44v-98.71c.97-13.67,11.91-24.67,25.55-25.8h141.49s0-72.68,0-72.68ZM267.6,197.2v-84.56c0-4.53-6.98-10.84-11.64-10.67-47.95.22-95.99-.47-143.88.35-4.92,1.13-9.83,6.62-9.83,11.76v83.12h165.36ZM267.6,299.15H102.24v83.12c0,5.81,5.68,11.63,11.39,12.12h143.05c4.54-.18,10.92-6.2,10.92-10.68v-84.56Z" />
+            </svg>
+            <div className="text-white font-bold text-2xl tracking-tight">E8 Productions</div>
+          </div>
+          <p className="text-gray-400 text-sm">
             Welcome, {client?.name} 👋 — Watch this quick video before setting up your portal
           </p>
         </div>
 
         {/* Google Drive embed */}
-        <div className="w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl bg-black">
+        <div className="w-full max-w-6xl rounded-2xl overflow-hidden shadow-2xl bg-black" style={{ width: '90vw', maxWidth: '1200px' }}>
           <div className="relative pb-[56.25%] h-0">
             <iframe
               src={GDRIVE_VIDEO_URL}
@@ -230,7 +235,7 @@ export default function OnboardingPage() {
             onClick={() => setStage('password')}
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-10 py-4 rounded-xl text-base transition"
           >
-            Continue — Set up my password →
+            Continue — Set Up My Password →
           </button>
         </div>
 
@@ -314,7 +319,7 @@ export default function OnboardingPage() {
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold
                          py-3 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed mt-2"
             >
-              {submitting ? "Setting up your portal..." : "Set password & enter portal →"}
+              {submitting ? "Setting Up Your Portal..." : "Set Password & Enter Portal →"}
             </button>
           </div>
 
