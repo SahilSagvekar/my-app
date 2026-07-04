@@ -234,7 +234,7 @@ function QuoteBuilderDialog({
         <div style={{ background: '#1e3a8a', padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '8px 8px 0 0', flexShrink: 0 }}>
           <span style={{ color: '#93c5fd', fontSize: 13, fontWeight: 500 }}>
             Quote Builder — <span style={{ color: '#fff' }}>{preClient.name}</span>
-            {savedQuote && <span style={{ color: '#60a5fa', fontSize: 11, marginLeft: 8 }}>v{savedQuote.version} saved ✓</span>}
+            {savedQuote && <span style={{ color: '#60a5fa', fontSize: 11, marginLeft: 8 }}>V{savedQuote.version} saved ✓</span>}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
@@ -406,16 +406,22 @@ function QuoteBuilderDialog({
               <div style={{ fontFamily: 'Arial, sans-serif', fontWeight: 700, fontSize: 10, letterSpacing: '0.1em', color: '#1a56db', textTransform: 'uppercase', marginBottom: 8 }}>{"What's Included Every Month:"}</div>
               <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.9 }}>
                 {inclusions.map((item, i) => (
-                  <li key={i} style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ flex: 1, fontSize: 12, fontFamily: 'Arial, sans-serif', color: '#374151' }}>{item}</span>
-                    <button
-                      onClick={() => setInclusions((p) => p.filter((_, j) => j !== i))}
-                      style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', padding: 3, borderRadius: 4, flexShrink: 0 }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#d1d5db'; }}
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                  <li key={i} style={{ marginBottom: 4 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        value={item}
+                        onChange={(e) => { const n = [...inclusions]; n[i] = e.target.value; setInclusions(n); }}
+                        style={{ ...inStyle, flex: 1, fontSize: 12, resize: 'none' as const }}
+                      />
+                      <button
+                        onClick={() => setInclusions((p) => p.filter((_, j) => j !== i))}
+                        style={{ background: 'none', border: 'none', color: '#d1d5db', cursor: 'pointer', padding: 3, borderRadius: 4, flexShrink: 0 }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#d1d5db'; }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -724,7 +730,7 @@ export function PreClientsTab() {
                         QUOTE_STATUS_CONFIG[latestQuote.status].color)}>
                         {QUOTE_STATUS_CONFIG[latestQuote.status].icon}
                         Quote {QUOTE_STATUS_CONFIG[latestQuote.status].label}
-                        {latestQuote.version > 1 && <span className="ml-0.5">v{latestQuote.version}</span>}
+                        {latestQuote.version > 1 && <span className="ml-0.5">V{latestQuote.version}</span>}
                       </div>
                     )}
                     <span className={cn('text-xs px-2 py-1 rounded-full font-medium', statusCfg.color)}>
@@ -793,7 +799,7 @@ export function PreClientsTab() {
                                 className="bg-white border border-gray-200 rounded-lg px-4 py-3 flex items-center gap-4"
                               >
                                 <div className={cn('flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0', qCfg.color)}>
-                                  {qCfg.icon} v{q.version} — {qCfg.label}
+                                  {qCfg.icon} V{q.version} — {qCfg.label}
                                 </div>
                                 <div className="flex-1 text-sm text-gray-700 font-medium">
                                   {fmt(q.totalAmount)}/mo

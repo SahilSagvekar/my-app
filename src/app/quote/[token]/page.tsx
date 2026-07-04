@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { CheckCircle2, MessageSquare } from "lucide-react";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
@@ -672,16 +673,20 @@ export default function QuotePage() {
                 <button
                   onClick={handleAccept}
                   disabled={submitting}
-                  style={{ flex: 1, background: "#1a56db", color: "#fff", border: "none", borderRadius: 8, padding: "14px 0", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1, fontFamily: "Arial, sans-serif", letterSpacing: "0.02em" }}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl text-[15px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all py-3.5 flex items-center justify-center gap-2"
+                  style={{ border: "none", fontFamily: "Arial, sans-serif" }}
                 >
-                  {submitting ? "Processing..." : "✓  Accept Quote"}
+                  <CheckCircle2 size={18} />
+                  <span>{submitting ? "Processing..." : "Accept Quote"}</span>
                 </button>
                 <button
                   onClick={() => { setViewState("reject_form"); setError(""); }}
                   disabled={submitting}
-                  style={{ flex: 1, background: "#fff", color: "#374151", border: "1.5px solid #d1d5db", borderRadius: 8, padding: "14px 0", fontWeight: 600, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.6 : 1, fontFamily: "Arial, sans-serif" }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl text-[15px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all py-3.5 flex items-center justify-center gap-2"
+                  style={{ border: "none", fontFamily: "Arial, sans-serif" }}
                 >
-                  Request Changes
+                  <MessageSquare size={18} />
+                  <span>Request Changes</span>
                 </button>
               </div>
             </div>
