@@ -438,7 +438,24 @@ export default function QuotePage() {
       )}
 
       {/* ── DOCUMENT ── */}
-      <div className="quote-doc" style={doc}>
+      <div className="quote-doc" style={{ ...doc, position: "relative", overflow: "hidden" }}>
+        {quote.status === "ACCEPTED" && (
+          <img
+            src="/icons/accepted_stamp_e8.svg"
+            alt="Accepted"
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "420px",
+              opacity: 0.18,
+              pointerEvents: "none",
+              zIndex: 10,
+              userSelect: "none",
+            }}
+          />
+        )}
 
         {/* ── TOP HEADER ── */}
         <div style={{ padding: "24px 36px 0" }}>

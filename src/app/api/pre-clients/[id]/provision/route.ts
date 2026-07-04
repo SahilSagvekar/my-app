@@ -6,6 +6,7 @@ import { createClientFolders } from '@/lib/s3';
 import { createClientSlackChannel } from '@/lib/client-onboarding';
 import nodemailer from 'nodemailer';
 import { createRecurringTasksForClient } from '@/app/api/clients/recurring';
+import { generateQuotePdf } from '@/lib/quote-pdf';
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -23,12 +24,18 @@ async function sendMagicLinkEmail(params: {
   clientName: string;
   email: string;
   magicLink: string;
+  attachment?: {
+    filename: string;
+    content: Buffer;
+    contentType: string;
+  } | null;
 }) {
   const transporter = getTransporter();
   await transporter.sendMail({
     from: `"E8 Productions" <${process.env.SMTP_USER}>`,
     to: params.email,
     subject: `Welcome to E8 Productions — Set up your portal`,
+    attachments: params.attachment ? [params.attachment] : [],
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
                   max-width: 560px; margin: 0 auto; padding: 40px 20px; color: #333;">
@@ -182,6 +189,22 @@ export async function POST(
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const magicLink = `${baseUrl}/onboarding/${onboardingToken.token}`;
 
+    // Generate PDF of accepted quote
+    let quoteAttachment = null;
+    const acceptedQuote = preClient.quotes[0];
+    if (acceptedQuote) {
+      try {
+        const pdfBuffer = await generateQuotePdf(acceptedQuote as any, preClient as any);
+        quoteAttachment = {
+          filename: 'accepted_quote.pdf',
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        };
+      } catch (pdfErr: any) {
+        console.error('[Provision] Failed to generate quote PDF:', pdfErr);
+      }
+    }
+
     // Send magic link email — await so errors surface instead of being silently swallowed
     let emailSent = false;
     try {
@@ -189,6 +212,7 @@ export async function POST(
         clientName: preClient.name,
         email: preClient.email,
         magicLink,
+        attachment: quoteAttachment,
       });
       emailSent = true;
       console.log(`✅ [Provision] Magic link email sent to ${preClient.email}`);

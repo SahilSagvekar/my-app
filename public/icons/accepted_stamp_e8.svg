@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -60 1280 660" width="1280" height="660">
+  <g transform="rotate(-8 600 275)">
+    <!-- Outer border -->
+    <rect x="60" y="60" width="1080" height="430" rx="28" ry="28"
+          fill="none" stroke="#39FF14" stroke-width="10"/>
+    <!-- Inner border -->
+    <rect x="82" y="82" width="1036" height="386" rx="20" ry="20"
+          fill="none" stroke="#39FF14" stroke-width="4"/>
+
+    <!-- Main text: ACCEPTED -->
+    <text x="600" y="290"
+          font-family="'Arial Black', Arial, Helvetica, sans-serif"
+          font-weight="900"
+          font-size="140"
+          letter-spacing="6"
+          fill="#39FF14"
+          text-anchor="middle">ACCEPTED</text>
+
+    <!-- Divider line -->
+    <line x1="220" y1="345" x2="980" y2="345" stroke="#39FF14" stroke-width="4"/>
+
+    <!-- Company name -->
+    <text x="600" y="410"
+          font-family="Arial, Helvetica, sans-serif"
+          font-weight="bold"
+          font-size="46"
+          letter-spacing="3"
+          fill="#39FF14"
+          text-anchor="middle">E8 PRODUCTIONS, LLC</text>
+  </g>
+</svg>

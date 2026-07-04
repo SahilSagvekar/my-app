@@ -253,9 +253,25 @@ function QuoteBuilderDialog({
           </div>
         </div>
 
-        {/* ── Document area ── */}
         <div style={{ background: '#e5e7eb', padding: '16px 24px 24px' }}>
-          <div style={{ background: '#fff', margin: '0 auto', width: '100%', boxShadow: '0 2px 16px rgba(0,0,0,0.12)', fontFamily: 'Georgia, Times New Roman, serif', fontSize: 13, color: '#1a1a1a', lineHeight: 1.65 }}>
+          <div style={{ background: '#fff', margin: '0 auto', width: '100%', boxShadow: '0 2px 16px rgba(0,0,0,0.12)', fontFamily: 'Georgia, Times New Roman, serif', fontSize: 13, color: '#1a1a1a', lineHeight: 1.65, position: 'relative', overflow: 'hidden' }}>
+            {savedQuote?.status === 'ACCEPTED' && (
+              <img
+                src="/icons/accepted_stamp_e8.svg"
+                alt="Accepted"
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '420px',
+                  opacity: 0.18,
+                  pointerEvents: 'none',
+                  zIndex: 10,
+                  userSelect: 'none',
+                }}
+              />
+            )}
 
             {/* Header */}
             <div style={{ padding: '20px 32px 0' }}>
