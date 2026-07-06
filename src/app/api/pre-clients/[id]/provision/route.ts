@@ -22,11 +22,11 @@ function getTransporter() {
   });
 }
 
-async function sendMagicLinkEmail(params: {
+// Email 1 — all 3 documents (quote, schedules, service agreement), no portal link
+async function sendDocumentsEmail(params: {
   clientName: string;
   email: string;
-  magicLink: string;
-  attachments?: Array<{
+  attachments: Array<{
     filename: string;
     content: Buffer;
     contentType: string;
@@ -36,8 +36,8 @@ async function sendMagicLinkEmail(params: {
   await transporter.sendMail({
     from: `"E8 Productions" <${process.env.SMTP_USER}>`,
     to: params.email,
-    subject: `Welcome to E8 Productions — Set up your portal`,
-    attachments: params.attachments || [],
+    subject: `Your E8 Productions documents`,
+    attachments: params.attachments,
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
                   max-width: 560px; margin: 0 auto; padding: 40px 20px; color: #333;">
@@ -51,8 +51,44 @@ async function sendMagicLinkEmail(params: {
         <p style="font-size: 15px; line-height: 1.7; color: #444;">
           Your proposal has been accepted — your accepted quote, Schedules A &amp; B,
           and Professional Services Agreement are attached below for your records.
-          Next step is your E8 client portal is ready. Click the button below to
-          get started — you'll watch a quick welcome video, set your password,
+          You'll finish signing the Professional Services Agreement inside your
+          client portal once it's set up (see separate email).
+        </p>
+        <div style="border-top: 1px solid #eee; margin-top: 36px; padding-top: 16px;">
+          <p style="font-size: 12px; color: #aaa; margin: 0;">
+            E8 Productions, LLC ·
+            <a href="https://e8productions.com" style="color: #0066ff;">e8productions.com</a>
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}
+
+// Email 2 — portal setup magic link, no attachments
+async function sendMagicLinkEmail(params: {
+  clientName: string;
+  email: string;
+  magicLink: string;
+}) {
+  const transporter = getTransporter();
+  await transporter.sendMail({
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: params.email,
+    subject: `Welcome to E8 Productions — Set up your portal`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                  max-width: 560px; margin: 0 auto; padding: 40px 20px; color: #333;">
+        <div style="border-bottom: 3px solid #0066ff; padding-bottom: 16px; margin-bottom: 28px;">
+          <div style="font-size: 22px; font-weight: 700; color: #000;">E8 Productions</div>
+          <div style="font-size: 12px; color: #666; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px;">
+            Full Service Video + Content
+          </div>
+        </div>
+        <p style="font-size: 16px;">Hi ${params.clientName},</p>
+        <p style="font-size: 15px; line-height: 1.7; color: #444;">
+          Your E8 client portal is ready. Click the button below to get
+          started — you'll watch a quick welcome video, set your password,
           and sign the Professional Services Agreement all at once.
         </p>
         <div style="text-align: center; margin: 36px 0;">
@@ -211,8 +247,12 @@ export async function POST(
           title: `Professional Services Agreement — ${preClient.companyName || preClient.name}`,
           clientId: client.id,
           createdById: user.id,
-          signers: [{ name: preClient.name, email: preClient.email }],
-          sendEmail: false,
+          signers: [
+            // Client signs via embedded SignWell iframe inside the portal — no separate SignWell email needed.
+            { name: preClient.name, email: preClient.email, sendEmail: false },
+            // E8 Productions always co-signs the PSA — needs SignWell's own email since they sign remotely, not via the client portal.
+            { name: 'Eric Davis', email: 'eric@e8productions.com', sendEmail: true },
+          ],
         });
         console.log(`✅ [Provision] Contract generated and sent for ${client.name}`);
       } catch (contractErr: any) {
@@ -282,14 +322,25 @@ export async function POST(
       emailAttachments.push({ filename: 'service_agreement.pdf', content: contractPdfBuffer, contentType: 'application/pdf' });
     }
 
-    // Send magic link email — await so errors surface instead of being silently swallowed
+    // Send the 2 onboarding emails — await so errors surface instead of being silently swallowed
     let emailSent = false;
+    if (emailAttachments.length > 0) {
+      try {
+        await sendDocumentsEmail({
+          clientName: preClient.name,
+          email: preClient.email,
+          attachments: emailAttachments,
+        });
+        console.log(`✅ [Provision] Documents email sent to ${preClient.email}`);
+      } catch (emailErr: any) {
+        console.error('[Provision] Documents email FAILED:', emailErr?.message || emailErr);
+      }
+    }
     try {
       await sendMagicLinkEmail({
         clientName: preClient.name,
         email: preClient.email,
         magicLink,
-        attachments: emailAttachments,
       });
       emailSent = true;
       console.log(`✅ [Provision] Magic link email sent to ${preClient.email}`);

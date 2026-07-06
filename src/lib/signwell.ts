@@ -29,7 +29,6 @@ export async function createSignWellDocumentFromFile(params: {
   expiresInDays?: number;
   testMode?: boolean;
   embeddedSigning?: boolean; // request embedded signing URLs
-  sendEmail?: boolean; // set false to suppress SignWell's own notification email (e.g. when it's bundled into our own email instead)
 }): Promise<{
   id: string;
   status: string;
@@ -48,13 +47,14 @@ export async function createSignWellDocumentFromFile(params: {
     embedded_signing_url?: string;
   }>;
 }> {
-  const sendEmail = params.sendEmail ?? true;
   const body: any = {
     test_mode: params.testMode ?? process.env.NODE_ENV !== 'production',
     name: params.name,
     subject: params.subject,
     message: params.message || '',
-    send_email: sendEmail,
+    // Per-recipient send_email below controls who's actually notified —
+    // this top-level flag just needs to allow at least one recipient through.
+    send_email: true,
     with_signature_page: true,
     embedded_signing: params.embeddedSigning ?? true,
     files: [
@@ -67,7 +67,7 @@ export async function createSignWellDocumentFromFile(params: {
       id: s.id || `signer_${index + 1}`,
       name: s.name,
       email: s.email,
-      send_email: sendEmail && (s.send_email ?? true),
+      send_email: s.send_email ?? true,
     })),
   };
 
