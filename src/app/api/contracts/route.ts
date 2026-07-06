@@ -2,8 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
-import { uploadBufferToS3 } from '@/lib/s3';
-import { createSignWellDocumentFromFile } from '@/lib/signwell';
+import { sendContractViaSignWell } from '@/lib/contracts';
 
 // GET /api/contracts — list contracts
 export async function GET(req: NextRequest) {
@@ -96,74 +95,23 @@ export async function POST(req: NextRequest) {
 
     // 1. Read file buffer
     const buffer = Buffer.from(await file.arrayBuffer());
-    const fileBase64 = buffer.toString('base64');
 
-    // 2. Upload original PDF to R2
-    const { key: s3Key } = await uploadBufferToS3({
+    // 2-4. Upload to R2, send to SignWell, create Contract + signers + audit log
+    const contract = await sendContractViaSignWell({
       buffer,
-      folderPrefix: 'contracts/originals/',
-      filename: file.name,
-      mimeType: 'application/pdf',
-    });
-
-    // 3. Send to SignWell
-    const signwellSigners = signers.map((s, i) => ({
-      id: String(i + 1),
-      name: s.name,
-      email: s.email,
-      send_email: true,
-    }));
-
-    const signwellDoc = await createSignWellDocumentFromFile({
-      name: title,
-      subject: `Please sign: ${title}`,
-      message: message || `Hi, please review and sign the document: ${title}`,
-      fileBase64,
       fileName: file.name,
-      signers: signwellSigners,
+      title,
+      description,
+      message: message || undefined,
+      clientId,
+      createdById: user.id,
+      signers,
       expiresInDays,
-      embeddedSigning: true,
+      performedBy: user.name || user.email,
     });
 
-    // 4. Create contract record in DB
-    const contract = await prisma.contract.create({
-      data: {
-        title,
-        description,
-        message,
-        s3Key,
-        fileName: file.name,
-        fileSize: BigInt(buffer.length),
-        status: 'SENT',
-        clientId,
-        expiresAt: expiresInDays
-          ? new Date(Date.now() + expiresInDays * 86400000)
-          : null,
-        signwellDocumentId: signwellDoc.id,
-        signwellRequestId: signwellDoc.id,
-        createdById: user.id,
-        signers: {
-          create: signers.map((s, i) => ({
-            name: s.name,
-            email: s.email,
-            role: 'signer',
-            order: i,
-            status: 'PENDING',
-            // Store SignWell signer ID so we can get embedded URL later
-            signToken: signwellDoc.signers?.[i]?.id || `sw-${Date.now()}-${i}`,
-          })),
-        },
-        auditLogs: {
-          create: {
-            action: 'sent_via_signwell',
-            performedBy: user.name || user.email,
-            details: JSON.stringify({
-              signwellDocId: signwellDoc.id,
-              signerCount: signers.length,
-            }),
-          },
-        },
-      },
+    const full = await prisma.contract.findUnique({
+      where: { id: contract.id },
       include: {
         signers: true,
         createdBy: { select: { id: true, name: true, email: true } },
@@ -171,8 +119,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({
-      ...contract,
-      fileSize: contract.fileSize.toString(),
+      ...full,
+      fileSize: full!.fileSize.toString(),
     }, { status: 201 });
   } catch (err: any) {
     console.error('POST /api/contracts error:', err);

@@ -7,6 +7,8 @@ import { createClientSlackChannel } from '@/lib/client-onboarding';
 import nodemailer from 'nodemailer';
 import { createRecurringTasksForClient } from '@/app/api/clients/recurring';
 import { generateQuotePdf } from '@/lib/quote-pdf';
+import { generateContractPdf } from '@/lib/contract-pdf';
+import { sendContractViaSignWell } from '@/lib/contracts';
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -73,6 +75,21 @@ async function sendMagicLinkEmail(params: {
       </div>
     `,
   });
+}
+
+async function notifyAdminContractFailed(clientName: string, clientEmail: string, errorMessage: string) {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+  try {
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+      to: 'eric@e8productions.com',
+      subject: `⚠️ Contract auto-generation failed — ${clientName}`,
+      html: `<p>Automatic contract generation/send failed for <strong>${clientName}</strong> (${clientEmail}) during provisioning.</p><p>Error: ${errorMessage}</p><p>Please create and send the contract manually via the Contracts tab.</p>`,
+    });
+  } catch (err) {
+    console.error('[Provision] Failed to send contract-failure admin notification:', err);
+  }
 }
 
 // POST /api/pre-clients/[id]/provision
@@ -172,6 +189,31 @@ export async function POST(
       },
     });
 
+    // 4b. Auto-generate the contract (Schedules A/B + PSA) from the accepted quote
+    // and send it via SignWell. Client stays gated at CONTRACT_PENDING (set once
+    // they finish onboarding/set-password) until this is signed — see the
+    // signwell webhook, which advances the portal on completion.
+    const acceptedQuote = preClient.quotes[0];
+    if (acceptedQuote) {
+      try {
+        const contractPdf = await generateContractPdf(acceptedQuote as any, preClient as any);
+        await sendContractViaSignWell({
+          buffer: contractPdf,
+          fileName: 'contract.pdf',
+          title: `Professional Services Agreement — ${preClient.companyName || preClient.name}`,
+          clientId: client.id,
+          createdById: user.id,
+          signers: [{ name: preClient.name, email: preClient.email }],
+        });
+        console.log(`✅ [Provision] Contract generated and sent for ${client.name}`);
+      } catch (contractErr: any) {
+        console.error('[Provision] Contract generation/send FAILED:', contractErr?.message || contractErr);
+        await notifyAdminContractFailed(client.name, client.email, contractErr?.message || String(contractErr));
+      }
+    } else {
+      console.error(`[Provision] No accepted quote found for ${preClient.id} — contract not generated`);
+    }
+
     // 5. Create onboarding token
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
     const onboardingToken = await prisma.onboardingToken.create({
@@ -192,7 +234,6 @@ export async function POST(
 
     // Generate PDF of accepted quote
     let quoteAttachment = null;
-    const acceptedQuote = preClient.quotes[0];
     if (acceptedQuote) {
       try {
         const pdfBuffer = await generateQuotePdf(acceptedQuote as any, preClient as any);

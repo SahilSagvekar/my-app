@@ -101,6 +101,7 @@ const DEFAULT_TERMS: { title: string; body: string }[] = [
   { title: 'Billing.', body: 'Flat monthly fee invoiced at the start of each billing cycle and due on receipt.' },
   { title: 'Ad spend.', body: "$500/month is a managed pass-through advertising budget deployed across platforms on the client's behalf, with spend reported monthly." },
   { title: 'Deliverables.', body: '12 social media videos per month, repurposed and optimized for each platform.' },
+  { title: 'Revision Terms.', body: '1 revision(s) per video edit.' },
   { title: 'Term & cancellation.', body: "12 month engagement; either party may cancel with [60] days' written notice." },
 ];
 

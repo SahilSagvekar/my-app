@@ -3,8 +3,10 @@
 
 import crypto from 'crypto';
 import { PDFDocument, rgb } from 'pdf-lib';
-import { s3, generateSignedUrl, BUCKET } from './s3';
+import { s3, generateSignedUrl, BUCKET, uploadBufferToS3 } from './s3';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { createSignWellDocumentFromFile } from './signwell';
+import { prisma } from './prisma';
 
 /**
  * Apply decorations (text, highlights, field placeholders) to a PDF buffer from editor annotations
@@ -452,6 +454,94 @@ export async function applySignaturesToPdf(
     return signedKey;
 }
 
+
+/**
+ * Upload a PDF buffer, send it to SignWell for embedded signing, and create the
+ * Contract + ContractSigner + ContractAuditLog rows. Shared by the manual
+ * admin upload flow (/api/contracts POST) and automated contract generation
+ * (pre-client provisioning).
+ */
+export async function sendContractViaSignWell(params: {
+  buffer: Buffer;
+  fileName: string;
+  title: string;
+  description?: string | null;
+  message?: string;
+  clientId?: string | null;
+  createdById: number;
+  signers: Array<{ name: string; email: string }>;
+  expiresInDays?: number;
+  performedBy?: string;
+}) {
+  const { buffer, fileName, title, description, message, clientId, createdById, signers, expiresInDays = 30, performedBy = 'system' } = params;
+
+  const { key: s3Key } = await uploadBufferToS3({
+    buffer,
+    folderPrefix: 'contracts/originals/',
+    filename: `${Date.now()}-${fileName}`,
+    mimeType: 'application/pdf',
+  });
+
+  const fileBase64 = buffer.toString('base64');
+
+  const signwellSigners = signers.map((s, i) => ({
+    id: String(i + 1),
+    name: s.name,
+    email: s.email,
+    send_email: true,
+  }));
+
+  const signwellDoc = await createSignWellDocumentFromFile({
+    name: title,
+    subject: `Please sign: ${title}`,
+    message: message || `Hi, please review and sign the document: ${title}`,
+    fileBase64,
+    fileName,
+    signers: signwellSigners,
+    expiresInDays,
+    embeddedSigning: true,
+  });
+
+  return prisma.contract.create({
+    data: {
+      title,
+      description: description || null,
+      message: message || null,
+      s3Key,
+      fileName,
+      fileSize: BigInt(buffer.length),
+      status: 'SENT',
+      clientId: clientId || null,
+      expiresAt: expiresInDays ? new Date(Date.now() + expiresInDays * 86400000) : null,
+      signwellDocumentId: signwellDoc.id,
+      signwellRequestId: signwellDoc.id,
+      createdById,
+      signers: {
+        create: signers.map((s, i) => ({
+          name: s.name,
+          email: s.email,
+          role: 'signer',
+          order: i,
+          status: 'PENDING',
+          signToken: signwellDoc.signers?.[i]?.id || `sw-${Date.now()}-${i}`,
+        })),
+      },
+      auditLogs: {
+        create: {
+          action: 'sent_via_signwell',
+          performedBy,
+          details: JSON.stringify({
+            signwellDocId: signwellDoc.id,
+            signerCount: signers.length,
+          }),
+        },
+      },
+    },
+    include: {
+      signers: true,
+    },
+  });
+}
 
 /**
  * Generate a public signing URL
