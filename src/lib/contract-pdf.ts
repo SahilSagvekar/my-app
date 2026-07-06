@@ -1,5 +1,21 @@
 import { PDFDocument, rgb, PDFFont } from 'pdf-lib';
 
+/**
+ * Merge multiple already-generated PDF buffers into one, in order —
+ * used to combine the Quote, Schedules A/B, and PSA into a single
+ * signable document.
+ */
+export async function mergePdfBuffers(buffers: Buffer[]): Promise<Buffer> {
+  const merged = await PDFDocument.create();
+  for (const buffer of buffers) {
+    const doc = await PDFDocument.load(buffer);
+    const pages = await merged.copyPages(doc, doc.getPageIndices());
+    pages.forEach((page) => merged.addPage(page));
+  }
+  const bytes = await merged.save();
+  return Buffer.from(bytes);
+}
+
 interface ServiceLine {
   description: string;
   quantity: number;
