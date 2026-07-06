@@ -49,10 +49,11 @@ async function sendMagicLinkEmail(params: {
         </div>
         <p style="font-size: 16px;">Hi ${params.clientName},</p>
         <p style="font-size: 15px; line-height: 1.7; color: #444;">
-          Your proposal has been accepted and it is attached below for
-          your records. Next step is your E8 client portal is ready. Click the 
-          button below to get started — you'll watch a quick welcome
-          video, set your password, and sign the agreements all at once.
+          Your proposal has been accepted — your accepted quote, Schedules A &amp; B,
+          and Professional Services Agreement are attached below for your records.
+          Next step is your E8 client portal is ready. Click the button below to
+          get started — you'll watch a quick welcome video, set your password,
+          and sign the Professional Services Agreement all at once.
         </p>
         <div style="text-align: center; margin: 36px 0;">
           <a href="${params.magicLink}"
@@ -189,25 +190,29 @@ export async function POST(
       },
     });
 
-    // 4b. Auto-generate the contract (Schedules A/B + PSA) from the accepted quote
-    // and send it via SignWell. Client stays gated at CONTRACT_PENDING (set once
-    // they finish onboarding/set-password) until this is signed — see the
-    // signwell webhook, which advances the portal on completion. Schedules A/B
-    // are a separate reference document — incorporated by reference into the
-    // PSA, but don't require their own signature, so they're just stored/
-    // emailed alongside rather than sent through SignWell.
+    // 4b. Auto-generate all 3 client-facing documents from the accepted quote:
+    // PSA (signable, via SignWell — client stays gated at CONTRACT_PENDING,
+    // set once they finish onboarding/set-password, until this is signed; see
+    // the signwell webhook which advances the portal on completion), and
+    // Schedules A/B + the accepted Quote itself (reference docs, incorporated
+    // by reference into the PSA but not separately signable). SignWell's own
+    // notification email is suppressed (sendEmail: false) — all 3 documents
+    // go out together in the one magic-link email below instead.
     const acceptedQuote = preClient.quotes[0];
+    let contractPdfBuffer: Buffer | null = null;
     let schedulesPdfBuffer: Buffer | null = null;
+    let quotePdfBuffer: Buffer | null = null;
     if (acceptedQuote) {
       try {
-        const contractPdf = await generateContractPdf(acceptedQuote as any, preClient as any);
+        contractPdfBuffer = await generateContractPdf(acceptedQuote as any, preClient as any);
         await sendContractViaSignWell({
-          buffer: contractPdf,
+          buffer: contractPdfBuffer,
           fileName: 'contract.pdf',
           title: `Professional Services Agreement — ${preClient.companyName || preClient.name}`,
           clientId: client.id,
           createdById: user.id,
           signers: [{ name: preClient.name, email: preClient.email }],
+          sendEmail: false,
         });
         console.log(`✅ [Provision] Contract generated and sent for ${client.name}`);
       } catch (contractErr: any) {
@@ -228,6 +233,20 @@ export async function POST(
       } catch (schedulesErr: any) {
         console.error('[Provision] Schedules document generation FAILED:', schedulesErr?.message || schedulesErr);
         await notifyAdminContractFailed(client.name, client.email, schedulesErr?.message || String(schedulesErr));
+      }
+
+      try {
+        quotePdfBuffer = await generateQuotePdf(acceptedQuote as any, preClient as any);
+        await createReferenceDocument({
+          buffer: quotePdfBuffer,
+          fileName: 'accepted-quote.pdf',
+          title: `Accepted Quote — ${preClient.companyName || preClient.name}`,
+          clientId: client.id,
+          createdById: user.id,
+        });
+        console.log(`✅ [Provision] Quote document generated for ${client.name}`);
+      } catch (quotePdfErr: any) {
+        console.error('[Provision] Quote PDF generation FAILED:', quotePdfErr?.message || quotePdfErr);
       }
     } else {
       console.error(`[Provision] No accepted quote found for ${preClient.id} — contract not generated`);
@@ -251,26 +270,16 @@ export async function POST(
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const magicLink = `${baseUrl}/onboarding/${onboardingToken.token}`;
 
-    // Generate PDF of accepted quote
+    // Bundle all 3 generated documents into the single onboarding email
     const emailAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
-    if (acceptedQuote) {
-      try {
-        const pdfBuffer = await generateQuotePdf(acceptedQuote as any, preClient as any);
-        emailAttachments.push({
-          filename: 'accepted_quote.pdf',
-          content: pdfBuffer,
-          contentType: 'application/pdf',
-        });
-      } catch (pdfErr: any) {
-        console.error('[Provision] Failed to generate quote PDF:', pdfErr);
-      }
+    if (quotePdfBuffer) {
+      emailAttachments.push({ filename: 'accepted_quote.pdf', content: quotePdfBuffer, contentType: 'application/pdf' });
     }
     if (schedulesPdfBuffer) {
-      emailAttachments.push({
-        filename: 'schedules_a_b.pdf',
-        content: schedulesPdfBuffer,
-        contentType: 'application/pdf',
-      });
+      emailAttachments.push({ filename: 'schedules_a_b.pdf', content: schedulesPdfBuffer, contentType: 'application/pdf' });
+    }
+    if (contractPdfBuffer) {
+      emailAttachments.push({ filename: 'service_agreement.pdf', content: contractPdfBuffer, contentType: 'application/pdf' });
     }
 
     // Send magic link email — await so errors surface instead of being silently swallowed

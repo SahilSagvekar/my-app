@@ -472,8 +472,9 @@ export async function sendContractViaSignWell(params: {
   signers: Array<{ name: string; email: string }>;
   expiresInDays?: number;
   performedBy?: string;
+  sendEmail?: boolean;
 }) {
-  const { buffer, fileName, title, description, message, clientId, createdById, signers, expiresInDays = 30, performedBy = 'system' } = params;
+  const { buffer, fileName, title, description, message, clientId, createdById, signers, expiresInDays = 30, performedBy = 'system', sendEmail = true } = params;
 
   const { key: s3Key } = await uploadBufferToS3({
     buffer,
@@ -488,7 +489,7 @@ export async function sendContractViaSignWell(params: {
     id: String(i + 1),
     name: s.name,
     email: s.email,
-    send_email: true,
+    send_email: sendEmail,
   }));
 
   const signwellDoc = await createSignWellDocumentFromFile({
@@ -500,6 +501,7 @@ export async function sendContractViaSignWell(params: {
     signers: signwellSigners,
     expiresInDays,
     embeddedSigning: true,
+    sendEmail,
   });
 
   return prisma.contract.create({

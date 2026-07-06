@@ -68,6 +68,7 @@ interface Contract {
   id: string;
   title: string;
   status: string;
+  requiresSignature?: boolean;
   createdAt: string;
   completedAt?: string;
   signers: Array<{
@@ -424,12 +425,16 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
     );
   }
 
-  // Categorize contracts
-  const needsAction = contracts.filter(
+  // Categorize contracts — reference docs (Schedules A/B, the accepted Quote)
+  // don't require signature and get their own section, separate from signable
+  // contracts' Needs Action / Completed / Other buckets.
+  const referenceDocs = contracts.filter((c) => c.requiresSignature === false);
+  const signableContracts = contracts.filter((c) => c.requiresSignature !== false);
+  const needsAction = signableContracts.filter(
     (c) => c.status === "SENT" || c.status === "PARTIALLY_SIGNED"
   );
-  const completedContracts = contracts.filter((c) => c.status === "COMPLETED");
-  const otherContracts = contracts.filter(
+  const completedContracts = signableContracts.filter((c) => c.status === "COMPLETED");
+  const otherContracts = signableContracts.filter(
     (c) =>
       c.status !== "SENT" &&
       c.status !== "PARTIALLY_SIGNED" &&
@@ -771,6 +776,28 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
                 </div>
               </div>
             )}
+
+            {/* Reference Documents — Schedules A/B, accepted Quote: no signature needed */}
+            {referenceDocs.length > 0 && (
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <div className="p-1.5 bg-gray-100 rounded-md">
+                    <FileText className="h-4 w-4 text-gray-500" />
+                  </div>
+                  Reference Documents ({referenceDocs.length})
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {referenceDocs.map((contract) => (
+                    <ContractCard
+                      key={contract.id}
+                      contract={contract}
+                      onDownload={handleDownload}
+                      onSelect={(id) => setSelectedContractId(id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -959,6 +986,7 @@ function ContractCard({
   onSelect: (id: string) => void;
   showSignButton?: boolean;
 }) {
+  const isReference = contract.requiresSignature === false;
   return (
     <div
       className="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
@@ -984,11 +1012,21 @@ function ContractCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ContractStatusBadge status={contract.status} />
+          {isReference ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+              Reference
+            </span>
+          ) : (
+            <ContractStatusBadge status={contract.status} />
+          )}
         </div>
       </div>
 
       {/* Signers Preview */}
+      {isReference ? (
+        <p className="mt-4 text-xs text-gray-400">No signature required</p>
+      ) : (
       <div className="mt-4 flex items-center gap-2 flex-wrap">
         {contract.signers?.map((signer) => (
           <div
@@ -1009,10 +1047,11 @@ function ContractCard({
           </div>
         ))}
       </div>
+      )}
 
       {/* Actions */}
       <div className="mt-5 flex items-center gap-2 pt-4 border-t border-gray-50">
-        {showSignButton ? (
+        {showSignButton && !isReference ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1038,7 +1077,7 @@ function ContractCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onDownload(contract.id, contract.status === "COMPLETED" ? "signed" : "original");
+            onDownload(contract.id, !isReference && contract.status === "COMPLETED" ? "signed" : "original");
           }}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 rounded-lg transition-colors ml-auto"
         >

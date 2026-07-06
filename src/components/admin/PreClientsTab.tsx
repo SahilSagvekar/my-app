@@ -762,7 +762,8 @@ export function PreClientsTab() {
                 {isExpanded && (
                   <div className="border-t border-gray-100 px-5 py-4 bg-gray-50 space-y-4">
                     {/* Actions */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 justify-between">
+                      <div className="flex items-center gap-2">
                       <Button
                         size="sm"
                         onClick={() => setQuoteTarget({ preClient: pc, quote: null })}
@@ -799,6 +800,27 @@ export function PreClientsTab() {
                           <CheckCircle size={13} className="mr-1" /> Provision Client
                         </Button>
                       )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pc.status === 'CONVERTED'}
+                        title={pc.status === 'CONVERTED' ? 'Already converted to a client — manage from Client Management instead' : 'Delete pre-client'}
+                        onClick={async () => {
+                          if (!confirm(`Delete pre-client "${pc.name}"? This also deletes their quote history. This cannot be undone.`)) return;
+                          const res = await fetch(`/api/pre-clients/${pc.id}`, { method: 'DELETE' });
+                          const data = await res.json();
+                          if (res.ok) {
+                            toast.success(`${pc.name} deleted`);
+                            load();
+                          } else {
+                            toast.error(data.error || 'Failed to delete pre-client');
+                          }
+                        }}
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        <Trash2 size={13} className="mr-1" /> Delete
+                      </Button>
                     </div>
 
                     {/* Quote history */}

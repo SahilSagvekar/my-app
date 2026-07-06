@@ -58,6 +58,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
+    const preClient = await prisma.preClient.findUnique({ where: { id } });
+    if (!preClient) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (preClient.status === 'CONVERTED') {
+      return NextResponse.json(
+        { error: 'This pre-client has already been converted to a client — manage or delete it from Client Management instead.' },
+        { status: 400 }
+      );
+    }
     await prisma.preClient.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (err) {
