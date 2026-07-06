@@ -544,6 +544,51 @@ export async function sendContractViaSignWell(params: {
 }
 
 /**
+ * Upload a PDF buffer and create a Contract row for a document that doesn't
+ * require a signature (e.g. Schedules A/B, incorporated by reference into a
+ * signed PSA). Shows up in the client portal/admin contracts list alongside
+ * signable contracts, but with requiresSignature: false and no signers.
+ */
+export async function createReferenceDocument(params: {
+  buffer: Buffer;
+  fileName: string;
+  title: string;
+  clientId: string;
+  createdById: number;
+}) {
+  const { buffer, fileName, title, clientId, createdById } = params;
+
+  const { key: s3Key } = await uploadBufferToS3({
+    buffer,
+    folderPrefix: 'contracts/originals/',
+    filename: `${Date.now()}-${fileName}`,
+    mimeType: 'application/pdf',
+  });
+
+  return prisma.contract.create({
+    data: {
+      title,
+      s3Key,
+      fileName,
+      fileSize: BigInt(buffer.length),
+      status: 'COMPLETED',
+      requiresSignature: false,
+      clientId,
+      createdById,
+      auditLogs: {
+        create: {
+          action: 'reference_document_created',
+          performedBy: 'system',
+        },
+      },
+    },
+    include: {
+      signers: true,
+    },
+  });
+}
+
+/**
  * Generate a public signing URL
  */
 export function generateSigningUrl(signToken: string): string {

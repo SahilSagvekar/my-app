@@ -64,14 +64,37 @@ export async function POST(req: NextRequest) {
 
       const newStatus = mapSignWellSignerStatus(swSigner.status);
       if (dbSigner.status !== newStatus) {
+        const ipAddress = swSigner.ip_address || swSigner.ip || null;
+        const userAgent = swSigner.user_agent || null;
+
         await prisma.contractSigner.update({
           where: { id: dbSigner.id },
           data: {
             status: newStatus,
             signedAt:  newStatus === 'SIGNED'  ? new Date() : dbSigner.signedAt  ?? undefined,
             viewedAt:  newStatus === 'VIEWED'  ? new Date() : dbSigner.viewedAt  ?? undefined,
+            declinedAt: newStatus === 'DECLINED' ? new Date() : dbSigner.declinedAt ?? undefined,
+            declineReason: newStatus === 'DECLINED' ? (swSigner.decline_reason || null) : dbSigner.declineReason ?? undefined,
+            ipAddress,
+            userAgent,
           },
         });
+
+        if (['VIEWED', 'SIGNED', 'DECLINED'].includes(newStatus)) {
+          await prisma.contractAuditLog.create({
+            data: {
+              contractId: contract.id,
+              action: newStatus.toLowerCase(),
+              performedBy: `${dbSigner.name} <${dbSigner.email}>`,
+              ipAddress,
+              userAgent,
+              details: newStatus === 'DECLINED' && swSigner.decline_reason
+                ? JSON.stringify({ reason: swSigner.decline_reason })
+                : null,
+            },
+          });
+        }
+
         console.log(`[signwell webhook] Signer ${swSigner.email} → ${newStatus}`);
       }
     }
@@ -115,6 +138,15 @@ export async function POST(req: NextRequest) {
             });
           }
         }
+
+        await prisma.contractAuditLog.create({
+          data: {
+            contractId: contract.id,
+            action: 'completed',
+            performedBy: 'system',
+            details: JSON.stringify({ message: 'All signers have signed. Document completed via SignWell.' }),
+          },
+        });
 
         console.log(`[signwell webhook] Contract ${contract.id} marked COMPLETED, PDF saved to R2`);
       } catch (pdfErr) {

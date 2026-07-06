@@ -47,9 +47,14 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         signers: {
-          select: { id: true, name: true, email: true, status: true, signedAt: true, role: true },
+          select: {
+            id: true, name: true, email: true, status: true, role: true,
+            signedAt: true, viewedAt: true, declinedAt: true, declineReason: true,
+            ipAddress: true, userAgent: true,
+          },
         },
         createdBy: { select: { id: true, name: true, email: true } },
+        auditLogs: { orderBy: { createdAt: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
     });

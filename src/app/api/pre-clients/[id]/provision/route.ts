@@ -7,8 +7,8 @@ import { createClientSlackChannel } from '@/lib/client-onboarding';
 import nodemailer from 'nodemailer';
 import { createRecurringTasksForClient } from '@/app/api/clients/recurring';
 import { generateQuotePdf } from '@/lib/quote-pdf';
-import { generateContractPdf } from '@/lib/contract-pdf';
-import { sendContractViaSignWell } from '@/lib/contracts';
+import { generateContractPdf, generateScheduleDocsPdf } from '@/lib/contract-pdf';
+import { sendContractViaSignWell, createReferenceDocument } from '@/lib/contracts';
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -26,18 +26,18 @@ async function sendMagicLinkEmail(params: {
   clientName: string;
   email: string;
   magicLink: string;
-  attachment?: {
+  attachments?: Array<{
     filename: string;
     content: Buffer;
     contentType: string;
-  } | null;
+  }>;
 }) {
   const transporter = getTransporter();
   await transporter.sendMail({
     from: `"E8 Productions" <${process.env.SMTP_USER}>`,
     to: params.email,
     subject: `Welcome to E8 Productions — Set up your portal`,
-    attachments: params.attachment ? [params.attachment] : [],
+    attachments: params.attachments || [],
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
                   max-width: 560px; margin: 0 auto; padding: 40px 20px; color: #333;">
@@ -192,8 +192,12 @@ export async function POST(
     // 4b. Auto-generate the contract (Schedules A/B + PSA) from the accepted quote
     // and send it via SignWell. Client stays gated at CONTRACT_PENDING (set once
     // they finish onboarding/set-password) until this is signed — see the
-    // signwell webhook, which advances the portal on completion.
+    // signwell webhook, which advances the portal on completion. Schedules A/B
+    // are a separate reference document — incorporated by reference into the
+    // PSA, but don't require their own signature, so they're just stored/
+    // emailed alongside rather than sent through SignWell.
     const acceptedQuote = preClient.quotes[0];
+    let schedulesPdfBuffer: Buffer | null = null;
     if (acceptedQuote) {
       try {
         const contractPdf = await generateContractPdf(acceptedQuote as any, preClient as any);
@@ -209,6 +213,21 @@ export async function POST(
       } catch (contractErr: any) {
         console.error('[Provision] Contract generation/send FAILED:', contractErr?.message || contractErr);
         await notifyAdminContractFailed(client.name, client.email, contractErr?.message || String(contractErr));
+      }
+
+      try {
+        schedulesPdfBuffer = await generateScheduleDocsPdf(acceptedQuote as any, preClient as any);
+        await createReferenceDocument({
+          buffer: schedulesPdfBuffer,
+          fileName: 'schedules-a-b.pdf',
+          title: `Schedules A & B — ${preClient.companyName || preClient.name}`,
+          clientId: client.id,
+          createdById: user.id,
+        });
+        console.log(`✅ [Provision] Schedules A/B document generated for ${client.name}`);
+      } catch (schedulesErr: any) {
+        console.error('[Provision] Schedules document generation FAILED:', schedulesErr?.message || schedulesErr);
+        await notifyAdminContractFailed(client.name, client.email, schedulesErr?.message || String(schedulesErr));
       }
     } else {
       console.error(`[Provision] No accepted quote found for ${preClient.id} — contract not generated`);
@@ -233,18 +252,25 @@ export async function POST(
     const magicLink = `${baseUrl}/onboarding/${onboardingToken.token}`;
 
     // Generate PDF of accepted quote
-    let quoteAttachment = null;
+    const emailAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
     if (acceptedQuote) {
       try {
         const pdfBuffer = await generateQuotePdf(acceptedQuote as any, preClient as any);
-        quoteAttachment = {
+        emailAttachments.push({
           filename: 'accepted_quote.pdf',
           content: pdfBuffer,
           contentType: 'application/pdf',
-        };
+        });
       } catch (pdfErr: any) {
         console.error('[Provision] Failed to generate quote PDF:', pdfErr);
       }
+    }
+    if (schedulesPdfBuffer) {
+      emailAttachments.push({
+        filename: 'schedules_a_b.pdf',
+        content: schedulesPdfBuffer,
+        contentType: 'application/pdf',
+      });
     }
 
     // Send magic link email — await so errors surface instead of being silently swallowed
@@ -254,7 +280,7 @@ export async function POST(
         clientName: preClient.name,
         email: preClient.email,
         magicLink,
-        attachment: quoteAttachment,
+        attachments: emailAttachments,
       });
       emailSent = true;
       console.log(`✅ [Provision] Magic link email sent to ${preClient.email}`);

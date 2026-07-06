@@ -117,6 +117,15 @@ async function handleCompleted(document: any) {
       }
     }
 
+    await prisma.contractAuditLog.create({
+      data: {
+        contractId: contract.id,
+        action: 'completed',
+        performedBy: 'system',
+        details: JSON.stringify({ message: 'All signers have signed. Document completed via SignWell.' }),
+      },
+    });
+
     // Notify admin
     await notifyAdmin(
       `✅ Contract signed — ${contract.title}`,
@@ -142,9 +151,22 @@ async function handleSignerSigned(document: any) {
         (s: any) => s.email?.toLowerCase() === swSigner.email?.toLowerCase()
       );
       if (dbSigner && dbSigner.status !== 'SIGNED') {
+        const ipAddress = swSigner.ip_address || swSigner.ip || null;
+        const userAgent = swSigner.user_agent || null;
+
         await prisma.contractSigner.update({
           where: { id: dbSigner.id },
-          data: { status: 'SIGNED', signedAt: new Date() },
+          data: { status: 'SIGNED', signedAt: new Date(), ipAddress, userAgent },
+        });
+
+        await prisma.contractAuditLog.create({
+          data: {
+            contractId: contract.id,
+            action: 'signed',
+            performedBy: `${dbSigner.name} <${dbSigner.email}>`,
+            ipAddress,
+            userAgent,
+          },
         });
       }
     }
@@ -166,9 +188,41 @@ async function handleDeclined(document: any) {
   const contract = await findContract(document.id) as any;
   if (!contract) return;
 
+  const signwellSigners: any[] = document.signers || [];
+  const decliner = signwellSigners.find((s) => s.status === 'declined');
+  const dbSigner = decliner && contract.signers.find(
+    (s: any) => s.email?.toLowerCase() === decliner.email?.toLowerCase()
+  );
+  const ipAddress = decliner?.ip_address || decliner?.ip || null;
+  const userAgent = decliner?.user_agent || null;
+
+  if (dbSigner) {
+    await prisma.contractSigner.update({
+      where: { id: dbSigner.id },
+      data: {
+        status: 'DECLINED',
+        declinedAt: new Date(),
+        declineReason: decliner?.decline_reason || null,
+        ipAddress,
+        userAgent,
+      },
+    });
+  }
+
   await prisma.contract.update({
     where: { id: contract.id },
     data: { status: 'CANCELLED' },
+  });
+
+  await prisma.contractAuditLog.create({
+    data: {
+      contractId: contract.id,
+      action: 'declined',
+      performedBy: dbSigner ? `${dbSigner.name} <${dbSigner.email}>` : 'unknown signer',
+      ipAddress,
+      userAgent,
+      details: decliner?.decline_reason ? JSON.stringify({ reason: decliner.decline_reason }) : null,
+    },
   });
 
   await notifyAdmin(
@@ -191,9 +245,22 @@ async function handleViewed(document: any) {
         (s: any) => s.email?.toLowerCase() === swSigner.email?.toLowerCase()
       );
       if (dbSigner && dbSigner.status === 'PENDING') {
+        const ipAddress = swSigner.ip_address || swSigner.ip || null;
+        const userAgent = swSigner.user_agent || null;
+
         await prisma.contractSigner.update({
           where: { id: dbSigner.id },
-          data: { status: 'VIEWED', viewedAt: new Date() },
+          data: { status: 'VIEWED', viewedAt: new Date(), ipAddress, userAgent },
+        });
+
+        await prisma.contractAuditLog.create({
+          data: {
+            contractId: contract.id,
+            action: 'viewed',
+            performedBy: `${dbSigner.name} <${dbSigner.email}>`,
+            ipAddress,
+            userAgent,
+          },
         });
       }
     }

@@ -156,22 +156,16 @@ async function renderBlocks(pdfDoc: PDFDocument, blocks: Block[]): Promise<void>
   }
 }
 
+/**
+ * The signable document — Professional Services Agreement only. Sent via
+ * SignWell for e-signature. Schedules A/B are a separate reference document
+ * (see generateScheduleDocsPdf) sent alongside but not requiring a signature.
+ */
 export async function generateContractPdf(quote: ContractQuote, preClient: ContractPreClient): Promise<Buffer> {
   const clientLegalName = preClient.companyName || preClient.name;
   const effectiveDate = fmtDate(new Date());
-  const quoteNo = `E8-${new Date(quote.createdAt).getFullYear()}-${String(quote.version).padStart(4, '0')}`;
-  const quoteDate = fmtDate(quote.createdAt);
-  const totalMonthlyCost = fmtCents(quote.totalAmount);
-  const revisionRounds = extractRevisionRounds((quote.terms as TermItem[]) || []);
   const clientSignerName = preClient.name;
   const clientNoticeEmail = preClient.email;
-
-  const services = (quote.services as ServiceLine[]) || [];
-  const inclusions = (quote.inclusions as string[]) || [];
-  const deliverableLines = [
-    ...services.map((s) => s.description).filter(Boolean),
-    ...inclusions,
-  ];
 
   const pdfDoc = await PDFDocument.create();
 
@@ -262,8 +256,36 @@ export async function generateContractPdf(quote: ContractQuote, preClient: Contr
     { type: 'body', text: 'E8 PRODUCTIONS, LLC By: Eric Davis  Signature: ______________________________________  Date: ___________________________________________' },
   ];
 
+  await renderBlocks(pdfDoc, psaBlocks);
+
+  const pdfBytes = await pdfDoc.save();
+  return Buffer.from(pdfBytes);
+}
+
+/**
+ * The reference document — Schedule A (Statement of Work & Deliverables) and
+ * Schedule B (Cost Breakdown). Incorporated by reference into the PSA but
+ * doesn't require its own signature — sent to the client for their records
+ * alongside the signable PSA.
+ */
+export async function generateScheduleDocsPdf(quote: ContractQuote, preClient: ContractPreClient): Promise<Buffer> {
+  const clientLegalName = preClient.companyName || preClient.name;
+  const effectiveDate = fmtDate(new Date());
+  const quoteNo = `E8-${new Date(quote.createdAt).getFullYear()}-${String(quote.version).padStart(4, '0')}`;
+  const quoteDate = fmtDate(quote.createdAt);
+  const totalMonthlyCost = fmtCents(quote.totalAmount);
+  const revisionRounds = extractRevisionRounds((quote.terms as TermItem[]) || []);
+
+  const services = (quote.services as ServiceLine[]) || [];
+  const inclusions = (quote.inclusions as string[]) || [];
+  const deliverableLines = [
+    ...services.map((s) => s.description).filter(Boolean),
+    ...inclusions,
+  ];
+
+  const pdfDoc = await PDFDocument.create();
+
   const scheduleABlocks: Block[] = [
-    { type: 'pagebreak' },
     { type: 'doctitle', text: 'SCHEDULE A – STATEMENT OF WORK & DELIVERABLES' },
     { type: 'body', text: `This Schedule A is attached to and incorporated by reference in the Professional Services Agreement between ${clientLegalName} and E8 Productions, LLC, effective as of ${effectiveDate}.` },
     { type: 'h2', text: 'Scope of Services' },
@@ -313,7 +335,7 @@ export async function generateContractPdf(quote: ContractQuote, preClient: Contr
     { type: 'body', text: 'All fees and reimbursements outlined in this Schedule shall be paid in full without withholding or offset, unless required by law. Client shall be responsible for any applicable sales, use, or similar taxes imposed by a governmental authority.' },
   ];
 
-  await renderBlocks(pdfDoc, [...psaBlocks, ...scheduleABlocks, ...scheduleBBlocks]);
+  await renderBlocks(pdfDoc, [...scheduleABlocks, ...scheduleBBlocks]);
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);

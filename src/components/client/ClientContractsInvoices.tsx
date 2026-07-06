@@ -32,6 +32,7 @@ import {
 } from '../ui/table';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import {
   FileText,
   Plus,
@@ -54,6 +55,9 @@ import {
   X,
   Package,
   PenLine,
+  History,
+  ChevronDown,
+  MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -62,10 +66,21 @@ import { CreateContractDialog } from '../contracts/CreateContractDialog';
 import { ContractDetailView } from '../contracts/ContractDetailView';
 
 // Types
+interface ContractAuditLogEntry {
+  id: string;
+  action: string;
+  performedBy: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  details: string | null;
+  createdAt: string;
+}
+
 interface Contract {
   id: string;
   title: string;
   status: 'DRAFT' | 'SENT' | 'PARTIALLY_SIGNED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
+  requiresSignature?: boolean;
   createdAt: string;
   signers: {
     id: string;
@@ -73,7 +88,13 @@ interface Contract {
     email: string;
     status: 'PENDING' | 'VIEWED' | 'SIGNED' | 'DECLINED';
     signedAt?: string;
+    viewedAt?: string | null;
+    declinedAt?: string | null;
+    declineReason?: string | null;
+    ipAddress?: string | null;
+    userAgent?: string | null;
   }[];
+  auditLogs?: ContractAuditLogEntry[];
 }
 
 interface Invoice {
@@ -241,6 +262,7 @@ export function ClientContractsInvoices({
   const [showCreateContract, setShowCreateContract] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loadingContracts, setLoadingContracts] = useState(false);
+  const [showActivityLog, setShowActivityLog] = useState(false);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [embeddedSignUrl, setEmbeddedSignUrl] = useState<string | null>(null);
   const [loadingEmbedded, setLoadingEmbedded] = useState(false);
@@ -875,17 +897,23 @@ export function ClientContractsInvoices({
                   {contracts.map((contract) => (
                     <TableRow key={contract.id}>
                       <TableCell className="font-medium">{contract.title}</TableCell>
-                      <TableCell>{getContractStatusBadge(contract.status)}</TableCell>
+                      <TableCell>
+                        {contract.requiresSignature === false
+                          ? <Badge variant="outline" className="gap-1"><FileText className="h-3 w-3" />Reference</Badge>
+                          : getContractStatusBadge(contract.status)}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                          {contract.signers?.map((signer) => (
-                            <div key={signer.id} className="text-xs">
-                              <span className="font-medium">{signer.name}</span>
-                              <span className="text-gray-400 ml-1">
-                                ({signer.status.toLowerCase()})
-                              </span>
-                            </div>
-                          ))}
+                          {contract.requiresSignature === false
+                            ? <span className="text-xs text-gray-400">No signature required</span>
+                            : contract.signers?.map((signer) => (
+                              <div key={signer.id} className="text-xs">
+                                <span className="font-medium">{signer.name}</span>
+                                <span className="text-gray-400 ml-1">
+                                  ({signer.status.toLowerCase()})
+                                </span>
+                              </div>
+                            ))}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-gray-500">
@@ -901,37 +929,50 @@ export function ClientContractsInvoices({
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {contract.status !== 'COMPLETED' && contract.status !== 'CANCELLED' && (
+                          {contract.requiresSignature === false ? (
                             <Button
                               variant="ghost"
                               size="sm"
-                              disabled={loadingEmbedded}
-                              title="Sign"
-                              onClick={async () => {
-                                setLoadingEmbedded(true);
-                                try {
-                                  const res = await fetch(`/api/contracts/${contract.id}/embedded-url`, { credentials: 'include' });
-                                  const data = await res.json();
-                                  if (res.ok && data.embeddedUrl) {
-                                    setEmbeddedSignUrl(data.embeddedUrl);
-                                  } else {
-                                    alert(data.error || 'Could not load signing page. Please check your email for the signing link.');
-                                  }
-                                } finally { setLoadingEmbedded(false); }
-                              }}
-                            >
-                              <PenLine className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {contract.status === 'COMPLETED' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDownloadContract(contract.id, 'signed')}
+                              onClick={() => handleDownloadContract(contract.id, 'original')}
                               title="Download"
                             >
                               <Download className="h-4 w-4" />
                             </Button>
+                          ) : (
+                            <>
+                              {contract.status !== 'COMPLETED' && contract.status !== 'CANCELLED' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={loadingEmbedded}
+                                  title="Sign"
+                                  onClick={async () => {
+                                    setLoadingEmbedded(true);
+                                    try {
+                                      const res = await fetch(`/api/contracts/${contract.id}/embedded-url`, { credentials: 'include' });
+                                      const data = await res.json();
+                                      if (res.ok && data.embeddedUrl) {
+                                        setEmbeddedSignUrl(data.embeddedUrl);
+                                      } else {
+                                        alert(data.error || 'Could not load signing page. Please check your email for the signing link.');
+                                      }
+                                    } finally { setLoadingEmbedded(false); }
+                                  }}
+                                >
+                                  <PenLine className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {contract.status === 'COMPLETED' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDownloadContract(contract.id, 'signed')}
+                                  title="Download"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </>
                           )}
                           {contract.status === 'DRAFT' && (
                             <Button
@@ -953,6 +994,78 @@ export function ClientContractsInvoices({
           </CardContent>
         </Card>
       </div>
+
+      <Separator />
+
+      {/* DOCUMENT ACTIVITY SECTION */}
+      <Collapsible open={showActivityLog} onOpenChange={setShowActivityLog} className="space-y-2">
+        <CollapsibleTrigger asChild>
+          <button type="button" className="flex w-full items-center justify-between rounded-md py-1 text-left group">
+            <div className="flex items-center gap-2">
+              <History className="h-5 w-5 text-gray-500" />
+              <h3 className="text-lg font-semibold text-gray-900">Document Activity</h3>
+              <span className="text-sm text-gray-400">
+                ({contracts.reduce((n, c) => n + (c.auditLogs?.length || 0), 0)} events)
+              </span>
+            </div>
+            <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${showActivityLog ? 'rotate-180' : ''}`} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3">
+          <p className="text-sm text-gray-500 -mt-1">Views, signatures, and IP addresses for each contract</p>
+          {contracts.length === 0 ? (
+            <p className="text-sm text-gray-400 py-2">No contracts yet — nothing to show.</p>
+          ) : (
+            contracts.map((contract) => {
+              const logs = contract.auditLogs || [];
+              return (
+                <Card key={contract.id}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="text-sm font-medium text-gray-900">{contract.title}</div>
+
+                    {/* Per-signer summary */}
+                    <div className="flex flex-wrap gap-x-6 gap-y-1">
+                      {contract.signers.map((signer) => (
+                        <div key={signer.id} className="text-xs text-gray-500">
+                          <span className="font-medium text-gray-700">{signer.name}</span>
+                          {signer.viewedAt && <span className="ml-1">viewed {format(new Date(signer.viewedAt), 'MMM d, h:mm a')}</span>}
+                          {signer.signedAt && <span className="ml-1">· signed {format(new Date(signer.signedAt), 'MMM d, h:mm a')}</span>}
+                          {signer.declinedAt && <span className="ml-1 text-red-500">· declined {format(new Date(signer.declinedAt), 'MMM d, h:mm a')}</span>}
+                          {signer.ipAddress && (
+                            <span className="ml-1 inline-flex items-center gap-0.5 text-gray-400">
+                              <MapPin className="h-3 w-3" />{signer.ipAddress}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Event timeline */}
+                    {logs.length === 0 ? (
+                      <p className="text-xs text-gray-400">No activity logged yet.</p>
+                    ) : (
+                      <ul className="space-y-1.5 border-l-2 border-gray-100 pl-3">
+                        {logs.map((log) => (
+                          <li key={log.id} className="text-xs text-gray-600">
+                            <span className="font-medium capitalize">{log.action}</span>
+                            {log.performedBy && <span className="text-gray-500"> — {log.performedBy}</span>}
+                            <span className="text-gray-400"> · {format(new Date(log.createdAt), 'MMM d, yyyy h:mm a')}</span>
+                            {log.ipAddress && (
+                              <span className="ml-1 inline-flex items-center gap-0.5 text-gray-400">
+                                <MapPin className="h-3 w-3" />{log.ipAddress}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </CollapsibleContent>
+      </Collapsible>
 
       <Separator />
 

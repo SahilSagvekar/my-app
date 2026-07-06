@@ -1401,6 +1401,7 @@ model Contract {
   preClientId          String?
   signwellDocumentId   String?
   signwellRequestId    String?
+  requiresSignature    Boolean            @default(true)
   createdBy            User               @relation("ContractCreator", fields: [createdById], references: [id])
   template             ContractTemplate?  @relation(fields: [templateId], references: [id])
   auditLogs            ContractAuditLog[]
