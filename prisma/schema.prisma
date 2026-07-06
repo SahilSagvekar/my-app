@@ -52,6 +52,7 @@ model User {
   loginAuditLogs          LoginAuditLog[]
   payrolls                Payroll[]
   PreClient               PreClient[]
+  helpVideos              HelpVideo[]
   achievements            QCAchievement[]
   qcAnalytics             QCAnalytics[]
   categoryMetrics         QCCategoryMetrics[]
@@ -1141,6 +1142,22 @@ model Guideline {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   client    Client?  @relation(fields: [clientId], references: [id])
+}
+
+model HelpVideo {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  youtubeUrl  String
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdById Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  @@index([isActive])
+  @@index([order])
 }
 
 model SalesLead {

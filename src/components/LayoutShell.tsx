@@ -24,7 +24,8 @@ import {
   X,
   Settings as SettingsIcon,
   ArrowLeftRight,
-  FileText
+  FileText,
+  PlayCircle
 } from 'lucide-react';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
@@ -290,6 +291,19 @@ export function LayoutShell({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+
+            {/* Help Videos shortcut — client portal only */}
+            {currentRole?.toLowerCase() === 'client' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Help Videos"
+                onClick={() => onPageChange('help-videos')}
+                className={currentPage === 'help-videos' ? 'bg-gray-100' : ''}
+              >
+                <PlayCircle className="h-5 w-5 text-gray-500" />
+              </Button>
             )}
 
             {/* User Menu */}

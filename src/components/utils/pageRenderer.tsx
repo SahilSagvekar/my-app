@@ -44,6 +44,8 @@ import { CompressionDashboard } from "@/components/admin/CompressionDashboard";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
 import { FolderRepairTool } from "../admin/Folderrepairtool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
+import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
+import { ClientHelpVideos } from "../client/ClientHelpVideos";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -168,6 +170,8 @@ export function renderPage(
         return <PortfolioManagementTab />;
       case "contracts":
         return <ContractsDashboard />;
+      case "help-videos":
+        return <HelpVideosManagementTab />;
       case "compression":
         return <CompressionDashboard />;
       case "production-tracker":
@@ -369,6 +373,8 @@ export function renderPage(
         return <ComingSoonPage title="Archive" />;
       case "contracts":
         return <ClientPortalPage />;
+      case "help-videos":
+        return <ClientHelpVideos />;
       default:
         return <ClientMonthlyOverview />;
     }

@@ -27,6 +27,7 @@ import {
   PenLine,
   Target,
   History,
+  PlayCircle,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -48,6 +49,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
+    { id: 'help-videos', label: 'Help Videos', icon: PlayCircle },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
@@ -99,6 +101,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'social', label: 'Social Media', icon: Instagram },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'contracts', label: 'Contracts & Billing', icon: FileText },
+    { id: 'help-videos', label: 'Help Videos', icon: PlayCircle },
   ],
   videographer: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
