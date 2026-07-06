@@ -499,17 +499,9 @@ function QuoteBuilderDialog({
                 value={acceptanceText}
                 onChange={(e) => setAcceptanceText(e.target.value)}
                 rows={2}
-                placeholder="Paragraph shown above signature line…"
+                placeholder="Acceptance paragraph…"
                 style={{ ...inStyle, fontSize: 13, color: '#374151', marginBottom: 14 }}
               />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
-                <div>
-                  <div style={{ borderTop: '1px solid #374151', paddingTop: 5, fontFamily: 'Arial, sans-serif', fontSize: 9, letterSpacing: '0.1em', color: '#9ca3af', textTransform: 'uppercase' }}>Authorized Signature</div>
-                </div>
-                <div>
-                  <div style={{ borderTop: '1px solid #374151', paddingTop: 5, fontFamily: 'Arial, sans-serif', fontSize: 9, letterSpacing: '0.1em', color: '#9ca3af', textTransform: 'uppercase' }}>Date</div>
-                </div>
-              </div>
             </div>
 
             {/* Internal notes */}

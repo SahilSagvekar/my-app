@@ -362,15 +362,6 @@ export async function generateQuotePdf(quote: Quote, preClient: PreClient): Prom
       y -= 12;
     }
 
-    y -= 25;
-
-    // Signature lines
-    page.drawLine({ start: { x: margin, y }, end: { x: margin + 200, y }, thickness: 1, color: rgb(0.2, 0.2, 0.2) });
-    page.drawLine({ start: { x: width - margin - 200, y }, end: { x: width - margin, y }, thickness: 1, color: rgb(0.2, 0.2, 0.2) });
-
-    y -= 12;
-    page.drawText('AUTHORIZED SIGNATURE', { x: margin, y, size: 8, font: font, color: rgb(0.5, 0.5, 0.5) });
-    page.drawText('DATE', { x: width - margin - 200, y, size: 8, font: font, color: rgb(0.5, 0.5, 0.5) });
   }
 
   // 6. Professional Footer
