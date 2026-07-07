@@ -367,14 +367,24 @@ function SocialCell({ value, onUpdate }: {
   );
 }
 
-function LeadLinkCell({ href, label }: { href?: string; label: string }) {
-  if (!href) return <span className="block px-2 text-[11px] text-gray-300">—</span>;
+function LeadLinkCell({ value, onChange }: { value?: string; onChange: (v: string) => void }) {
+  const href = value || '';
   return (
-    <a href={href} target="_blank" rel="noreferrer"
-      className="inline-flex h-[30px] items-center gap-1.5 rounded px-2 text-[12px] font-medium text-[#0073EA] hover:bg-[#F5F6F8]"
-      title={href}>
-      <LinkIcon className="h-3.5 w-3.5" />{label}
-    </a>
+    <div className="flex items-center h-[30px] w-full">
+      <input
+        value={href}
+        onChange={e => onChange(e.target.value)}
+        placeholder="https://..."
+        className="flex-1 min-w-0 h-full px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded"
+      />
+      {href && (
+        <a href={href} target="_blank" rel="noreferrer"
+          className="shrink-0 px-1 text-gray-400 hover:text-[#0073EA]"
+          title={href}>
+          <LinkIcon className="h-3.5 w-3.5" />
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -997,8 +1007,8 @@ const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customC
           {col.id === 'email' && <input value={lead.email} onChange={e => onUpdate(lead.id, { email: e.target.value })} placeholder="—" type="email" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
           {col.id === 'phone' && <input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })} placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
           {col.id === 'socials' && <SocialCell value={lead.socials} onUpdate={patch => onUpdate(lead.id, patch)} />}
-          {col.id === 'profileUrl' && <LeadLinkCell href={lead.profileUrl} label="Profile" />}
-          {col.id === 'postUrl' && <LeadLinkCell href={lead.postUrl} label="Post" />}
+          {col.id === 'profileUrl' && <LeadLinkCell value={lead.profileUrl} onChange={v => onUpdate(lead.id, { profileUrl: v })} />}
+          {col.id === 'postUrl' && <LeadLinkCell value={lead.postUrl} onChange={v => onUpdate(lead.id, { postUrl: v })} />}
           {col.id === 'value' && <input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })} placeholder="$0" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] text-center placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
           {col.id === 'source' && <input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })} placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
           {col.id === 'activity' && <ActivityCell value={parseActivities(lead.metadata?.__activities)} onUpdate={patch => onUpdate(lead.id, { ...patch, metadata: { ...lead.metadata, ...(patch.metadata as any) } })} />}
