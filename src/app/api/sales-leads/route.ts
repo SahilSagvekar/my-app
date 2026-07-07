@@ -57,6 +57,32 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
+    // Warn (non-blocking) if this email/phone already exists on another lead, any rep
+    const trimmedEmail = (body.email ?? '').trim();
+    const trimmedPhone = (body.phone ?? '').trim();
+    let duplicate: { matchedField: 'email' | 'phone'; leadName: string; ownerName: string } | null = null;
+
+    if (trimmedEmail || trimmedPhone) {
+      const orConditions: any[] = [];
+      if (trimmedEmail) orConditions.push({ email: { equals: trimmedEmail, mode: 'insensitive' } });
+      if (trimmedPhone) orConditions.push({ phone: trimmedPhone });
+
+      const existing = await prisma.salesLead.findFirst({
+        where: { OR: orConditions },
+        select: { name: true, email: true, phone: true, user: { select: { name: true, email: true } } },
+      });
+
+      if (existing) {
+        const matchedField: 'email' | 'phone' =
+          trimmedEmail && existing.email?.toLowerCase() === trimmedEmail.toLowerCase() ? 'email' : 'phone';
+        duplicate = {
+          matchedField,
+          leadName: existing.name || 'Unnamed lead',
+          ownerName: existing.user?.name || existing.user?.email || 'another rep',
+        };
+      }
+    }
+
     const lead = await prisma.salesLead.create({
       data: {
         userId: decoded.userId,
@@ -90,7 +116,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ ok: true, lead });
+    return NextResponse.json({ ok: true, lead, duplicate });
   } catch (err) {
     console.error('[POST /api/sales-leads]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
