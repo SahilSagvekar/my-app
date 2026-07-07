@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "../ui/dialog";
-import { PlayCircle, Video, Loader2, X, FileText, Download } from "lucide-react";
+import { PlayCircle, Video, Loader2, X, FileText, Download, Eye } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { toast } from "sonner";
 
@@ -44,6 +44,13 @@ interface TrainingDocumentType {
   updatedAt: string;
 }
 
+function getViewerKind(fileName: string): "pdf" | "image" | "office" {
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  if (ext === "pdf") return "pdf";
+  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "image";
+  return "office";
+}
+
 const ROLE_LABELS: Record<string, string> = {
   editor: "Editor",
   qc: "QC Specialist",
@@ -60,6 +67,7 @@ export function TrainingPortalPage() {
   const [playing, setPlaying] = useState<TrainingVideoType | null>(null);
   const [documents, setDocuments] = useState<TrainingDocumentType[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
+  const [viewingDoc, setViewingDoc] = useState<TrainingDocumentType | null>(null);
 
   const role = (user?.role || "").toLowerCase();
   const courseTitle = role ? `${ROLE_LABELS[role] || role} Training` : "Training";
@@ -203,25 +211,34 @@ export function TrainingPortalPage() {
                       )}
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    disabled={!d.url}
-                    asChild={!!d.url}
-                  >
-                    {d.url ? (
-                      <a href={d.url} target="_blank" rel="noopener noreferrer">
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </a>
-                    ) : (
-                      <span>
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </span>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      disabled={!d.url}
+                      onClick={() => setViewingDoc(d)}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Open
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!d.url}
+                      asChild={!!d.url}
+                      title="Download"
+                    >
+                      {d.url ? (
+                        <a href={d.url} target="_blank" rel="noopener noreferrer">
+                          <Download className="h-4 w-4" />
+                        </a>
+                      ) : (
+                        <span>
+                          <Download className="h-4 w-4" />
+                        </span>
+                      )}
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -250,6 +267,45 @@ export function TrainingPortalPage() {
                   Your browser does not support the video tag.
                 </video>
               </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewingDoc} onOpenChange={(open) => !open && setViewingDoc(null)}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 gap-0 overflow-hidden flex flex-col">
+          <DialogHeader className="p-4 pb-2 shrink-0">
+            <DialogTitle className="pr-8">{viewingDoc?.title}</DialogTitle>
+            <DialogDescription>{viewingDoc?.fileName}</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 bg-muted">
+            {viewingDoc?.url && (
+              (() => {
+                const kind = getViewerKind(viewingDoc.fileName);
+                if (kind === "image") {
+                  return (
+                    <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
+                      <img src={viewingDoc.url} alt={viewingDoc.title} className="max-w-full max-h-full object-contain" />
+                    </div>
+                  );
+                }
+                if (kind === "pdf") {
+                  return (
+                    <iframe
+                      src={viewingDoc.url}
+                      title={viewingDoc.title}
+                      className="w-full h-full border-0"
+                    />
+                  );
+                }
+                return (
+                  <iframe
+                    src={`https://docs.google.com/gview?url=${encodeURIComponent(viewingDoc.url)}&embedded=true`}
+                    title={viewingDoc.title}
+                    className="w-full h-full border-0"
+                  />
+                );
+              })()
             )}
           </div>
         </DialogContent>

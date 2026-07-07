@@ -44,6 +44,11 @@ const roles = [
     name: "Sales",
     color: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
   },
+  {
+    id: "sales_manager",
+    name: "Sales Manager",
+    color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
+  },
 ];
 
 const statusOptions = [

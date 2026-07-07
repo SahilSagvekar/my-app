@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
+import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
 function getTokenFromCookies(req: Request) {
     const cookieHeader = req.headers.get('cookie');
@@ -24,13 +25,16 @@ export async function GET(req: NextRequest) {
         const all = searchParams.get('all') === 'true';
         const monthParam = searchParams.get('month'); // e.g. "2026-02"
 
-        // Admin can fetch all commissions
+        // Admin can fetch all commissions; sales_manager can fetch their permitted reps'
         const isAdmin = decoded.role === 'admin';
+        const isSalesManager = decoded.role === 'sales_manager';
 
         let where: any = {};
 
         if (all && isAdmin) {
             // Admin fetching all commissions
+        } else if (all && isSalesManager) {
+            where.salesUserId = { in: await getVisibleSalesRepIds(Number(decoded.userId)) };
         } else {
             where.salesUserId = decoded.userId;
         }

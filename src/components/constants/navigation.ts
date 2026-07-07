@@ -116,6 +116,11 @@ export const NAVIGATION_ITEMS = {
   sales: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },
+    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
+  ],
+  sales_manager: [
+    { id: 'dashboard', label: 'Sales Team', icon: Users },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
   ],
 } as const;
@@ -132,6 +137,7 @@ export const getDefaultPage = (role: string): string => {
     case 'client': return 'contracts';
     case 'videographer': return 'dashboard';
     case 'sales': return 'dashboard';
+    case 'sales_manager': return 'dashboard';
     default: return 'dashboard';
   }
 };

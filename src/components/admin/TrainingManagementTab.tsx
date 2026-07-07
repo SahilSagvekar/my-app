@@ -56,6 +56,7 @@ const ROLES = [
   { id: "manager", name: "Manager" },
   { id: "videographer", name: "Videographer" },
   { id: "sales", name: "Sales" },
+  { id: "sales_manager", name: "Sales Manager" },
 ];
 
 export function TrainingManagementTab() {

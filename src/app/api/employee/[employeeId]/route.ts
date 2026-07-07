@@ -20,6 +20,7 @@ const PatchSchema = z.object({
       "scheduler",
       "client",
       "sales",
+      "sales_manager",
     ])
     .optional(), // Changed 'qc_specialist' to 'qc'
   hourlyRate: z.number().min(0).optional(), // Added back hourlyRate

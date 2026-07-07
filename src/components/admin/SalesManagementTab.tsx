@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { SalesDashboard } from '../dashboards/SalesDashboard';
 import { ConvertLeadDialog } from '../sales/ConvertLeadDialog';
+import { SalesManagerPermissionsPanel } from './SalesManagerPermissionsPanel';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -571,7 +572,7 @@ export function SalesManagementTab() {
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [convertModal, setConvertModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [view, setView] = useState<'team' | 'personal' | 'commissions'>('team');
+  const [view, setView] = useState<'team' | 'personal' | 'commissions' | 'permissions'>('team');
 
   // Assign leads state
   const [assignDialog, setAssignDialog] = useState<{ open: boolean; leadIds: string[] }>({ open: false, leadIds: [] });
@@ -589,7 +590,10 @@ export function SalesManagementTab() {
     );
   }
 
-  if (!user || user.role !== 'admin') {
+  const isAdmin = user?.role === 'admin';
+  const isSalesManager = user?.role === 'sales_manager';
+
+  if (!user || (!isAdmin && !isSalesManager)) {
     return (
       <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm text-center px-8">
         <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6">
@@ -597,8 +601,8 @@ export function SalesManagementTab() {
         </div>
         <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
         <p className="text-gray-500 max-w-md mx-auto text-sm leading-relaxed">
-          The Sales Management portal is strictly for administrators. 
-          Your current role (<span className="font-bold text-gray-700 capitalize">{user?.role || 'Guest'}</span>) 
+          The Sales Management portal is strictly for administrators and sales managers.
+          Your current role (<span className="font-bold text-gray-700 capitalize">{user?.role || 'Guest'}</span>)
           does not have permission to view team sales data or sensitive commission structures.
         </p>
         <div className="mt-8">
@@ -622,12 +626,12 @@ export function SalesManagementTab() {
   const openAssignDialog = async (leadIds: string[]) => {
     setSelectedSalesUserId(null);
     setAssignDialog({ open: true, leadIds });
-    // Fetch sales reps if not loaded yet
+    // Fetch sales reps if not loaded yet — scoped to permitted reps for sales managers
     if (salesReps.length === 0) {
       try {
-        const res = await fetch('/api/roles?all=true', { credentials: 'include' });
+        const res = await fetch('/api/sales-manager/visible-reps', { credentials: 'include' });
         const data = await res.json();
-        const reps = (data.users || []).filter((u: any) => u.role?.toLowerCase() === 'sales');
+        const reps = data.reps || [];
         setSalesReps(reps.map((u: any) => ({ id: u.id, name: u.name || u.email, email: u.email })));
       } catch {
         toast.error('Failed to load sales reps');
@@ -784,6 +788,18 @@ export function SalesManagementTab() {
             <DollarSign className="h-3.5 w-3.5" />
             Commissions
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setView('permissions')}
+              className={cn(
+                "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
+                view === 'permissions' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Permissions
+            </button>
+          )}
         </div>
         {view === 'team' && (
           <Button onClick={exportCSV} variant="outline" size="sm" className="gap-2 border-dashed">
@@ -797,6 +813,8 @@ export function SalesManagementTab() {
         <SalesDashboard />
       ) : view === 'commissions' ? (
         <CommissionManagement />
+      ) : view === 'permissions' ? (
+        <SalesManagerPermissionsPanel />
       ) : (
         <>
           {/* ── Team Overview — Monday.com style ── */}

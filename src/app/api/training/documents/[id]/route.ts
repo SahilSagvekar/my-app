@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser2 } from "@/lib/auth";
 import { deleteFromS3 } from "@/lib/s3";
 
-const ROLES_WITH_TRAINING = ["editor", "qc", "scheduler", "manager", "videographer", "sales", "admin"] as const;
+const ROLES_WITH_TRAINING = ["editor", "qc", "scheduler", "manager", "videographer", "sales", "sales_manager", "admin"] as const;
 type TrainingRole = (typeof ROLES_WITH_TRAINING)[number];
 
 function isTrainingRole(r: string): r is TrainingRole {
