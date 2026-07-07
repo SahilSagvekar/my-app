@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
 import nodemailer from 'nodemailer';
+import { notifyQuoteSent } from '@/lib/pipeline-notifications';
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -87,6 +88,11 @@ export async function POST(
       where: { id: quoteId },
       data: { status: 'SENT', sentAt: new Date() },
     });
+
+    const amount = `$${(quote.totalAmount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    notifyQuoteSent(quote.preClient.name, amount).catch((err) =>
+      console.error('[quotes/send] notifyQuoteSent failed:', err)
+    );
 
     return NextResponse.json({ success: true, quote: updated });
   } catch (err) {

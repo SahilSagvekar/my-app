@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { notifyFirstPortalLogin } from '@/lib/pipeline-notifications';
 
 // POST /api/onboarding/[token]/set-password
 // Public — burns the token, sets the password, returns an auth JWT so client
@@ -76,6 +77,10 @@ export async function POST(
         data: { status: 'CONTRACT_PENDING' },
       }),
     ]);
+
+    notifyFirstPortalLogin(record.client.name).catch((err) =>
+      console.error('[set-password] notifyFirstPortalLogin failed:', err)
+    );
 
     // Issue a JWT so client is auto-logged-in
     const authToken = jwt.sign(

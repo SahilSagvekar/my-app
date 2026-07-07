@@ -7,6 +7,7 @@ import { s3, generateSignedUrl, BUCKET, uploadBufferToS3 } from './s3';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { createSignWellDocumentFromFile } from './signwell';
 import { prisma } from './prisma';
+import { notifyContractSent } from './pipeline-notifications';
 
 /**
  * Apply decorations (text, highlights, field placeholders) to a PDF buffer from editor annotations
@@ -502,7 +503,7 @@ export async function sendContractViaSignWell(params: {
     embeddedSigning: true,
   });
 
-  return prisma.contract.create({
+  const contract = await prisma.contract.create({
     data: {
       title,
       description: description || null,
@@ -541,6 +542,10 @@ export async function sendContractViaSignWell(params: {
       signers: true,
     },
   });
+
+  notifyContractSent(title).catch((err) => console.error('[sendContractViaSignWell] notifyContractSent failed:', err));
+
+  return contract;
 }
 
 /**

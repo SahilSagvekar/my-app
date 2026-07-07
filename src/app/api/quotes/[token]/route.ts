@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
+import { notifyQuoteAccepted, notifyQuoteRejected } from '@/lib/pipeline-notifications';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
@@ -126,6 +127,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         where: { id: quote.preClientId },
         data: { status: 'QUOTE_ACCEPTED' },
       });
+      const acceptedAmount = `$${(quote.totalAmount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      notifyQuoteAccepted(quote.preClient.name, acceptedAmount).catch((err) =>
+        console.error('[quotes/[token]] notifyQuoteAccepted failed:', err)
+      );
       return NextResponse.json({ success: true, action: 'accepted' });
     }
 
@@ -149,6 +154,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         where: { id: quote.preClientId },
         data: { status: 'QUOTED' },
       });
+      notifyQuoteRejected(quote.preClient.name, rejectionReason || changeRequest).catch((err) =>
+        console.error('[quotes/[token]] notifyQuoteRejected failed:', err)
+      );
       return NextResponse.json({ success: true, action: 'rejected' });
     }
   } catch (err) {

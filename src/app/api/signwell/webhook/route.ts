@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { downloadSignWellPdf, mapSignWellStatus, mapSignWellSignerStatus } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
 import nodemailer from 'nodemailer';
+import { notifyContractSigned } from '@/lib/pipeline-notifications';
 
 // POST /api/signwell/webhook
 // Register this URL in SignWell: Settings → Webhooks
@@ -126,11 +127,8 @@ async function handleCompleted(document: any) {
       },
     });
 
-    // Notify admin
-    await notifyAdmin(
-      `✅ Contract signed — ${contract.title}`,
-      `The contract "${contract.title}" has been fully signed by all parties. Signed PDF saved to R2.`
-    );
+    // Notify pipeline recipients (Slack DM + email)
+    await notifyContractSigned(contract.title);
 
     console.log(`✅ [SignWell] Contract completed: ${contract.id}`);
   } catch (err: any) {

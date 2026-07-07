@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { downloadSignWellPdf, mapSignWellStatus, mapSignWellSignerStatus } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
+import { notifyContractSigned } from '@/lib/pipeline-notifications';
 
 /**
  * POST /api/webhooks/signwell
@@ -147,6 +148,8 @@ export async function POST(req: NextRequest) {
             details: JSON.stringify({ message: 'All signers have signed. Document completed via SignWell.' }),
           },
         });
+
+        await notifyContractSigned(contract.title);
 
         console.log(`[signwell webhook] Contract ${contract.id} marked COMPLETED, PDF saved to R2`);
       } catch (pdfErr) {
