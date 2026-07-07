@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
+import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
 function getTokenFromCookies(req: Request) {
     const cookieHeader = req.headers.get('cookie');
@@ -9,14 +10,14 @@ function getTokenFromCookies(req: Request) {
     return match ? match[1] : null;
 }
 
-// PATCH /api/affiliate/commissions/[id] — admin: approve / mark paid / cancel
+// PATCH /api/affiliate/commissions/[id] — admin/sales_manager: approve / mark paid / cancel
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!decoded?.userId || decoded.role !== 'admin') {
+        if (!decoded?.userId || (decoded.role !== 'admin' && decoded.role !== 'sales_manager')) {
             return NextResponse.json({ ok: false, message: 'Admin only' }, { status: 403 });
         }
 
@@ -35,6 +36,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         if (!existing) {
             return NextResponse.json({ ok: false, message: 'Commission not found' }, { status: 404 });
+        }
+
+        if (decoded.role === 'sales_manager') {
+            const visibleRepIds = await getVisibleSalesRepIds(Number(decoded.userId));
+            if (!visibleRepIds.includes(existing.salesUserId)) {
+                return NextResponse.json({ ok: false, message: 'This commission is outside your permitted reps' }, { status: 403 });
+            }
         }
 
         const updateData: any = {};

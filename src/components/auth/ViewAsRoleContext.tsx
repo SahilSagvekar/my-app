@@ -6,12 +6,12 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 // This allows developers or admins to preview the portal as other roles
 const ROLE_SWITCH_MAP: Record<string, string[]> = {
     // Specific Users - ALWAYS allowed to switch to these
-    "eric@e8productions.com": ["qc", "sales", "scheduler"],
-    "sahilsagvekar230@gmail.com": ["qc", "sales", "scheduler"],
+    "eric@e8productions.com": ["qc", "sales", "sales_manager", "scheduler"],
+    "sahilsagvekar230@gmail.com": ["qc", "sales", "sales_manager", "scheduler"],
     "digitalworkplacedaena@gmail.com": ["qc"],
 };
 
-const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "scheduler"];
+const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler"];
 
 interface ViewAsRoleContextType {
     viewingAsRole: string | null;

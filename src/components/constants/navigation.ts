@@ -115,6 +115,10 @@ export const NAVIGATION_ITEMS = {
     { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
   ],
+  sales_manager: [
+    { id: 'dashboard', label: 'Sales Team', icon: Users },
+    { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
+  ],
 } as const;
 
 export type NavigationRole = keyof typeof NAVIGATION_ITEMS;
@@ -129,6 +133,7 @@ export const getDefaultPage = (role: string): string => {
     case 'client': return 'approvals';
     case 'videographer': return 'dashboard';
     case 'sales': return 'dashboard';
+    case 'sales_manager': return 'dashboard';
     default: return 'dashboard';
   }
 };

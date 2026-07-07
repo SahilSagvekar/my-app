@@ -10,6 +10,7 @@ import { createClientFolders } from '@/lib/s3';
 import { createRecurringTasksForClient } from '@/app/api/clients/recurring';
 import { redis } from '@/lib/redis';
 import { onboardNewClient } from '@/lib/client-onboarding';
+import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
 function getToken(req: Request) {
   const cookie = req.headers.get('cookie') || '';
@@ -27,7 +28,7 @@ export async function POST(
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!['admin', 'manager'].includes(decoded.role)) {
+    if (!['admin', 'manager', 'sales_manager'].includes(decoded.role)) {
       return NextResponse.json({ ok: false, message: 'Only admins/managers can convert leads' }, { status: 403 });
     }
 
@@ -36,6 +37,13 @@ export async function POST(
     if (!lead) return NextResponse.json({ ok: false, message: 'Lead not found' }, { status: 404 });
     if ((lead as any).convertedToClientId) {
       return NextResponse.json({ ok: false, message: 'This lead has already been converted to a client' }, { status: 409 });
+    }
+
+    if (decoded.role === 'sales_manager') {
+      const visibleRepIds = await getVisibleSalesRepIds(Number(decoded.userId));
+      if (!visibleRepIds.includes(lead.userId)) {
+        return NextResponse.json({ ok: false, message: 'This lead is outside your permitted reps' }, { status: 403 });
+      }
     }
 
     // ── Read optional overrides from request body ──────────────────────────

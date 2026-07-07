@@ -59,6 +59,8 @@ model User {
   rejectionReasons        QCRejectionReason[]
   salesLeads              SalesLead[]
   salesLeadGenerationJobs SalesLeadGenerationJob[]
+  salesManagerPermissions SalesManagerPermission[] @relation("SalesManagerPermissions")
+  salesRepPermissions     SalesManagerPermission[] @relation("SalesRepPermissions")
   sessions                Session[]
   shootDetails            ShootDetail[]            @relation("VideographerShootDetails")
   updatedSocialLogins     SocialLogin[]            @relation("LoginUpdatedBy")
@@ -1270,6 +1272,17 @@ model EditorClientPermission {
   @@index([editorId])
 }
 
+model SalesManagerPermission {
+  id         String @id @default(cuid())
+  managerId  Int
+  salesRepId Int
+  manager    User   @relation("SalesManagerPermissions", fields: [managerId], references: [id], onDelete: Cascade)
+  salesRep   User   @relation("SalesRepPermissions", fields: [salesRepId], references: [id], onDelete: Cascade)
+
+  @@unique([managerId, salesRepId])
+  @@index([managerId])
+}
+
 model TrainingCourse {
   id          String          @id @default(cuid())
   title       String
@@ -1398,6 +1411,7 @@ model Contract {
   updatedAt            DateTime           @updatedAt
   annotations          Json?
   allowVariableSigners Boolean            @default(false)
+  requiresSignature    Boolean            @default(false)
   preClientId          String?
   signwellDocumentId   String?
   signwellRequestId    String?
@@ -1841,6 +1855,7 @@ enum Role {
   client
   qc
   sales
+  sales_manager
 }
 
 enum EmployeeStatus {

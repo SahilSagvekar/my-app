@@ -428,5 +428,21 @@ export function renderPage(
     }
   }
 
+  if (role === "sales_manager") {
+    switch (page) {
+      case "dashboard":
+      case "sales-management":
+        return <SalesManagementTab />;
+      case "training":
+        return <TrainingPortalPage />;
+      case "employment-info":
+        return <EmploymentInfo currentRole={role} />;
+      case "logins":
+        return <SocialLogins />;
+      default:
+        return <SalesManagementTab />;
+    }
+  }
+
   return <ComingSoonPage title="Page not found" />;
 }

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
+import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get('cookie');
@@ -14,15 +15,21 @@ function getTokenFromCookies(req: Request) {
 // Body:
 //   { leadIds: string[], targetUserId: number }        → assign all leads to one person
 //   { leadIds: string[], distributeToAll: true }       → round-robin across all active sales users
+//
+// admin: unrestricted. sales_manager: leadIds must currently belong to a rep they're
+// permitted to see, and targetUserId (or round-robin pool) is limited to permitted reps.
 export async function PATCH(req: NextRequest) {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!decoded?.userId || decoded.role !== 'admin') {
+    if (!decoded?.userId || (decoded.role !== 'admin' && decoded.role !== 'sales_manager')) {
       return NextResponse.json({ ok: false, message: 'Forbidden — admin only' }, { status: 403 });
     }
+
+    const isManager = decoded.role === 'sales_manager';
+    const visibleRepIds = isManager ? await getVisibleSalesRepIds(Number(decoded.userId)) : null;
 
     const body = await req.json();
     const { leadIds, targetUserId, distributeToAll } = body;
@@ -35,10 +42,19 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, message: 'Provide targetUserId or distributeToAll: true' }, { status: 400 });
     }
 
+    if (isManager) {
+      const owned = await prisma.salesLead.count({
+        where: { id: { in: leadIds }, userId: { in: visibleRepIds! } },
+      });
+      if (owned !== leadIds.length) {
+        return NextResponse.json({ ok: false, message: 'Some leads are outside your permitted reps' }, { status: 403 });
+      }
+    }
+
     // Distribute round-robin across all active sales users
     if (distributeToAll) {
       const salesUsers = await prisma.user.findMany({
-        where: { role: 'sales' },
+        where: isManager ? { role: 'sales', id: { in: visibleRepIds! } } : { role: 'sales' },
         select: { id: true },
         orderBy: { id: 'asc' },
       });
@@ -66,7 +82,11 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Assign all to one person
-    const targetUser = await prisma.user.findUnique({
+    if (isManager && !visibleRepIds!.includes(Number(targetUserId))) {
+      return NextResponse.json({ ok: false, message: 'Target user is outside your permitted reps' }, { status: 403 });
+    }
+
+    const targetUser: any = await (prisma as any).user.findUnique({
       where: { id: Number(targetUserId) },
       select: { id: true, name: true, role: true },
     });
@@ -75,7 +95,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, message: 'Target user not found' }, { status: 404 });
     }
 
-    if (targetUser.role !== 'sales') {
+    if (targetUser.role !== 'sales' && targetUser.role !== 'sales_manager') {
       return NextResponse.json({ ok: false, message: 'Target user is not a sales rep' }, { status: 400 });
     }
 

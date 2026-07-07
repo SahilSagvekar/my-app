@@ -1,4 +1,8 @@
 export const dynamic = 'force-dynamic';
+// GET /api/sales-manager/visible-reps
+// Returns the list of sales reps the current user is allowed to assign leads to.
+// admin: every sales rep. sales_manager: only reps an admin has granted them.
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
@@ -11,8 +15,6 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
-// GET /api/admin/sales-leads — fetch all leads across all sales reps (admin),
-// or leads for permitted sales reps only (sales_manager)
 export async function GET(req: NextRequest) {
   try {
     const token = getTokenFromCookies(req);
@@ -25,22 +27,18 @@ export async function GET(req: NextRequest) {
 
     const where =
       decoded.role === 'sales_manager'
-        ? { userId: { in: await getVisibleSalesRepIds(Number(decoded.userId)) } }
-        : {};
+        ? { role: 'sales' as const, id: { in: (await getVisibleSalesRepIds(Number(decoded.userId))).filter(id => id !== Number(decoded.userId)) } }
+        : { role: 'sales' as const };
 
-    const leads = await prisma.salesLead.findMany({
+    const reps = await prisma.user.findMany({
       where,
-      include: {
-        user: {
-          select: { id: true, name: true, email: true, image: true },
-        },
-      },
-      orderBy: [{ userId: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
     });
 
-    return NextResponse.json({ ok: true, leads });
+    return NextResponse.json({ ok: true, reps });
   } catch (err) {
-    console.error('[GET /api/admin/sales-leads]', err);
+    console.error('[GET /api/sales-manager/visible-reps]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
   }
 }
