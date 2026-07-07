@@ -37,6 +37,7 @@ interface Quote {
     name: string;
     email: string;
     companyName: string | null;
+    address: string | null;
   };
 }
 
@@ -491,6 +492,7 @@ export default function QuotePage() {
             <div style={{ fontFamily: "Arial, sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#1a56db", textTransform: "uppercase", marginBottom: 4 }}>Prepared For</div>
             <div style={{ fontFamily: "Arial, sans-serif", fontWeight: 700, fontSize: 14 }}>{quote.preClient.name}</div>
             {quote.preClient.companyName && <div style={{ fontFamily: "Arial, sans-serif", color: "#4b5563", fontSize: 13 }}>{quote.preClient.companyName}</div>}
+            {quote.preClient.address && <div style={{ fontFamily: "Arial, sans-serif", color: "#6b7280", fontSize: 12 }}>{quote.preClient.address}</div>}
           </div>
           <div>
             <div style={{ fontFamily: "Arial, sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#1a56db", textTransform: "uppercase", marginBottom: 4 }}>Prepared By</div>

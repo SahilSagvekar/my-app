@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     const quote = await prisma.quote.findUnique({
       where: { shareToken: token },
       include: {
-        preClient: { select: { name: true, email: true, companyName: true } },
+        preClient: { select: { name: true, email: true, companyName: true, address: true } },
       },
     });
 

@@ -31,6 +31,7 @@ interface PreClient {
   email: string;
   companyName: string | null;
   phone: string | null;
+  address: string | null;
 }
 
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
@@ -188,11 +189,12 @@ export async function generateQuotePdf(quote: Quote, preClient: PreClient): Prom
   y -= 25;
 
   // Prepared For / Prepared By metadata box
+  const boxHeight = preClient.address ? 72 : 60;
   page.drawRectangle({
     x: margin,
-    y: y - 50,
+    y: y - 50 - (boxHeight - 60),
     width: contentWidth,
-    height: 60,
+    height: boxHeight,
     borderColor: rgb(0.9, 0.9, 0.9),
     borderWidth: 1,
     color: rgb(0.98, 0.98, 0.98),
@@ -202,11 +204,14 @@ export async function generateQuotePdf(quote: Quote, preClient: PreClient): Prom
   page.drawText('PREPARED FOR', { x: margin + 12, y: y - 8, size: 8, font: boldFont, color: rgb(0.1, 0.34, 0.86) });
   page.drawText(`${preClient.name}${preClient.companyName ? `, ${preClient.companyName}` : ''}`, { x: margin + 12, y: y - 22, size: 11, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
   page.drawText(preClient.email, { x: margin + 12, y: y - 34, size: 9, font: font, color: rgb(0.4, 0.4, 0.4) });
+  if (preClient.address) {
+    page.drawText(preClient.address, { x: margin + 12, y: y - 46, size: 9, font: font, color: rgb(0.4, 0.4, 0.4) });
+  }
 
   page.drawText('PREPARED BY', { x: width / 2 + 12, y: y - 8, size: 8, font: boldFont, color: rgb(0.1, 0.34, 0.86) });
   page.drawText(quote.preparedBy || 'E8 Productions Team', { x: width / 2 + 12, y: y - 22, size: 11, font: font, color: rgb(0.1, 0.1, 0.1) });
 
-  y -= 70;
+  y -= 70 + (boxHeight - 60);
 
   // Intro text block
   checkPageBreak(30);
