@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+<template id="__bundler_thumbnail" data-bg-color="#0073EA">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect x="360" y="240" width="480" height="320" rx="24" fill="#ffffff"/>
+    <rect x="392" y="280" width="180" height="20" rx="10" fill="#0073EA" opacity="0.25"/>
+    <rect x="392" y="320" width="416" height="12" rx="6" fill="#0073EA" opacity="0.15"/>
+    <rect x="392" y="350" width="416" height="12" rx="6" fill="#0073EA" opacity="0.15"/>
+    <rect x="392" y="400" width="120" height="90" rx="10" fill="#579BFC"/>
+    <rect x="524" y="400" width="120" height="90" rx="10" fill="#00C875"/>
+    <rect x="656" y="400" width="120" height="90" rx="10" fill="#FDAB3D"/>
+  </svg>
+</template>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: oklch(0.85 0.005 260); border-radius: 8px; }
+    a { color: #0073EA; text-decoration: none; }
+    a:hover { color: #0060C0; text-decoration: underline; }
+    input, textarea, select, button { font-family: inherit; }
+  </style>
+</helmet>
+
+<div style="min-height:100vh; background:oklch(0.97 0.003 90); color:oklch(0.22 0.01 260); display:flex; flex-direction:column;">
+
+  <!-- ============ HEADER ============ -->
+  <div style="position:sticky; top:0; z-index:30; background:#ffffff; border-bottom:1px solid oklch(0.92 0.004 90);">
+    <div style="max-width:1480px; margin:0 auto; padding:20px 32px 0 32px;">
+      <div style="display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:20px;">
+        <div style="display:flex; align-items:center; gap:14px;">
+          <div style="width:36px; height:36px; border-radius:10px; background:#0073EA; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:15px;">E8</div>
+          <div>
+            <h1 style="margin:0; font-size:20px; font-weight:800; letter-spacing:-0.02em;">Sales</h1>
+            <p style="margin:0; font-size:12.5px; color:oklch(0.55 0.01 260);">Lead pipeline &amp; performance</p>
+          </div>
+        </div>
+
+        <sc-if value="{{ isPipelineTab }}" hint-placeholder-val="{{ true }}">
+          <div style="position:relative; width:320px; max-width:100%; justify-self:center;">
+            <span style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:oklch(0.6 0.01 260); font-size:14px;">⌕</span>
+            <input value="{{ search }}" onChange="{{ onSearchChange }}" placeholder="Search leads, companies…"
+              style="width:100%; height:36px; padding:0 12px 0 30px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:oklch(0.97 0.003 90); font-size:13.5px; outline:none;" />
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isPipelineTab }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end; flex-wrap:wrap; justify-self:end;">
+            <button onClick="{{ openImport }}" style="height:36px; padding:0 14px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:#fff; color:oklch(0.35 0.01 260); font-weight:600; font-size:13px; cursor:pointer; white-space:nowrap;">Import</button>
+            <button onClick="{{ exportCSV }}" style="height:36px; padding:0 14px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:#fff; color:oklch(0.35 0.01 260); font-weight:600; font-size:13px; cursor:pointer; white-space:nowrap;">Export CSV</button>
+            <div style="position:relative;">
+              <button onClick="{{ toggleColumnsMenu }}" style="height:36px; padding:0 14px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:#fff; color:oklch(0.35 0.01 260); font-weight:600; font-size:13px; cursor:pointer; white-space:nowrap;">Columns</button>
+              <sc-if value="{{ columnsMenuOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="position:fixed; inset:0; z-index:44;" onClick="{{ toggleColumnsMenu }}"></div>
+                <div style="position:absolute; top:42px; right:0; z-index:45; background:#fff; border:1px solid oklch(0.9 0.004 90); border-radius:12px; padding:12px; width:230px; box-shadow:0 14px 34px rgba(0,0,0,0.14);">
+                  <p style="margin:0 0 8px 0; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; color:oklch(0.6 0.01 260);">Visible Columns</p>
+                  <sc-for list="{{ toggleableColumns }}" as="col" hint-placeholder-count="4">
+                    <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; font-size:13px; cursor:pointer;">
+                      <input type="checkbox" checked="{{ col.visible }}" onChange="{{ col.toggle }}" style="width:14px; height:14px; accent-color:#0073EA;" />{{ col.label }}
+                    </label>
+                  </sc-for>
+                  <div style="border-top:1px solid oklch(0.93 0.004 90); margin-top:8px; padding-top:8px;">
+                    <sc-for list="{{ customColumns }}" as="col" hint-placeholder-count="0">
+                      <div style="display:flex; align-items:center; justify-content:space-between; padding:4px; font-size:12.5px; color:#0073EA; font-weight:600;">
+                        {{ col.label }}
+                        <button onClick="{{ col.remove }}" style="border:none; background:transparent; color:oklch(0.6 0.01 260); cursor:pointer; font-size:12px;">✕</button>
+                      </div>
+                    </sc-for>
+                    <div style="display:flex; gap:6px; margin-top:6px;">
+                      <input value="{{ newColumnLabel }}" onChange="{{ onNewColumnLabelChange }}" placeholder="Custom column…" style="flex:1; height:30px; border:1px solid oklch(0.9 0.004 90); border-radius:7px; padding:0 8px; font-size:12.5px; min-width:0;" />
+                      <button onClick="{{ addCustomColumn }}" style="height:30px; padding:0 10px; border-radius:7px; border:none; background:#0073EA; color:#fff; font-size:12px; font-weight:700; cursor:pointer;">Add</button>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+            <button onClick="{{ addLead }}" style="height:36px; padding:0 16px; border-radius:9px; border:none; background:#0073EA; color:#fff; font-weight:600; font-size:13.5px; cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;">
+              <span style="font-size:16px; line-height:1;">+</span> New Lead
+            </button>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- Tabs -->
+      <div style="display:flex; align-items:center; gap:4px; margin-top:18px; overflow-x:auto;">
+        <button onClick="{{ setTabPersonal }}" style="{{ tabStyle.personal }}">My Pipeline</button>
+        <button onClick="{{ setTabTeam }}" style="{{ tabStyle.team }}">Team Overview</button>
+        <button onClick="{{ setTabCommissions }}" style="{{ tabStyle.commissions }}">Commissions</button>
+        <button onClick="{{ setTabPermissions }}" style="{{ tabStyle.permissions }}">Permissions</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:1480px; width:100%; margin:0 auto; padding:24px 32px 120px 32px; flex:1;">
+
+  <!-- ============ PIPELINE TABS (personal / team) ============ -->
+  <sc-if value="{{ isPipelineTab }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <!-- Team Leaderboard (collapsible) -->
+      <div style="background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:16px; padding:22px 24px; margin-bottom:20px;">
+        <div onClick="{{ pulse.toggleExpanded }}" style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; cursor:pointer;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="{{ pulse.chevronStyle }}">▾</span>
+            <div>
+              <p style="margin:0 0 3px 0; font-size:15px; font-weight:800; letter-spacing:-0.01em;">Team Leaderboard</p>
+              <p style="margin:0; font-size:12px; color:oklch(0.55 0.01 260);">{{ pulse.mySummary }}</p>
+            </div>
+          </div>
+        </div>
+
+        <sc-if value="{{ pulse.expanded }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-top:18px;">
+            <div style="display:flex; background:oklch(0.96 0.003 90); padding:3px; border-radius:9px; gap:2px;">
+              <sc-for list="{{ pulse.metricTabs }}" as="mt" hint-placeholder-count="3">
+                <button onClick="{{ mt.select }}" style="{{ mt.style }}">{{ mt.label }}</button>
+              </sc-for>
+            </div>
+            <div style="width:1px; height:22px; background:oklch(0.9 0.004 90);"></div>
+            <button onClick="{{ pulse.logCall }}" style="height:32px; padding:0 12px; border-radius:8px; border:1px solid oklch(0.9 0.004 90); background:#fff; color:oklch(0.35 0.01 260); font-size:12px; font-weight:700; cursor:pointer;">+ Call</button>
+            <button onClick="{{ pulse.logDeal }}" style="height:32px; padding:0 12px; border-radius:8px; border:1px solid oklch(0.9 0.004 90); background:#fff; color:oklch(0.35 0.01 260); font-size:12px; font-weight:700; cursor:pointer;">+ Deal Closed</button>
+            <button onClick="{{ pulse.logMeeting }}" style="height:32px; padding:0 12px; border-radius:8px; border:1px solid oklch(0.9 0.004 90); background:#fff; color:oklch(0.35 0.01 260); font-size:12px; font-weight:700; cursor:pointer;">+ Meeting</button>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:6px; margin-top:14px;">
+            <sc-for list="{{ pulse.rows }}" as="row" hint-placeholder-count="4">
+              <div style="{{ row.rowStyle }}">
+                <span style="{{ row.rankStyle }}">{{ row.rank }}</span>
+                <div style="min-width:110px; flex-shrink:0;">
+                  <p style="margin:0; font-size:13.5px; font-weight:700; color:oklch(0.2 0.01 260);">{{ row.name }}<sc-if value="{{ row.isMe }}" hint-placeholder-val="{{ false }}"> <span style="color:#FF9800;">(You)</span></sc-if></p>
+                  <p style="margin:0; font-size:11px; color:oklch(0.6 0.01 260);">{{ row.secondaryLabel }}</p>
+                </div>
+                <div style="flex:1; height:14px; border-radius:999px; background:oklch(0.95 0.003 90); overflow:hidden; min-width:80px;">
+                  <div style="height:100%; border-radius:999px; background:{{ row.barColor }}; width:{{ row.pct }}%;"></div>
+                </div>
+                <span style="width:90px; text-align:right; font-size:15px; font-weight:800; color:oklch(0.2 0.01 260); flex-shrink:0;">{{ row.valueLabel }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- Stats -->
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;">
+        <div style="background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+          <p style="margin:0 0 6px 0; font-size:11.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">Total Leads</p>
+          <p style="margin:0; font-size:28px; font-weight:800;">{{ stats.total }}</p>
+        </div>
+        <div style="background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+          <p style="margin:0 0 6px 0; font-size:11.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">Contacted</p>
+          <p style="margin:0; font-size:28px; font-weight:800; color:#579BFC;">{{ stats.contacted }}</p>
+        </div>
+        <div style="background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+          <p style="margin:0 0 6px 0; font-size:11.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">Meetings Booked</p>
+          <p style="margin:0; font-size:28px; font-weight:800; color:#00C875;">{{ stats.meetings }}</p>
+        </div>
+        <div style="background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+          <p style="margin:0 0 6px 0; font-size:11.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">High Priority</p>
+          <p style="margin:0; font-size:28px; font-weight:800; color:#E2445C;">{{ stats.highPriority }}</p>
+        </div>
+      </div>
+
+      <!-- Rep filter pills (team view) -->
+      <sc-if value="{{ isTeamView }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+          <button onClick="{{ selectAllReps }}" style="{{ repAllPillStyle }}">All Reps · {{ allTeamCount }}</button>
+          <sc-for list="{{ reps }}" as="rep" hint-placeholder-count="4">
+            <button onClick="{{ rep.select }}" style="{{ rep.pillStyle }}">
+              <span style="{{ rep.dotStyle }}"></span>{{ rep.name }} · {{ rep.count }}
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- Table -->
+      <div style="background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:14px; overflow:visible;">
+        <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:13.5px; min-width:900px;">
+          <thead>
+            <tr style="background:oklch(0.98 0.003 90);">
+              <th style="width:40px; padding:12px 8px; border-bottom:1px solid oklch(0.92 0.004 90);"></th>
+              <th style="text-align:left; padding:12px 10px; font-size:11px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90); min-width:210px;">Lead</th>
+              <th style="text-align:left; padding:12px 10px; font-size:11px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90); width:120px;">Priority</th>
+              <sc-if value="{{ showChannelsCol }}" hint-placeholder-val="{{ true }}">
+                <th style="text-align:left; padding:12px 10px; font-size:11px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90); width:150px;">Channels</th>
+              </sc-if>
+              <sc-if value="{{ showRepCol }}" hint-placeholder-val="{{ false }}">
+                <th style="text-align:left; padding:12px 10px; font-size:11px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90); width:140px;">Rep</th>
+              </sc-if>
+              <sc-if value="{{ showValueCol }}" hint-placeholder-val="{{ true }}">
+                <th style="text-align:right; padding:12px 10px; font-size:11px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90); width:100px;">Value</th>
+              </sc-if>
+              <sc-if value="{{ showActivityCol }}" hint-placeholder-val="{{ true }}">
+                <th style="text-align:left; padding:12px 10px; font-size:11px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90); width:150px;">Last Activity</th>
+              </sc-if>
+              <sc-for list="{{ customColumns }}" as="col" hint-placeholder-count="0">
+                <th style="text-align:left; padding:12px 10px; font-size:11px; font-weight:700; color:#0073EA; text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90); width:130px;">{{ col.label }}</th>
+              </sc-for>
+              <th style="width:110px; border-bottom:1px solid oklch(0.92 0.004 90);"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ groups }}" as="group" hint-placeholder-count="4">
+              <sc-if value="{{ group.hasLeads }}" hint-placeholder-val="{{ true }}">
+                <tr>
+                  <td colspan="8" style="padding:0;">
+                    <div style="display:flex; align-items:center; gap:10px; padding:9px 14px; border-left:4px solid {{ group.color }}; background:oklch(0.985 0.003 90);">
+                      <input type="checkbox" checked="{{ group.allSelected }}" onChange="{{ group.toggleSelectAll }}" style="width:14px; height:14px; cursor:pointer; accent-color:#0073EA;" />
+                      <button onClick="{{ group.toggleCollapse }}" style="border:none; background:transparent; cursor:pointer; font-size:12px; color:oklch(0.5 0.01 260); padding:2px;">{{ group.chevron }}</button>
+                      <span style="font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; color:#fff; background:{{ group.color }}; padding:2px 9px; border-radius:5px;">{{ group.label }}</span>
+                      <span style="font-size:11.5px; color:oklch(0.6 0.01 260); font-weight:600;">{{ group.count }} item{{ group.plural }}</span>
+                    </div>
+                  </td>
+                </tr>
+                <sc-if value="{{ group.expanded }}" hint-placeholder-val="{{ true }}">
+                  <sc-for list="{{ group.leads }}" as="lead" hint-placeholder-count="3">
+                    <tr style="{{ lead.rowStyle }}">
+                      <td style="padding:10px 8px; text-align:center; border-bottom:1px solid oklch(0.95 0.003 90);">
+                        <input type="checkbox" checked="{{ lead.isSelected }}" onChange="{{ lead.toggleSelect }}" style="width:15px; height:15px; cursor:pointer; accent-color:#0073EA;" />
+                      </td>
+                      <td style="padding:10px; border-bottom:1px solid oklch(0.95 0.003 90); cursor:pointer;" onClick="{{ lead.openDrawer }}">
+                        <div style="min-width:0;">
+                          <p style="margin:0; font-weight:600; font-size:13.5px; color:oklch(0.2 0.01 260); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ lead.name }}</p>
+                          <p style="margin:0; font-size:12px; color:oklch(0.55 0.01 260); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ lead.company }}</p>
+                        </div>
+                      </td>
+                      <td style="padding:8px 10px; border-bottom:1px solid oklch(0.95 0.003 90); position:relative;">
+                        <button onClick="{{ lead.togglePriorityMenu }}" style="{{ lead.priorityPillStyle }}">{{ lead.priorityLabel }}</button>
+                        <sc-if value="{{ lead.priorityMenuOpen }}" hint-placeholder-val="{{ false }}">
+                          <div style="position:fixed; inset:0; z-index:39;" onClick="{{ lead.closeMenus }}"></div>
+                          <div style="position:absolute; top:36px; left:10px; z-index:40; background:#fff; border:1px solid oklch(0.9 0.004 90); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.12); padding:6px; width:140px;">
+                            <sc-for list="{{ lead.priorityOptions }}" as="opt" hint-placeholder-count="5">
+                              <button onClick="{{ opt.select }}" style="width:100%; text-align:left; padding:7px 10px; border:none; background:transparent; border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; color:{{ opt.color }};" onMouseOver="this.style.background='oklch(0.96 0.003 90)'" onMouseOut="this.style.background='transparent'">{{ opt.label }}</button>
+                            </sc-for>
+                          </div>
+                        </sc-if>
+                      </td>
+                      <sc-if value="{{ showChannelsCol }}" hint-placeholder-val="{{ true }}">
+                        <td style="padding:8px 10px; border-bottom:1px solid oklch(0.95 0.003 90);">
+                          <div style="display:flex; gap:3px; flex-wrap:wrap;">
+                            <sc-for list="{{ lead.channelChips }}" as="chip" hint-placeholder-count="0">
+                              <span style="display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:18px; padding:0 4px; border-radius:5px; font-size:9.5px; font-weight:800; color:#fff; background:{{ chip.color }};">{{ chip.label }}</span>
+                            </sc-for>
+                            <sc-if value="{{ lead.noChannels }}" hint-placeholder-val="{{ false }}">
+                              <span style="font-size:11.5px; color:oklch(0.7 0.01 260);">—</span>
+                            </sc-if>
+                          </div>
+                        </td>
+                      </sc-if>
+                      <sc-if value="{{ showRepCol }}" hint-placeholder-val="{{ false }}">
+                        <td style="padding:8px 10px; border-bottom:1px solid oklch(0.95 0.003 90);">
+                          <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="{{ lead.repDotStyle }}"></span>
+                            <span style="font-size:12.5px; color:oklch(0.35 0.01 260);">{{ lead.repName }}</span>
+                          </div>
+                        </td>
+                      </sc-if>
+                      <sc-if value="{{ showValueCol }}" hint-placeholder-val="{{ true }}">
+                        <td style="padding:8px 10px; text-align:right; border-bottom:1px solid oklch(0.95 0.003 90); font-weight:700; font-variant-numeric:tabular-nums;">{{ lead.valueLabel }}</td>
+                      </sc-if>
+                      <sc-if value="{{ showActivityCol }}" hint-placeholder-val="{{ true }}">
+                        <td style="padding:8px 10px; border-bottom:1px solid oklch(0.95 0.003 90);">
+                          <span style="font-size:12.5px; color:oklch(0.45 0.01 260);">{{ lead.activityLabel }}</span>
+                        </td>
+                      </sc-if>
+                      <sc-for list="{{ lead.customCells }}" as="cell" hint-placeholder-count="0">
+                        <td style="padding:6px 10px; border-bottom:1px solid oklch(0.95 0.003 90);" onClick="{{ cell.stop }}">
+                          <input value="{{ cell.value }}" onChange="{{ cell.onChange }}" style="width:100%; height:28px; border:1px solid transparent; border-radius:6px; padding:0 6px; font-size:12.5px; background:transparent;" onFocus="this.style.border='1px solid #0073EA'; this.style.background='#fff'" onBlur="this.style.border='1px solid transparent'; this.style.background='transparent'" />
+                        </td>
+                      </sc-for>
+                      <td style="padding:8px; border-bottom:1px solid oklch(0.95 0.003 90); text-align:right;">
+                        <div style="display:flex; align-items:center; justify-content:flex-end; gap:6px;">
+                          <sc-if value="{{ lead.isWon }}" hint-placeholder-val="{{ false }}">
+                            <button onClick="{{ lead.openConvert }}" style="height:26px; padding:0 10px; border-radius:7px; border:none; background:{{ lead.convertBg }}; color:{{ lead.convertColor }}; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">{{ lead.convertLabel }}</button>
+                          </sc-if>
+                          <button onClick="{{ lead.openDrawer }}" style="border:none; background:transparent; color:oklch(0.6 0.01 260); cursor:pointer; font-size:15px;">›</button>
+                        </div>
+                      </td>
+                    </tr>
+                  </sc-for>
+                </sc-if>
+              </sc-if>
+            </sc-for>
+          </tbody>
+        </table>
+        </div>
+        <sc-if value="{{ noLeads }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:60px 20px; text-align:center; color:oklch(0.55 0.01 260);">
+            <p style="margin:0; font-size:14px; font-weight:600;">No leads match your filters</p>
+            <p style="margin:6px 0 0 0; font-size:12.5px;">Try clearing search or switching views.</p>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ COMMISSIONS TAB ============ -->
+  <sc-if value="{{ isCommissionsTab }}" hint-placeholder-val="{{ false }}">
+    <div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px;">
+        <sc-for list="{{ commissionStats }}" as="cs" hint-placeholder-count="4">
+          <button onClick="{{ cs.onClick }}" style="{{ cs.cardStyle }}">
+            <p style="margin:0 0 6px 0; font-size:11px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">{{ cs.label }}</p>
+            <p style="margin:0; font-size:24px; font-weight:800; color:{{ cs.color }};">{{ cs.value }}</p>
+          </button>
+          
+        </sc-for>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+        <div style="position:relative; width:240px; max-width:100%;">
+          <span style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:oklch(0.6 0.01 260); font-size:14px;">⌕</span>
+          <input value="{{ commissionSearch }}" onChange="{{ onCommissionSearchChange }}" placeholder="Search rep or client…" style="width:100%; height:34px; padding:0 12px 0 30px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:oklch(0.97 0.003 90); font-size:13px; outline:none;" />
+        </div>
+        <div style="display:flex; background:oklch(0.96 0.003 90); padding:3px; border-radius:9px; gap:2px;">
+          <sc-for list="{{ commissionFilters }}" as="f" hint-placeholder-count="5">
+            <button onClick="{{ f.select }}" style="{{ f.style }}">{{ f.label }}</button>
+          </sc-for>
+        </div>
+        <button onClick="{{ exportCommissionsCSV }}" style="height:34px; padding:0 14px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:#fff; color:oklch(0.35 0.01 260); font-weight:600; font-size:12.5px; cursor:pointer; margin-left:auto;">Export CSV</button>
+      </div>
+
+      <div style="background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:14px; overflow:hidden;">
+        <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:820px;">
+          <thead>
+            <tr style="background:oklch(0.98 0.003 90);">
+              <th style="text-align:left; padding:11px 12px; font-size:10.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90);">Sales Rep</th>
+              <th style="text-align:left; padding:11px 12px; font-size:10.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90);">Client</th>
+              <th style="text-align:right; padding:11px 12px; font-size:10.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90);">Deal Value</th>
+              <th style="text-align:center; padding:11px 12px; font-size:10.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90);">Rate</th>
+              <th style="text-align:right; padding:11px 12px; font-size:10.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90);">Commission</th>
+              <th style="text-align:center; padding:11px 12px; font-size:10.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90);">Month</th>
+              <th style="text-align:center; padding:11px 12px; font-size:10.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90);">Status</th>
+              <th style="text-align:center; padding:11px 12px; font-size:10.5px; font-weight:700; color:oklch(0.55 0.01 260); text-transform:uppercase; letter-spacing:0.04em; border-bottom:1px solid oklch(0.92 0.004 90);">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ filteredCommissions }}" as="c" hint-placeholder-count="6">
+              <tr style="border-bottom:1px solid oklch(0.95 0.003 90);">
+                <td style="padding:10px 12px;">
+                  <span style="font-size:12.5px; font-weight:600;">{{ c.repName }}</span>
+                </td>
+                <td style="padding:10px 12px; font-size:12.5px;">{{ c.client }}</td>
+                <td style="padding:10px 12px; text-align:right; font-weight:600;">{{ c.dealValueLabel }}</td>
+                <td style="padding:10px 12px; text-align:center;">
+                  <span style="font-size:11px; font-weight:700; color:#A25DDC; background:#F5EBFC; padding:2px 8px; border-radius:999px;">{{ c.rateLabel }}</span>
+                </td>
+                <td style="padding:10px 12px; text-align:right; font-weight:800; color:#037F4C;">{{ c.amountLabel }}</td>
+                <td style="padding:10px 12px; text-align:center; font-size:12px; color:oklch(0.5 0.01 260);">{{ c.month }}</td>
+                <td style="padding:10px 12px; text-align:center;">
+                  <span style="{{ c.statusPillStyle }}">{{ c.statusLabel }}</span>
+                </td>
+                <td style="padding:10px 12px; text-align:center;">
+                  <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <sc-for list="{{ c.actions }}" as="act" hint-placeholder-count="0">
+                      <button onClick="{{ act.run }}" style="{{ act.style }}">{{ act.label }}</button>
+                    </sc-for>
+                  </div>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ PERMISSIONS TAB ============ -->
+  <sc-if value="{{ isPermissionsTab }}" hint-placeholder-val="{{ false }}">
+    <div style="max-width:760px;">
+      <p style="margin:0 0 4px 0; font-size:15px; font-weight:800;">Sales Manager Permissions</p>
+      <p style="margin:0 0 18px 0; font-size:12.5px; color:oklch(0.55 0.01 260);">Control what each sales manager can see and do across the team.</p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <sc-for list="{{ permissionRows }}" as="p" hint-placeholder-count="4">
+          <div style="background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:14px; padding:16px 18px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+              <div>
+                <p style="margin:0; font-size:13.5px; font-weight:700;">{{ p.name }}</p>
+                <p style="margin:0; font-size:11.5px; color:oklch(0.55 0.01 260);">Sales Manager</p>
+              </div>
+              <sc-if value="{{ p.saved }}" hint-placeholder-val="{{ false }}">
+                <span style="margin-left:auto; font-size:11px; font-weight:700; color:#037F4C;">Saved ✓</span>
+              </sc-if>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <sc-for list="{{ p.flags }}" as="flag" hint-placeholder-count="4">
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:6px 8px; border-radius:8px;" onMouseOver="this.style.background='oklch(0.97 0.003 90)'" onMouseOut="this.style.background='transparent'">
+                  <span style="position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0;">
+                    <input type="checkbox" checked="{{ flag.on }}" onChange="{{ flag.toggle }}" style="opacity:0; position:absolute; width:36px; height:20px; margin:0; cursor:pointer; z-index:1;" />
+                    <span style="{{ flag.trackStyle }}"></span>
+                    <span style="{{ flag.thumbStyle }}"></span>
+                  </span>
+                  <span style="font-size:12.5px; color:oklch(0.3 0.01 260); font-weight:500;">{{ flag.label }}</span>
+                </label>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  </div>
+
+  <!-- ============ BULK ACTION TOOLBAR ============ -->
+  <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; bottom:28px; left:50%; transform:translateX(-50%); z-index:50;">
+      <div style="display:flex; align-items:center; gap:14px; background:oklch(0.2 0.01 260); color:#fff; padding:10px 18px; border-radius:16px; box-shadow:0 16px 40px rgba(0,0,0,0.25); flex-wrap:wrap; justify-content:center;">
+        <div style="display:flex; align-items:center; gap:8px; padding-right:14px; border-right:1px solid rgba(255,255,255,0.18);">
+          <div style="width:22px; height:22px; border-radius:999px; background:#0073EA; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800;">{{ selectedCount }}</div>
+          <span style="font-size:12.5px; font-weight:700; letter-spacing:0.03em;">SELECTED</span>
+        </div>
+        <div style="position:relative;">
+          <button onClick="{{ toggleBulkStatusMenu }}" style="height:32px; padding:0 14px; border-radius:9px; border:1px solid rgba(255,255,255,0.2); background:transparent; color:#fff; font-size:12.5px; font-weight:600; cursor:pointer;">Change Status ▾</button>
+          <sc-if value="{{ bulkStatusMenuOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position:fixed; inset:0; z-index:49;" onClick="{{ closeBulkMenus }}"></div>
+            <div style="position:absolute; bottom:40px; left:0; z-index:51; background:#fff; border-radius:10px; padding:6px; width:150px; box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+              <sc-for list="{{ bulkStatusOptions }}" as="opt" hint-placeholder-count="6">
+                <button onClick="{{ opt.select }}" style="width:100%; text-align:left; padding:7px 10px; border:none; background:transparent; border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; color:{{ opt.color }};" onMouseOver="this.style.background='oklch(0.96 0.003 90)'" onMouseOut="this.style.background='transparent'">{{ opt.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <sc-if value="{{ isTeamView }}" hint-placeholder-val="{{ false }}">
+          <div style="position:relative;">
+            <button onClick="{{ toggleBulkAssignMenu }}" style="height:32px; padding:0 14px; border-radius:9px; border:1px solid rgba(255,255,255,0.2); background:transparent; color:#fff; font-size:12.5px; font-weight:600; cursor:pointer;">Assign ▾</button>
+            <sc-if value="{{ bulkAssignMenuOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:fixed; inset:0; z-index:49;" onClick="{{ closeBulkMenus }}"></div>
+              <div style="position:absolute; bottom:40px; left:0; z-index:51; background:#fff; border-radius:10px; padding:6px; width:180px; box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+                <sc-for list="{{ bulkAssignOptions }}" as="opt" hint-placeholder-count="5">
+                  <button onClick="{{ opt.select }}" style="width:100%; text-align:left; padding:7px 10px; border:none; background:transparent; border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; color:oklch(0.3 0.01 260);" onMouseOver="this.style.background='oklch(0.96 0.003 90)'" onMouseOut="this.style.background='transparent'">{{ opt.label }}</button>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+        <button onClick="{{ openMassEmail }}" style="height:32px; padding:0 14px; border-radius:9px; border:none; background:#0073EA; color:#fff; font-size:12.5px; font-weight:700; cursor:pointer;">Send Mass Email</button>
+        <button onClick="{{ clearSelection }}" style="border:none; background:transparent; color:oklch(0.75 0.01 260); font-size:12px; font-weight:700; cursor:pointer; text-transform:uppercase; letter-spacing:0.03em;">Cancel</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ TOAST ============ -->
+  <sc-if value="{{ toast.visible }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; bottom:28px; right:28px; z-index:95; background:oklch(0.2 0.01 260); color:#fff; padding:12px 18px; border-radius:11px; font-size:13px; font-weight:600; box-shadow:0 12px 30px rgba(0,0,0,0.25);">{{ toast.message }}</div>
+  </sc-if>
+
+  <!-- ============ MASS EMAIL MODAL ============ -->
+  <sc-if value="{{ massEmailOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; z-index:90; background:rgba(15,15,20,0.4);" onClick="{{ closeMassEmail }}"></div>
+    <div style="position:fixed; inset:0; z-index:91; display:flex; align-items:center; justify-content:center; padding:20px; pointer-events:none;">
+      <div style="pointer-events:auto; background:#fff; border-radius:16px; width:560px; max-width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 30px 70px rgba(0,0,0,0.3);">
+        <div style="padding:22px 24px; display:flex; align-items:center; gap:10px; border-bottom:1px solid oklch(0.93 0.004 90);">
+          <div style="width:34px; height:34px; border-radius:9px; background:#E6F1FD; color:#0073EA; display:flex; align-items:center; justify-content:center; font-size:16px;">✉</div>
+          <h2 style="margin:0; font-size:16px; font-weight:800;">Send Mass Email</h2>
+        </div>
+        <div style="padding:20px 24px; display:flex; flex-direction:column; gap:14px;">
+          <div style="background:#E6F1FD; border:1px solid #BFDCFB; border-radius:10px; padding:12px 14px;">
+            <p style="margin:0; font-size:12.5px; font-weight:700; color:#0060C0;">Recipients: {{ selectedCount }} lead(s) selected</p>
+            <p style="margin:4px 0 0 0; font-size:11.5px; color:#0073EA;">Use {name} or {company} to personalize.</p>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; font-weight:700; color:oklch(0.5 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">Subject</label>
+            <input value="{{ massEmail.subject }}" onChange="{{ massEmail.updateSubject }}" style="height:38px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 12px; font-size:13.5px;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; font-weight:700; color:oklch(0.5 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">Message</label>
+            <textarea value="{{ massEmail.body }}" onChange="{{ massEmail.updateBody }}" rows="8" style="border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:10px 12px; font-size:13px; resize:vertical;"></textarea>
+          </div>
+        </div>
+        <div style="padding:16px 24px; border-top:1px solid oklch(0.93 0.004 90); display:flex; justify-content:flex-end; gap:8px;">
+          <button onClick="{{ closeMassEmail }}" style="height:36px; padding:0 16px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:#fff; font-weight:600; font-size:13px; cursor:pointer;">Cancel</button>
+          <button onClick="{{ massEmail.send }}" style="height:36px; padding:0 18px; border-radius:9px; border:none; background:#0073EA; color:#fff; font-weight:700; font-size:13px; cursor:pointer;">{{ massEmail.sendLabel }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ IMPORT LEADS MODAL ============ -->
+  <sc-if value="{{ importOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; z-index:90; background:rgba(15,15,20,0.4);" onClick="{{ closeImport }}"></div>
+    <div style="position:fixed; inset:0; z-index:91; display:flex; align-items:center; justify-content:center; padding:20px; pointer-events:none;">
+      <div style="pointer-events:auto; background:#fff; border-radius:16px; width:560px; max-width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 30px 70px rgba(0,0,0,0.3);">
+        <div style="padding:22px 24px; border-bottom:1px solid oklch(0.93 0.004 90);">
+          <h2 style="margin:0; font-size:16px; font-weight:800;">Import Leads</h2>
+          <p style="margin:4px 0 0 0; font-size:12px; color:oklch(0.55 0.01 260);">Paste CSV rows: name, company, email, phone</p>
+        </div>
+        <div style="padding:20px 24px;">
+          <textarea value="{{ importText }}" onChange="{{ onImportTextChange }}" rows="8" placeholder="Ava Thompson, Northline Media, ava@northline.co, 212-555-0142" style="width:100%; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:10px 12px; font-size:12.5px; font-family:ui-monospace,monospace; resize:vertical;"></textarea>
+          <p style="margin:8px 0 0 0; font-size:12px; color:oklch(0.5 0.01 260);">{{ importPreviewLabel }}</p>
+        </div>
+        <div style="padding:16px 24px; border-top:1px solid oklch(0.93 0.004 90); display:flex; justify-content:flex-end; gap:8px;">
+          <button onClick="{{ closeImport }}" style="height:36px; padding:0 16px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:#fff; font-weight:600; font-size:13px; cursor:pointer;">Cancel</button>
+          <button onClick="{{ doImport }}" style="height:36px; padding:0 18px; border-radius:9px; border:none; background:#0073EA; color:#fff; font-weight:700; font-size:13px; cursor:pointer;">Import Leads</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ CONVERT LEAD MODAL ============ -->
+  <sc-if value="{{ hasConvertLead }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; z-index:90; background:rgba(15,15,20,0.4);" onClick="{{ closeConvert }}"></div>
+    <div style="position:fixed; inset:0; z-index:91; display:flex; align-items:center; justify-content:center; padding:20px; pointer-events:none;">
+      <div style="pointer-events:auto; background:#fff; border-radius:16px; width:460px; max-width:100%; box-shadow:0 30px 70px rgba(0,0,0,0.3);">
+        <div style="padding:22px 24px; border-bottom:1px solid oklch(0.93 0.004 90);">
+          <h2 style="margin:0; font-size:16px; font-weight:800;">Convert to Client</h2>
+          <p style="margin:4px 0 0 0; font-size:12px; color:oklch(0.55 0.01 260);">{{ convertLead.name }} · {{ convertLead.company }}</p>
+        </div>
+        <div style="padding:20px 24px; display:flex; flex-direction:column; gap:14px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; font-weight:700; color:oklch(0.5 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">Client Name</label>
+            <input value="{{ convertLead.clientName }}" onChange="{{ convertLead.updateClientName }}" style="height:38px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 12px; font-size:13.5px;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label style="font-size:11px; font-weight:700; color:oklch(0.5 0.01 260); text-transform:uppercase; letter-spacing:0.04em;">Monthly Value ($)</label>
+            <input value="{{ convertLead.valueInput }}" onChange="{{ convertLead.updateValue }}" style="height:38px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 12px; font-size:13.5px;" />
+          </div>
+        </div>
+        <div style="padding:16px 24px; border-top:1px solid oklch(0.93 0.004 90); display:flex; justify-content:flex-end; gap:8px;">
+          <button onClick="{{ closeConvert }}" style="height:36px; padding:0 16px; border-radius:9px; border:1px solid oklch(0.9 0.004 90); background:#fff; font-weight:600; font-size:13px; cursor:pointer;">Cancel</button>
+          <button onClick="{{ convertLead.confirm }}" style="height:36px; padding:0 18px; border-radius:9px; border:none; background:#037F4C; color:#fff; font-weight:700; font-size:13px; cursor:pointer;">Convert to Client</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ LEAD DRAWER ============ -->
+  <sc-if value="{{ hasOpenLead }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed; inset:0; z-index:70; background:rgba(15,15,20,0.35);" onClick="{{ closeDrawer }}"></div>
+    <div style="position:fixed; top:0; right:0; bottom:0; width:440px; max-width:92vw; background:#fff; z-index:71; box-shadow:-20px 0 50px rgba(0,0,0,0.15); overflow-y:auto; border-left:4px solid {{ openLead.statusColor }};">
+      <div style="padding:22px 24px; border-bottom:1px solid oklch(0.93 0.004 90); position:sticky; top:0; background:#fff; z-index:2;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <h2 style="margin:0; font-size:17px; font-weight:800;">Lead Profile</h2>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <sc-if value="{{ openLead.showSaving }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size:11.5px; font-weight:700; color:#FDAB3D;">Saving…</span>
+            </sc-if>
+            <sc-if value="{{ openLead.showSaved }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size:11.5px; font-weight:700; color:#037F4C;">Saved ✓</span>
+            </sc-if>
+            <button onClick="{{ closeDrawer }}" style="border:none; background:oklch(0.96 0.003 90); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px; color:oklch(0.4 0.01 260);">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:22px 24px; display:flex; flex-direction:column; gap:22px;">
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <p style="margin:0; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:oklch(0.6 0.01 260);">Details</p>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Full Name</label>
+            <input value="{{ openLead.name }}" onChange="{{ openLead.updateName }}" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13.5px;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Company</label>
+            <input value="{{ openLead.company }}" onChange="{{ openLead.updateCompany }}" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13.5px;" />
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Email</label>
+              <input value="{{ openLead.email }}" onChange="{{ openLead.updateEmail }}" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13.5px;" />
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Phone</label>
+              <input value="{{ openLead.phone }}" onChange="{{ openLead.updatePhone }}" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13.5px;" />
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Deal Value ($)</label>
+              <input value="{{ openLead.valueInput }}" onChange="{{ openLead.updateValue }}" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13.5px;" />
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Source</label>
+              <input value="{{ openLead.source }}" onChange="{{ openLead.updateSource }}" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13.5px;" />
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Profile Link</label>
+              <input value="{{ openLead.profileUrl }}" onChange="{{ openLead.updateProfileUrl }}" placeholder="https://…" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13px;" />
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Post Link</label>
+              <input value="{{ openLead.postUrl }}" onChange="{{ openLead.updatePostUrl }}" placeholder="https://…" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13px;" />
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <p style="margin:0; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:oklch(0.6 0.01 260);">Social Links</p>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <sc-for list="{{ openLead.socialEntries }}" as="soc" hint-placeholder-count="2">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:32px; height:24px; border-radius:6px; background:{{ soc.color }}; color:#fff; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">{{ soc.label }}</span>
+                <input value="{{ soc.url }}" onChange="{{ soc.updateUrl }}" style="flex:1; min-width:0; height:30px; border:1px solid oklch(0.9 0.004 90); border-radius:7px; padding:0 8px; font-size:12.5px;" />
+                <button onClick="{{ soc.remove }}" style="border:none; background:transparent; color:oklch(0.6 0.01 260); cursor:pointer; font-size:13px; flex-shrink:0;">✕</button>
+              </div>
+            </sc-for>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <select value="{{ newSocial.platform }}" onChange="{{ onNewSocialPlatformChange }}" style="height:30px; border:1px solid oklch(0.9 0.004 90); border-radius:7px; font-size:11.5px; padding:0 4px; width:100px; flex-shrink:0;">
+                <sc-for list="{{ socialPlatformOptions }}" as="sp" hint-placeholder-count="6">
+                  <option value="{{ sp.id }}">{{ sp.full }}</option>
+                </sc-for>
+              </select>
+              <input value="{{ newSocial.url }}" onChange="{{ onNewSocialUrlChange }}" placeholder="URL or @handle" style="flex:1; min-width:0; height:30px; border:1px solid oklch(0.9 0.004 90); border-radius:7px; padding:0 8px; font-size:12.5px;" />
+              <button onClick="{{ addSocial }}" style="height:30px; width:30px; border-radius:7px; border:none; background:#0073EA; color:#fff; cursor:pointer; flex-shrink:0; font-size:14px;">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <p style="margin:0; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:oklch(0.6 0.01 260);">Pipeline</p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div style="position:relative;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260); display:block; margin-bottom:4px;">Status</label>
+              <button onClick="{{ openLead.toggleStatusMenu }}" style="{{ openLead.statusPillStyle }}">{{ openLead.statusLabel }}</button>
+              <sc-if value="{{ openLead.statusMenuOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="position:fixed; inset:0; z-index:79;" onClick="{{ openLead.closeMenus }}"></div>
+                <div style="position:absolute; top:60px; left:0; z-index:80; background:#fff; border:1px solid oklch(0.9 0.004 90); border-radius:10px; padding:6px; width:160px; box-shadow:0 10px 30px rgba(0,0,0,0.15);">
+                  <sc-for list="{{ openLead.statusOptions }}" as="opt" hint-placeholder-count="6">
+                    <button onClick="{{ opt.select }}" style="width:100%; text-align:left; padding:7px 10px; border:none; background:transparent; border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; color:{{ opt.color }};" onMouseOver="this.style.background='oklch(0.96 0.003 90)'" onMouseOut="this.style.background='transparent'">{{ opt.label }}</button>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+            <div style="position:relative;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260); display:block; margin-bottom:4px;">Priority</label>
+              <button onClick="{{ openLead.togglePriorityMenu }}" style="{{ openLead.priorityPillStyle }}">{{ openLead.priorityLabel }}</button>
+              <sc-if value="{{ openLead.priorityMenuOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="position:fixed; inset:0; z-index:79;" onClick="{{ openLead.closeMenus }}"></div>
+                <div style="position:absolute; top:60px; left:0; z-index:80; background:#fff; border:1px solid oklch(0.9 0.004 90); border-radius:10px; padding:6px; width:150px; box-shadow:0 10px 30px rgba(0,0,0,0.15);">
+                  <sc-for list="{{ openLead.priorityOptions }}" as="opt" hint-placeholder-count="5">
+                    <button onClick="{{ opt.select }}" style="width:100%; text-align:left; padding:7px 10px; border:none; background:transparent; border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; color:{{ opt.color }};" onMouseOver="this.style.background='oklch(0.96 0.003 90)'" onMouseOut="this.style.background='transparent'">{{ opt.label }}</button>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+          <sc-if value="{{ isTeamView }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <label style="font-size:11px; font-weight:600; color:oklch(0.55 0.01 260);">Assigned Rep</label>
+              <select value="{{ openLead.repId }}" onChange="{{ openLead.updateRep }}" style="height:36px; border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:0 10px; font-size:13px; background:#fff;">
+                <sc-for list="{{ reps }}" as="rep" hint-placeholder-count="4">
+                  <option value="{{ rep.id }}">{{ rep.name }}</option>
+                </sc-for>
+              </select>
+            </div>
+          </sc-if>
+          <sc-if value="{{ openLead.isWon }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ openLead.openConvert }}" style="align-self:flex-start; height:34px; padding:0 14px; border-radius:8px; border:none; background:{{ openLead.convertBg }}; color:{{ openLead.convertColor }}; font-size:12.5px; font-weight:700; cursor:pointer;">{{ openLead.convertLabel }}</button>
+          </sc-if>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <p style="margin:0; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:oklch(0.6 0.01 260);">Contact Actions</p>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; background:oklch(0.98 0.003 90); border:1px solid oklch(0.93 0.004 90); border-radius:10px; padding:12px;">
+            <sc-for list="{{ openLead.dmTicks }}" as="tick" hint-placeholder-count="9">
+              <button onClick="{{ tick.toggle }}" style="display:flex; flex-direction:column; align-items:center; gap:5px; background:transparent; border:none; cursor:pointer; padding:4px;">
+                <span style="{{ tick.boxStyle }}">{{ tick.check }}</span>
+                <span style="font-size:10px; font-weight:600; color:oklch(0.5 0.01 260);">{{ tick.label }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <p style="margin:0; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:oklch(0.6 0.01 260);">Activity Log</p>
+          <div style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;">
+            <sc-for list="{{ openLead.activityEntries }}" as="act" hint-placeholder-count="2">
+              <div style="display:flex; align-items:center; gap:8px; background:oklch(0.98 0.003 90); border-radius:8px; padding:7px 10px;">
+                <span style="font-size:9.5px; font-weight:800; color:#fff; background:{{ act.color }}; padding:2px 7px; border-radius:5px; flex-shrink:0;">{{ act.typeLabel }}</span>
+                <span style="font-size:11.5px; color:oklch(0.4 0.01 260); flex:1;">{{ act.timeLabel }}<sc-if value="{{ act.hasLocation }}" hint-placeholder-val="{{ false }}"> · {{ act.location }}</sc-if></span>
+                <button onClick="{{ act.remove }}" style="border:none; background:transparent; color:oklch(0.6 0.01 260); cursor:pointer; font-size:12px; flex-shrink:0;">✕</button>
+              </div>
+            </sc-for>
+            <sc-if value="{{ openLead.noActivity }}" hint-placeholder-val="{{ false }}">
+              <p style="margin:0; font-size:12px; color:oklch(0.65 0.01 260); font-style:italic;">No activity logged yet.</p>
+            </sc-if>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <select value="{{ newActivity.type }}" onChange="{{ onNewActivityTypeChange }}" style="height:30px; border:1px solid oklch(0.9 0.004 90); border-radius:7px; font-size:11.5px; width:90px; flex-shrink:0;">
+              <sc-for list="{{ activityTypeOptions }}" as="at" hint-placeholder-count="4">
+                <option value="{{ at.id }}">{{ at.label }}</option>
+              </sc-for>
+            </select>
+            <input value="{{ newActivity.location }}" onChange="{{ onNewActivityLocationChange }}" placeholder="Note (optional)" style="flex:1; min-width:0; height:30px; border:1px solid oklch(0.9 0.004 90); border-radius:7px; padding:0 8px; font-size:12.5px;" />
+            <button onClick="{{ addActivity }}" style="height:30px; width:30px; border-radius:7px; border:none; background:#0073EA; color:#fff; cursor:pointer; flex-shrink:0; font-size:14px;">+</button>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <p style="margin:0; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:oklch(0.6 0.01 260);">Email Template</p>
+          <div style="display:flex; gap:6px;">
+            <sc-for list="{{ emailTemplateOptions }}" as="tpl" hint-placeholder-count="2">
+              <button onClick="{{ tpl.apply }}" style="height:28px; padding:0 10px; border-radius:7px; border:1px solid oklch(0.9 0.004 90); background:#fff; font-size:11.5px; font-weight:600; cursor:pointer;">{{ tpl.name }}</button>
+            </sc-for>
+          </div>
+          <textarea value="{{ openLead.emailTemplate }}" onChange="{{ openLead.updateEmailTemplate }}" rows="5" placeholder="Write a saved email template for this lead…" style="border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:10px; font-size:12.5px; font-family:ui-monospace,monospace; resize:vertical;"></textarea>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <p style="margin:0; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:oklch(0.6 0.01 260);">Notes</p>
+          <textarea value="{{ openLead.notes }}" onChange="{{ openLead.updateNotes }}" rows="4" placeholder="Add notes about this lead…" style="border:1px solid oklch(0.9 0.004 90); border-radius:8px; padding:10px; font-size:13px; resize:vertical;"></textarea>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:6px; padding-top:8px; border-top:1px solid oklch(0.93 0.004 90);">
+          <div style="display:flex; justify-content:space-between; font-size:11.5px;">
+            <span style="color:oklch(0.6 0.01 260);">Added</span>
+            <span style="color:oklch(0.4 0.01 260); font-weight:600;">{{ openLead.createdLabel }}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11.5px;">
+            <span style="color:oklch(0.6 0.01 260);">Last Updated</span>
+            <span style="color:oklch(0.4 0.01 260); font-weight:600;">{{ openLead.updatedLabel }}</span>
+          </div>
+        </div>
+
+        <button onClick="{{ deleteOpenLead }}" style="align-self:flex-start; border:none; background:transparent; color:#E2445C; font-size:12px; font-weight:700; cursor:pointer; padding:4px 0;">Delete Lead</button>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const STATUS_LIST = [
+  { id: 'NEW', label: 'New', color: '#579BFC' },
+  { id: 'CONTACTED', label: 'Contacted', color: '#FDAB3D' },
+  { id: 'WORKING', label: 'Working', color: '#A25DDC' },
+  { id: 'QUALIFIED', label: 'Qualified', color: '#00C875' },
+  { id: 'WON', label: 'Won', color: '#037F4C' },
+  { id: 'LOST', label: 'Lost', color: '#E2445C' },
+];
+
+const PRIORITY_LIST = [
+  { id: 'critical', label: 'Critical', color: '#333333' },
+  { id: 'high', label: 'High', color: '#E2445C' },
+  { id: 'medium', label: 'Medium', color: '#FDAB3D' },
+  { id: 'low', label: 'Low', color: '#579BFC' },
+  { id: '', label: 'None', color: '#C4C4C4' },
+];
+
+const REPS = [
+  { id: 'jordan', name: 'Jordan Lee', color: '#579BFC' },
+  { id: 'priya', name: 'Priya Shah', color: '#00C875' },
+  { id: 'marcus', name: 'Marcus Webb', color: '#FDAB3D' },
+  { id: 'sofia', name: 'Sofia Alvarez', color: '#A25DDC' },
+];
+
+const SOCIAL_PLATFORMS = [
+  { id: 'instagram', label: 'IG', full: 'Instagram', color: '#E1306C' },
+  { id: 'facebook', label: 'FB', full: 'Facebook', color: '#1877F2' },
+  { id: 'linkedin', label: 'LI', full: 'LinkedIn', color: '#0A66C2' },
+  { id: 'twitter', label: 'X', full: 'Twitter / X', color: '#1DA1F2' },
+  { id: 'tiktok', label: 'TT', full: 'TikTok', color: '#010101' },
+  { id: 'other', label: '•••', full: 'Other', color: '#6B7280' },
+];
+
+const ACTIVITY_TYPES = [
+  { id: 'meeting', label: 'Meeting', color: '#00C875' },
+  { id: 'email', label: 'Email', color: '#579BFC' },
+  { id: 'call', label: 'Call', color: '#FDAB3D' },
+  { id: 'text', label: 'Text', color: '#A25DDC' },
+];
+
+const EMAIL_TEMPLATES = [
+  { name: 'Introduction', body: 'Hi {name},\n\nReaching out from E8 Productions — we build premium content for brands scaling their social presence.\n\nWould love to chat about how we can help {company} grow.\n\nBest,\n[Your Name]' },
+  { name: 'Follow-up', body: 'Hi {name},\n\nJust following up on my last note. Do you have 15 minutes this week to talk about {company}\'s content strategy?\n\nBest,\n[Your Name]' },
+];
+
+const CURRENT_USER_ID = 'jordan';
+
+const LEADERBOARD_METRICS = [
+  { key: 'calls', label: 'Calls', unit: 'calls' },
+  { key: 'dealsClosed', label: 'Deals Closed', unit: 'deals' },
+  { key: 'meetings', label: 'Meetings', unit: 'meetings' },
+];
+
+function defaultDailyActivity() {
+  return {
+    jordan: { calls: 8, dealsClosed: 1, meetings: 3 },
+    priya: { calls: 14, dealsClosed: 2, meetings: 2 },
+    marcus: { calls: 5, dealsClosed: 0, meetings: 1 },
+    sofia: { calls: 11, dealsClosed: 1, meetings: 4 },
+  };
+}
+
+function tempId() { return 'L' + Math.random().toString(36).slice(2, 9); }
+function initialsOf(name) { return (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2); }
+function fmtDate(ts) { return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+function fmtDateTime(iso) { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }); } catch (e) { return iso; } }
+
+function buildLead(i, name, company, email, phone, status, priority, value, repId, notes) {
+  const socials = [];
+  if (i % 3 === 0) socials.push({ platform: 'instagram', url: '@' + company.toLowerCase().replace(/[^a-z0-9]/g, '') });
+  if (i % 4 === 1) socials.push({ platform: 'linkedin', url: 'linkedin.com/company/' + company.toLowerCase().replace(/[^a-z0-9]/g, '') });
+  const dm = {
+    instagram: socials.some(s => s.platform === 'instagram'),
+    facebook: i % 5 === 0,
+    linkedin: socials.some(s => s.platform === 'linkedin'),
+    twitter: i % 6 === 0,
+    tiktok: i % 7 === 0,
+    meetingBooked: status === 'WORKING' || status === 'QUALIFIED' || status === 'WON',
+    emailed: status !== 'NEW',
+    called: status === 'WORKING' || status === 'QUALIFIED' || status === 'WON' || status === 'LOST',
+    texted: status === 'QUALIFIED' || status === 'WON',
+  };
+  const activities = [];
+  const day = 86400000;
+  if (dm.emailed) activities.push({ type: 'email', time: new Date(Date.now() - (18 - i) * day).toISOString(), location: '' });
+  if (dm.called) activities.push({ type: 'call', time: new Date(Date.now() - (12 - i) * day).toISOString(), location: 'Outbound call' });
+  if (dm.meetingBooked) activities.push({ type: 'meeting', time: new Date(Date.now() - (6 - i) * day).toISOString(), location: 'Zoom' });
+  if (dm.texted) activities.push({ type: 'text', time: new Date(Date.now() - (2 - i) * day).toISOString(), location: '' });
+  return {
+    id: tempId(), name, company, email, phone,
+    profileUrl: socials[0] ? 'https://' + socials[0].url.replace('@', 'instagram.com/') : '',
+    postUrl: '', source: ['Referral', 'Cold Outreach', 'Instagram Ad', 'Website'][i % 4],
+    socials, dm, activities, status, priority, value, repId, notes,
+    emailTemplate: '', custom: {}, converted: false,
+    createdAt: Date.now() - (24 - i) * day, updatedAt: Date.now() - (5 - (i % 5)) * 3600000,
+  };
+}
+
+function defaultLeads() {
+  const raw = [
+    ['Ava Thompson', 'Northline Media', 'ava@northline.co', '212-555-0142', 'NEW', 'high', 8000, 'jordan', 'Found via Instagram ad. Wants a content audit call.'],
+    ['Ben Ortiz', 'Ortiz Fitness', 'ben@ortizfit.com', '646-555-0110', 'NEW', 'medium', 4200, 'priya', ''],
+    ['Chloe Park', 'Parklane Beauty', 'chloe@parklane.com', '917-555-0198', 'NEW', 'low', 1500, 'marcus', ''],
+    ['Derek Simms', 'Simms Realty', 'derek@simmsrealty.com', '212-555-0177', 'NEW', '', 0, 'sofia', ''],
+    ['Elena Cruz', 'Cruz Culinary', 'elena@cruzculinary.com', '347-555-0133', 'NEW', 'high', 6000, 'jordan', 'Referral from Turpone.'],
+    ['Franco Reyes', 'Reyes Fitness Co', 'franco@reyesfit.com', '212-555-0164', 'CONTACTED', 'medium', 5200, 'jordan', 'Sent intro email, awaiting reply.'],
+    ['Grace Kim', 'Kim & Co Law', 'grace@kimlaw.com', '646-555-0122', 'CONTACTED', 'high', 9200, 'priya', 'Called twice, interested in retainer.'],
+    ['Henry Ade', 'Ade Studios', 'henry@adestudios.com', '917-555-0155', 'CONTACTED', 'low', 2200, 'marcus', ''],
+    ['Isla Novak', 'Novak Apparel', 'isla@novakapparel.com', '212-555-0189', 'CONTACTED', 'medium', 3400, 'sofia', ''],
+    ['Jamal Price', 'Price Wellness', 'jamal@pricewellness.com', '646-555-0176', 'WORKING', 'high', 12000, 'jordan', 'Meeting booked Thursday. Very promising.'],
+    ['Kara Whitfield', 'Whitfield Homes', 'kara@whitfieldhomes.com', '212-555-0144', 'WORKING', 'critical', 18000, 'priya', 'Ready to close, negotiating terms.'],
+    ['Liam Brooks', 'Brooks Auto Group', 'liam@brooksauto.com', '917-555-0121', 'WORKING', 'medium', 7000, 'marcus', ''],
+    ['Maya Chen', 'Chen Dental', 'maya@chendental.com', '646-555-0198', 'WORKING', 'high', 5600, 'sofia', 'Waiting on decision from partner.'],
+    ['Noah Fitzgerald', 'Fitzgerald Finance', 'noah@fitzfinance.com', '212-555-0133', 'QUALIFIED', 'high', 15000, 'jordan', 'Contract sent, awaiting signature.'],
+    ['Olivia Marsh', 'Marsh Interiors', 'olivia@marshinteriors.com', '646-555-0187', 'QUALIFIED', 'medium', 9800, 'priya', ''],
+    ['Priya Nair', 'Nair Consulting', 'priya.n@nairconsulting.com', '917-555-0166', 'QUALIFIED', 'critical', 22000, 'marcus', 'Verbal yes, finalizing scope.'],
+    ['Quinn Dawson', 'Dawson Group', 'quinn@dawsongroup.com', '212-555-0111', 'WON', 'high', 20000, 'jordan', 'Signed! Kickoff scheduled next week.'],
+    ['Rosa Delgado', 'Delgado Realty', 'rosa@delgadorealty.com', '646-555-0155', 'WON', 'medium', 8600, 'sofia', 'Closed — onboarding in progress.'],
+    ['Sam Whitman', 'Whitman Retail', 'sam@whitmanretail.com', '917-555-0144', 'LOST', 'low', 0, 'priya', 'Went with a competitor.'],
+    ['Talia Rhodes', 'Rhodes Events', 'talia@rhodesevents.com', '212-555-0199', 'LOST', 'medium', 0, 'marcus', 'Budget cut, revisit next quarter.'],
+  ];
+  return raw.map((r, i) => buildLead(i, ...r));
+}
+
+function defaultCommissions() {
+  const rows = [
+    ['jordan', 'Dawson Group', 20000, 0.15, 'PENDING', 'Jul 2026'],
+    ['sofia', 'Delgado Realty', 8600, 0.12, 'APPROVED', 'Jul 2026'],
+    ['priya', 'Whitfield Homes', 18000, 0.15, 'PAID', 'Jun 2026'],
+    ['marcus', 'Nair Consulting', 22000, 0.1, 'PENDING', 'Jul 2026'],
+    ['jordan', 'Fitzgerald Finance', 15000, 0.12, 'APPROVED', 'Jul 2026'],
+    ['sofia', 'Chen Dental', 5600, 0.1, 'CANCELLED', 'Jun 2026'],
+    ['priya', 'Marsh Interiors', 9800, 0.12, 'PAID', 'May 2026'],
+  ];
+  return rows.map((r, i) => ({
+    id: 'C' + i, repId: r[0], client: r[1], dealValue: r[2], rate: r[3],
+    amount: Math.round(r[2] * r[3]), status: r[4], month: r[5],
+  }));
+}
+
+function defaultPermissions() {
+  return [
+    { repId: 'priya', flags: { viewAllLeads: true, assignLeads: true, approveCommissions: false, manageReps: false } },
+    { repId: 'marcus', flags: { viewAllLeads: true, assignLeads: false, approveCommissions: false, manageReps: false } },
+  ];
+}
+
+class Component extends DCLogic {
+  state = {
+    leads: defaultLeads(),
+    activeTab: 'personal',
+    search: '',
+    selectedRepId: 'all',
+    selectedIds: new Set(),
+    openLeadId: null,
+    openMenu: null,
+    collapsedGroups: new Set(),
+    bulkStatusMenuOpen: false,
+    bulkAssignMenuOpen: false,
+    columnsMenuOpen: false,
+    visibleCols: { rep: true, channels: true, value: true, activity: true },
+    customColumns: [],
+    newColumnLabel: '',
+    toast: { visible: false, message: '' },
+    massEmailOpen: false, massEmailSubject: 'Checking in — E8 Productions', massEmailBody: 'Hi {name},\n\nHope you are doing well! Wanted to check in about {company}.\n\nBest,\nYour Name', sendingEmail: false,
+    importOpen: false, importText: '',
+    convertLeadId: null, convertClientName: '', convertValue: '',
+    newSocial: { platform: 'instagram', url: '' },
+    newActivity: { type: 'call', location: '' },
+    drawerSaveState: 'idle',
+    commissions: defaultCommissions(),
+    commissionFilter: 'all',
+    commissionSearch: '',
+    permissions: defaultPermissions(),
+    savedPermRepId: null,
+    dailyActivity: defaultDailyActivity(),
+    leaderboardMetric: 'calls',
+    leaderboardExpanded: true,
+  };
+
+  showToast(message) {
+    this.setState({ toast: { visible: true, message } });
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => this.setState({ toast: { visible: false, message: '' } }), 2200);
+  }
+
+  markSaving() {
+    this.setState({ drawerSaveState: 'saving' });
+    clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => {
+      this.setState({ drawerSaveState: 'saved' });
+      this._saveTimer = setTimeout(() => this.setState({ drawerSaveState: 'idle' }), 1600);
+    }, 500);
+  }
+
+  updateLead(id, patch) {
+    this.markSaving();
+    this.setState(s => ({ leads: s.leads.map(l => l.id === id ? { ...l, ...patch, updatedAt: Date.now() } : l) }));
+  }
+
+  addLead() {
+    const n = buildLead(99, '', '', '', '', 'NEW', '', 0, CURRENT_USER_ID, '');
+    n.id = tempId();
+    n.socials = []; n.dm = { instagram: false, facebook: false, linkedin: false, twitter: false, tiktok: false, meetingBooked: false, emailed: false, called: false, texted: false }; n.activities = [];
+    this.setState(s => ({ leads: [n, ...s.leads], openLeadId: n.id, activeTab: s.activeTab === 'team' ? 'team' : 'personal' }));
+  }
+
+  deleteOpenLead() {
+    const id = this.state.openLeadId;
+    this.setState(s => ({ leads: s.leads.filter(l => l.id !== id), openLeadId: null }));
+    this.showToast('Lead deleted');
+  }
+
+  renderVals() {
+    const s = this.state;
+    const isTeamView = s.activeTab === 'team';
+    const isPipelineTab = s.activeTab === 'personal' || s.activeTab === 'team';
+    const isCommissionsTab = s.activeTab === 'commissions';
+    const isPermissionsTab = s.activeTab === 'permissions';
+    const closeAllMenus = () => this.setState({ openMenu: null });
+
+    const scopedLeads = isTeamView ? s.leads : s.leads.filter(l => l.repId === CURRENT_USER_ID);
+    const repFiltered = (isTeamView && s.selectedRepId !== 'all') ? scopedLeads.filter(l => l.repId === s.selectedRepId) : scopedLeads;
+    const q = s.search.trim().toLowerCase();
+    const filtered = q ? repFiltered.filter(l => (l.name + ' ' + l.company + ' ' + l.email).toLowerCase().includes(q)) : repFiltered;
+
+    const stats = {
+      total: filtered.length,
+      contacted: filtered.filter(l => l.activities.length > 0).length,
+      meetings: filtered.filter(l => l.dm.meetingBooked).length,
+      highPriority: filtered.filter(l => l.priority === 'high' || l.priority === 'critical').length,
+    };
+
+    const enrichLead = (lead) => {
+      const statusObj = STATUS_LIST.find(x => x.id === lead.status) || STATUS_LIST[0];
+      const priorityObj = PRIORITY_LIST.find(x => x.id === lead.priority) || PRIORITY_LIST[PRIORITY_LIST.length - 1];
+      const rep = REPS.find(r => r.id === lead.repId);
+      const priorityMenuOpen = !!(s.openMenu && s.openMenu.id === lead.id && s.openMenu.field === 'priority');
+      const activityTotal = lead.activities.length;
+      const channelChips = lead.socials.slice(0, 4).map(soc => {
+        const p = SOCIAL_PLATFORMS.find(x => x.id === soc.platform) || SOCIAL_PLATFORMS[SOCIAL_PLATFORMS.length - 1];
+        return { label: p.label, color: p.color };
+      });
+
+      const customCells = s.customColumns.map(col => ({
+        value: (lead.custom && lead.custom[col.id]) || '',
+        onChange: (e) => this.updateLead(lead.id, { custom: { ...lead.custom, [col.id]: e.target.value } }),
+        stop: (e) => e.stopPropagation(),
+      }));
+
+      return {
+        ...lead,
+        initials: initialsOf(lead.name),
+        avatarStyle: `width:34px;height:34px;border-radius:9px;background:${rep ? rep.color : '#C4C4C4'};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex-shrink:0;`,
+        statusColor: statusObj.color,
+        priorityLabel: priorityObj.id ? priorityObj.label : '—',
+        priorityPillStyle: `height:28px; padding:0 12px; border-radius:7px; border:none; font-size:12px; font-weight:700; cursor:pointer; color:${priorityObj.id ? '#fff' : 'oklch(0.5 0.01 260)'}; background-color:${priorityObj.id ? priorityObj.color : 'oklch(0.95 0.003 90)'};`,
+        valueLabel: lead.value ? '$' + lead.value.toLocaleString() : '—',
+        valueInput: String(lead.value || ''),
+        activityLabel: activityTotal === 0 ? 'No activity yet' : `${activityTotal} touchpoint${activityTotal !== 1 ? 's' : ''}`,
+        repName: rep ? rep.name : '—',
+        repDotStyle: `display:inline-block; width:8px; height:8px; border-radius:999px; background:${rep ? rep.color : '#ccc'};`,
+        channelChips, noChannels: channelChips.length === 0,
+        isSelected: s.selectedIds.has(lead.id),
+        toggleSelect: (e) => { e.stopPropagation(); this.setState(st => { const next = new Set(st.selectedIds); next.has(lead.id) ? next.delete(lead.id) : next.add(lead.id); return { selectedIds: next }; }); },
+        rowStyle: s.selectedIds.has(lead.id) ? 'background:#EAF2FE;' : '',
+        openDrawer: () => this.setState({ openLeadId: lead.id, openMenu: null }),
+        togglePriorityMenu: (e) => { e.stopPropagation(); this.setState({ openMenu: priorityMenuOpen ? null : { id: lead.id, field: 'priority' } }); },
+        priorityMenuOpen,
+        closeMenus: closeAllMenus,
+        priorityOptions: PRIORITY_LIST.map(p => ({ ...p, select: (e) => { e && e.stopPropagation(); this.updateLead(lead.id, { priority: p.id }); closeAllMenus(); } })),
+        customCells,
+        isWon: lead.status === 'WON',
+        convertLabel: lead.converted ? 'Converted ✓' : 'Convert →',
+        convertBg: lead.converted ? '#E1F3EB' : '#037F4C',
+        convertColor: lead.converted ? '#037F4C' : '#fff',
+        openConvert: (e) => { e && e.stopPropagation(); if (!lead.converted) this.setState({ convertLeadId: lead.id, convertClientName: lead.company, convertValue: String(lead.value || '') }); },
+      };
+    };
+
+    const groups = STATUS_LIST.map(g => {
+      const groupLeadsRaw = filtered.filter(l => l.status === g.id);
+      const groupLeads = groupLeadsRaw.map(enrichLead);
+      const collapsed = s.collapsedGroups.has(g.id);
+      const allSelected = groupLeadsRaw.length > 0 && groupLeadsRaw.every(l => s.selectedIds.has(l.id));
+      return {
+        id: g.id, label: g.label, color: g.color, count: groupLeads.length, plural: groupLeads.length !== 1 ? 's' : '',
+        hasLeads: groupLeads.length > 0, expanded: !collapsed, chevron: collapsed ? '▸' : '▾',
+        leads: groupLeads, allSelected,
+        toggleCollapse: () => this.setState(st => { const next = new Set(st.collapsedGroups); next.has(g.id) ? next.delete(g.id) : next.add(g.id); return { collapsedGroups: next }; }),
+        toggleSelectAll: () => this.setState(st => {
+          const next = new Set(st.selectedIds);
+          if (allSelected) groupLeadsRaw.forEach(l => next.delete(l.id));
+          else groupLeadsRaw.forEach(l => next.add(l.id));
+          return { selectedIds: next };
+        }),
+      };
+    });
+
+    const allTeamCount = scopedLeads.length;
+    const reps = REPS.map(r => {
+      const count = s.leads.filter(l => l.repId === r.id).length;
+      const active = s.selectedRepId === r.id;
+      return {
+        ...r, count,
+        select: () => this.setState({ selectedRepId: active ? 'all' : r.id }),
+        dotStyle: `display:inline-block; width:8px; height:8px; border-radius:999px; background:${r.color}; margin-right:6px;`,
+        pillStyle: `display:flex; align-items:center; height:32px; padding:0 12px; border-radius:9px; border:1px solid ${active ? '#0073EA' : 'oklch(0.9 0.004 90)'}; background:${active ? '#E6F1FD' : '#fff'}; color:${active ? '#0073EA' : 'oklch(0.4 0.01 260)'}; font-size:12.5px; font-weight:600; cursor:pointer;`,
+      };
+    });
+
+    const selectedCount = s.selectedIds.size;
+    const hasSelection = selectedCount > 0;
+
+    // ── Team Leaderboard ──
+    const activeMetric = LEADERBOARD_METRICS.find(m => m.key === s.leaderboardMetric) || LEADERBOARD_METRICS[0];
+    const MEDAL = ['#F5A623', '#B0B7C3', '#C97C4B'];
+
+    const repRows = REPS.map(r => {
+      const d = s.dailyActivity[r.id] || { calls: 0, dealsClosed: 0, meetings: 0 };
+      return { repId: r.id, name: r.name, isMe: r.id === CURRENT_USER_ID, calls: d.calls, dealsClosed: d.dealsClosed, meetings: d.meetings, value: d[activeMetric.key] };
+    });
+    const sorted = [...repRows].sort((a, b) => b.value - a.value);
+    const maxVal = Math.max(1, ...sorted.map(r => r.value));
+    const myRank = sorted.findIndex(r => r.isMe) + 1;
+    const myVal = (repRows.find(r => r.isMe) || { value: 0 }).value;
+
+    const otherMetrics = (row) => LEADERBOARD_METRICS.filter(m => m.key !== activeMetric.key).map(m => `${row[m.key]} ${m.label.toLowerCase()}`).join(' · ');
+
+    const pulseRows = sorted.map((r, idx) => {
+      const rank = idx + 1;
+      const medalColor = MEDAL[idx];
+      return {
+        rank,
+        rankStyle: `width:26px; height:26px; border-radius:999px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:${medalColor ? '#fff' : 'oklch(0.5 0.01 260)'}; background:${medalColor || 'oklch(0.94 0.003 90)'};`,
+        name: r.name, isMe: r.isMe,
+        secondaryLabel: otherMetrics(r),
+        barColor: r.isMe ? '#FF9800' : '#A9C9F5',
+        pct: Math.round((r.value / maxVal) * 100),
+        valueLabel: `${r.value} ${activeMetric.unit}`,
+        rowStyle: `display:flex; align-items:center; gap:14px; padding:10px 12px; border-radius:10px; ${r.isMe ? 'background:#FFF3E0; box-shadow:inset 3px 0 0 #FF9800;' : ''}`,
+      };
+    });
+
+    const pulse = {
+      mySummary: `You're ranked #${myRank} of ${REPS.length} in ${activeMetric.label.toLowerCase()} today (${myVal} ${activeMetric.unit}).`,
+      expanded: s.leaderboardExpanded,
+      toggleExpanded: () => this.setState(st => ({ leaderboardExpanded: !st.leaderboardExpanded })),
+      chevronStyle: `display:inline-block; font-size:13px; color:oklch(0.5 0.01 260); transition:transform 0.15s ease; transform:rotate(${s.leaderboardExpanded ? '0deg' : '-90deg'});`,
+      rows: pulseRows,
+      metricTabs: LEADERBOARD_METRICS.map(m => ({
+        label: m.label,
+        select: () => this.setState({ leaderboardMetric: m.key }),
+        style: `padding:6px 12px; border-radius:7px; border:none; font-size:11.5px; font-weight:700; cursor:pointer; white-space:nowrap; background:${s.leaderboardMetric === m.key ? '#fff' : 'transparent'}; color:${s.leaderboardMetric === m.key ? '#0073EA' : 'oklch(0.5 0.01 260)'}; box-shadow:${s.leaderboardMetric === m.key ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'};`,
+      })),
+      logCall: () => this.setState(st => ({ dailyActivity: { ...st.dailyActivity, [CURRENT_USER_ID]: { ...st.dailyActivity[CURRENT_USER_ID], calls: st.dailyActivity[CURRENT_USER_ID].calls + 1 } } })),
+      logDeal: () => this.setState(st => ({ dailyActivity: { ...st.dailyActivity, [CURRENT_USER_ID]: { ...st.dailyActivity[CURRENT_USER_ID], dealsClosed: st.dailyActivity[CURRENT_USER_ID].dealsClosed + 1 } } })),
+      logMeeting: () => this.setState(st => ({ dailyActivity: { ...st.dailyActivity, [CURRENT_USER_ID]: { ...st.dailyActivity[CURRENT_USER_ID], meetings: st.dailyActivity[CURRENT_USER_ID].meetings + 1 } } })),
+    };
+
+    // ── Drawer (open lead) ──
+    const openLeadRaw = s.openLeadId ? s.leads.find(l => l.id === s.openLeadId) : null;
+    let openLead = {};
+    if (openLeadRaw) {
+      const statusObj = STATUS_LIST.find(x => x.id === openLeadRaw.status) || STATUS_LIST[0];
+      const priorityObj = PRIORITY_LIST.find(x => x.id === openLeadRaw.priority) || PRIORITY_LIST[PRIORITY_LIST.length - 1];
+      const statusMenuOpen = !!(s.openMenu && s.openMenu.id === openLeadRaw.id && s.openMenu.field === 'drawer-status');
+      const priorityMenuOpen = !!(s.openMenu && s.openMenu.id === openLeadRaw.id && s.openMenu.field === 'drawer-priority');
+
+      const socialEntries = openLeadRaw.socials.map((soc, idx) => {
+        const p = SOCIAL_PLATFORMS.find(x => x.id === soc.platform) || SOCIAL_PLATFORMS[SOCIAL_PLATFORMS.length - 1];
+        return {
+          label: p.label, color: p.color, url: soc.url,
+          updateUrl: (e) => { const next = openLeadRaw.socials.map((x, i) => i === idx ? { ...x, url: e.target.value } : x); this.updateLead(openLeadRaw.id, { socials: next }); },
+          remove: () => { const next = openLeadRaw.socials.filter((_, i) => i !== idx); this.updateLead(openLeadRaw.id, { socials: next }); },
+        };
+      });
+
+      const dmDefs = [
+        { key: 'instagram', label: 'Instagram', color: '#E1306C' },
+        { key: 'facebook', label: 'Facebook', color: '#1877F2' },
+        { key: 'linkedin', label: 'LinkedIn', color: '#0A66C2' },
+        { key: 'twitter', label: 'Twitter', color: '#1DA1F2' },
+        { key: 'tiktok', label: 'TikTok', color: '#010101' },
+        { key: 'meetingBooked', label: 'Meet', color: '#00C875' },
+        { key: 'emailed', label: 'Email', color: '#579BFC' },
+        { key: 'called', label: 'Call', color: '#00C875' },
+        { key: 'texted', label: 'Text', color: '#A25DDC' },
+      ];
+      const dmTicks = dmDefs.map(d => {
+        const on = !!openLeadRaw.dm[d.key];
+        return {
+          label: d.label, check: on ? '✓' : '',
+          boxStyle: `width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;background:${on ? d.color : '#F5F6F8'};border:${on ? 'none' : '1px solid #E6E9EF'};`,
+          toggle: () => this.updateLead(openLeadRaw.id, { dm: { ...openLeadRaw.dm, [d.key]: !on } }),
+        };
+      });
+
+      const activityEntries = openLeadRaw.activities.map((a, idx) => {
+        const at = ACTIVITY_TYPES.find(x => x.id === a.type) || ACTIVITY_TYPES[0];
+        return {
+          typeLabel: at.label, color: at.color, timeLabel: fmtDateTime(a.time), location: a.location, hasLocation: !!a.location,
+          remove: () => { const next = openLeadRaw.activities.filter((_, i) => i !== idx); this.updateLead(openLeadRaw.id, { activities: next }); },
+        };
+      });
+
+      openLead = {
+        ...openLeadRaw,
+        statusColor: statusObj.color,
+        statusLabel: statusObj.label,
+        statusPillStyle: `height:34px; padding:0 14px; border-radius:8px; border:none; background:${statusObj.color}; color:#fff; font-size:13px; font-weight:700; cursor:pointer;`,
+        statusMenuOpen,
+        toggleStatusMenu: () => this.setState({ openMenu: statusMenuOpen ? null : { id: openLeadRaw.id, field: 'drawer-status' } }),
+        statusOptions: STATUS_LIST.map(g => ({ ...g, select: () => { this.updateLead(openLeadRaw.id, { status: g.id }); closeAllMenus(); } })),
+        priorityLabel: priorityObj.id ? priorityObj.label : 'None',
+        priorityPillStyle: `height:34px; padding:0 14px; border-radius:8px; border:1px solid oklch(0.9 0.004 90); background:${priorityObj.id ? priorityObj.color : '#fff'}; color:${priorityObj.id ? '#fff' : 'oklch(0.5 0.01 260)'}; font-size:13px; font-weight:700; cursor:pointer;`,
+        priorityMenuOpen,
+        togglePriorityMenu: () => this.setState({ openMenu: priorityMenuOpen ? null : { id: openLeadRaw.id, field: 'drawer-priority' } }),
+        priorityOptions: PRIORITY_LIST.map(p => ({ ...p, select: () => { this.updateLead(openLeadRaw.id, { priority: p.id }); closeAllMenus(); } })),
+        closeMenus: closeAllMenus,
+        valueInput: String(openLeadRaw.value || ''),
+        updateName: (e) => this.updateLead(openLeadRaw.id, { name: e.target.value }),
+        updateCompany: (e) => this.updateLead(openLeadRaw.id, { company: e.target.value }),
+        updateEmail: (e) => this.updateLead(openLeadRaw.id, { email: e.target.value }),
+        updatePhone: (e) => this.updateLead(openLeadRaw.id, { phone: e.target.value }),
+        updateValue: (e) => this.updateLead(openLeadRaw.id, { value: parseFloat(e.target.value) || 0 }),
+        updateSource: (e) => this.updateLead(openLeadRaw.id, { source: e.target.value }),
+        updateProfileUrl: (e) => this.updateLead(openLeadRaw.id, { profileUrl: e.target.value }),
+        updatePostUrl: (e) => this.updateLead(openLeadRaw.id, { postUrl: e.target.value }),
+        updateNotes: (e) => this.updateLead(openLeadRaw.id, { notes: e.target.value }),
+        updateEmailTemplate: (e) => this.updateLead(openLeadRaw.id, { emailTemplate: e.target.value }),
+        updateRep: (e) => this.updateLead(openLeadRaw.id, { repId: e.target.value }),
+        createdLabel: fmtDate(openLeadRaw.createdAt),
+        updatedLabel: fmtDate(openLeadRaw.updatedAt),
+        showSaving: s.drawerSaveState === 'saving',
+        showSaved: s.drawerSaveState === 'saved',
+        socialEntries,
+        dmTicks,
+        activityEntries, noActivity: activityEntries.length === 0,
+        isWon: openLeadRaw.status === 'WON',
+        convertLabel: openLeadRaw.converted ? 'Converted ✓' : 'Convert to Client →',
+        convertBg: openLeadRaw.converted ? '#E1F3EB' : '#037F4C',
+        convertColor: openLeadRaw.converted ? '#037F4C' : '#fff',
+        openConvert: () => { if (!openLeadRaw.converted) this.setState({ convertLeadId: openLeadRaw.id, convertClientName: openLeadRaw.company, convertValue: String(openLeadRaw.value || '') }); },
+      };
+    }
+
+    const bulkStatusOptions = STATUS_LIST.map(g => ({
+      ...g,
+      select: () => {
+        this.setState(st => ({ leads: st.leads.map(l => st.selectedIds.has(l.id) ? { ...l, status: g.id } : l), bulkStatusMenuOpen: false }));
+        this.showToast(`Moved ${selectedCount} lead(s) to ${g.label}`);
+      },
+    }));
+    const bulkAssignOptions = REPS.map(r => ({
+      id: r.id, label: r.name,
+      select: () => {
+        this.setState(st => ({ leads: st.leads.map(l => st.selectedIds.has(l.id) ? { ...l, repId: r.id } : l), bulkAssignMenuOpen: false }));
+        this.showToast(`Assigned ${selectedCount} lead(s) to ${r.name}`);
+      },
+    })).concat([{ id: 'all', label: 'Distribute to all reps', select: () => {
+      const ids = Array.from(s.selectedIds);
+      this.setState(st => ({
+        leads: st.leads.map(l => {
+          const idx = ids.indexOf(l.id);
+          return idx === -1 ? l : { ...l, repId: REPS[idx % REPS.length].id };
+        }),
+        bulkAssignMenuOpen: false,
+      }));
+      this.showToast(`Distributed ${selectedCount} lead(s) across the team`);
+    } }]);
+
+    // ── Columns toggle ──
+    const toggleableColumns = [
+      { key: 'channels', label: 'Channels', visible: s.visibleCols.channels, toggle: () => this.setState(st => ({ visibleCols: { ...st.visibleCols, channels: !st.visibleCols.channels } })) },
+      { key: 'value', label: 'Value', visible: s.visibleCols.value, toggle: () => this.setState(st => ({ visibleCols: { ...st.visibleCols, value: !st.visibleCols.value } })) },
+      { key: 'activity', label: 'Last Activity', visible: s.visibleCols.activity, toggle: () => this.setState(st => ({ visibleCols: { ...st.visibleCols, activity: !st.visibleCols.activity } })) },
+    ];
+    if (isTeamView) toggleableColumns.splice(1, 0, { key: 'rep', label: 'Rep', visible: s.visibleCols.rep, toggle: () => this.setState(st => ({ visibleCols: { ...st.visibleCols, rep: !st.visibleCols.rep } })) });
+
+    const customColumns = s.customColumns.map(col => ({ ...col, remove: () => this.setState(st => ({ customColumns: st.customColumns.filter(c => c.id !== col.id) })) }));
+
+    // ── Commissions ──
+    const commissionStatsRaw = {
+      PAID: s.commissions.filter(c => c.status === 'PAID').reduce((a, c) => a + c.amount, 0),
+      PENDING: s.commissions.filter(c => c.status === 'PENDING').reduce((a, c) => a + c.amount, 0),
+      APPROVED: s.commissions.filter(c => c.status === 'APPROVED').reduce((a, c) => a + c.amount, 0),
+      THIS_MONTH: s.commissions.filter(c => c.month === 'Jul 2026').reduce((a, c) => a + c.amount, 0),
+    };
+    const fmtMoney = (n) => '$' + n.toLocaleString();
+    const commissionStats = [
+      { label: 'Total Paid Out', value: fmtMoney(commissionStatsRaw.PAID), color: '#037F4C', filter: 'PAID' },
+      { label: 'Pending Approval', value: fmtMoney(commissionStatsRaw.PENDING), color: '#FDAB3D', filter: 'PENDING' },
+      { label: 'Approved (Unpaid)', value: fmtMoney(commissionStatsRaw.APPROVED), color: '#579BFC', filter: 'APPROVED' },
+      { label: 'This Month', value: fmtMoney(commissionStatsRaw.THIS_MONTH), color: '#A25DDC', filter: null },
+    ].map(cs => ({
+      ...cs,
+      cardStyle: `text-align:center; background:#fff; border:1px solid oklch(0.92 0.004 90); border-radius:14px; padding:16px 18px; cursor:${cs.filter ? 'pointer' : 'default'}; display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%;`,
+      onClick: () => cs.filter && this.setState(st => ({ commissionFilter: st.commissionFilter === cs.filter ? 'all' : cs.filter })),
+    }));
+
+    const commissionFilterDefs = ['all', 'PENDING', 'APPROVED', 'PAID', 'CANCELLED'];
+    const commissionFilters = commissionFilterDefs.map(f => ({
+      label: f === 'all' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase(),
+      select: () => this.setState({ commissionFilter: f }),
+      style: `padding:6px 12px; border-radius:7px; border:none; font-size:11.5px; font-weight:700; cursor:pointer; background:${s.commissionFilter === f ? '#fff' : 'transparent'}; color:${s.commissionFilter === f ? 'oklch(0.25 0.01 260)' : 'oklch(0.5 0.01 260)'}; box-shadow:${s.commissionFilter === f ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'};`,
+    }));
+
+    const cq = s.commissionSearch.trim().toLowerCase();
+    const STATUS_STYLE = {
+      PENDING: { bg: '#FEF3E6', text: '#B36A00' }, APPROVED: { bg: '#EAF2FE', text: '#0060C0' },
+      PAID: { bg: '#E1F3EB', text: '#037F4C' }, CANCELLED: { bg: '#FCE9EC', text: '#B3273E' },
+    };
+    const filteredCommissions = s.commissions
+      .filter(c => s.commissionFilter === 'all' || c.status === s.commissionFilter)
+      .filter(c => {
+        const rep = REPS.find(r => r.id === c.repId);
+        return !cq || (rep && rep.name.toLowerCase().includes(cq)) || c.client.toLowerCase().includes(cq);
+      })
+      .map(c => {
+        const rep = REPS.find(r => r.id === c.repId) || REPS[0];
+        const st = STATUS_STYLE[c.status];
+        const actions = [];
+        if (c.status === 'PENDING') {
+          actions.push({ label: 'Approve', style: 'height:26px; padding:0 10px; border-radius:6px; border:1px solid #BFDCFB; background:#EAF2FE; color:#0060C0; font-size:11px; font-weight:700; cursor:pointer;', run: () => { this.setState(st2 => ({ commissions: st2.commissions.map(x => x.id === c.id ? { ...x, status: 'APPROVED' } : x) })); this.showToast('Commission approved'); } });
+          actions.push({ label: 'Cancel', style: 'height:26px; padding:0 10px; border-radius:6px; border:1px solid #F7C6CE; background:#FCE9EC; color:#B3273E; font-size:11px; font-weight:700; cursor:pointer;', run: () => { this.setState(st2 => ({ commissions: st2.commissions.map(x => x.id === c.id ? { ...x, status: 'CANCELLED' } : x) })); this.showToast('Commission cancelled'); } });
+        } else if (c.status === 'APPROVED') {
+          actions.push({ label: 'Mark Paid', style: 'height:26px; padding:0 10px; border-radius:6px; border:1px solid #B7E4CB; background:#E1F3EB; color:#037F4C; font-size:11px; font-weight:700; cursor:pointer;', run: () => { this.setState(st2 => ({ commissions: st2.commissions.map(x => x.id === c.id ? { ...x, status: 'PAID' } : x) })); this.showToast('Marked as paid'); } });
+        } else if (c.status === 'CANCELLED') {
+          actions.push({ label: 'Restore', style: 'height:26px; padding:0 10px; border-radius:6px; border:1px solid oklch(0.9 0.004 90); background:#fff; color:oklch(0.4 0.01 260); font-size:11px; font-weight:700; cursor:pointer;', run: () => { this.setState(st2 => ({ commissions: st2.commissions.map(x => x.id === c.id ? { ...x, status: 'PENDING' } : x) })); this.showToast('Restored to pending'); } });
+        }
+        return {
+          id: c.id, repName: rep.name, repColor: rep.color, repInitials: initialsOf(rep.name),
+          client: c.client, dealValueLabel: fmtMoney(c.dealValue), rateLabel: Math.round(c.rate * 100) + '%',
+          amountLabel: fmtMoney(c.amount), month: c.month, statusLabel: c.status.charAt(0) + c.status.slice(1).toLowerCase(),
+          statusPillStyle: `font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; background:${st.bg}; color:${st.text};`,
+          actions,
+        };
+      });
+
+    // ── Permissions ──
+    const permissionRows = s.permissions.map(p => {
+      const rep = REPS.find(r => r.id === p.repId) || REPS[0];
+      const flagDefs = [
+        { key: 'viewAllLeads', label: 'View all team leads' },
+        { key: 'assignLeads', label: 'Assign leads to reps' },
+        { key: 'approveCommissions', label: 'Approve commissions' },
+        { key: 'manageReps', label: 'Manage sales reps' },
+      ];
+      const flags = flagDefs.map(fd => {
+        const on = !!p.flags[fd.key];
+        return {
+          label: fd.label, on,
+          trackStyle: `position:absolute; inset:0; border-radius:999px; background:${on ? '#00C875' : '#D7D9E0'}; transition:background 0.15s ease;`,
+          thumbStyle: `position:absolute; top:2px; left:${on ? '18px' : '2px'}; width:16px; height:16px; border-radius:999px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.25); transition:left 0.15s ease;`,
+          toggle: () => {
+            this.setState(st => ({
+              permissions: st.permissions.map(x => x.repId === p.repId ? { ...x, flags: { ...x.flags, [fd.key]: !on } } : x),
+              savedPermRepId: p.repId,
+            }));
+            clearTimeout(this._permTimer);
+            this._permTimer = setTimeout(() => this.setState({ savedPermRepId: null }), 1500);
+          },
+        };
+      });
+      return { name: rep.name, color: rep.color, initials: initialsOf(rep.name), flags, saved: s.savedPermRepId === p.repId };
+    });
+
+    const tabStyleFor = (id) => `padding:9px 16px; border-radius:9px 9px 0 0; border:none; background:${s.activeTab === id ? '#fff' : 'transparent'}; color:${s.activeTab === id ? '#0073EA' : 'oklch(0.55 0.01 260)'}; font-weight:700; font-size:13.5px; cursor:pointer; border-bottom:2px solid ${s.activeTab === id ? '#0073EA' : 'transparent'}; white-space:nowrap;`;
+
+    const exportRows = (rows, headers, mapper, filename) => {
+      const csv = [headers, ...rows.map(mapper)].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    return {
+      search: s.search,
+      onSearchChange: (e) => this.setState({ search: e.target.value }),
+      isTeamView, isPipelineTab, isCommissionsTab, isPermissionsTab,
+      tabStyle: { personal: tabStyleFor('personal'), team: tabStyleFor('team'), commissions: tabStyleFor('commissions'), permissions: tabStyleFor('permissions') },
+      setTabPersonal: () => this.setState({ activeTab: 'personal', selectedRepId: 'all', openMenu: null, selectedIds: new Set() }),
+      setTabTeam: () => this.setState({ activeTab: 'team', openMenu: null, selectedIds: new Set() }),
+      setTabCommissions: () => this.setState({ activeTab: 'commissions' }),
+      setTabPermissions: () => this.setState({ activeTab: 'permissions' }),
+      stats, allTeamCount, reps,
+      selectAllReps: () => this.setState({ selectedRepId: 'all' }),
+      repAllPillStyle: `display:flex; align-items:center; height:32px; padding:0 12px; border-radius:9px; border:1px solid ${s.selectedRepId === 'all' ? '#0073EA' : 'oklch(0.9 0.004 90)'}; background:${s.selectedRepId === 'all' ? '#E6F1FD' : '#fff'}; color:${s.selectedRepId === 'all' ? '#0073EA' : 'oklch(0.4 0.01 260)'}; font-size:12.5px; font-weight:600; cursor:pointer;`,
+      groups, noLeads: filtered.length === 0,
+      pulse,
+      showChannelsCol: s.visibleCols.channels, showRepCol: isTeamView && s.visibleCols.rep, showValueCol: s.visibleCols.value, showActivityCol: s.visibleCols.activity,
+      customColumns,
+      newColumnLabel: s.newColumnLabel,
+      onNewColumnLabelChange: (e) => this.setState({ newColumnLabel: e.target.value }),
+      addCustomColumn: () => {
+        const label = s.newColumnLabel.trim();
+        if (!label) return;
+        this.setState(st => ({ customColumns: [...st.customColumns, { id: tempId(), label }], newColumnLabel: '' }));
+      },
+      toggleableColumns, columnsMenuOpen: s.columnsMenuOpen,
+      toggleColumnsMenu: () => this.setState(st => ({ columnsMenuOpen: !st.columnsMenuOpen })),
+      hasSelection, selectedCount,
+      clearSelection: () => this.setState({ selectedIds: new Set() }),
+      bulkStatusMenuOpen: s.bulkStatusMenuOpen, bulkAssignMenuOpen: s.bulkAssignMenuOpen,
+      toggleBulkStatusMenu: () => this.setState(st => ({ bulkStatusMenuOpen: !st.bulkStatusMenuOpen, bulkAssignMenuOpen: false })),
+      toggleBulkAssignMenu: () => this.setState(st => ({ bulkAssignMenuOpen: !st.bulkAssignMenuOpen, bulkStatusMenuOpen: false })),
+      closeBulkMenus: () => this.setState({ bulkStatusMenuOpen: false, bulkAssignMenuOpen: false }),
+      bulkStatusOptions, bulkAssignOptions,
+      addLead: () => this.addLead(),
+      hasOpenLead: !!openLeadRaw, openLead,
+      closeDrawer: () => this.setState({ openLeadId: null, openMenu: null }),
+      deleteOpenLead: () => this.deleteOpenLead(),
+      toast: s.toast,
+
+      // socials add form (drawer)
+      newSocial: s.newSocial,
+      socialPlatformOptions: SOCIAL_PLATFORMS,
+      onNewSocialPlatformChange: (e) => this.setState({ newSocial: { ...s.newSocial, platform: e.target.value } }),
+      onNewSocialUrlChange: (e) => this.setState({ newSocial: { ...s.newSocial, url: e.target.value } }),
+      addSocial: () => {
+        if (!openLeadRaw || !s.newSocial.url.trim()) return;
+        const next = [...openLeadRaw.socials, { platform: s.newSocial.platform, url: s.newSocial.url.trim() }];
+        this.updateLead(openLeadRaw.id, { socials: next });
+        this.setState({ newSocial: { platform: s.newSocial.platform, url: '' } });
+      },
+
+      // activity add form (drawer)
+      newActivity: s.newActivity,
+      activityTypeOptions: ACTIVITY_TYPES,
+      onNewActivityTypeChange: (e) => this.setState({ newActivity: { ...s.newActivity, type: e.target.value } }),
+      onNewActivityLocationChange: (e) => this.setState({ newActivity: { ...s.newActivity, location: e.target.value } }),
+      addActivity: () => {
+        if (!openLeadRaw) return;
+        const next = [...openLeadRaw.activities, { type: s.newActivity.type, time: new Date().toISOString(), location: s.newActivity.location.trim() }];
+        this.updateLead(openLeadRaw.id, { activities: next });
+        this.setState({ newActivity: { type: s.newActivity.type, location: '' } });
+      },
+
+      emailTemplateOptions: EMAIL_TEMPLATES.map(t => ({
+        name: t.name,
+        apply: () => { if (!openLeadRaw) return; this.updateLead(openLeadRaw.id, { emailTemplate: t.body.replace('{name}', openLeadRaw.name || 'there').replace('{company}', openLeadRaw.company || 'your team') }); },
+      })),
+
+      // mass email
+      massEmailOpen: s.massEmailOpen,
+      openMassEmail: () => this.setState({ massEmailOpen: true }),
+      closeMassEmail: () => this.setState({ massEmailOpen: false }),
+      massEmail: {
+        subject: s.massEmailSubject, body: s.massEmailBody,
+        updateSubject: (e) => this.setState({ massEmailSubject: e.target.value }),
+        updateBody: (e) => this.setState({ massEmailBody: e.target.value }),
+        sendLabel: s.sendingEmail ? 'Sending…' : 'Send Now',
+        send: () => {
+          if (s.sendingEmail) return;
+          this.setState({ sendingEmail: true });
+          setTimeout(() => {
+            this.setState({ sendingEmail: false, massEmailOpen: false, selectedIds: new Set() });
+            this.showToast(`Sent ${selectedCount} email(s)`);
+          }, 900);
+        },
+      },
+
+      // import
+      importOpen: s.importOpen,
+      openImport: () => this.setState({ importOpen: true, importText: '' }),
+      closeImport: () => this.setState({ importOpen: false }),
+      importText: s.importText,
+      onImportTextChange: (e) => this.setState({ importText: e.target.value }),
+      importPreviewLabel: (() => {
+        const n = s.importText.split('\n').map(l => l.trim()).filter(Boolean).length;
+        return n === 0 ? 'No rows detected yet.' : `${n} row${n !== 1 ? 's' : ''} ready to import.`;
+      })(),
+      doImport: () => {
+        const lines = s.importText.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length === 0) { this.setState({ importOpen: false }); return; }
+        const newLeads = lines.map((line, i) => {
+          const parts = line.split(',').map(p => p.trim());
+          const l = buildLead(0, parts[0] || 'Unnamed Lead', parts[1] || '', parts[2] || '', parts[3] || '', 'NEW', '', 0, isTeamView ? REPS[i % REPS.length].id : CURRENT_USER_ID, '');
+          l.socials = []; l.dm = { instagram: false, facebook: false, linkedin: false, twitter: false, tiktok: false, meetingBooked: false, emailed: false, called: false, texted: false }; l.activities = [];
+          return l;
+        });
+        this.setState(st => ({ leads: [...newLeads, ...st.leads], importOpen: false, importText: '' }));
+        this.showToast(`Imported ${newLeads.length} lead(s)`);
+      },
+
+      // convert
+      hasConvertLead: !!s.convertLeadId,
+      convertLead: (() => {
+        const lead = s.leads.find(l => l.id === s.convertLeadId);
+        if (!lead) return {};
+        return {
+          name: lead.name, company: lead.company,
+          clientName: s.convertClientName, valueInput: s.convertValue,
+          updateClientName: (e) => this.setState({ convertClientName: e.target.value }),
+          updateValue: (e) => this.setState({ convertValue: e.target.value }),
+          confirm: () => {
+            this.setState(st => ({ leads: st.leads.map(l => l.id === lead.id ? { ...l, converted: true } : l), convertLeadId: null }));
+            this.showToast(`${s.convertClientName || lead.company} converted to client 🎉`);
+          },
+        };
+      })(),
+      closeConvert: () => this.setState({ convertLeadId: null }),
+
+      exportCSV: () => {
+        exportRows(filtered,
+          ['Rep', 'Lead', 'Company', 'Email', 'Phone', 'Status', 'Priority', 'Value', 'Source', 'Notes'],
+          (l) => [(REPS.find(r => r.id === l.repId) || {}).name || '', l.name, l.company, l.email, l.phone, l.status, l.priority, l.value, l.source, l.notes],
+          `sales-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+        this.showToast('Exported to CSV');
+      },
+
+      // commissions
+      commissionStats, commissionFilters, commissionSearch: s.commissionSearch,
+      onCommissionSearchChange: (e) => this.setState({ commissionSearch: e.target.value }),
+      filteredCommissions,
+      exportCommissionsCSV: () => {
+        exportRows(filteredCommissions,
+          ['Sales Rep', 'Client', 'Deal Value', 'Rate', 'Commission', 'Month', 'Status'],
+          (c) => [c.repName, c.client, c.dealValueLabel, c.rateLabel, c.amountLabel, c.month, c.statusLabel],
+          `commissions-${new Date().toISOString().slice(0, 10)}.csv`);
+        this.showToast('Exported to CSV');
+      },
+
+      // permissions
+      permissionRows,
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -58,6 +58,7 @@ model User {
   categoryMetrics         QCCategoryMetrics[]
   monthlyTrends           QCMonthlyTrend[]
   rejectionReasons        QCRejectionReason[]
+  salesActivityLogs       SalesActivityLog[]
   salesLeads              SalesLead[]
   salesLeadGenerationJobs SalesLeadGenerationJob[]
   salesManagerPermissions SalesManagerPermission[] @relation("SalesManagerPermissions")
@@ -1235,6 +1236,17 @@ model SalesLeadGenerationJob {
   @@index([userId, createdAt])
   @@index([status])
   @@index([provider, userId])
+}
+
+model SalesActivityLog {
+  id        String   @id @default(cuid())
+  userId    Int
+  type      String   // 'call' | 'dealClosed' | 'meeting'
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([type])
 }
 
 model SalesDashboardColumn {

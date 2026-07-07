@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { sendRawEmail } from '@/lib/email';
+import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
 function getTokenFromCookies(req: Request) {
     const cookieHeader = req.headers.get('cookie');
@@ -27,8 +28,11 @@ export async function POST(req: NextRequest) {
         const leads = await prisma.salesLead.findMany({
             where: {
                 id: { in: leadIds },
-                // Optional: ensure user owns the leads if NOT admin
-                ...(decoded.role !== 'admin' ? { userId: decoded.userId } : {})
+                ...(decoded.role === 'admin'
+                    ? {}
+                    : decoded.role === 'sales_manager'
+                        ? { userId: { in: await getVisibleSalesRepIds(Number(decoded.userId)) } }
+                        : { userId: decoded.userId }),
             }
         });
 

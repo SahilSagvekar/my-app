@@ -18,6 +18,7 @@ import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ImportLeadsDialog } from './sales/ImportLeadsDialog';
+import { TeamLeaderboard } from './sales/TeamLeaderboard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -613,7 +614,7 @@ function NotesModal({ open, lead, onClose, onSave }: {
 
 // ─── Mass Email Modal ─────────────────────────────────────────────────────────
 
-function MassEmailModal({ open, selectedLeads, leads, onClose, onSent }: {
+export function MassEmailModal({ open, selectedLeads, leads, onClose, onSent }: {
   open: boolean; selectedLeads: Set<string>; leads: Lead[]; onClose: () => void; onSent: () => void;
 }) {
   const [subject, setSubject] = useState('Checking in - E8 Productions');
@@ -684,13 +685,35 @@ function MassEmailModal({ open, selectedLeads, leads, onClose, onSent }: {
 
 // ─── Lead Profile Drawer ──────────────────────────────────────────────────────
 
-function LeadProfileDrawer({ lead, onClose, onUpdate }: {
+export function LeadProfileDrawer({ lead, onClose, onUpdate, onDelete }: {
   lead: Lead | null; onClose: () => void;
   onUpdate: (id: string, patch: Partial<Lead>) => void;
+  onDelete?: (id: string) => void;
 }) {
+  const [newActivityType, setNewActivityType] = useState('call');
+  const [newActivityLocation, setNewActivityLocation] = useState('');
+
   if (!lead) return null;
   const profileUrl = lead.profileUrl || '';
   const postUrl = lead.postUrl || '';
+  const activities = parseActivities(lead.metadata?.__activities);
+
+  const addActivityEntry = () => {
+    const next = [...activities, { type: newActivityType, time: new Date().toISOString(), location: newActivityLocation.trim() }];
+    onUpdate(lead.id, {
+      metadata: { ...lead.metadata, __activities: next } as any,
+      meetingBooked: next.some(e => e.type === 'meeting'),
+      emailed: next.some(e => e.type === 'email'),
+      called: next.some(e => e.type === 'call'),
+      texted: next.some(e => e.type === 'text'),
+    });
+    setNewActivityLocation('');
+  };
+
+  const removeActivityEntry = (idx: number) => {
+    const next = activities.filter((_, i) => i !== idx);
+    onUpdate(lead.id, { metadata: { ...lead.metadata, __activities: next } as any });
+  };
   return (
     <Sheet open={!!lead} onOpenChange={v => !v && onClose()}>
       <SheetContent className="w-[420px] sm:w-[480px] overflow-y-auto p-0 border-l-4"
@@ -786,6 +809,52 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
               ))}
             </div>
           </div>
+
+          <div className="space-y-3">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Activity Log</h3>
+            <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+              {activities.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">No activity logged yet.</p>
+              ) : activities.map((a, i) => {
+                const at = ACTIVITY_TYPES.find(t => t.id === a.type);
+                return (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5">
+                    <span className="text-[9.5px] font-extrabold text-white px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: at?.color || '#6B7280' }}>
+                      {at?.fullLabel || a.type}
+                    </span>
+                    <span className="text-[11.5px] text-gray-600 flex-1">
+                      {new Date(a.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                      {a.location ? ` · ${a.location}` : ''}
+                    </span>
+                    <button onClick={() => removeActivityEntry(i)} className="text-gray-400 hover:text-red-500 shrink-0">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-1.5">
+              <select value={newActivityType} onChange={e => setNewActivityType(e.target.value)} className="h-8 border border-gray-200 rounded-lg text-[11.5px] w-24 shrink-0 px-1.5">
+                {ACTIVITY_TYPES.map(at => <option key={at.id} value={at.id}>{at.fullLabel}</option>)}
+              </select>
+              <Input value={newActivityLocation} onChange={e => setNewActivityLocation(e.target.value)} placeholder="Note (optional)" className="h-8 text-xs flex-1" />
+              <Button size="sm" onClick={addActivityEntry} className="h-8 w-8 p-0 bg-[#0073EA] hover:bg-[#0060C0] shrink-0"><Plus className="h-3.5 w-3.5" /></Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Email Template</h3>
+            <div className="flex gap-1.5">
+              {DEFAULT_EMAIL_TEMPLATES.map(t => (
+                <button key={t.name} onClick={() => onUpdate(lead.id, { emailTemplate: t.body })}
+                  className="h-7 px-2.5 rounded-lg border border-gray-200 bg-white text-[11.5px] font-semibold hover:bg-gray-50">
+                  {t.name}
+                </button>
+              ))}
+            </div>
+            <Textarea value={lead.emailTemplate} onChange={e => onUpdate(lead.id, { emailTemplate: e.target.value })} rows={5} className="text-xs font-mono" placeholder="Write a saved email template for this lead…" />
+          </div>
+
           <div className="space-y-3">
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Notes</h3>
             <Textarea value={lead.notes} onChange={e => onUpdate(lead.id, { notes: e.target.value })} rows={4} className="text-sm" placeholder="Add notes..." />
@@ -798,6 +867,14 @@ function LeadProfileDrawer({ lead, onClose, onUpdate }: {
                 <p className="flex justify-between"><span className="text-gray-400">Last Sync:</span><span>{lead.updatedAt ? formatToEST(lead.updatedAt) : '—'}</span></p>
               </div>
             </div>
+          )}
+          {onDelete && lead._saved !== false && (
+            <button
+              onClick={() => { if (confirm('Delete this lead? This cannot be undone.')) { onDelete(lead.id); onClose(); } }}
+              className="self-start text-[#E2445C] text-xs font-bold hover:underline"
+            >
+              Delete Lead
+            </button>
           )}
         </div>
       </SheetContent>
@@ -1264,6 +1341,7 @@ export function SalesDashboard() {
 
   return (
     <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
+      <TeamLeaderboard />
       {/* Top Bar */}
       <div className="relative z-20 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white">
         <div>
@@ -1382,7 +1460,7 @@ export function SalesDashboard() {
       <NotesModal open={notesModal.open} lead={notesModal.lead}
         onClose={() => setNotesModal({ open: false, lead: null })}
         onSave={(id, notes) => updateLead(id, { notes })} />
-      <LeadProfileDrawer lead={drawerLead} onClose={() => setDrawerLead(null)} onUpdate={updateLead} />
+      <LeadProfileDrawer lead={drawerLead} onClose={() => setDrawerLead(null)} onUpdate={updateLead} onDelete={deleteRow} />
       <BulkActionToolbar count={selectedLeads.size} onClear={() => setSelectedLeads(new Set())} onMassEmail={() => setMassEmailModal(true)}
         converting={converting}
         onConvert={async () => {

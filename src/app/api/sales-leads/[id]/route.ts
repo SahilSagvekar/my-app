@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
+import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get('cookie');
@@ -10,7 +11,8 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
-// PATCH /api/sales-leads/[id] — update a lead (ownership enforced)
+// PATCH /api/sales-leads/[id] — update a lead
+// admin: any lead. sales_manager: own leads + permitted reps' leads. sales: own leads only.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -22,9 +24,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const existing = await prisma.salesLead.findFirst({
-      where: { id, userId: decoded.userId },
-    });
+    const where =
+      decoded.role === 'admin'
+        ? { id }
+        : decoded.role === 'sales_manager'
+          ? { id, userId: { in: await getVisibleSalesRepIds(Number(decoded.userId)) } }
+          : { id, userId: decoded.userId };
+
+    const existing = await prisma.salesLead.findFirst({ where });
     if (!existing) return NextResponse.json({ ok: false, message: 'Not found' }, { status: 404 });
 
     const body = await req.json();

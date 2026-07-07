@@ -5,8 +5,7 @@ import {
   Search, Download, RefreshCw, ChevronDown, ChevronRight,
   Users, Mail, Phone, MessageSquare, Instagram,
   Check, Ghost, FileText, X, Loader2, Send,
-  History as HistoryIcon, Link as LinkIcon, Info as InfoIcon,
-  TrendingUp, DollarSign, Clock, BadgePercent, Wallet,
+  TrendingUp, DollarSign, BadgePercent,
   CheckCircle, XCircle, ArrowRight, ShieldCheck, UserCheck,
   UserPlus, Shuffle,
 } from 'lucide-react';
@@ -24,9 +23,10 @@ import {
 import { Textarea } from '../ui/textarea';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { SalesDashboard } from '../dashboards/SalesDashboard';
+import { SalesDashboard, LeadProfileDrawer, MassEmailModal } from '../dashboards/SalesDashboard';
 import { ConvertLeadDialog } from '../sales/ConvertLeadDialog';
 import { SalesManagerPermissionsPanel } from './SalesManagerPermissionsPanel';
+import { TeamLeaderboard } from '../dashboards/sales/TeamLeaderboard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,14 @@ interface Lead {
   userId: number;
   user: SalesUser;
   name: string;
+  company: string;
   email: string;
+  phone: string;
+  profileUrl: string;
+  postUrl: string;
+  status: string;
+  source: string;
+  value: number | null;
   socials: string;
   instagram: boolean;
   facebook: boolean;
@@ -57,6 +64,7 @@ interface Lead {
   texted: boolean;
   notes: string;
   emailTemplate: string;
+  metadata?: Record<string, any>;
   dmAt?: string;
   meetingAt?: string;
   emailedAt?: string;
@@ -326,29 +334,26 @@ function CommissionManagement() {
   return (
     <div className="space-y-6">
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         {[
-          { label: 'Total Paid Out', value: formatCurrency(summary.totalEarned), color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: Wallet, filter: 'PAID' as const },
-          { label: 'Pending Approval', value: formatCurrency(summary.totalPending), color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock, badge: pendingCount > 0 ? pendingCount : null, filter: 'PENDING' as const },
-          { label: 'Approved (Unpaid)', value: formatCurrency(summary.totalApproved), color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: CheckCircle, badge: approvedCount > 0 ? approvedCount : null, filter: 'APPROVED' as const },
-          { label: 'This Month', value: formatCurrency(summary.thisMonth), color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', icon: TrendingUp, filter: null },
+          { label: 'Total Paid Out', value: formatCurrency(summary.totalEarned), color: 'text-[#037F4C]', filter: 'PAID' as const },
+          { label: 'Pending Approval', value: formatCurrency(summary.totalPending), color: 'text-[#FDAB3D]', badge: pendingCount > 0 ? pendingCount : null, filter: 'PENDING' as const },
+          { label: 'Approved (Unpaid)', value: formatCurrency(summary.totalApproved), color: 'text-[#0073EA]', badge: approvedCount > 0 ? approvedCount : null, filter: 'APPROVED' as const },
+          { label: 'This Month', value: formatCurrency(summary.thisMonth), color: 'text-[#A25DDC]', filter: null },
         ].map(s => (
-          <div
+          <button
             key={s.label}
             onClick={() => s.filter && setStatusFilter(prev => prev === s.filter ? 'all' : s.filter!)}
-            className={cn('rounded-xl border p-4 relative flex flex-col items-center justify-center text-center transition-all hover:shadow-md', s.bg, s.filter ? 'cursor-pointer' : 'cursor-default')}
+            className={cn('rounded-[14px] border border-gray-200 bg-white px-5 py-4.5 relative flex flex-col items-center justify-center text-center transition-colors', s.filter ? 'cursor-pointer hover:border-gray-300' : 'cursor-default')}
           >
-            <div className="flex items-center gap-2 mb-1">
-              <s.icon className={cn('h-4 w-4', s.color)} />
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{s.label}</p>
-            </div>
-            <p className={cn('text-2xl font-black mt-1', s.color)}>{s.value}</p>
+            <p className="text-[11.5px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">{s.label}</p>
+            <p className={cn('text-[28px] font-extrabold leading-none', s.color)}>{s.value}</p>
             {(s as any).badge && (
-              <span className="absolute top-2 right-2 min-w-[20px] h-5 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full px-1.5 shadow-sm">
+              <span className="absolute top-2.5 right-2.5 min-w-[20px] h-5 flex items-center justify-center text-[10px] font-bold text-white bg-[#E2445C] rounded-full px-1.5">
                 {(s as any).badge}
               </span>
             )}
-          </div>
+          </button>
         ))}
       </div>
 
@@ -571,7 +576,8 @@ export function SalesManagementTab() {
   const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [convertModal, setConvertModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
+  const [massEmailModal, setMassEmailModal] = useState(false);
   const [view, setView] = useState<'team' | 'personal' | 'commissions' | 'permissions'>('team');
 
   // Assign leads state
@@ -614,14 +620,6 @@ export function SalesManagementTab() {
     );
   }
 
-  const toggleRow = (id: string) => {
-    setExpandedRows(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const openAssignDialog = async (leadIds: string[]) => {
     setSelectedSalesUserId(null);
@@ -680,6 +678,35 @@ export function SalesManagementTab() {
       setLoading(false);
     }
   };
+
+  // ── Update a lead from the drawer (works for any rep's lead the viewer can see) ──
+  const updateTeamLead = useCallback(async (id: string, patch: Partial<Lead>) => {
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+    setDrawerLead(prev => prev && prev.id === id ? { ...prev, ...patch } : prev);
+    try {
+      const res = await fetch(`/api/sales-leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.message || 'Failed to save');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save lead');
+    }
+  }, []);
+
+  const deleteTeamLead = useCallback(async (id: string) => {
+    setLeads(prev => prev.filter(l => l.id !== id));
+    try {
+      const res = await fetch(`/api/sales-leads/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.message || 'Failed to delete');
+      toast.success('Lead deleted');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete lead');
+    }
+  }, []);
 
   useEffect(() => { fetchLeads(); }, []);
 
@@ -754,52 +781,31 @@ export function SalesManagementTab() {
     );
   }
 
+  const TAB_ORDER: { id: typeof view; label: string }[] = [
+    { id: 'personal', label: 'My Pipeline' },
+    { id: 'team', label: 'Team Overview' },
+    { id: 'commissions', label: 'Commissions' },
+    ...(isAdmin ? [{ id: 'permissions' as const, label: 'Permissions' }] : []),
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2 items-center bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
-        <div className="flex overflow-x-auto bg-gray-100/50 p-1 rounded-lg flex-shrink-0">
-          <button
-            onClick={() => setView('team')}
-            className={cn(
-              "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
-              view === 'team' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
-            )}
-          >
-            <Users className="h-3.5 w-3.5" />
-            Team Overview
-          </button>
-          <button
-            onClick={() => setView('personal')}
-            className={cn(
-              "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
-              view === 'personal' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
-            )}
-          >
-            <TrendingUp className="h-3.5 w-3.5" />
-            My Sheet
-          </button>
-          <button
-            onClick={() => setView('commissions')}
-            className={cn(
-              "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
-              view === 'commissions' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
-            )}
-          >
-            <DollarSign className="h-3.5 w-3.5" />
-            Commissions
-          </button>
-          {isAdmin && (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {TAB_ORDER.map((tab) => (
             <button
-              onClick={() => setView('permissions')}
+              key={tab.id}
+              onClick={() => setView(tab.id)}
               className={cn(
-                "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
-                view === 'permissions' ? "bg-white text-yellow-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                "px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors",
+                view === tab.id
+                  ? "text-[#0073EA] border-[#0073EA]"
+                  : "text-gray-400 border-transparent hover:text-gray-600"
               )}
             >
-              <UserCheck className="h-3.5 w-3.5" />
-              Permissions
+              {tab.label}
             </button>
-          )}
+          ))}
         </div>
         {view === 'team' && (
           <Button onClick={exportCSV} variant="outline" size="sm" className="gap-2 border-dashed">
@@ -820,17 +826,19 @@ export function SalesManagementTab() {
           {/* ── Team Overview — Monday.com style ── */}
           <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
 
+            <TeamLeaderboard />
+
             {/* Stats Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
               {[
-                { label: 'Total Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
-                { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-100/50 border-blue-200' },
-                { label: 'Meetings Booked', value: stats.meetings, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-                { label: 'High Priority', value: stats.highPriority, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
+                { label: 'Total Leads', value: stats.total, color: 'text-[#1a1a1a]' },
+                { label: 'Contacted', value: stats.contacted, color: 'text-[#579BFC]' },
+                { label: 'Meetings Booked', value: stats.meetings, color: 'text-[#00C875]' },
+                { label: 'High Priority', value: stats.highPriority, color: 'text-[#E2445C]' },
               ].map(s => (
-                <div key={s.label} className={cn('rounded-xl border p-4 flex flex-col items-center justify-center text-center', s.bg)}>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{s.label}</p>
-                  <p className={cn('text-3xl font-black mt-0.5', s.color)}>{s.value}</p>
+                <div key={s.label} className="rounded-[14px] border border-gray-200 bg-white px-5 py-4.5 flex flex-col items-center justify-center text-center">
+                  <p className="text-[11.5px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">{s.label}</p>
+                  <p className={cn('text-[28px] font-extrabold leading-none', s.color)}>{s.value}</p>
                 </div>
               ))}
             </div>
@@ -841,39 +849,30 @@ export function SalesManagementTab() {
                 <button
                   onClick={() => setSelectedUserId('all')}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all flex-shrink-0',
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[13px] font-medium transition-all shrink-0',
                     selectedUserId === 'all'
-                      ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm'
-                      : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-300 hover:bg-yellow-50'
+                      ? 'bg-[#E6F1FD] border-[#0073EA] text-[#0073EA]'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                   )}
                 >
-                  <Users className="h-4 w-4" />
-                  All Reps
-                  <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-semibold', selectedUserId === 'all' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500')}>
-                    {leads.length}
-                  </span>
+                  All Reps · {leads.length}
                 </button>
-                {salesUsers.map(u => {
+                {salesUsers.map((u, i) => {
                   const count = leads.filter(l => l.userId === u.id).length;
                   const active = selectedUserId === u.id;
+                  const dotColors = ['#579BFC', '#00C875', '#FDAB3D', '#A25DDC', '#E2445C', '#037F4C'];
+                  const dotColor = dotColors[i % dotColors.length];
                   return (
                     <button
                       key={u.id}
                       onClick={() => setSelectedUserId(active ? 'all' : u.id)}
                       className={cn(
-                        'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all flex-shrink-0',
-                        active ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm' : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-300 hover:bg-yellow-50'
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[13px] font-medium transition-all shrink-0',
+                        active ? 'bg-[#E6F1FD] border-[#0073EA] text-[#0073EA]' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                       )}
                     >
-                      <Avatar className="h-5 w-5">
-                        <AvatarFallback className={cn('text-xs', active ? 'bg-white/20 text-white' : 'bg-yellow-100 text-yellow-700')}>
-                          {initials(u.name, u.email)}
-                        </AvatarFallback>
-                      </Avatar>
-                      {displayName(u)}
-                      <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-semibold', active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500')}>
-                        {count}
-                      </span>
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+                      {displayName(u)} · {count}
                     </button>
                   );
                 })}
@@ -903,16 +902,6 @@ export function SalesManagementTab() {
                   : ''}
               </span>
               <div className="ml-auto flex items-center gap-2">
-                {selectedLeadIds.size > 0 && (
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs gap-1.5 bg-yellow-500 hover:bg-yellow-600 text-white"
-                    onClick={() => openAssignDialog(Array.from(selectedLeadIds))}
-                  >
-                    <UserPlus className="h-3.5 w-3.5" />
-                    Assign {selectedLeadIds.size} selected
-                  </Button>
-                )}
                 <Button variant="outline" size="sm" onClick={fetchLeads} className="gap-1.5 h-8 text-xs">
                   <RefreshCw className="h-3.5 w-3.5" /> Refresh
                 </Button>
@@ -997,12 +986,12 @@ export function SalesManagementTab() {
                                   <tr
                                     className={cn(
                                       'transition-colors border-b border-gray-100',
-                                      expandedRows.has(lead.id) ? 'bg-yellow-50/40' : 'bg-white hover:bg-[#F5F6F8]/60'
+                                      drawerLead?.id === lead.id ? 'bg-[#F0F7FF]' : 'bg-white hover:bg-[#F5F6F8]/60'
                                     )}
                                     style={{ borderLeft: `4px solid ${group.color}` }}
                                   >
                                     {/* Expand toggle + checkbox */}
-                                    <td className="w-[40px] px-2 py-2 text-center sticky left-0 z-20 bg-white group-[.expanded]:bg-yellow-50/40 group-hover:bg-[#F5F6F8]">
+                                    <td className="w-[40px] px-2 py-2 text-center sticky left-0 z-20 bg-white group-hover:bg-[#F5F6F8]">
                                       <div className="flex flex-col items-center gap-1">
                                         <input
                                           type="checkbox"
@@ -1020,16 +1009,16 @@ export function SalesManagementTab() {
                                           className="h-3.5 w-3.5 rounded accent-yellow-500 cursor-pointer"
                                         />
                                         <button
-                                          onClick={() => toggleRow(lead.id)}
-                                          className="text-gray-300 hover:text-amber-500 transition-colors"
+                                          onClick={() => setDrawerLead(lead)}
+                                          className="text-gray-300 hover:text-[#0073EA] transition-colors"
                                         >
-                                          <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', expandedRows.has(lead.id) && 'rotate-90')} />
+                                          <ChevronRight className="h-3.5 w-3.5" />
                                         </button>
                                       </div>
                                     </td>
 
                                     {/* Lead name */}
-                                    <td className="px-3 py-2 sticky left-[40px] z-20 bg-white group-[.expanded]:bg-yellow-50/40 group-hover:bg-[#F5F6F8] min-w-[200px]">
+                                    <td onClick={() => setDrawerLead(lead)} className="px-3 py-2 sticky left-[40px] z-20 bg-white group-hover:bg-[#F5F6F8] min-w-[200px] cursor-pointer">
                                       <div className="flex flex-col gap-0.5">
                                         <span className="text-[13px] font-semibold text-gray-900 truncate max-w-[180px]" title={lead.name}>
                                           {lead.name || <span className="text-gray-300 italic text-xs">Unnamed</span>}
@@ -1194,105 +1183,6 @@ export function SalesManagementTab() {
                                       </div>
                                     </td>
                                   </tr>
-
-                                  {/* Expanded detail panel — unchanged */}
-                                  {expandedRows.has(lead.id) && (
-                                    <tr className="bg-yellow-50/20" style={{ borderLeft: `4px solid ${group.color}` }}>
-                                      <td colSpan={10} className="px-6 py-4 border-b border-gray-200">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                          {/* Metadata */}
-                                          <div className="space-y-4">
-                                            <div className="space-y-1">
-                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                                <HistoryIcon className="h-3 w-3" /> Timestamps
-                                              </p>
-                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
-                                                <p className="text-xs flex justify-between">
-                                                  <span className="text-gray-400">Created:</span>
-                                                  <span className="font-medium text-gray-600">{formatToEST(lead.createdAt)}</span>
-                                                </p>
-                                                <p className="text-xs flex justify-between">
-                                                  <span className="text-gray-400">Last Sync:</span>
-                                                  <span className="font-medium text-gray-600">{formatToEST(lead.updatedAt)}</span>
-                                                </p>
-                                              </div>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                                <HistoryIcon className="h-3 w-3" /> Contact Timeline
-                                              </p>
-                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 space-y-2">
-                                                {!lead.dmAt && !lead.meetingAt && !lead.emailedAt && !lead.calledAt && !lead.textedAt && (
-                                                  <p className="text-[10px] text-gray-300 italic text-center py-2">No contact recorded</p>
-                                                )}
-                                                {lead.dmAt && (
-                                                  <p className="text-[10px] flex justify-between">
-                                                    <span className="text-gray-400">Social DM:</span>
-                                                    <span className="font-medium text-pink-600">{formatToEST(lead.dmAt)}</span>
-                                                  </p>
-                                                )}
-                                                {lead.meetingAt && (
-                                                  <p className="text-[10px] flex justify-between">
-                                                    <span className="text-gray-400">Meeting:</span>
-                                                    <span className="font-medium text-green-600">{formatToEST(lead.meetingAt)}</span>
-                                                  </p>
-                                                )}
-                                                {lead.emailedAt && (
-                                                  <p className="text-[10px] flex justify-between">
-                                                    <span className="text-gray-400">Email:</span>
-                                                    <span className="font-medium text-blue-600">{formatToEST(lead.emailedAt)}</span>
-                                                  </p>
-                                                )}
-                                                {lead.calledAt && (
-                                                  <p className="text-[10px] flex justify-between">
-                                                    <span className="text-gray-400">Call:</span>
-                                                    <span className="font-medium text-amber-600">{formatToEST(lead.calledAt)}</span>
-                                                  </p>
-                                                )}
-                                                {lead.textedAt && (
-                                                  <p className="text-[10px] flex justify-between">
-                                                    <span className="text-gray-400">Text:</span>
-                                                    <span className="font-medium text-purple-600">{formatToEST(lead.textedAt)}</span>
-                                                  </p>
-                                                )}
-                                              </div>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                                <LinkIcon className="h-3 w-3" /> Context
-                                              </p>
-                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 text-xs text-gray-600 space-y-1">
-                                                <p><strong>Platform:</strong> {lead.dmPlatform ? DM_PLATFORMS[lead.dmPlatform]?.label : 'None'}</p>
-                                                <p><strong>Priority:</strong> {lead.priority ? lead.priority.charAt(0).toUpperCase() + lead.priority.slice(1) : 'N/A'}</p>
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          {/* Content */}
-                                          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                                <InfoIcon className="h-3 w-3" /> Lead Notes
-                                              </p>
-                                              <div className="bg-white p-3 rounded-lg border border-yellow-200/50 min-h-[80px] max-h-[200px] overflow-y-auto text-xs text-gray-700 whitespace-pre-wrap leading-relaxed shadow-inner italic">
-                                                {lead.notes || '(No notes provided by rep)'}
-                                              </div>
-                                            </div>
-                                            <div className="space-y-1">
-                                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                                                <Mail className="h-3 w-3" /> Email Template
-                                              </p>
-                                              <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 min-h-[80px] max-h-[200px] overflow-y-auto text-xs text-blue-900/70 whitespace-pre-wrap font-mono shadow-inner leading-relaxed">
-                                                {lead.emailTemplate || '(No custom template)'}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )}
                                 </Fragment>
                               ))}
                               {/* Group summary row */}
@@ -1316,6 +1206,51 @@ export function SalesManagementTab() {
                 </div>
               </div>
             )}
+
+            <LeadProfileDrawer
+              lead={drawerLead}
+              onClose={() => setDrawerLead(null)}
+              onUpdate={updateTeamLead}
+              onDelete={deleteTeamLead}
+            />
+
+            {selectedLeadIds.size > 0 && (
+              <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+                <div className="flex items-center gap-3.5 bg-gray-900 text-white pl-4 pr-3 py-2.5 rounded-2xl shadow-2xl flex-wrap justify-center">
+                  <div className="flex items-center gap-2 pr-3.5 border-r border-white/15">
+                    <div className="w-[22px] h-[22px] rounded-full bg-[#0073EA] flex items-center justify-center text-[11px] font-extrabold">
+                      {selectedLeadIds.size}
+                    </div>
+                    <span className="text-[12.5px] font-bold tracking-wide">SELECTED</span>
+                  </div>
+                  <button
+                    onClick={() => openAssignDialog(Array.from(selectedLeadIds))}
+                    className="h-8 px-3.5 rounded-lg border border-white/20 bg-transparent text-white text-[12.5px] font-semibold"
+                  >
+                    Assign ▾
+                  </button>
+                  <button
+                    onClick={() => setMassEmailModal(true)}
+                    className="h-8 px-3.5 rounded-lg border-none bg-[#0073EA] text-white text-[12.5px] font-bold"
+                  >
+                    Send Mass Email
+                  </button>
+                  <button
+                    onClick={() => setSelectedLeadIds(new Set())}
+                    className="text-white/60 hover:text-white text-[12px] font-bold uppercase tracking-wide px-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            <MassEmailModal
+              open={massEmailModal}
+              selectedLeads={selectedLeadIds}
+              leads={leads}
+              onClose={() => setMassEmailModal(false)}
+              onSent={() => { setSelectedLeadIds(new Set()); fetchLeads(); }}
+            />
 
             {/* Modals — unchanged */}
             <ReadonlyNotesModal
