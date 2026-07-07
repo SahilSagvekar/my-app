@@ -1146,6 +1146,9 @@ export function SalesDashboard() {
         const data = await res.json();
         if (!data.ok) throw new Error(data.message || 'Failed');
         setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, id: data.lead.id, _saved: true, _dirty: false, _committing: false, createdAt: data.lead.createdAt, updatedAt: data.lead.updatedAt } : l));
+        if (data.duplicate) {
+          toast.warning(`Possible duplicate ${data.duplicate.matchedField}: "${data.duplicate.leadName}" already added by ${data.duplicate.ownerName}`);
+        }
       } else {
         const res = await fetch(`/api/sales-leads/${lead.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();
