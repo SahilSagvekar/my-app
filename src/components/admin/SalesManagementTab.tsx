@@ -5,7 +5,7 @@ import {
   Search, Download, RefreshCw, ChevronDown, ChevronRight,
   Users, Mail, Phone, MessageSquare, Instagram,
   Check, Ghost, FileText, X, Loader2, Send,
-  TrendingUp, DollarSign, BadgePercent,
+  TrendingUp, DollarSign, Clock, BadgePercent,
   CheckCircle, XCircle, ArrowRight, ShieldCheck, UserCheck,
   UserPlus, Shuffle,
 } from 'lucide-react';
