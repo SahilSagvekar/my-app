@@ -137,6 +137,7 @@ function QuoteBuilderDialog({
       { description: 'Paid Ad Spend (pass-through)',    quantity: 1, unitPrice: 50000,  total: 50000  },
     ]
   );
+  const [address, setAddress]               = useState(preClient.address ?? '');
   const [notes, setNotes]                   = useState(existingQuote?.notes ?? '');
   const [validDays, setValidDays]           = useState(existingQuote?.validDays ?? 30);
   const [preparedBy, setPreparedBy]         = useState(existingQuote?.preparedBy ?? 'Gabe Rabinowitz + Eric Davis');
@@ -189,7 +190,7 @@ function QuoteBuilderDialog({
       const res = await fetch(`/api/pre-clients/${preClient.id}/quotes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ services, notes, validDays, preparedBy, inclusions, terms, acceptanceText }),
+        body: JSON.stringify({ services, notes, validDays, preparedBy, inclusions, terms, acceptanceText, address }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -324,6 +325,12 @@ function QuoteBuilderDialog({
                   {preClient.name}{preClient.companyName ? `, ${preClient.companyName}` : ''}
                 </div>
                 <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#6b7280' }}>{preClient.email}</div>
+                <input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Client address (optional)"
+                  style={{ ...inStyle, fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#6b7280', marginTop: 2 }}
+                />
               </div>
               <div>
                 <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: '#1a56db', textTransform: 'uppercase', marginBottom: 3 }}>Prepared By</div>
@@ -545,7 +552,7 @@ function CreatePreClientDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', companyName: '', address: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', companyName: '' });
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit() {
@@ -612,14 +619,6 @@ function CreatePreClientDialog({
               value={form.companyName}
               onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
               placeholder="Combatica"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">Address</label>
-            <Input
-              value={form.address}
-              onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-              placeholder="123 Main St, Myrtle Beach, SC 29577"
             />
           </div>
           <div className="flex gap-3 pt-2">

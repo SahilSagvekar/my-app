@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!preClient) return NextResponse.json({ error: 'Pre-client not found' }, { status: 404 });
 
     const body = await req.json();
-    const { services, notes, validDays, preparedBy, inclusions, terms, acceptanceText } = body;
+    const { services, notes, validDays, preparedBy, inclusions, terms, acceptanceText, address } = body;
 
     if (!services || !Array.isArray(services) || services.length === 0) {
       return NextResponse.json({ error: 'At least one service line item is required' }, { status: 400 });
@@ -64,10 +64,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
     });
 
-    if (['QUALIFIED'].includes(preClient.status)) {
-      await prisma.preClient.update({
+    if (['QUALIFIED'].includes(preClient.status) || address !== undefined) {
+      await (prisma as any).preClient.update({
         where: { id: preClientId },
-        data: { status: 'QUOTED' },
+        data: {
+          ...(['QUALIFIED'].includes(preClient.status) ? { status: 'QUOTED' } : {}),
+          ...(address !== undefined ? { address: address || null } : {}),
+        },
       });
     }
 
