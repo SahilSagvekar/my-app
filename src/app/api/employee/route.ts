@@ -34,7 +34,7 @@ const BodySchema = z.object({
 });
 
 function isValidRole(role: string): role is Role {
-  return ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'null'].includes(role);
+  return ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager', 'null'].includes(role);
 }
 
 export async function POST(req: Request) {

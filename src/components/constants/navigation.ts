@@ -113,6 +113,7 @@ export const NAVIGATION_ITEMS = {
   sales: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },
+    { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
   ],
   sales_manager: [
