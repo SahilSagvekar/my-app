@@ -41,6 +41,7 @@ export interface ContractPreClient {
   name: string;
   email: string;
   companyName: string | null;
+  address: string | null;
 }
 
 type Block =
@@ -179,6 +180,7 @@ async function renderBlocks(pdfDoc: PDFDocument, blocks: Block[]): Promise<void>
  */
 export async function generateContractPdf(quote: ContractQuote, preClient: ContractPreClient): Promise<Buffer> {
   const clientLegalName = preClient.companyName || preClient.name;
+  const clientAddressClause = preClient.address ? `, with mailing address at ${preClient.address}` : '';
   const effectiveDate = fmtDate(new Date());
   const clientSignerName = preClient.name;
   const clientNoticeEmail = preClient.email;
@@ -187,7 +189,7 @@ export async function generateContractPdf(quote: ContractQuote, preClient: Contr
 
   const psaBlocks: Block[] = [
     { type: 'doctitle', text: 'PROFESSIONAL SERVICES AGREEMENT' },
-    { type: 'body', text: `THIS PROFESSIONAL SERVICES AGREEMENT (the "Agreement") is entered into as of ${effectiveDate} (the "Effective Date"), by and between ${clientLegalName} (the "Client") and E8 Productions, LLC, with mailing address at 1906 S. Ocean Blvd, Suite #410B, Myrtle Beach, SC 29577 (the "Consultant"). E8 Productions, LLC will perform the services (the "Services") and deliver the materials (the "Deliverables") specified in each signed Quote/Price Sheet (the "Quote") to Client, subject to and in accordance with all terms, conditions, and specifications set forth herein and in the attached Schedules A and B (collectively, the "Agreement"). The parties agree as follows:` },
+    { type: 'body', text: `THIS PROFESSIONAL SERVICES AGREEMENT (the "Agreement") is entered into as of ${effectiveDate} (the "Effective Date"), by and between ${clientLegalName}${clientAddressClause} (the "Client") and E8 Productions, LLC, with mailing address at 1906 S. Ocean Blvd, Suite #410B, Myrtle Beach, SC 29577 (the "Consultant"). E8 Productions, LLC will perform the services (the "Services") and deliver the materials (the "Deliverables") specified in each signed Quote/Price Sheet (the "Quote") to Client, subject to and in accordance with all terms, conditions, and specifications set forth herein and in the attached Schedules A and B (collectively, the "Agreement"). The parties agree as follows:` },
 
     { type: 'h1', text: 'ARTICLE I: SERVICES' },
     { type: 'body', text: '1.1 Services Provided by Consultant. Client hereby engages Consultant as an independent contractor to provide the Services described in Schedule A. Consultant accepts such engagement. All Services shall be performed by Consultant in a professional and highly skilled manner, using Consultant’s best efforts, and Consultant shall determine the method, details and means of performing the Services.' },

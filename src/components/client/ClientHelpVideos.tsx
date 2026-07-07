@@ -33,7 +33,7 @@ export function ClientHelpVideos() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
           <PlayCircle className="h-6 w-6 text-blue-600" />
-          Help Videos
+          E8-help
         </h1>
         <p className="text-muted-foreground mt-1">
           Quick videos to help you get the most out of your E8 portal

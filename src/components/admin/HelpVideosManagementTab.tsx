@@ -141,7 +141,7 @@ export function HelpVideosManagementTab() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <PlayCircle className="h-5 w-5 text-blue-600" />
-            Help Videos
+            E8-help
           </h2>
           <p className="text-sm text-gray-500">Manage the YouTube videos shown in the client portal</p>
         </div>

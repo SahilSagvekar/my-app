@@ -669,16 +669,6 @@ export default function QuotePage() {
               placeholder="Acceptance paragraph..."
             />
           </div>
-
-          {/* Signature lines — always shown in the document */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, marginTop: 16 }}>
-            <div>
-              <div style={{ borderTop: "1px solid #374151", paddingTop: 6, fontFamily: "Arial, sans-serif", fontSize: 10, letterSpacing: "0.1em", color: "#6b7280", textTransform: "uppercase" }}>Authorized Signature</div>
-            </div>
-            <div>
-              <div style={{ borderTop: "1px solid #374151", paddingTop: 6, fontFamily: "Arial, sans-serif", fontSize: 10, letterSpacing: "0.1em", color: "#6b7280", textTransform: "uppercase" }}>Date</div>
-            </div>
-          </div>
         </div>
 
         {/* ── CTA BUTTONS (hidden in print) ── */}

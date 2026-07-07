@@ -170,8 +170,6 @@ export function renderPage(
         return <PortfolioManagementTab />;
       case "contracts":
         return <ContractsDashboard />;
-      case "help-videos":
-        return <HelpVideosManagementTab />;
       case "compression":
         return <CompressionDashboard />;
       case "production-tracker":

@@ -22,8 +22,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { Plus, Video, Edit, Trash2, Loader2, FileText, Download } from "lucide-react";
+import { Plus, Video, Edit, Trash2, Loader2, FileText, Download, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { HelpVideosManagementTab } from "./HelpVideosManagementTab";
 
 interface TrainingVideoType {
   id: string;
@@ -60,6 +62,7 @@ const ROLES = [
 ];
 
 export function TrainingManagementTab() {
+  const [activeTab, setActiveTab] = useState<"videos" | "documents" | "help">("videos");
   const [videos, setVideos] = useState<TrainingVideoType[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<string>("all");
@@ -371,8 +374,35 @@ export function TrainingManagementTab() {
     return acc;
   }, {});
 
+  const TABS = [
+    { id: "videos" as const, label: "Videos", icon: Video },
+    { id: "documents" as const, label: "Documents", icon: FileText },
+    { id: "help" as const, label: "E8-Help", icon: PlayCircle },
+  ];
+
   return (
     <div className="space-y-6">
+      <div className="flex bg-gray-100/50 p-1 rounded-lg w-fit">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "px-4 py-1.5 text-xs font-bold rounded-md transition-all uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap",
+              activeTab === tab.id ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+            )}
+          >
+            <tab.icon className="h-3.5 w-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "help" ? (
+        <HelpVideosManagementTab />
+      ) : (
+        <>
+      {activeTab === "videos" && (
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -569,7 +599,9 @@ export function TrainingManagementTab() {
           )}
         </CardContent>
       </Card>
+      )}
 
+      {activeTab === "documents" && (
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -755,6 +787,9 @@ export function TrainingManagementTab() {
           )}
         </CardContent>
       </Card>
+      )}
+        </>
+      )}
 
       {/* Admin preview dialog */}
       <Dialog open={!!previewing} onOpenChange={(open) => !open && setPreviewing(null)}>

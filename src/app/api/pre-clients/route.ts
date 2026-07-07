@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const preClients = await prisma.preClient.findMany({
+    const preClients = await (prisma as any).preClient.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         createdBy: { select: { id: true, name: true, email: true } },
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, email, phone, companyName } = body;
+    const { name, email, phone, companyName, address } = body;
 
 
     if (!name || !email) {
@@ -50,12 +50,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A pre-client with this email already exists' }, { status: 409 });
     }
 
-    const preClient = await prisma.preClient.create({
+    const preClient = await (prisma as any).preClient.create({
       data: {
         name,
         email,
         phone: phone || null,
         companyName: companyName || null,
+        address: address || null,
         createdById: user.id,
       },
       include: {

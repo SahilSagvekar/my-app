@@ -1428,7 +1428,6 @@ model Contract {
   updatedAt            DateTime           @updatedAt
   annotations          Json?
   allowVariableSigners Boolean            @default(false)
-  requiresSignature    Boolean            @default(false)
   preClientId          String?
   signwellDocumentId   String?
   signwellRequestId    String?
@@ -1795,6 +1794,7 @@ model PreClient {
   email       String
   phone       String?
   companyName String?
+  address     String?
   status      PreClientStatus @default(QUALIFIED)
   createdById Int
   createdAt   DateTime        @default(now())

@@ -298,7 +298,7 @@ export function LayoutShell({
               <Button
                 variant="ghost"
                 size="icon"
-                title="Help Videos"
+                title="E8-help"
                 onClick={() => onPageChange('help-videos')}
                 className={currentPage === 'help-videos' ? 'bg-gray-100' : ''}
               >

@@ -52,6 +52,7 @@ interface PreClient {
   email: string;
   phone: string | null;
   companyName: string | null;
+  address: string | null;
   status: 'QUALIFIED' | 'QUOTED' | 'QUOTE_ACCEPTED' | 'PROVISIONING' | 'CONVERTED';
   createdAt: string;
   createdBy: { id: number; name: string | null; email: string };
@@ -544,7 +545,7 @@ function CreatePreClientDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', companyName: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', companyName: '', address: '' });
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit() {
@@ -611,6 +612,14 @@ function CreatePreClientDialog({
               value={form.companyName}
               onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
               placeholder="Combatica"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Address</label>
+            <Input
+              value={form.address}
+              onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+              placeholder="123 Main St, Myrtle Beach, SC 29577"
             />
           </div>
           <div className="flex gap-3 pt-2">

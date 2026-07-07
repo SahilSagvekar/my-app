@@ -6,7 +6,7 @@ import {
   History as HistoryIcon, Clock, Loader2, RefreshCw, Plus, Trash2,
   Download, Search, ChevronDown, Mail, Phone, MessageSquare, FileText,
   UploadCloud, Instagram, Eye, EyeOff, GripVertical, Flag, ChevronUp,
-  Settings2, Columns3, Sparkles, Zap, FileSpreadsheet
+  Settings2, Columns3, Sparkles, Zap, FileSpreadsheet, ArrowRight
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -882,7 +882,7 @@ function ColumnToggle({ visible, setVisible, allCols, onAdd, onDelete }: {
 
 // ─── Bulk Action Toolbar ──────────────────────────────────────────────────────
 
-function BulkActionToolbar({ count, onClear, onMassEmail }: { count: number; onClear: () => void; onMassEmail: () => void }) {
+function BulkActionToolbar({ count, onClear, onMassEmail, onConvert, converting }: { count: number; onClear: () => void; onMassEmail: () => void; onConvert: () => void; converting: boolean }) {
   if (count === 0) return null;
   return (
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -894,6 +894,9 @@ function BulkActionToolbar({ count, onClear, onMassEmail }: { count: number; onC
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={onMassEmail} className="bg-blue-600 hover:bg-blue-500 text-white gap-2 font-bold px-4 h-9 shadow-lg shadow-blue-600/20">
             <Mail className="h-4 w-4" />Send Mass Email
+          </Button>
+          <Button size="sm" onClick={onConvert} disabled={converting} className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 font-bold px-4 h-9 shadow-lg shadow-emerald-600/20">
+            {converting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}Convert
           </Button>
           <button onClick={onClear} className="text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider px-2 transition-colors">Cancel</button>
         </div>
@@ -1056,6 +1059,7 @@ export function SalesDashboard() {
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [massEmailModal, setMassEmailModal] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
   const openNotes = useCallback((lead: Lead) => setNotesModal({ open: true, lead }), []);
@@ -1379,7 +1383,33 @@ export function SalesDashboard() {
         onClose={() => setNotesModal({ open: false, lead: null })}
         onSave={(id, notes) => updateLead(id, { notes })} />
       <LeadProfileDrawer lead={drawerLead} onClose={() => setDrawerLead(null)} onUpdate={updateLead} />
-      <BulkActionToolbar count={selectedLeads.size} onClear={() => setSelectedLeads(new Set())} onMassEmail={() => setMassEmailModal(true)} />
+      <BulkActionToolbar count={selectedLeads.size} onClear={() => setSelectedLeads(new Set())} onMassEmail={() => setMassEmailModal(true)}
+        converting={converting}
+        onConvert={async () => {
+          const leadIds = Array.from(selectedLeads);
+          if (leadIds.length === 0) return;
+          if (!confirm(`Convert ${leadIds.length} lead${leadIds.length !== 1 ? 's' : ''} to pre-client${leadIds.length !== 1 ? 's' : ''}? Converted leads will be removed from your sheet.`)) return;
+          setConverting(true);
+          try {
+            const res = await fetch('/api/sales-leads/convert-to-preclient', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ leadIds }),
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.message || 'Failed to convert leads');
+            if (data.converted > 0) {
+              setLeads(prev => prev.filter(l => !data.convertedIds.includes(l.id)));
+            }
+            setSelectedLeads(new Set());
+            if (data.converted > 0) toast.success(`Converted ${data.converted} lead${data.converted !== 1 ? 's' : ''} to pre-client${data.converted !== 1 ? 's' : ''}`);
+            if (data.skipped?.length > 0) toast.warning(`${data.skipped.length} skipped: ${data.skipped.map((s: any) => `${s.name} (${s.reason})`).join(', ')}`);
+          } catch (err: any) {
+            toast.error(err.message || 'Failed to convert leads');
+          } finally {
+            setConverting(false);
+          }
+        }} />
       <MassEmailModal open={massEmailModal} selectedLeads={selectedLeads} leads={leads}
         onClose={() => setMassEmailModal(false)}
         onSent={() => {
