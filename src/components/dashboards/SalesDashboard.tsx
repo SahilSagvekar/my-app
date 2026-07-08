@@ -18,9 +18,7 @@ import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ImportLeadsDialog } from './sales/ImportLeadsDialog';
-import { TeamLeaderboard } from './sales/TeamLeaderboard';
 import { SalesPipelineToolbar } from './sales/SalesPipelineToolbar';
-import { SalesHeader } from './sales/SalesHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,6 +137,7 @@ const STATUS_GROUPS = [
   { id: 'QUALIFIED', label: 'Qualified', color: '#00C875', bg: 'bg-[#00C875]', text: 'text-white' },
   { id: 'WON', label: 'Won', color: '#037F4C', bg: 'bg-[#037F4C]', text: 'text-white' },
   { id: 'LOST', label: 'Lost', color: '#E2445C', bg: 'bg-[#E2445C]', text: 'text-white' },
+  { id: 'NOT_INTERESTED', label: 'Not Interested', color: '#8B8D98', bg: 'bg-[#8B8D98]', text: 'text-white' },
 ];
 
 const PRIORITY_OPTIONS = [
@@ -156,6 +155,18 @@ const DM_PLATFORMS = [
   { id: 'twitter', label: 'Twitter', color: '#1DA1F2' },
   { id: 'tiktok', label: 'TikTok', color: '#000000' },
   { id: 'other', label: 'Other', color: '#6B7280' },
+];
+
+const SOURCE_OPTIONS = [
+  'Indeed',
+  'LinkedIn',
+  'In Person',
+  'Referral',
+  'Cold Email',
+  'Cold DM',
+  'OnlineJobs',
+  'Networking/Event',
+  'Other',
 ];
 
 // Always-shown columns (name/status/priority). Channels/value/activity are the
@@ -613,7 +624,7 @@ export function LeadProfileDrawer({ lead, onClose, onUpdate, onDelete }: {
   };
   return (
     <Sheet open={!!lead} onOpenChange={v => !v && onClose()}>
-      <SheetContent className="w-[420px] sm:w-[480px] overflow-y-auto p-0 border-l-4"
+      <SheetContent className="w-[560px] sm:w-[640px] sm:max-w-[640px] overflow-y-auto p-0 border-l-4"
         style={{ borderLeftColor: STATUS_GROUPS.find(s => s.id === lead.status)?.color || '#579BFC' }}>
         <SheetHeader className="p-6 pb-4 border-b bg-gray-50/80">
           <div className="flex justify-between items-center pr-8">
@@ -650,7 +661,19 @@ export function LeadProfileDrawer({ lead, onClose, onUpdate, onDelete }: {
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Source</label>
-                <Input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })} className="h-9 text-sm bg-white" placeholder="Referral, Ads..." />
+                <select
+                  value={lead.source}
+                  onChange={e => onUpdate(lead.id, { source: e.target.value })}
+                  className="h-9 w-full text-sm bg-white border border-gray-200 rounded-md px-2.5 text-gray-700"
+                >
+                  <option value="">Select source…</option>
+                  {lead.source && !SOURCE_OPTIONS.includes(lead.source) && (
+                    <option value={lead.source}>{lead.source}</option>
+                  )}
+                  {SOURCE_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Social Links</label>
@@ -1027,7 +1050,7 @@ const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customC
 // MAIN COMPONENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function SalesDashboard({ standalone = true }: { standalone?: boolean } = {}) {
+export function SalesDashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [customColumns, setCustomColumns] = useState<SalesColumn[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1258,8 +1281,6 @@ export function SalesDashboard({ standalone = true }: { standalone?: boolean } =
 
   return (
     <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
-      {standalone && <SalesHeader tabs={[{ id: 'personal', label: 'My Pipeline' }]} activeTab="personal" />}
-      <TeamLeaderboard />
       <SalesPipelineToolbar
         title="Sales Pipeline"
         subtitle="Auto-saves 1.5s after changes"

@@ -26,9 +26,7 @@ import { cn } from '@/lib/utils';
 import { SalesDashboard, LeadProfileDrawer, MassEmailModal } from '../dashboards/SalesDashboard';
 import { ConvertLeadDialog } from '../sales/ConvertLeadDialog';
 import { SalesManagerPermissionsPanel } from './SalesManagerPermissionsPanel';
-import { TeamLeaderboard } from '../dashboards/sales/TeamLeaderboard';
 import { SalesPipelineToolbar } from '../dashboards/sales/SalesPipelineToolbar';
-import { SalesHeader } from '../dashboards/sales/SalesHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -792,10 +790,27 @@ export function SalesManagementTab() {
 
   return (
     <div className="space-y-6">
-      <SalesHeader tabs={TAB_ORDER} activeTab={view} onTabChange={setView} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {TAB_ORDER.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setView(tab.id)}
+              className={cn(
+                "px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors",
+                view === tab.id
+                  ? "text-[#0073EA] border-[#0073EA]"
+                  : "text-gray-400 border-transparent hover:text-gray-600"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {view === 'personal' ? (
-        <SalesDashboard standalone={false} />
+        <SalesDashboard />
       ) : view === 'commissions' ? (
         <CommissionManagement />
       ) : view === 'permissions' ? (
@@ -804,8 +819,6 @@ export function SalesManagementTab() {
         <>
           {/* ── Team Overview — Monday.com style ── */}
           <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
-
-            <TeamLeaderboard />
 
             {/* Stats Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
@@ -922,6 +935,7 @@ export function SalesManagementTab() {
                             { id: 'QUALIFIED', label: 'Qualified', color: '#00C875' },
                             { id: 'WON', label: 'Won', color: '#037F4C' },
                             { id: 'LOST', label: 'Lost', color: '#E2445C' },
+                            { id: 'NOT_INTERESTED', label: 'Not Interested', color: '#8B8D98' },
                           ];
                           const PRIORITY_COLORS: Record<string, string> = {
                             critical: '#333333', high: '#E2445C', medium: '#FDAB3D', low: '#579BFC',
