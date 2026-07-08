@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, Fragment, useMemo, memo, useD
 import {
   X, Check, ChevronRight, Send, Link as LinkIcon, Info as InfoIcon,
   History as HistoryIcon, Clock, Loader2, RefreshCw, Plus, Trash2,
-  Download, Search, ChevronDown, Mail, Phone, MessageSquare, FileText,
+  Download, ChevronDown, Mail, Phone, MessageSquare, FileText,
   UploadCloud, Instagram, Eye, EyeOff, GripVertical, Flag, ChevronUp,
   Settings2, Columns3, Sparkles, Zap, FileSpreadsheet, ArrowRight
 } from 'lucide-react';
@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ImportLeadsDialog } from './sales/ImportLeadsDialog';
 import { TeamLeaderboard } from './sales/TeamLeaderboard';
+import { SalesPipelineToolbar } from './sales/SalesPipelineToolbar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,20 +157,16 @@ const DM_PLATFORMS = [
   { id: 'other', label: 'Other', color: '#6B7280' },
 ];
 
+// Always-shown columns (name/status/priority). Channels/value/activity are the
+// toggleable ones per the redesign — detail fields (email/phone/source/notes/
+// profile+post links/rich socials) now live exclusively in the drawer.
 const CORE_COLUMNS: ColumnDef[] = [
-  { id: 'name', label: 'Lead', width: 'min-w-[220px] w-[220px]', sticky: true, minPx: 220 },
-  { id: 'company', label: 'Company', width: 'min-w-[220px] w-[220px]', minPx: 220 },
+  { id: 'name', label: 'Lead', width: 'min-w-[240px] w-[240px]', sticky: true, minPx: 240 },
   { id: 'status', label: 'Status', width: 'min-w-[130px] w-[130px]', align: 'center', minPx: 130 },
   { id: 'priority', label: 'Priority', width: 'min-w-[120px] w-[120px]', align: 'center', minPx: 120 },
-  { id: 'email', label: 'Email', width: 'min-w-[180px] w-[180px]', minPx: 180 },
-  { id: 'phone', label: 'Phone', width: 'min-w-[140px] w-[140px]', minPx: 140 },
-  { id: 'socials', label: 'Socials', width: 'min-w-[160px] w-[160px]', minPx: 160 },
-  { id: 'profileUrl', label: 'Profile Link', width: 'min-w-[150px] w-[150px]', minPx: 150 },
-  { id: 'postUrl', label: 'Post Link', width: 'min-w-[150px] w-[150px]', minPx: 150 },
-  { id: 'value', label: 'Deal Value', width: 'min-w-[110px] w-[110px]', align: 'center', minPx: 110 },
-  { id: 'source', label: 'Source', width: 'min-w-[120px] w-[120px]', minPx: 120 },
-  { id: 'activity', label: 'Activity', width: 'min-w-[160px] w-[160px]', minPx: 160 },
-  { id: 'notes', label: 'Notes', width: 'min-w-[120px] w-[120px]', align: 'center', minPx: 120 },
+  { id: 'channels', label: 'Channels', width: 'min-w-[150px] w-[150px]', minPx: 150 },
+  { id: 'value', label: 'Value', width: 'min-w-[110px] w-[110px]', align: 'center', minPx: 110 },
+  { id: 'activity', label: 'Last Activity', width: 'min-w-[150px] w-[150px]', minPx: 150 },
 ];
 
 const ALL_COLUMNS = CORE_COLUMNS;
@@ -368,6 +365,26 @@ function SocialCell({ value, onUpdate }: {
   );
 }
 
+function ChannelsReadCell({ value }: { value: string }) {
+  const entries = parseSocials(value);
+  if (entries.length === 0) return <span className="text-gray-300 text-[11px]">—</span>;
+  return (
+    <div className="flex items-center gap-1">
+      {entries.slice(0, 4).map((e, i) => {
+        const p = SOCIAL_PLATFORMS.find(p => p.id === e.platform);
+        return (
+          <span key={i} title={e.url}
+            className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-[3px] text-[10px] font-bold text-white shrink-0"
+            style={{ backgroundColor: p?.color || '#6B7280' }}>
+            {p?.label || '?'}
+          </span>
+        );
+      })}
+      {entries.length > 4 && <span className="text-[10px] text-gray-400">+{entries.length - 4}</span>}
+    </div>
+  );
+}
+
 function LeadLinkCell({ value, onChange }: { value?: string; onChange: (v: string) => void }) {
   const href = value || '';
   return (
@@ -412,104 +429,6 @@ function parseActivities(raw?: string | ActivityEntry[]): ActivityEntry[] {
     if (Array.isArray(parsed)) return parsed;
   } catch {}
   return [];
-}
-
-function ActivityCell({ value, onUpdate }: { value: ActivityEntry[]; onUpdate: (patch: Partial<Lead>) => void }) {
-  const [open, setOpen] = useState(false);
-  const [newType, setNewType] = useState('call');
-  const [newTime, setNewTime] = useState(() => new Date().toISOString().slice(0, 16));
-  const [newLocation, setNewLocation] = useState('');
-  const entries = value;
-
-  const commit = (next: ActivityEntry[]) => {
-    onUpdate({
-      metadata: { __activities: next },
-      meetingBooked: next.some(e => e.type === 'meeting'),
-      emailed: next.some(e => e.type === 'email'),
-      called: next.some(e => e.type === 'call'),
-      texted: next.some(e => e.type === 'text'),
-      meetingAt: next.filter(e => e.type === 'meeting').at(-1)?.time,
-      emailedAt: next.filter(e => e.type === 'email').at(-1)?.time,
-      calledAt: next.filter(e => e.type === 'call').at(-1)?.time,
-      textedAt: next.filter(e => e.type === 'text').at(-1)?.time,
-    });
-  };
-
-  const addEntry = () => {
-    commit([...entries, { type: newType, time: new Date(newTime).toISOString(), location: newLocation.trim() }]);
-    setNewLocation('');
-    setNewTime(new Date().toISOString().slice(0, 16));
-  };
-
-  const removeEntry = (idx: number) => commit(entries.filter((_, i) => i !== idx));
-  const typeCounts = ACTIVITY_TYPES.map(at => ({ ...at, count: entries.filter(e => e.type === at.id).length })).filter(a => a.count > 0);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button className="w-full h-[30px] px-1.5 flex items-center gap-1 bg-transparent hover:bg-[#F5F6F8] rounded text-left overflow-hidden">
-          {typeCounts.length === 0 ? (
-            <span className="text-[11px] text-gray-300">+ Log</span>
-          ) : (
-            <>
-              {typeCounts.slice(0, 3).map((a) => (
-                <span key={a.id} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
-                  style={{ backgroundColor: a.color }}>
-                  {a.label}{a.count > 1 ? ` ×${a.count}` : ''}
-                </span>
-              ))}
-              {typeCounts.length > 3 && <span className="text-[10px] text-gray-400">+{typeCounts.length - 3}</span>}
-            </>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-3 space-y-2.5" align="start" sideOffset={4}>
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Activity Log</p>
-        {entries.length === 0 && <p className="text-[12px] text-gray-400 italic">No activity logged yet.</p>}
-        <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-          {entries.map((e, i) => {
-            const at = ACTIVITY_TYPES.find(a => a.id === e.type);
-            return (
-              <div key={i} className="flex items-start gap-1.5 text-[12px]">
-                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0 mt-0.5"
-                  style={{ backgroundColor: at?.color || '#6B7280' }}>
-                  {at?.label || e.type}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-gray-600 text-[11px]">
-                    {new Date(e.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                  </div>
-                  {e.location && <div className="text-gray-400 text-[11px] truncate">{e.location}</div>}
-                </div>
-                <button onClick={() => removeEntry(i)} className="shrink-0 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors mt-0.5">
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <div className="pt-2 border-t border-gray-100 space-y-1.5">
-          <div className="flex gap-1.5">
-            <select value={newType} onChange={e => setNewType(e.target.value)}
-              className="h-7 text-[11px] border border-gray-200 rounded px-1 bg-white w-[90px] shrink-0">
-              {ACTIVITY_TYPES.map(a => <option key={a.id} value={a.id}>{a.fullLabel}</option>)}
-            </select>
-            <input type="datetime-local" value={newTime} onChange={e => setNewTime(e.target.value)}
-              className="flex-1 h-7 text-[11px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA] min-w-0" />
-          </div>
-          <div className="flex gap-1.5">
-            <input value={newLocation} onChange={e => setNewLocation(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEntry(); } }}
-              placeholder="Location or notes (optional)"
-              className="flex-1 h-7 text-[12px] border border-gray-200 rounded px-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#0073EA]" />
-            <button onClick={addEntry} className="h-7 w-7 flex items-center justify-center bg-[#0073EA] hover:bg-[#0060C0] text-white rounded shrink-0">
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 function ManualTimeCell({ label, value, onChange }: { label: string; value?: string; onChange: (v: string) => void }) {
@@ -589,29 +508,6 @@ function EmailTemplateModal({ open, lead, onClose, onSave }: {
   );
 }
 
-// ─── Notes Modal ──────────────────────────────────────────────────────────────
-
-function NotesModal({ open, lead, onClose, onSave }: {
-  open: boolean; lead: Lead | null; onClose: () => void;
-  onSave: (id: string, notes: string) => void;
-}) {
-  const [text, setText] = useState('');
-  useEffect(() => { if (lead) setText(lead.notes || ''); }, [lead]);
-  if (!lead) return null;
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle className="text-lg">Notes — {lead.name || 'Untitled'}</DialogTitle></DialogHeader>
-        <Textarea value={text} onChange={e => setText(e.target.value)} rows={8} className="text-sm" placeholder="Add notes about this lead..." />
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" onClick={() => { onSave(lead.id, text); onClose(); }} className="bg-[#0073EA] hover:bg-[#0060C0] text-white">Save Notes</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Mass Email Modal ─────────────────────────────────────────────────────────
 
 export function MassEmailModal({ open, selectedLeads, leads, onClose, onSent }: {
@@ -673,7 +569,7 @@ export function MassEmailModal({ open, selectedLeads, leads, onClose, onSent }: 
           <div className="text-[11px] text-gray-400 font-medium">Emails sent via professional SMTP.</div>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" size="sm" onClick={onClose} disabled={sending}>Cancel</Button>
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-500 text-white gap-2 font-bold min-w-[120px]" onClick={handleSend} disabled={sending}>
+            <Button size="sm" className="bg-[#0073EA] hover:bg-[#0060C0] text-white gap-2 font-bold min-w-[120px]" onClick={handleSend} disabled={sending}>
               {sending ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</> : <><Send className="h-4 w-4" /> Send Now</>}
             </Button>
           </div>
@@ -751,14 +647,14 @@ export function LeadProfileDrawer({ lead, onClose, onUpdate, onDelete }: {
                   <Input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })} className="h-9 text-sm bg-white" placeholder="+1 ..." />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-gray-500">Social Handles</label>
-                  <Input value={lead.socials} onChange={e => onUpdate(lead.id, { socials: e.target.value })} className="h-9 text-sm bg-white" placeholder="@instagram, facebook.com/..." />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-gray-500">Source</label>
-                  <Input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })} className="h-9 text-sm bg-white" placeholder="Referral, Ads..." />
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-gray-500">Source</label>
+                <Input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })} className="h-9 text-sm bg-white" placeholder="Referral, Ads..." />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-gray-500">Social Links</label>
+                <div className="bg-white rounded-md border border-gray-200">
+                  <SocialCell value={lead.socials} onUpdate={patch => onUpdate(lead.id, patch)} />
                 </div>
               </div>
               <div className="space-y-1">
@@ -767,11 +663,15 @@ export function LeadProfileDrawer({ lead, onClose, onUpdate, onDelete }: {
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Profile Link</label>
-                <Input value={profileUrl} onChange={e => onUpdate(lead.id, { profileUrl: e.target.value })} className="h-9 text-sm bg-white" placeholder="https://..." />
+                <div className="bg-white rounded-md border border-gray-200 px-1">
+                  <LeadLinkCell value={profileUrl} onChange={v => onUpdate(lead.id, { profileUrl: v })} />
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Post Link</label>
-                <Input value={postUrl} onChange={e => onUpdate(lead.id, { postUrl: e.target.value })} className="h-9 text-sm bg-white" placeholder="https://..." />
+                <div className="bg-white rounded-md border border-gray-200 px-1">
+                  <LeadLinkCell value={postUrl} onChange={v => onUpdate(lead.id, { postUrl: v })} />
+                </div>
               </div>
             </div>
           </div>
@@ -969,7 +869,7 @@ function BulkActionToolbar({ count, onClear, onMassEmail, onConvert, converting 
           <span className="text-sm font-bold tracking-tight">SELECTED</span>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={onMassEmail} className="bg-blue-600 hover:bg-blue-500 text-white gap-2 font-bold px-4 h-9 shadow-lg shadow-blue-600/20">
+          <Button size="sm" onClick={onMassEmail} className="bg-[#0073EA] hover:bg-[#0060C0] text-white gap-2 font-bold px-4 h-9 shadow-lg shadow-blue-600/20">
             <Mail className="h-4 w-4" />Send Mass Email
           </Button>
           <Button size="sm" onClick={onConvert} disabled={converting} className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 font-bold px-4 h-9 shadow-lg shadow-emerald-600/20">
@@ -1026,14 +926,10 @@ function SummaryRow({ leads, visibleCols, groupColor }: { leads: Lead[]; visible
         {saved.length} {saved.length === 1 ? 'lead' : 'leads'}
       </td>
       {visibleCols.filter(c => c !== 'name').map(colId => (
-        <td key={colId} className={cn("px-2 py-2 text-center text-[11px] text-gray-400", colId === 'company' && 'sticky left-[260px] bg-gray-50/60 z-[1]')}>
+        <td key={colId} className="px-2 py-2 text-center text-[11px] text-gray-400">
           {colId === 'value' ? `$${saved.reduce((s, l) => s + (l.value ?? 0), 0).toLocaleString()}` :
             colId === 'activity' ? (() => { const n = saved.reduce((s, l) => s + parseActivities(l.metadata?.__activities).length, 0); return n || ''; })() :
-            colId === 'instagram' ? saved.filter(l => l.instagram).length || '' :
-            colId === 'facebook' ? saved.filter(l => l.facebook).length || '' :
-            colId === 'linkedin' ? saved.filter(l => l.linkedin).length || '' :
-            colId === 'twitter' ? saved.filter(l => l.twitter).length || '' :
-            colId === 'tiktok' ? saved.filter(l => l.tiktok).length || '' : ''}
+            colId === 'channels' ? saved.filter(l => parseSocials(l.socials).length > 0).length || '' : ''}
         </td>
       ))}
       <td />
@@ -1052,12 +948,12 @@ interface LeadRowProps {
   onUpdate: (id: string, patch: Partial<Lead>) => void;
   onDelete: (id: string) => void;
   onSelect: (id: string) => void;
-  onOpenNotes: (lead: Lead) => void;
   onOpenDrawer: (lead: Lead) => void;
 }
 
-const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customColumns, groupColor, onUpdate, onDelete, onSelect, onOpenNotes, onOpenDrawer }: LeadRowProps) {
+const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customColumns, groupColor, onUpdate, onDelete, onSelect, onOpenDrawer }: LeadRowProps) {
   const isWorking = lead._committing;
+  const touchCount = parseActivities(lead.metadata?.__activities).length;
   return (
     <tr className={cn('group hover:bg-[#F0F7FF] transition-colors', isSelected && 'bg-blue-50/50')}>
       <td className="w-[40px] px-0 py-0 sticky left-0 z-[3] bg-white group-hover:bg-[#F0F7FF] transition-colors border-b border-gray-100" style={{ borderLeft: `3px solid ${groupColor}` }}>
@@ -1065,37 +961,39 @@ const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customC
           {lead._saved && <input type="checkbox" checked={isSelected} onChange={() => onSelect(lead.id)} className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer" />}
         </div>
       </td>
-      <td className={cn('px-0 py-0 sticky left-[40px] bg-white group-hover:bg-[#F0F7FF] z-[2] transition-colors border-b border-gray-100', CORE_COLUMNS[0].width)}
-        style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #f3f4f6' }}>
-        <div className="flex items-center h-[38px]">
-          <input value={lead.name} onChange={e => onUpdate(lead.id, { name: e.target.value })}
-            placeholder="+ Add lead" className="flex-1 h-full px-3 bg-transparent outline-none text-[13px] font-medium placeholder:text-gray-300 placeholder:font-normal" />
-          <button onClick={() => onOpenDrawer(lead)} className="opacity-0 group-hover:opacity-100 transition-opacity px-1.5 mr-1 text-gray-400 hover:text-[#0073EA]">
-            <InfoIcon className="h-3.5 w-3.5" />
-          </button>
-          {isWorking && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0073EA] mr-2" />}
+      <td className={cn('px-0 py-0 sticky left-[40px] bg-white group-hover:bg-[#F0F7FF] z-[2] transition-colors border-b border-gray-100 cursor-pointer', CORE_COLUMNS[0].width)}
+        style={{ width: 240, minWidth: 240, boxShadow: '1px 0 0 0 #f3f4f6' }}
+        onClick={() => onOpenDrawer(lead)}>
+        <div className="flex items-center h-[38px] px-3 gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold text-gray-900 truncate">
+              {lead.name || <span className="text-gray-300 font-normal italic">Unnamed</span>}
+            </p>
+            {lead.company && <p className="text-[11px] text-gray-400 truncate">{lead.company}</p>}
+          </div>
+          {isWorking && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0073EA] shrink-0" />}
         </div>
       </td>
       {activeColumns.filter(c => c.id !== 'name').map(col => (
         <td key={col.id}
-          style={col.minPx ? { width: col.minPx, minWidth: col.minPx, ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #f3f4f6' } : {}) } : undefined}
-          className={cn('px-1.5 py-1 border-b border-gray-100 last:border-r-0',
-            col.id === 'company' ? 'sticky left-[260px] bg-white group-hover:bg-[#F0F7FF] z-[1]' : 'border-r border-gray-100', col.width)}>
-          {col.id === 'company' && <input value={lead.company} onChange={e => onUpdate(lead.id, { company: e.target.value })} placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
+          style={col.minPx ? { width: col.minPx, minWidth: col.minPx } : undefined}
+          className={cn('px-1.5 py-1 border-b border-r border-gray-100 last:border-r-0', col.width)}>
           {col.id === 'status' && <StatusPill value={lead.status} onChange={v => onUpdate(lead.id, { status: v })} />}
           {col.id === 'priority' && <PriorityPill value={lead.priority} onChange={v => onUpdate(lead.id, { priority: v })} />}
-          {col.id === 'email' && <input value={lead.email} onChange={e => onUpdate(lead.id, { email: e.target.value })} placeholder="—" type="email" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
-          {col.id === 'phone' && <input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })} placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
-          {col.id === 'socials' && <SocialCell value={lead.socials} onUpdate={patch => onUpdate(lead.id, patch)} />}
-          {col.id === 'profileUrl' && <LeadLinkCell value={lead.profileUrl} onChange={v => onUpdate(lead.id, { profileUrl: v })} />}
-          {col.id === 'postUrl' && <LeadLinkCell value={lead.postUrl} onChange={v => onUpdate(lead.id, { postUrl: v })} />}
-          {col.id === 'value' && <input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })} placeholder="$0" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] text-center placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
-          {col.id === 'source' && <input value={lead.source} onChange={e => onUpdate(lead.id, { source: e.target.value })} placeholder="—" className="w-full h-[30px] px-2 bg-transparent outline-none text-[13px] placeholder:text-gray-200 focus:bg-[#F5F6F8] rounded" />}
-          {col.id === 'activity' && <ActivityCell value={parseActivities(lead.metadata?.__activities)} onUpdate={patch => onUpdate(lead.id, { ...patch, metadata: { ...lead.metadata, ...(patch.metadata as any) } })} />}
-          {col.id === 'notes' && (
-            <button onClick={() => onOpenNotes(lead)} className={cn('w-full text-left text-[11px] px-2 py-1.5 rounded transition-colors truncate max-w-[120px]', lead.notes ? 'text-[#323338] bg-[#F5F6F8] hover:bg-gray-200' : 'text-gray-300 hover:bg-[#F5F6F8]')}>
-              {lead.notes ? lead.notes.slice(0, 30) : '+ Add'}
-            </button>
+          {col.id === 'channels' && (
+            <div className="flex items-center justify-center h-[30px]">
+              <ChannelsReadCell value={lead.socials} />
+            </div>
+          )}
+          {col.id === 'value' && (
+            <div className="flex items-center justify-center h-[30px] text-[13px] font-semibold text-gray-700">
+              {lead.value ? `$${lead.value.toLocaleString()}` : <span className="text-gray-300 font-normal">—</span>}
+            </div>
+          )}
+          {col.id === 'activity' && (
+            <div className="flex items-center justify-center h-[30px] text-[12px] text-gray-500">
+              {touchCount > 0 ? `${touchCount} touchpoint${touchCount !== 1 ? 's' : ''}` : <span className="text-gray-300">No activity yet</span>}
+            </div>
           )}
           {(col as any).isCustom && (
             <div className="flex items-center justify-center h-full">
@@ -1111,9 +1009,14 @@ const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customC
         </td>
       ))}
       <td className="px-1 py-1">
-        <button onClick={() => onDelete(lead.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-[#E2445C] rounded hover:bg-red-50">
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center justify-center gap-0.5">
+          <button onClick={() => onOpenDrawer(lead)} className="p-1 text-gray-300 hover:text-[#0073EA] rounded hover:bg-blue-50" title="Open lead">
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => onDelete(lead.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-300 hover:text-[#E2445C] rounded hover:bg-red-50" title="Delete lead">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </td>
     </tr>
   );
@@ -1124,14 +1027,13 @@ const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customC
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function SalesDashboard() {
-  const [leads, setLeads] = useState<Lead[]>([emptyDraftLead()]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [customColumns, setCustomColumns] = useState<SalesColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [visibleCols, setVisibleCols] = useState<string[]>(CORE_COLUMNS.map(c => c.id));
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [emailModal, setEmailModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
-  const [notesModal, setNotesModal] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [massEmailModal, setMassEmailModal] = useState(false);
@@ -1139,8 +1041,17 @@ export function SalesDashboard() {
   const [converting, setConverting] = useState(false);
 
   const deferredSearch = useDeferredValue(search);
-  const openNotes = useCallback((lead: Lead) => setNotesModal({ open: true, lead }), []);
   const openDrawer = useCallback((lead: Lead) => setDrawerLead(lead), []);
+  // Closing the drawer on an untouched draft (created via "+ New Lead" but never named) discards it
+  // instead of leaving a blank "Unnamed" row behind in the read-summary table.
+  const closeDrawer = useCallback(() => {
+    setDrawerLead(prev => {
+      if (prev && !prev._saved && !prev.name.trim()) {
+        setLeads(ls => ls.filter(l => l.id !== prev.id));
+      }
+      return null;
+    });
+  }, []);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedLeads(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
@@ -1175,8 +1086,7 @@ export function SalesDashboard() {
         const pendingLocal = new Map(leadsRef.current.filter(l => !l._saved || l._dirty || l._committing).map(l => [l.id, l] as const));
         const saved = data.leads.map(dbLeadToLocal).map((lead: Lead) => pendingLocal.get(lead.id) ?? lead);
         const drafts = Array.from(pendingLocal.values()).filter(lead => !lead._saved);
-        const nextLeads = drafts.length > 0 ? [...saved, ...drafts] : [...saved, emptyDraftLead()];
-        setLeads(nextLeads.length > 0 ? nextLeads : [emptyDraftLead()]);
+        setLeads([...saved, ...drafts]);
         setCustomColumns(data.columns || []);
         if (data.columns) {
           const customVisible = data.columns.filter((c: any) => c.isVisible).map((c: any) => c.name);
@@ -1257,12 +1167,18 @@ export function SalesDashboard() {
     scheduleAutoSave(id);
   }, [scheduleAutoSave]);
 
-  const addRow = useCallback((status = 'NEW') => setLeads(prev => [...prev, emptyDraftLead(status)]), []);
+  // "+ New Lead" creates a draft and opens it directly in the drawer — all field
+  // editing (including name) now happens there, not in an always-present blank row.
+  const addRow = useCallback((status = 'NEW') => {
+    const draft = emptyDraftLead(status);
+    setLeads(prev => [...prev, draft]);
+    setDrawerLead(draft);
+  }, []);
 
   const deleteRow = useCallback(async (id: string) => {
     const lead = leadsRef.current.find(l => l.id === id);
     if (saveTimers.current[id]) { clearTimeout(saveTimers.current[id]); delete saveTimers.current[id]; }
-    setLeads(prev => { const next = prev.filter(l => l.id !== id); return next.length === 0 ? [emptyDraftLead()] : next; });
+    setLeads(prev => prev.filter(l => l.id !== id));
     if (!lead?._saved) return;
     try { await fetch(`/api/sales-leads/${id}`, { method: 'DELETE' }); toast.success('Lead deleted'); }
     catch { toast.error('Failed to delete'); }
@@ -1342,41 +1258,38 @@ export function SalesDashboard() {
   return (
     <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
       <TeamLeaderboard />
-      {/* Top Bar */}
-      <div className="relative z-20 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white">
-        <div>
-          <h1 className="text-[26px] font-bold text-gray-900 tracking-tight">Sales Pipeline</h1>
-          <p className="text-[13px] text-gray-400 flex items-center gap-1.5 mt-0.5">
-            <Check className="h-3.5 w-3.5 text-[#00C875]" /> Auto-saves 1.5s after changes
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
-              className="h-8 pl-8 pr-3 rounded-md border border-gray-200 text-[13px] bg-white focus:outline-none focus:ring-2 focus:ring-[#0073EA]/30 focus:border-[#0073EA] w-[200px]" />
-          </div>
-          <ColumnToggle visible={visibleCols} setVisible={setVisibleCols} allCols={allAvailableColumns} onAdd={addColumn} onDelete={deleteColumn} />
-          <Button size="sm" variant="outline" onClick={() => setShowImportDialog(true)} className="gap-1.5 text-xs border-green-200 text-green-700 hover:bg-green-50 h-8">
-            <FileSpreadsheet className="h-3.5 w-3.5" />Import Excel
-          </Button>
-          <Button size="sm" onClick={() => addRow()} className="gap-1.5 text-xs bg-[#0073EA] hover:bg-[#0060C0] text-white h-8">
-            <Plus className="h-3.5 w-3.5" /> New Lead
-          </Button>
-        </div>
-      </div>
+      <SalesPipelineToolbar
+        title="Sales Pipeline"
+        subtitle="Auto-saves 1.5s after changes"
+        search={search}
+        onSearchChange={setSearch}
+        actions={
+          <>
+            <ColumnToggle visible={visibleCols} setVisible={setVisibleCols} allCols={allAvailableColumns} onAdd={addColumn} onDelete={deleteColumn} />
+            <Button size="sm" variant="outline" onClick={() => setShowImportDialog(true)} className="gap-1.5 text-xs border-gray-200 rounded-[9px] h-9">
+              <FileSpreadsheet className="h-3.5 w-3.5" />Import
+            </Button>
+            <Button size="sm" variant="outline" onClick={exportCSV} className="gap-1.5 text-xs border-gray-200 rounded-[9px] h-9">
+              <Download className="h-3.5 w-3.5" />Export CSV
+            </Button>
+            <Button size="sm" onClick={() => addRow()} className="gap-1.5 text-xs bg-[#0073EA] hover:bg-[#0060C0] text-white rounded-[9px] h-9">
+              <Plus className="h-3.5 w-3.5" /> New Lead
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats Bar */}
-      <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         {[
-          { label: 'Total Leads', value: stats.total, color: 'text-gray-800', bg: 'bg-gray-50 border-gray-200' },
-          { label: 'Contacted', value: stats.contacted, color: 'text-blue-700', bg: 'bg-blue-100/50 border-blue-200' },
-          { label: 'Meetings Booked', value: stats.meetings, color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
-          { label: 'High Priority', value: stats.highPriority, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
+          { label: 'Total Leads', value: stats.total, color: 'text-gray-800' },
+          { label: 'Contacted', value: stats.contacted, color: 'text-[#579BFC]' },
+          { label: 'Meetings Booked', value: stats.meetings, color: 'text-[#00C875]' },
+          { label: 'High Priority', value: stats.highPriority, color: 'text-[#E2445C]' },
         ].map(s => (
-          <div key={s.label} className={cn('rounded-xl border p-4 flex flex-col items-center justify-center text-center transition-all hover:shadow-md cursor-default', s.bg)}>
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{s.label}</p>
-            <p className={cn('text-3xl font-black mt-0.5', s.color)}>{s.value}</p>
+          <div key={s.label} className="rounded-[14px] border border-gray-200 bg-white px-5 py-4.5 flex flex-col items-center justify-center text-center">
+            <p className="text-[11.5px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">{s.label}</p>
+            <p className={cn('text-[28px] font-extrabold leading-none', s.color)}>{s.value}</p>
           </div>
         ))}
       </div>
@@ -1391,15 +1304,14 @@ export function SalesDashboard() {
                   <input type="checkbox" checked={selectedLeads.size === leads.filter(l => l._saved).length && leads.filter(l => l._saved).length > 0}
                     onChange={selectAllGlobal} className="rounded border-gray-300 text-[#0073EA] focus:ring-[#0073EA] cursor-pointer" />
                 </th>
-                <th style={{ width: 220, minWidth: 220, boxShadow: '1px 0 0 0 #e5e7eb' }}
+                <th style={{ width: 240, minWidth: 240, boxShadow: '1px 0 0 0 #e5e7eb' }}
                   className={cn("px-3 py-2 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider sticky left-[40px] bg-[#F5F6F8] z-[3] border-b-2 border-gray-200", CORE_COLUMNS[0].width)}>
                   Lead
                 </th>
                 {activeColumns.filter(c => c.id !== 'name').map(col => (
                   <th key={col.id}
-                    style={col.minPx ? { width: col.minPx, minWidth: col.minPx, ...(col.id === 'company' ? { boxShadow: '1px 0 0 0 #e5e7eb' } : {}) } : undefined}
-                    className={cn("px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-gray-200 last:border-r-0",
-                      col.id === 'company' ? 'sticky left-[260px] bg-[#F5F6F8] z-[2]' : 'border-r border-gray-200',
+                    style={col.minPx ? { width: col.minPx, minWidth: col.minPx } : undefined}
+                    className={cn("px-2 py-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider border-b-2 border-r border-gray-200 last:border-r-0",
                       col.width, col.align === 'center' ? 'text-center' : 'text-left')}>
                     {col.label}
                   </th>
@@ -1425,7 +1337,7 @@ export function SalesDashboard() {
                       <LeadRow key={lead.id} lead={lead} isSelected={selectedLeads.has(lead.id)}
                         activeColumns={activeColumns} customColumns={customColumns} groupColor={group.color}
                         onUpdate={updateLead} onDelete={deleteRow} onSelect={toggleSelect}
-                        onOpenNotes={openNotes} onOpenDrawer={openDrawer} />
+                        onOpenDrawer={openDrawer} />
                     ))}
                     {!isCollapsed && <SummaryRow leads={group.leads} visibleCols={activeColumns.filter(c => c.id !== 'name').map(c => c.id)} groupColor={group.color} />}
                   </Fragment>
@@ -1457,10 +1369,7 @@ export function SalesDashboard() {
       <EmailTemplateModal open={emailModal.open} lead={emailModal.lead}
         onClose={() => setEmailModal({ open: false, lead: null })}
         onSave={(id, body) => updateLead(id, { emailTemplate: body })} />
-      <NotesModal open={notesModal.open} lead={notesModal.lead}
-        onClose={() => setNotesModal({ open: false, lead: null })}
-        onSave={(id, notes) => updateLead(id, { notes })} />
-      <LeadProfileDrawer lead={drawerLead} onClose={() => setDrawerLead(null)} onUpdate={updateLead} onDelete={deleteRow} />
+      <LeadProfileDrawer lead={drawerLead} onClose={closeDrawer} onUpdate={updateLead} onDelete={deleteRow} />
       <BulkActionToolbar count={selectedLeads.size} onClear={() => setSelectedLeads(new Set())} onMassEmail={() => setMassEmailModal(true)}
         converting={converting}
         onConvert={async () => {
@@ -1495,14 +1404,14 @@ export function SalesDashboard() {
           (async () => {
             const res = await fetch('/api/sales-leads');
             const data = await res.json();
-            if (data.ok) setLeads(data.leads.map(dbLeadToLocal).concat([emptyDraftLead()]));
+            if (data.ok) setLeads(data.leads.map(dbLeadToLocal));
           })();
         }} />
       <ImportLeadsDialog open={showImportDialog} onOpenChange={setShowImportDialog}
         onImported={async () => {
           const res = await fetch('/api/sales-leads', { credentials: 'include' });
           const data = await res.json();
-          if (data.ok) setLeads(data.leads.map(dbLeadToLocal).concat([emptyDraftLead()]));
+          if (data.ok) setLeads(data.leads.map(dbLeadToLocal));
         }} />
     </div>
   );

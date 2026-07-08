@@ -170,11 +170,11 @@ export function SalesManagerPermissionsPanel() {
                             return (
                                 <div
                                     key={manager.id}
-                                    className="border rounded-lg overflow-hidden transition-all"
+                                    className="border rounded-xl overflow-hidden transition-all"
                                 >
                                     {/* Manager row header */}
                                     <button
-                                        className="w-full flex items-center justify-between p-4 hover:bg-muted/40 transition-colors text-left"
+                                        className="w-full flex items-center justify-between p-5 hover:bg-muted/40 transition-colors text-left"
                                         onClick={() => setExpandedManager(isExpanded ? null : manager.id)}
                                         id={`sales-manager-perm-${manager.id}`}
                                     >
@@ -215,7 +215,7 @@ export function SalesManagerPermissionsPanel() {
 
                                     {/* Expanded panel */}
                                     {isExpanded && (
-                                        <div className="border-t bg-muted/20 p-4 space-y-4">
+                                        <div className="border-t bg-muted/20 p-5 space-y-4">
                                             {/* Existing permissions */}
                                             {manager.salesManagerPermissions.length > 0 ? (
                                                 <div className="space-y-2">
