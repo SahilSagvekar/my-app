@@ -85,7 +85,7 @@ export async function PATCH(
       if (updated.clientUserId) {
         await notifyUser({
           userId: updated.clientUserId,
-          type: "task_scheduled",
+          type: "task_scheduled_client",
           title: "Content Live",
           body: `Content "${updated.title}" is now live/scheduled.`,
           payload: {
