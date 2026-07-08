@@ -1392,7 +1392,7 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
 
         {selectedTask && (
           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-            <DialogContent className="w-[92vw] max-w-7xl max-h-[85vh]">
+            <DialogContent className="w-[95vw] max-w-[95vw] max-h-[85vh]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Eye className="h-5 w-5" />
