@@ -42,9 +42,11 @@ const PLATFORMS: Record<string, { icon: any; color: string; bgColor: string }> =
 interface PlatformData {
     name: string;
     sf?: number;
+    sfPer?: string;
     bsf?: number;
     sqf?: number;
     hp?: number;
+    hpPer?: string;
     lf?: number;
     lfPer?: string;
     sep?: number;
@@ -83,9 +85,13 @@ const STATIC_POSTING_DATA: ClientData[] = [
         ]
     },
     {
-        clientName: 'InvestmentJoy',
+        clientName: 'Combatica',
         platforms: [
-            { name: 'FB TV', sf: 4, sqf: 1, hp: 2, lf: 1, thumb: true },
+            { name: 'YT', sf: 3, sfPer: 'week', note: 'Tue/Thu/Fri' },
+            { name: 'IG', sf: 3, sfPer: 'week', note: 'Tue/Thu/Fri' },
+            { name: 'FB', sf: 3, sfPer: 'week', note: 'Tue/Thu/Fri' },
+            { name: 'TT', sf: 3, sfPer: 'week', note: 'Tue/Thu/Fri' },
+            { name: 'LI', sf: 3, sfPer: 'week', note: 'Tue/Thu/Fri' },
         ]
     },
     {
@@ -118,11 +124,14 @@ const STATIC_POSTING_DATA: ClientData[] = [
         ]
     },
     {
-        clientName: 'Free Laundromat, LLC',
+        clientName: 'Cap Dental',
         platforms: [
-            { name: 'IG', sf: 2 },
-            { name: 'FB TV', sf: 2 },
-            { name: 'TT', sf: 2 },
+            { name: 'LI', hp: 2, hpPer: 'week', note: 'Mon/Wed' },
+            { name: 'IG', sf: 3, sfPer: 'week', note: 'Tue/Thu/Sat' },
+            { name: 'YT', sf: 3, sfPer: 'week', note: 'Tue/Thu/Sat' },
+            { name: 'FB', sf: 3, sfPer: 'week', note: 'Tue/Thu/Sat' },
+            { name: 'TT', sf: 3, sfPer: 'week', note: 'Tue/Thu/Sat' },
+            { name: 'LI', sf: 3, sfPer: 'week', note: 'Tue/Thu/Sat' },
         ]
     },
     {
@@ -310,7 +319,7 @@ export function SchedulerDailyTargetsPage() {
                                                                 <div className="flex flex-wrap gap-1.5">
                                                                     {platform.sf && (
                                                                         <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">
-                                                                            {platform.sf} SF
+                                                                            {platform.sf} SF{platform.sfPer && `/${platform.sfPer}`}
                                                                         </Badge>
                                                                     )}
                                                                     {platform.bsf && (
@@ -325,7 +334,7 @@ export function SchedulerDailyTargetsPage() {
                                                                     )}
                                                                     {platform.hp && (
                                                                         <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100">
-                                                                            {platform.hp} HP
+                                                                            {platform.hp} HP{platform.hpPer && `/${platform.hpPer}`}
                                                                         </Badge>
                                                                     )}
                                                                     {platform.lf && (

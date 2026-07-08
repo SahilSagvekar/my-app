@@ -1994,7 +1994,7 @@ export default function LeavesComponent() {
         onOpenChange={setEditEmployeeModalOpen}
       >
         <DialogContent
-          className="max-w-5xl max-h-[90vh] overflow-y-auto"
+          className="w-[95vw] max-w-[95vw] max-h-[90vh] overflow-y-auto"
           onEscapeKeyDown={(e) => {
             e.preventDefault();
             setEditEmployeeModalOpen(false);
