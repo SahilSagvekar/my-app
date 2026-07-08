@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "../ui/dialog";
-import { PlayCircle, Video, Loader2, X, FileText, Download, Eye } from "lucide-react";
+import { PlayCircle, Video, Loader2, X, FileText, Eye } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { toast } from "sonner";
 
@@ -220,23 +220,6 @@ export function TrainingPortalPage() {
                     >
                       <Eye className="h-4 w-4 mr-2" />
                       Open
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!d.url}
-                      asChild={!!d.url}
-                      title="Download"
-                    >
-                      {d.url ? (
-                        <a href={d.url} target="_blank" rel="noopener noreferrer">
-                          <Download className="h-4 w-4" />
-                        </a>
-                      ) : (
-                        <span>
-                          <Download className="h-4 w-4" />
-                        </span>
-                      )}
                     </Button>
                   </div>
                 </li>
