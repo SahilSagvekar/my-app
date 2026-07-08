@@ -344,7 +344,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             variant="ghost"
                                             size="sm"
                                             onClick={p.onSwitchToThumbnail}
-                                            className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 px-2 gap-1.5"
+                                            className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 px-2 gap-1.5"
                                         >
                                             <ImageIcon className="h-4 w-4" />
                                             <span className="text-xs hidden sm:inline">Thumbnails</span>
@@ -468,7 +468,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         <>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.seekBackward} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
+                                                    <Button variant="ghost" size="sm" onClick={p.seekBackward} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
                                                         <SkipBack className="h-5 w-5" />
                                                     </Button>
                                                 </TooltipTrigger>
@@ -484,7 +484,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             </Tooltip>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.seekForward} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
+                                                    <Button variant="ghost" size="sm" onClick={p.seekForward} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
                                                         <SkipForward className="h-5 w-5" />
                                                     </Button>
                                                 </TooltipTrigger>
@@ -492,18 +492,18 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             </Tooltip>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.toggleMute} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
+                                                    <Button variant="ghost" size="sm" onClick={p.toggleMute} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
                                                         {p.isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                                                     </Button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>Mute (M)</TooltipContent>
                                             </Tooltip>
-                                            <span className="text-sm text-[var(--review-text-muted)] font-mono ml-2">
+                                            <span className="text-sm text-white font-mono ml-2">
                                                 {p.formatTime(p.currentTime)} / {p.formatTime(p.duration)}
                                             </span>
                                             <div className="ml-3">
                                                 <Select value={p.playbackSpeed.toString()} onValueChange={p.handlePlaybackSpeedChange}>
-                                                    <SelectTrigger className="w-16 h-7 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)] text-xs">
+                                                    <SelectTrigger className="w-16 h-7 bg-transparent border-[var(--review-border)] text-white text-xs">
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
@@ -534,7 +534,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                     {/* ── SIDEBAR ── */}
                     <div
-                        className="w-80 flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
+                        className="w-96 flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
                         style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
                     >
                         {/* ── SIDEBAR HEADER — tab switcher ── */}

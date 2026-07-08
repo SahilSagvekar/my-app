@@ -1994,7 +1994,7 @@ export default function LeavesComponent() {
         onOpenChange={setEditEmployeeModalOpen}
       >
         <DialogContent
-          className="max-w-3xl max-h-[90vh] overflow-y-auto"
+          className="max-w-5xl max-h-[90vh] overflow-y-auto"
           onEscapeKeyDown={(e) => {
             e.preventDefault();
             setEditEmployeeModalOpen(false);
@@ -2013,8 +2013,8 @@ export default function LeavesComponent() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* First Name and Last Name in grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* First Name, Last Name, Email in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium">First Name</label>
                 <Input
@@ -2041,10 +2041,6 @@ export default function LeavesComponent() {
                   placeholder="Enter last name"
                 />
               </div>
-            </div>
-
-            {/* Email and Phone in grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Email</label>
                 <Input
@@ -2059,6 +2055,10 @@ export default function LeavesComponent() {
                   placeholder="employee@company.com"
                 />
               </div>
+            </div>
+
+            {/* Phone, Role and Status in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium">Phone</label>
                 <Input
@@ -2072,10 +2072,6 @@ export default function LeavesComponent() {
                   placeholder="Enter phone number"
                 />
               </div>
-            </div>
-
-            {/* Role and Status in grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Role</label>
                 <Select
@@ -2174,8 +2170,8 @@ export default function LeavesComponent() {
               </div>
             )}
 
-            {/* Hourly Rate and Hours Per Week in grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Hourly Rate, Hours Per Week and Hire Date in grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium">Hourly Rate ($)</label>
                 <Input
@@ -2207,6 +2203,19 @@ export default function LeavesComponent() {
                   Typical full-time: 40 hours/week
                 </p>
               </div>
+              <div>
+                <label className="text-sm font-medium">Hire Date</label>
+                <SimpleCalendar
+                  selected={editEmployeeForm.hireDate}
+                  onSelect={(date) =>
+                    setEditEmployeeForm((prev) => ({
+                      ...prev,
+                      hireDate: date,
+                    }))
+                  }
+                  placeholder="Select hire date"
+                />
+              </div>
             </div>
 
             {/* Monthly Salary Preview */}
@@ -2227,34 +2236,19 @@ export default function LeavesComponent() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium">Hire Date</label>
-                <SimpleCalendar
-                  selected={editEmployeeForm.hireDate}
-                  onSelect={(date) =>
-                    setEditEmployeeForm((prev) => ({
-                      ...prev,
-                      hireDate: date,
-                    }))
-                  }
-                  placeholder="Select hire date"
-                />
-              </div>
-              <div className="flex flex-col justify-start">
-                <label className="text-sm font-medium mb-2">Security</label>
-                <Button
-                  variant="outline"
-                  className="w-full h-9 text-amber-600 border-amber-200 hover:bg-amber-50"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleReset2FA(editingEmployee);
-                  }}
-                >
-                  <ShieldAlert className="h-4 w-4 mr-2" />
-                  Reset 2FA
-                </Button>
-              </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Security</label>
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto h-9 text-amber-600 border-amber-200 hover:bg-amber-50"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleReset2FA(editingEmployee);
+                }}
+              >
+                <ShieldAlert className="h-4 w-4 mr-2" />
+                Reset 2FA
+              </Button>
             </div>
 
             {/* Add Bonus Section */}
