@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { ImportLeadsDialog } from './sales/ImportLeadsDialog';
 import { TeamLeaderboard } from './sales/TeamLeaderboard';
 import { SalesPipelineToolbar } from './sales/SalesPipelineToolbar';
+import { SalesHeader } from './sales/SalesHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1026,7 +1027,7 @@ const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customC
 // MAIN COMPONENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function SalesDashboard() {
+export function SalesDashboard({ standalone = true }: { standalone?: boolean } = {}) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [customColumns, setCustomColumns] = useState<SalesColumn[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1257,6 +1258,7 @@ export function SalesDashboard() {
 
   return (
     <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
+      {standalone && <SalesHeader tabs={[{ id: 'personal', label: 'My Pipeline' }]} activeTab="personal" />}
       <TeamLeaderboard />
       <SalesPipelineToolbar
         title="Sales Pipeline"
