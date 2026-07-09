@@ -33,8 +33,14 @@ export async function PATCH(
 
     const { id } = await context.params;
 
-    // Get previous status before update
-    const existingTask = await prisma.task.findUnique({ where: { id } });
+    // Get previous status before update (also pulls what's needed to backfill PostedContent below)
+    const existingTask = await prisma.task.findUnique({
+      where: { id },
+      include: {
+        monthlyDeliverable: { select: { type: true } },
+        oneOffDeliverable: { select: { type: true } },
+      },
+    });
 
     const updated = await prisma.task.update({
       where: { id },
@@ -45,6 +51,50 @@ export async function PATCH(
         updatedAt: new Date(),
       },
     });
+
+    // Backfill PostedContent for links already on this task.
+    // /api/tasks/[id]/social-media-link only creates a PostedContent row when the task is
+    // ALREADY SCHEDULED/POSTED at add-link time (so client-facing "posted content" doesn't show
+    // in-progress work). The normal flow adds links first, then marks the task SCHEDULED here —
+    // so without this backfill, those links never get logged at all.
+    if (existingTask?.clientId) {
+      const links = Array.isArray(existingTask.socialMediaLinks)
+        ? (existingTask.socialMediaLinks as Array<{ platform?: string; url?: string; postedAt?: string }>)
+        : [];
+
+      if (links.length > 0) {
+        const alreadyLogged = await prisma.postedContent.findMany({
+          where: { taskId: id },
+          select: { platform: true, url: true },
+        });
+        const loggedKeys = new Set(alreadyLogged.map(p => `${p.platform.toLowerCase()}::${p.url}`));
+
+        const deliverableType =
+          existingTask.deliverableType ||
+          existingTask.monthlyDeliverable?.type ||
+          existingTask.oneOffDeliverable?.type ||
+          null;
+
+        const toCreate = links.filter(
+          (l): l is { platform: string; url: string; postedAt?: string } =>
+            !!l.platform && !!l.url && !loggedKeys.has(`${l.platform.toLowerCase()}::${l.url}`)
+        );
+
+        if (toCreate.length > 0) {
+          await prisma.postedContent.createMany({
+            data: toCreate.map(l => ({
+              clientId: existingTask.clientId!,
+              title: existingTask.title || existingTask.description || null,
+              platform: l.platform.toLowerCase(),
+              url: l.url,
+              postedAt: l.postedAt ? new Date(l.postedAt) : new Date(),
+              deliverableType,
+              taskId: id,
+            })),
+          });
+        }
+      }
+    }
 
     // 📝 Audit log for scheduling
     await createAuditLog({
