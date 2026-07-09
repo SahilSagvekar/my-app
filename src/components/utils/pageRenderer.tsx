@@ -297,7 +297,7 @@ export function renderPage(
         return <SchedulerDashboard />;
       case "approved-queue":
         return <SchedulerSpreadsheetView />;
-      case "daily-targets":
+      case "posting-tracker":
         return <SchedulerDailyTargetsPage />;
       case "scheduling":
         return <SchedulerSchedulingPage />;

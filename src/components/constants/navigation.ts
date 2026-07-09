@@ -70,7 +70,7 @@ export const NAVIGATION_ITEMS = {
   ],
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
-    { id: 'daily-targets', label: 'Daily Targets', icon: Target },
+    { id: 'posting-tracker', label: 'Posting Tracker', icon: Target },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'training', label: 'Training', icon: Layout },
