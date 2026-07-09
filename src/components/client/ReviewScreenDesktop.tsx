@@ -132,7 +132,7 @@ export interface ReviewScreenProps {
 export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
-    const unresolvedCount = p.comments.filter(c => !c.resolved).length;
+    const unresolvedCount = p.sortedComments.filter(c => !c.resolved).length;
     // 🔥 Sidebar tab switcher
     type SidebarTab = 'comments' | 'titles';
     const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
@@ -236,7 +236,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     {p.userRole === 'qc' ? 'Sent Back to Editor' : 'Revisions Requested'}
                                 </h3>
                                 <p className="text-orange-300/80">
-                                    {p.comments.filter(c => !c.resolved).length} comments sent as feedback
+                                    {unresolvedCount} comments sent as feedback
                                 </p>
                             </CardContent>
                         </Card>
@@ -736,10 +736,10 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Scheduler</>
                                         }
                                     </Button>
-                                    <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0 || p.savingFeedback}>
+                                    <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={unresolvedCount === 0 || p.savingFeedback}>
                                         {p.savingFeedback
                                             ? <><div className="h-3.5 w-3.5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />Saving...</>
-                                            : <><MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Send Back ({p.comments.filter(c => !c.resolved).length} comments)</>
+                                            : <><MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Send Back ({unresolvedCount} comments)</>
                                         }
                                     </Button>
                                 </>
