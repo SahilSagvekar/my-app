@@ -16,6 +16,7 @@ async function main() {
   console.log(JSON.stringify(processingFiles, null, 2));
 }
 
+
 main()
   .catch(console.error)
   .finally(() => prisma.$disconnect());
