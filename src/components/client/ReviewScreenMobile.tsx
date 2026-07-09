@@ -45,7 +45,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
     /* ── Video aspect ratio detection ── */
     const [videoAspect, setVideoAspect] = useState<'portrait' | 'landscape' | 'unknown'>('unknown');
 
-    const unresolvedCount = p.comments.filter(c => !c.resolved).length;
+    const unresolvedCount = p.sortedComments.filter(c => !c.resolved).length;
 
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
