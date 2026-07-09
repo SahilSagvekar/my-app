@@ -334,6 +334,33 @@ cron.schedule('0 10 * * *', () => {
     triggerJob('Billing Warning Emails', '/api/cron/billing-warnings', 'GET');
 }, { timezone: 'America/New_York' });
 
+// ==========================================
+// 7. Daily Posting Target Check (Every 2 hours)
+// Notifies a client's Slack channel (falls back to scheduling channel)
+// once all its daily posting targets are met for today (EST).
+// ==========================================
+cron.schedule('0 */2 * * *', () => {
+    triggerJob('Daily Target Check', '/api/cron/daily-target-check', 'GET');
+}, { timezone: 'America/New_York' });
+
+// ==========================================
+// 8. Daily Posting Target Team Summaries (Scheduling channel)
+// SOD 8:30 AM: how many posts are needed today
+// Midday 12:00 PM: progress + what's missing
+// EOD 3:00 PM: what's still missing, fix ASAP
+// ==========================================
+cron.schedule('30 8 * * *', () => {
+    triggerJob('Daily Target Summary (SOD)', '/api/cron/daily-target-summary?stage=sod', 'GET');
+}, { timezone: 'America/New_York' });
+
+cron.schedule('0 12 * * *', () => {
+    triggerJob('Daily Target Summary (Midday)', '/api/cron/daily-target-summary?stage=midday', 'GET');
+}, { timezone: 'America/New_York' });
+
+cron.schedule('0 15 * * *', () => {
+    triggerJob('Daily Target Summary (EOD)', '/api/cron/daily-target-summary?stage=eod', 'GET');
+}, { timezone: 'America/New_York' });
+
 // Log initialized jobs
 console.log('📦 Jobs Scheduled:');
 console.log(' - Monthly Tasks: Daily at 1 AM');
@@ -345,4 +372,6 @@ console.log(' - Activity Report: Daily at 7 PM');
 console.log(' - Team Summary Report: Daily at 7:05 PM');
 console.log(' - Maintenance: Every 2 hours');
 console.log(' - Heartbeat: Every hour');
+console.log(' - Daily Target Check: Every 2 hours (per-client 100% Slack ping)');
+console.log(' - Daily Target Summaries: 8:30 AM / 12:00 PM / 3:00 PM (scheduling channel)');
 console.log('---------------------------------------------');
