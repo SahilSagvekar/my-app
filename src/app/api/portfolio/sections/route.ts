@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-const CONFIG_PATH = path.join(process.cwd(), 'src/config/portfolio.json');
+const CONFIG_PATH = path.join(process.cwd(), 'src/app/config/portfolio.json');
 
 export async function GET() {
     try {

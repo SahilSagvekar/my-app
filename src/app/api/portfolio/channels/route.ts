@@ -5,7 +5,7 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { scrapeYoutubeChannelInfo } from '@/lib/scrapeYoutubeChannel';
 
-const CONFIG_PATH = path.join(process.cwd(), 'src/config/portfolioChannels.json');
+const CONFIG_PATH = path.join(process.cwd(), 'src/app/config/portfolioChannels.json');
 
 export interface PortfolioChannel {
     id: string;

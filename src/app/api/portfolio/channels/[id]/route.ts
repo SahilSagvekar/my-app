@@ -4,7 +4,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import type { PortfolioChannel } from '../route';
 
-const CONFIG_PATH = path.join(process.cwd(), 'src/config/portfolioChannels.json');
+const CONFIG_PATH = path.join(process.cwd(), 'src/app/config/portfolioChannels.json');
 
 async function readChannels(): Promise<PortfolioChannel[]> {
     try {
