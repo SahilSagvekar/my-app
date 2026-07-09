@@ -1,0 +1,46 @@
+[
+    {
+        "key": "videography",
+        "label": "Videography",
+        "icon": "Camera",
+        "isActive": true,
+        "subcategories": [
+            { "key": "real-estate", "label": "Real Estate", "icon": "Home", "isActive": true },
+            { "key": "drone-footage", "label": "Drone Footage", "icon": "Wind", "isActive": true },
+            { "key": "talking-head", "label": "Talking Head Interviews", "icon": "Mic", "isActive": true }
+        ]
+    },
+    {
+        "key": "video-editing",
+        "label": "Video Editing",
+        "icon": "Scissors",
+        "isActive": true,
+        "subcategories": [
+            { "key": "short-form", "label": "Short Form", "icon": "Smartphone", "isActive": true },
+            { "key": "long-form", "label": "Long Form", "icon": "Film", "isActive": true },
+            { "key": "montage", "label": "Montage", "icon": "Layers", "isActive": true },
+            { "key": "highlight-reel", "label": "Highlight Reel", "icon": "Star", "isActive": true }
+        ]
+    },
+    {
+        "key": "before-after",
+        "label": "Before & After",
+        "icon": "TrendingUp",
+        "isActive": true,
+        "subcategories": [
+            { "key": "before-after-cuts", "label": "Before & After", "icon": "ArrowLeftRight", "isActive": true },
+            { "key": "transformation", "label": "Transformation Results", "icon": "Zap", "isActive": true },
+            { "key": "success-stories", "label": "Success Stories", "icon": "FileText", "isActive": true }
+        ]
+    },
+    {
+        "key": "client-testimonials",
+        "label": "Client Testimonials",
+        "icon": "MessageCircle",
+        "isActive": true,
+        "subcategories": [
+            { "key": "video-testimonials", "label": "Video Testimonials", "icon": "Video", "isActive": true },
+            { "key": "who-we-work-with", "label": "Who We Work With", "icon": "Users", "isActive": true }
+        ]
+    }
+]

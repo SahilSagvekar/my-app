@@ -114,6 +114,10 @@ const SERVICE_OPTIONS = [
 
 const LEADS_PER_PAGE = 15;
 
+// This subcategory renders channel cards (name/avatar/follower count)
+// instead of videos — managed separately in ChannelControl below.
+const CHANNEL_CATEGORY_KEY = "who-we-work-with";
+
 /* ═══════════════════════════════════════════════════════════════
    LEAD MANAGEMENT TAB
    ═══════════════════════════════════════════════════════════════ */
@@ -417,20 +421,35 @@ function ContentControl({ sections }: { sections: Category[] }) {
     const [submitting, setSubmitting] = useState(false);
     const [previewVideo, setPreviewVideo] = useState<PortfolioVideo | null>(null);
 
-    // Flatten subcategories for easier select options
-    const allSubcategories = sections.flatMap(c => c.subcategories.map(s => ({
-        ...s,
-        parentLabel: c.label
-    })));
+    // Flatten subcategories for easier select options — the channel-card
+    // section is managed separately in ChannelControl, not here.
+    const allSubcategories = sections
+        .flatMap(c => c.subcategories.map(s => ({
+            ...s,
+            parentLabel: c.label
+        })))
+        .filter(s => s.key !== CHANNEL_CATEGORY_KEY);
 
     const [formData, setFormData] = useState({
         title: "",
         description: "",
         videoUrl: "",
         thumbnailUrl: "",
-        category: "short_form",
+        category: allSubcategories[0]?.key || "",
         order: "0",
     });
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [lockedCategory, setLockedCategory] = useState<string | null>(null);
+
+    const nextOrderForCategory = useCallback(
+        (category: string) => {
+            const catVideos = videos.filter((v) => v.category === category);
+            return catVideos.length > 0
+                ? Math.max(...catVideos.map((v) => v.order)) + 1
+                : 0;
+        },
+        [videos]
+    );
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'videoUrl' | 'thumbnailUrl') => {
         const file = e.target.files?.[0];
@@ -481,19 +500,31 @@ function ContentControl({ sections }: { sections: Category[] }) {
             description: "",
             videoUrl: "",
             thumbnailUrl: "",
-            category: "short_form",
+            category: allSubcategories[0]?.key || "",
             order: "0",
         });
+        setShowAdvanced(false);
+        setLockedCategory(null);
         setEditingVideo(null);
     };
 
-    const openAddDialog = () => {
+    const openAddDialog = (presetCategory?: string) => {
         resetForm();
+        if (presetCategory) {
+            setLockedCategory(presetCategory);
+            setFormData((prev) => ({
+                ...prev,
+                category: presetCategory,
+                order: String(nextOrderForCategory(presetCategory)),
+            }));
+        }
         setShowDialog(true);
     };
 
     const openEditDialog = (v: PortfolioVideo) => {
         setEditingVideo(v);
+        setShowAdvanced(false);
+        setLockedCategory(null);
         setFormData({
             title: v.title,
             description: v.description,
@@ -631,20 +662,22 @@ function ContentControl({ sections }: { sections: Category[] }) {
         return m ? `https://img.youtube.com/vi/${m[1]}/mqdefault.jpg` : null;
     }
 
-    // Grouped and sorted
-    const filtered =
+    // Grouped and sorted — always show every section (even empty ones) so a
+    // video can be added directly from its section, not just globally.
+    const displayedCategories =
         categoryFilter === "all"
-            ? videos
-            : videos.filter((v) => v.category === categoryFilter);
-    const sorted = [...filtered].sort(
-        (a, b) => a.category.localeCompare(b.category) || a.order - b.order
-    );
+            ? allSubcategories
+            : allSubcategories.filter((c) => c.key === categoryFilter);
 
-    const byCategory = sorted.reduce<Record<string, PortfolioVideo[]>>((acc, v) => {
-        if (!acc[v.category]) acc[v.category] = [];
-        acc[v.category].push(v);
-        return acc;
-    }, {});
+    const byCategory = displayedCategories.reduce<Record<string, PortfolioVideo[]>>(
+        (acc, c) => {
+            acc[c.key] = videos
+                .filter((v) => v.category === c.key)
+                .sort((a, b) => a.order - b.order);
+            return acc;
+        },
+        {}
+    );
 
     // Category stats
     const categoryStats = allSubcategories.map((sub) => ({
@@ -708,7 +741,7 @@ function ContentControl({ sections }: { sections: Category[] }) {
                                 <RefreshCw className="h-4 w-4 mr-1" />
                                 Refresh
                             </Button>
-                            <Button size="sm" onClick={openAddDialog}>
+                            <Button size="sm" onClick={() => openAddDialog()}>
                                 <Plus className="h-4 w-4 mr-1" />
                                 Add Video
                             </Button>
@@ -720,7 +753,7 @@ function ContentControl({ sections }: { sections: Category[] }) {
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                         </div>
-                    ) : sorted.length === 0 ? (
+                    ) : displayedCategories.length === 0 ? (
                         <div className="text-center py-12">
                             <Film className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
                             <p className="text-muted-foreground">
@@ -738,10 +771,26 @@ function ContentControl({ sections }: { sections: Category[] }) {
                                             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                                                 {catLabel}
                                             </h3>
-                                            <Badge variant="outline">
-                                                {catVideos.length} video{catVideos.length !== 1 ? "s" : ""}
-                                            </Badge>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline">
+                                                    {catVideos.length} video{catVideos.length !== 1 ? "s" : ""}
+                                                </Badge>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-7"
+                                                    onClick={() => openAddDialog(catKey)}
+                                                >
+                                                    <Plus className="h-3.5 w-3.5 mr-1" />
+                                                    Add here
+                                                </Button>
+                                            </div>
                                         </div>
+                                        {catVideos.length === 0 && (
+                                            <p className="text-sm text-muted-foreground/70 italic mb-2">
+                                                No videos in this section yet.
+                                            </p>
+                                        )}
                                         <div className="space-y-2">
                                             {catVideos.map((video, idx) => {
                                                 const thumb =
@@ -883,6 +932,29 @@ function ContentControl({ sections }: { sections: Category[] }) {
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        {lockedCategory && (
+                            <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm">
+                                <span>
+                                    Section:{" "}
+                                    <strong>
+                                        {allSubcategories.find((c) => c.key === lockedCategory)?.label ||
+                                            lockedCategory}
+                                    </strong>
+                                </span>
+                                <Button
+                                    type="button"
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto p-0"
+                                    onClick={() => {
+                                        setLockedCategory(null);
+                                        setShowAdvanced(true);
+                                    }}
+                                >
+                                    Change
+                                </Button>
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <Label>Title *</Label>
                             <Input
@@ -892,17 +964,6 @@ function ContentControl({ sections }: { sections: Category[] }) {
                                 }
                                 placeholder="e.g. Brand Video for Tesla"
                                 required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Description</Label>
-                            <Textarea
-                                value={formData.description}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, description: e.target.value })
-                                }
-                                placeholder="Short description of the video..."
-                                rows={2}
                             />
                         </div>
                         <div className="space-y-2">
@@ -938,72 +999,102 @@ function ContentControl({ sections }: { sections: Category[] }) {
                                 YouTube, Vimeo, or direct upload to Cloudinary
                             </p>
                         </div>
-                        <div className="space-y-2">
-                            <Label>Custom Thumbnail URL (optional)</Label>
-                            <div className="flex gap-2">
-                                <Input
-                                    value={formData.thumbnailUrl || ""}
-                                    onChange={(e) =>
-                                        setFormData({ ...formData, thumbnailUrl: e.target.value })
-                                    }
-                                    placeholder="https://... or upload"
-                                />
-                                <div className="relative">
-                                    <input
-                                        type="file"
-                                        id="thumb-upload"
-                                        className="hidden"
-                                        accept="image/*"
-                                        onChange={(e) => handleFileUpload(e, 'thumbnailUrl')}
+
+                        <button
+                            type="button"
+                            className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
+                            onClick={() => setShowAdvanced((v) => !v)}
+                        >
+                            {showAdvanced ? "Hide" : "Show"} advanced options (description, thumbnail, category, order)
+                        </button>
+
+                        {showAdvanced && (
+                            <div className="space-y-4 border-t pt-4">
+                                <div className="space-y-2">
+                                    <Label>Description</Label>
+                                    <Textarea
+                                        value={formData.description}
+                                        onChange={(e) =>
+                                            setFormData({ ...formData, description: e.target.value })
+                                        }
+                                        placeholder="Short description of the video..."
+                                        rows={2}
                                     />
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => document.getElementById('thumb-upload')?.click()}
-                                    >
-                                        <ImageIcon className="h-4 w-4" />
-                                    </Button>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Custom Thumbnail URL (optional)</Label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={formData.thumbnailUrl || ""}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, thumbnailUrl: e.target.value })
+                                            }
+                                            placeholder="https://... or upload"
+                                        />
+                                        <div className="relative">
+                                            <input
+                                                type="file"
+                                                id="thumb-upload"
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={(e) => handleFileUpload(e, 'thumbnailUrl')}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="icon"
+                                                onClick={() => document.getElementById('thumb-upload')?.click()}
+                                            >
+                                                <ImageIcon className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground">
+                                        YouTube thumbnails are auto-detected. Use this to override.
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Category *</Label>
+                                        <Select
+                                            value={formData.category}
+                                            onValueChange={(val) =>
+                                                setFormData({
+                                                    ...formData,
+                                                    category: val,
+                                                    order: editingVideo
+                                                        ? formData.order
+                                                        : String(nextOrderForCategory(val)),
+                                                })
+                                            }
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {allSubcategories.map((c) => (
+                                                    <SelectItem key={c.key} value={c.key}>
+                                                        {c.parentLabel} - {c.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Display Order</Label>
+                                        <Input
+                                            type="number"
+                                            min={0}
+                                            value={formData.order}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, order: e.target.value })
+                                            }
+                                            placeholder="0"
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                            <p className="text-[10px] text-muted-foreground">
-                                YouTube thumbnails are auto-detected. Use this to override.
-                            </p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Category *</Label>
-                                <Select
-                                    value={formData.category}
-                                    onValueChange={(val) =>
-                                        setFormData({ ...formData, category: val })
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {allSubcategories.map((c) => (
-                                            <SelectItem key={c.key} value={c.key}>
-                                                {c.parentLabel} - {c.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Display Order</Label>
-                                <Input
-                                    type="number"
-                                    min={0}
-                                    value={formData.order}
-                                    onChange={(e) =>
-                                        setFormData({ ...formData, order: e.target.value })
-                                    }
-                                    placeholder="0"
-                                />
-                            </div>
-                        </div>
+                        )}
                         <DialogFooter>
                             <Button
                                 type="button"
@@ -1066,6 +1157,293 @@ function getEmbedUrl(url: string): string {
     const vmMatch = url.match(/vimeo\.com\/(\d+)/);
     if (vmMatch) return `https://player.vimeo.com/video/${vmMatch[1]}`;
     return url;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHANNEL CARDS  (e.g. "Who We Work With") — paste a channel link,
+   name + profile picture are auto-fetched; follower count is manual.
+   ═══════════════════════════════════════════════════════════════ */
+interface PortfolioChannel {
+    id: string;
+    name: string;
+    channelUrl: string;
+    avatarUrl: string | null;
+    followerCount: string;
+    category: string;
+    order: number;
+    isActive: boolean;
+}
+
+function ChannelControl({ category, label }: { category: string; label: string }) {
+    const [channels, setChannels] = useState<PortfolioChannel[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showDialog, setShowDialog] = useState(false);
+    const [editingChannel, setEditingChannel] = useState<PortfolioChannel | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [formData, setFormData] = useState({ channelUrl: "", followerCount: "" });
+
+    const fetchChannels = useCallback(async () => {
+        try {
+            setLoading(true);
+            const res = await fetch(`/api/portfolio/channels?all=true&category=${category}`);
+            const data = await res.json();
+            if (data.ok) setChannels(data.channels || []);
+        } catch {
+            toast.error("Failed to load channels");
+        } finally {
+            setLoading(false);
+        }
+    }, [category]);
+
+    useEffect(() => {
+        fetchChannels();
+    }, [fetchChannels]);
+
+    const resetForm = () => {
+        setFormData({ channelUrl: "", followerCount: "" });
+        setEditingChannel(null);
+    };
+
+    const openAddDialog = () => {
+        resetForm();
+        setShowDialog(true);
+    };
+
+    const openEditDialog = (c: PortfolioChannel) => {
+        setEditingChannel(c);
+        setFormData({ channelUrl: c.channelUrl, followerCount: c.followerCount });
+        setShowDialog(true);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.channelUrl.trim()) {
+            toast.error("Channel URL is required");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            if (editingChannel) {
+                const res = await fetch(`/api/portfolio/channels/${editingChannel.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        channelUrl: formData.channelUrl.trim(),
+                        followerCount: formData.followerCount.trim(),
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || "Update failed");
+                toast.success("Channel updated");
+            } else {
+                const catVideos = channels;
+                const nextOrder = catVideos.length > 0 ? Math.max(...catVideos.map((c) => c.order)) + 1 : 0;
+                const res = await fetch("/api/portfolio/channels", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        channelUrl: formData.channelUrl.trim(),
+                        followerCount: formData.followerCount.trim(),
+                        category,
+                        order: nextOrder,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || "Create failed");
+                if (data.scrapeFailed) {
+                    toast.warning("Added, but couldn't auto-fetch the name/picture — edit it to fix manually");
+                } else {
+                    toast.success("Channel added");
+                }
+            }
+            setShowDialog(false);
+            resetForm();
+            fetchChannels();
+        } catch (err: any) {
+            toast.error(err.message || "Operation failed");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm("Remove this channel? This cannot be undone.")) return;
+        try {
+            const res = await fetch(`/api/portfolio/channels/${id}`, { method: "DELETE" });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || "Delete failed");
+            }
+            toast.success("Channel removed");
+            fetchChannels();
+        } catch (err: any) {
+            toast.error(err.message || "Delete failed");
+        }
+    };
+
+    const handleToggleActive = async (channel: PortfolioChannel) => {
+        try {
+            const res = await fetch(`/api/portfolio/channels/${channel.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isActive: !channel.isActive }),
+            });
+            if (!res.ok) throw new Error("Toggle failed");
+            toast.success(channel.isActive ? "Channel hidden" : "Channel visible");
+            fetchChannels();
+        } catch {
+            toast.error("Failed to toggle visibility");
+        }
+    };
+
+    const handleReorder = async (channel: PortfolioChannel, direction: "up" | "down") => {
+        const sorted = [...channels].sort((a, b) => a.order - b.order);
+        const idx = sorted.findIndex((c) => c.id === channel.id);
+        const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= sorted.length) return;
+        const swapChannel = sorted[swapIdx];
+        try {
+            await Promise.all([
+                fetch(`/api/portfolio/channels/${channel.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order: swapChannel.order }),
+                }),
+                fetch(`/api/portfolio/channels/${swapChannel.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order: channel.order }),
+                }),
+            ]);
+            fetchChannels();
+        } catch {
+            toast.error("Failed to reorder");
+        }
+    };
+
+    const sorted = [...channels].sort((a, b) => a.order - b.order);
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        {label}
+                    </CardTitle>
+                    <Button size="sm" onClick={openAddDialog}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Channel
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                ) : sorted.length === 0 ? (
+                    <p className="text-sm text-muted-foreground/70 italic py-4">
+                        No channels yet. Click <strong>Add Channel</strong> and paste a YouTube channel link.
+                    </p>
+                ) : (
+                    <div className="space-y-2">
+                        {sorted.map((channel, idx) => (
+                            <div
+                                key={channel.id}
+                                className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${channel.isActive ? "bg-card hover:bg-muted/60" : "bg-muted/30 opacity-60"
+                                    }`}
+                            >
+                                <div className="flex flex-col gap-0.5 shrink-0">
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === 0} onClick={() => handleReorder(channel, "up")}>
+                                        <ArrowUp className="h-3 w-3" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === sorted.length - 1} onClick={() => handleReorder(channel, "down")}>
+                                        <ArrowDown className="h-3 w-3" />
+                                    </Button>
+                                </div>
+                                <div className="w-12 h-12 rounded-full overflow-hidden bg-muted shrink-0">
+                                    {channel.avatarUrl ? (
+                                        <img src={channel.avatarUrl} alt={channel.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Users className="h-5 w-5 text-muted-foreground" />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-medium truncate">{channel.name}</p>
+                                        {!channel.isActive && (
+                                            <Badge variant="secondary" className="text-xs shrink-0">Hidden</Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground truncate">
+                                        {channel.followerCount || "No follower count set"}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <div className="flex items-center gap-1.5 mr-2" title={channel.isActive ? "Visible" : "Hidden"}>
+                                        <Switch checked={channel.isActive} onCheckedChange={() => handleToggleActive(channel)} />
+                                    </div>
+                                    <Button variant="outline" size="icon" className="h-8 w-8" asChild title="Open channel">
+                                        <a href={channel.channelUrl} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                        </a>
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(channel)} title="Edit">
+                                        <Edit className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(channel.id)} title="Delete">
+                                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+
+            <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) resetForm(); }}>
+                <DialogContent className="sm:max-w-[450px]">
+                    <DialogHeader>
+                        <DialogTitle>{editingChannel ? "Edit Channel" : "Add Channel"}</DialogTitle>
+                        <DialogDescription>
+                            Paste a YouTube channel link — the name and profile picture are fetched automatically. Follower count is manual.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label>Channel URL *</Label>
+                            <Input
+                                value={formData.channelUrl}
+                                onChange={(e) => setFormData({ ...formData, channelUrl: e.target.value })}
+                                placeholder="https://youtube.com/@handle"
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Follower Count</Label>
+                            <Input
+                                value={formData.followerCount}
+                                onChange={(e) => setFormData({ ...formData, followerCount: e.target.value })}
+                                placeholder="e.g. 125K subscribers"
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => { setShowDialog(false); resetForm(); }}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={submitting}>
+                                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                {editingChannel ? "Save Changes" : "Add Channel"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+        </Card>
+    );
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1290,8 +1668,16 @@ export function PortfolioManagementTab() {
                     <SectionsManagement sections={sections} onRefresh={fetchSections} />
                 </TabsContent>
 
-                <TabsContent value="content" className="mt-6">
+                <TabsContent value="content" className="mt-6 space-y-6">
                     <ContentControl sections={sections} />
+                    {(() => {
+                        const channelSub = sections
+                            .flatMap((c) => c.subcategories)
+                            .find((s) => s.key === CHANNEL_CATEGORY_KEY);
+                        return channelSub ? (
+                            <ChannelControl category={CHANNEL_CATEGORY_KEY} label={channelSub.label} />
+                        ) : null;
+                    })()}
                 </TabsContent>
             </Tabs>
         </div>
