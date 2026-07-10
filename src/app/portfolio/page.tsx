@@ -1172,10 +1172,36 @@ export default function PortfolioPage() {
     const [checked, setChecked] = useState(false);
 
     useEffect(() => {
-        if (sessionStorage.getItem('portfolio_unlocked') === '1') {
-            setUnlocked(true);
-        }
-        setChecked(true);
+        let cancelled = false;
+
+        (async () => {
+            if (sessionStorage.getItem('portfolio_unlocked') === '1') {
+                if (!cancelled) {
+                    setUnlocked(true);
+                    setChecked(true);
+                }
+                return;
+            }
+
+            // Logged-in admins skip the lead-gate form. The role check happens
+            // server-side against the authToken cookie — client only sees the
+            // resulting role, so this can't be spoofed from the browser.
+            try {
+                const res = await fetch('/api/auth/me');
+                const data = await res.json();
+                if (!cancelled && data.user?.role === 'admin') {
+                    setUnlocked(true);
+                }
+            } catch {
+                // ignore — fall through to gate form
+            }
+
+            if (!cancelled) setChecked(true);
+        })();
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     if (!checked) return null;

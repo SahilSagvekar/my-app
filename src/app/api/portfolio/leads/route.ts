@@ -1,6 +1,16 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getUserFromToken } from '@/lib/auth-helpers';
+
+function requireLeadsAccess(req: NextRequest) {
+    const user = getUserFromToken(req);
+    if (!user) return { error: 'Unauthorized', status: 401 };
+    if (user.role !== 'admin' && user.role !== 'manager') {
+        return { error: 'Access denied', status: 403 };
+    }
+    return null;
+}
 
 // POST /api/portfolio/leads — save a portfolio gate form submission
 export async function POST(req: NextRequest) {
@@ -48,9 +58,17 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// GET /api/portfolio/leads — admin: fetch all leads
+// GET /api/portfolio/leads — admin/manager: fetch all leads
 export async function GET(req: NextRequest) {
     try {
+        const authError = requireLeadsAccess(req);
+        if (authError) {
+            return NextResponse.json(
+                { ok: false, message: authError.error },
+                { status: authError.status }
+            );
+        }
+
         const leads = await prisma.portfolioLead.findMany({
             orderBy: { createdAt: 'desc' },
         });
@@ -58,6 +76,42 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ ok: true, leads });
     } catch (err) {
         console.error('[GET /api/portfolio/leads]', err);
+        return NextResponse.json(
+            { ok: false, message: 'Server error' },
+            { status: 500 }
+        );
+    }
+}
+
+// DELETE /api/portfolio/leads — admin/manager: delete one or more leads
+// body: { ids: string[] }
+export async function DELETE(req: NextRequest) {
+    try {
+        const authError = requireLeadsAccess(req);
+        if (authError) {
+            return NextResponse.json(
+                { ok: false, message: authError.error },
+                { status: authError.status }
+            );
+        }
+
+        const body = await req.json();
+        const ids = body?.ids;
+
+        if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === 'string')) {
+            return NextResponse.json(
+                { ok: false, message: 'ids must be a non-empty array of strings' },
+                { status: 400 }
+            );
+        }
+
+        const result = await prisma.portfolioLead.deleteMany({
+            where: { id: { in: ids } },
+        });
+
+        return NextResponse.json({ ok: true, deleted: result.count });
+    } catch (err) {
+        console.error('[DELETE /api/portfolio/leads]', err);
         return NextResponse.json(
             { ok: false, message: 'Server error' },
             { status: 500 }

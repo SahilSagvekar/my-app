@@ -8,6 +8,7 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { Switch } from "../ui/switch";
+import { Checkbox } from "../ui/checkbox";
 import {
     Select,
     SelectContent,
@@ -127,6 +128,8 @@ function LeadManagement() {
     const [serviceFilter, setServiceFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [deleting, setDeleting] = useState(false);
 
     const fetchLeads = useCallback(async () => {
         try {
@@ -192,6 +195,55 @@ function LeadManagement() {
         a.click();
         URL.revokeObjectURL(url);
         toast.success(`Exported ${filtered.length} leads to CSV`);
+    };
+
+    const deleteLeads = async (ids: string[]) => {
+        if (ids.length === 0) return;
+        if (!confirm(`Delete ${ids.length} lead${ids.length > 1 ? "s" : ""}? This cannot be undone.`)) return;
+        setDeleting(true);
+        try {
+            const res = await fetch("/api/portfolio/leads", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.message || "Delete failed");
+            toast.success(`Deleted ${data.deleted} lead${data.deleted !== 1 ? "s" : ""}`);
+            setSelectedIds((prev) => {
+                const next = new Set(prev);
+                ids.forEach((id) => next.delete(id));
+                return next;
+            });
+            fetchLeads();
+        } catch (err: any) {
+            toast.error(err.message || "Delete failed");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const allPageSelected = paginatedLeads.length > 0 && paginatedLeads.every((l) => selectedIds.has(l.id));
+
+    const toggleSelectAllOnPage = () => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (allPageSelected) {
+                paginatedLeads.forEach((l) => next.delete(l.id));
+            } else {
+                paginatedLeads.forEach((l) => next.add(l.id));
+            }
+            return next;
+        });
     };
 
     // Stats
@@ -300,6 +352,21 @@ function LeadManagement() {
                                 <RefreshCw className="h-4 w-4 mr-1" />
                                 Refresh
                             </Button>
+                            {selectedIds.size > 0 && (
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={deleting}
+                                    onClick={() => deleteLeads(Array.from(selectedIds))}
+                                >
+                                    {deleting ? (
+                                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                    ) : (
+                                        <Trash2 className="h-4 w-4 mr-1" />
+                                    )}
+                                    Delete ({selectedIds.size})
+                                </Button>
+                            )}
                             <Button size="sm" onClick={exportCSV} disabled={filtered.length === 0}>
                                 <Download className="h-4 w-4 mr-1" />
                                 Export CSV
@@ -322,16 +389,31 @@ function LeadManagement() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
+                                            <TableHead className="w-10">
+                                                <Checkbox
+                                                    checked={allPageSelected}
+                                                    onCheckedChange={toggleSelectAllOnPage}
+                                                    aria-label="Select all on page"
+                                                />
+                                            </TableHead>
                                             <TableHead>Name</TableHead>
                                             <TableHead>Email</TableHead>
                                             <TableHead>Phone</TableHead>
                                             <TableHead>Service</TableHead>
                                             <TableHead>Submitted</TableHead>
+                                            <TableHead className="w-10"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {paginatedLeads.map((lead) => (
-                                            <TableRow key={lead.id}>
+                                            <TableRow key={lead.id} data-state={selectedIds.has(lead.id) ? "selected" : undefined}>
+                                                <TableCell>
+                                                    <Checkbox
+                                                        checked={selectedIds.has(lead.id)}
+                                                        onCheckedChange={() => toggleSelect(lead.id)}
+                                                        aria-label={`Select ${lead.firstName} ${lead.lastName}`}
+                                                    />
+                                                </TableCell>
                                                 <TableCell className="font-medium">
                                                     {lead.firstName} {lead.lastName}
                                                 </TableCell>
@@ -363,6 +445,18 @@ function LeadManagement() {
                                                         hour: "2-digit",
                                                         minute: "2-digit",
                                                     })}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8"
+                                                        disabled={deleting}
+                                                        onClick={() => deleteLeads([lead.id])}
+                                                        title="Delete lead"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                                    </Button>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
