@@ -16,6 +16,9 @@ export interface DeliverableProgress {
   isActive: boolean;
   completed: number;
   remaining: number;
+  monthlyAccomplished: boolean;
+  monthlyRequired: number | null;
+  monthlyCompleted: number;
   extras: { tiles?: boolean; thumb?: boolean; note?: string } | null;
   links: PostLink[];
 }

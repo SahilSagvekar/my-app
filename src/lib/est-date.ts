@@ -73,6 +73,16 @@ export function getESTDateString(date?: string): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+export function getESTMonthBounds(date?: string): { start: Date; end: Date } {
+  const now = date ? new Date(date) : new Date();
+  const { year, month } = getESTParts(now);
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return {
+    start: estCalendarToUTC(year, month, 1, false),
+    end: estCalendarToUTC(year, month, lastDay, true),
+  };
+}
+
 export function getESTWeekBounds(date?: string): { start: Date; end: Date } {
   const now = date ? new Date(date) : new Date();
   const { year, month, day, weekday } = getESTParts(now);

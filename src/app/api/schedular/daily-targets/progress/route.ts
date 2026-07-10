@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/auth-helpers';
-import { getESTDate, getESTDayOfWeek, getESTWeekBounds } from '@/lib/est-date';
+import { getESTDate, getESTDayOfWeek, getESTWeekBounds, getESTMonthBounds } from '@/lib/est-date';
 import {
   normalizeDeliverableType,
   normalizePlatformForMatch,
@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
 
     const { start: dayStart, end: dayEnd } = getESTDate(dateParam);
     const { start: weekStart, end: weekEnd } = getESTWeekBounds(dateParam);
+    const { start: monthStart, end: monthEnd } = getESTMonthBounds(dateParam);
     const dayOfWeek = getESTDayOfWeek(dateParam);
     const isSunday = dayOfWeek === 0;
 
@@ -66,6 +67,39 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { postedAt: 'desc' },
     });
+
+    // Monthly quotas (from MonthlyDeliverable.quantity) + this month's distinct posted videos,
+    // so a deliverable can be marked "monthly target accomplished" and stop demanding more daily posts.
+    const [clientsWithDeliverables, monthPosts] = await Promise.all([
+      prisma.client.findMany({
+        where: { id: { in: clientIds } },
+        select: { id: true, monthlyDeliverables: { select: { type: true, quantity: true } } },
+      }),
+      prisma.postedContent.findMany({
+        where: {
+          clientId: { in: clientIds },
+          postedAt: { gte: monthStart, lte: monthEnd },
+        },
+        select: { clientId: true, deliverableType: true, taskId: true, id: true },
+      }),
+    ]);
+
+    const monthlyQuotaMap = new Map<string, Map<string, number>>();
+    for (const c of clientsWithDeliverables) {
+      const typeMap = new Map<string, number>();
+      for (const d of c.monthlyDeliverables) {
+        const key = normalizeDeliverableType(d.type);
+        typeMap.set(key, (typeMap.get(key) ?? 0) + d.quantity);
+      }
+      monthlyQuotaMap.set(c.id, typeMap);
+    }
+
+    const monthlyCompletedMap = new Map<string, Set<string>>();
+    for (const p of monthPosts) {
+      const key = `${p.clientId}::${normalizeDeliverableType(p.deliverableType)}`;
+      if (!monthlyCompletedMap.has(key)) monthlyCompletedMap.set(key, new Set());
+      monthlyCompletedMap.get(key)!.add(p.taskId ?? p.id);
+    }
 
     // Group targets by client
     const clientTargetMap = new Map<string, typeof allTargets>();
@@ -114,20 +148,29 @@ export async function GET(req: NextRequest) {
           });
 
           const completed = matchingPosts.length;
-          const required = isActive ? target.count : 0;
 
-          if (isActive) {
+          const targetTypeNormalized = normalizeDeliverableType(target.deliverableType);
+          const monthlyRequired = monthlyQuotaMap.get(clientId)?.get(targetTypeNormalized) ?? null;
+          const monthlyCompleted = monthlyCompletedMap.get(`${clientId}::${targetTypeNormalized}`)?.size ?? 0;
+          const monthlyAccomplished = monthlyRequired != null && monthlyCompleted >= monthlyRequired;
+
+          const required = (isActive && !monthlyAccomplished) ? target.count : 0;
+
+          if (isActive && !monthlyAccomplished) {
             clientDailyTarget += required;
             clientDailyCompleted += Math.min(completed, required);
           }
 
           return {
             deliverableType: target.deliverableType,
-            required: target.count,
+            required: monthlyAccomplished ? 0 : target.count,
             frequency: target.frequency,
             isActive,
             completed,
-            remaining: Math.max(0, required - completed),
+            remaining: monthlyAccomplished ? 0 : Math.max(0, required - completed),
+            monthlyAccomplished,
+            monthlyRequired,
+            monthlyCompleted,
             extras: target.extras,
             links: matchingPosts.map(p => ({
               id: p.id,

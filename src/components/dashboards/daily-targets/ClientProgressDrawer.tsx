@@ -112,12 +112,26 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
                   {platform.deliverables.map((d) => {
                     const dColor = DELIVERABLE_COLORS[d.deliverableType] || { bg: 'bg-gray-100', text: 'text-gray-700' };
                     const freqLabel = d.frequency === 'daily' ? '' : `/${d.frequency}`;
+                    if (d.monthlyAccomplished) {
+                      return (
+                        <div key={d.deliverableType} className="inline-flex items-center gap-1">
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                            🎉 {d.deliverableType} monthly target accomplished ({d.monthlyCompleted}/{d.monthlyRequired})
+                          </Badge>
+                        </div>
+                      );
+                    }
                     return (
                       <div key={d.deliverableType} className="inline-flex items-center gap-1">
                         <Badge className={cn(dColor.bg, dColor.text, `hover:${dColor.bg}`, !d.isActive && 'opacity-40')}>
                           {d.completed}/{d.required} {d.deliverableType}{freqLabel}
                           {d.remaining > 0 && ` · ${d.remaining} left`}
                         </Badge>
+                        {d.monthlyRequired != null && (
+                          <span className="text-[10px] text-muted-foreground">
+                            ({d.monthlyCompleted}/{d.monthlyRequired} this month)
+                          </span>
+                        )}
                         {d.extras?.tiles && (
                           <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 text-[10px]">+Tiles</Badge>
                         )}
