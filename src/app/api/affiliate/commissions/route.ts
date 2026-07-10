@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
+import { getPayoutConfig } from '@/lib/payout-config';
 
 function getTokenFromCookies(req: Request) {
     const cookieHeader = req.headers.get('cookie');
@@ -137,6 +138,11 @@ export async function POST(req: NextRequest) {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
+        // Hold window protects against approving/paying a commission before the
+        // client's refund/dispute window has passed (see payout dev doc 3.4).
+        const { holdWindowDays } = await getPayoutConfig();
+        const holdUntil = new Date(now.getTime() + holdWindowDays * 24 * 60 * 60 * 1000);
+
         const commission = await (prisma as any).affiliateCommission.create({
             data: {
                 salesUserId: decoded.userId,
@@ -147,6 +153,7 @@ export async function POST(req: NextRequest) {
                 commissionAmt,
                 month: monthStart,
                 status: 'PENDING',
+                holdUntil,
             },
         });
 

@@ -23,9 +23,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         const { id } = await params;
         const body = await req.json();
-        const { status, notes } = body;
+        const { status, notes, amount, bonusAmount, reason } = body;
 
-        const validStatuses = ['PENDING', 'APPROVED', 'PAID', 'CANCELLED'];
+        // PAID / PAYOUT_PENDING / FAILED are system-controlled — they only change via
+        // the Stripe transfer + webhook flow (src/lib/stripe-payouts.ts), never by
+        // direct admin PATCH, so a manual status update can never desync from real
+        // money movement.
+        const validStatuses = ['PENDING', 'APPROVED', 'CANCELLED'];
         if (status && !validStatuses.includes(status)) {
             return NextResponse.json({ ok: false, message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
         }
@@ -45,6 +49,52 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             }
         }
 
+        if (status === 'APPROVED' && existing.holdUntil && new Date(existing.holdUntil) > new Date()) {
+            return NextResponse.json({
+                ok: false,
+                message: `Still in hold window until ${new Date(existing.holdUntil).toLocaleDateString()} (refund/dispute protection)`,
+            }, { status: 400 });
+        }
+
+        // Amount edit / bonus addition — both write an audit row before touching
+        // the commission amount, per the dev doc's audit trail requirement.
+        const adjustments: { commissionId: string; editedById: number; adjustmentType: string; previousAmount: any; newAmount: any; reason: string | null }[] = [];
+        let newCommissionAmt: number | undefined;
+
+        if (amount !== undefined) {
+            const parsedAmount = parseFloat(amount);
+            if (isNaN(parsedAmount) || parsedAmount <= 0) {
+                return NextResponse.json({ ok: false, message: 'amount must be a positive number' }, { status: 400 });
+            }
+            adjustments.push({
+                commissionId: id,
+                editedById: decoded.userId,
+                adjustmentType: 'EDIT',
+                previousAmount: existing.commissionAmt,
+                newAmount: parsedAmount,
+                reason: reason ?? null,
+            });
+            newCommissionAmt = parsedAmount;
+        }
+
+        if (bonusAmount !== undefined) {
+            const parsedBonus = parseFloat(bonusAmount);
+            if (isNaN(parsedBonus) || parsedBonus <= 0) {
+                return NextResponse.json({ ok: false, message: 'bonusAmount must be a positive number' }, { status: 400 });
+            }
+            const base = newCommissionAmt ?? parseFloat(existing.commissionAmt);
+            const withBonus = base + parsedBonus;
+            adjustments.push({
+                commissionId: id,
+                editedById: decoded.userId,
+                adjustmentType: 'BONUS',
+                previousAmount: base,
+                newAmount: withBonus,
+                reason: reason ?? null,
+            });
+            newCommissionAmt = withBonus;
+        }
+
         const updateData: any = {};
         if (status) {
             updateData.status = status;
@@ -52,26 +102,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
                 updateData.approvedAt = new Date();
                 updateData.approvedBy = decoded.userId;
             }
-            if (status === 'PAID') {
-                updateData.paidAt = new Date();
-                if (!existing.approvedAt) {
-                    updateData.approvedAt = new Date();
-                    updateData.approvedBy = decoded.userId;
-                }
-            }
         }
         if (notes !== undefined) {
             updateData.notes = notes;
         }
+        if (newCommissionAmt !== undefined) {
+            updateData.commissionAmt = newCommissionAmt;
+        }
 
-        const commission = await (prisma as any).affiliateCommission.update({
-            where: { id },
-            data: updateData,
-            include: {
-                user: { select: { id: true, name: true, email: true, image: true } },
-                lead: { select: { id: true, name: true, company: true, status: true, value: true } },
-            },
-        });
+        const [commission] = await prisma.$transaction([
+            (prisma as any).affiliateCommission.update({
+                where: { id },
+                data: updateData,
+                include: {
+                    user: { select: { id: true, name: true, email: true, image: true } },
+                    lead: { select: { id: true, name: true, company: true, status: true, value: true } },
+                },
+            }),
+            ...adjustments.map(a => (prisma as any).commissionAdjustment.create({ data: a })),
+        ]);
 
         return NextResponse.json({ ok: true, commission });
     } catch (err) {

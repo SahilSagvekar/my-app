@@ -361,6 +361,24 @@ cron.schedule('0 15 * * *', () => {
     triggerJob('Daily Target Summary (EOD)', '/api/cron/daily-target-summary?stage=eod', 'GET');
 }, { timezone: 'America/New_York' });
 
+// ==========================================
+// 9. Weekly Commission Payout Batch (Fridays at 5 PM EST)
+// Sends Stripe transfers for every APPROVED commission past its hold window
+// and above the configured minimum threshold. See src/lib/stripe-payouts.ts.
+// ==========================================
+cron.schedule('0 17 * * 5', () => {
+    triggerJob('Commission Payout Batch', '/api/cron/commission-payouts', 'POST');
+}, { timezone: 'America/New_York' });
+
+// ==========================================
+// 10. Commission Payout Reconciliation (Every 2 hours)
+// Catches payouts stuck in SENT because the stripe-connect webhook never
+// arrived — asks Stripe directly for transfer status.
+// ==========================================
+cron.schedule('0 */2 * * *', () => {
+    triggerJob('Commission Payout Reconcile', '/api/cron/commission-payouts-reconcile', 'POST');
+}, { timezone: 'America/New_York' });
+
 // Log initialized jobs
 console.log('📦 Jobs Scheduled:');
 console.log(' - Monthly Tasks: Daily at 1 AM');
@@ -374,4 +392,5 @@ console.log(' - Maintenance: Every 2 hours');
 console.log(' - Heartbeat: Every hour');
 console.log(' - Daily Target Check: Every 2 hours (per-client 100% Slack ping)');
 console.log(' - Daily Target Summaries: 8:30 AM / 12:00 PM / 3:00 PM (scheduling channel)');
+console.log(' - Commission Payout Batch: Fridays at 5 PM');
 console.log('---------------------------------------------');

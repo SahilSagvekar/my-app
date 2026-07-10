@@ -222,6 +222,7 @@ interface Commission {
   commissionAmt: string;
   month: string;
   status: string;
+  holdUntil: string | null;
   paidAt: string | null;
   approvedAt: string | null;
   approvedBy: number | null;
@@ -243,7 +244,9 @@ interface CommissionSummary {
 const COMMISSION_STATUS_STYLES: Record<string, { bg: string; text: string; border: string; label: string; icon: any }> = {
   PENDING: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: 'Pending', icon: Clock },
   APPROVED: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', label: 'Approved', icon: CheckCircle },
+  PAYOUT_PENDING: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', label: 'Payout Pending', icon: Loader2 },
   PAID: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', label: 'Paid', icon: Check },
+  FAILED: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: 'Payout Failed', icon: XCircle },
   CANCELLED: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: 'Cancelled', icon: XCircle },
 };
 
@@ -254,8 +257,13 @@ function CommissionManagement() {
   const [summary, setSummary] = useState<CommissionSummary>({ totalEarned: 0, totalPending: 0, totalApproved: 0, thisMonth: 0, commissionRate: 0.15 });
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'PAID' | 'CANCELLED'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'PAYOUT_PENDING' | 'PAID' | 'FAILED' | 'CANCELLED'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [adjustTarget, setAdjustTarget] = useState<Commission | null>(null);
+  const [adjustMode, setAdjustMode] = useState<'EDIT' | 'BONUS'>('EDIT');
+  const [adjustValue, setAdjustValue] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
+  const [adjustSubmitting, setAdjustSubmitting] = useState(false);
 
   const fetchCommissions = useCallback(async () => {
     try {
@@ -296,6 +304,63 @@ function CommissionManagement() {
       toast.error('Failed to update commission');
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const retryPayout = async (id: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/affiliate/commissions/${id}/retry`, { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success('Payout retried successfully');
+      } else {
+        toast.error(data.message || 'Retry failed');
+      }
+      fetchCommissions();
+    } catch {
+      toast.error('Retry failed');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const openAdjustDialog = (c: Commission, mode: 'EDIT' | 'BONUS') => {
+    setAdjustTarget(c);
+    setAdjustMode(mode);
+    setAdjustValue(mode === 'EDIT' ? c.commissionAmt : '');
+    setAdjustReason('');
+  };
+
+  const submitAdjustment = async () => {
+    if (!adjustTarget) return;
+    const parsed = parseFloat(adjustValue);
+    if (isNaN(parsed) || parsed <= 0) {
+      toast.error('Enter a valid positive amount');
+      return;
+    }
+    setAdjustSubmitting(true);
+    try {
+      const body = adjustMode === 'EDIT'
+        ? { amount: parsed, reason: adjustReason }
+        : { bonusAmount: parsed, reason: adjustReason };
+      const res = await fetch(`/api/affiliate/commissions/${adjustTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(adjustMode === 'EDIT' ? 'Amount updated' : 'Bonus added');
+        setAdjustTarget(null);
+        fetchCommissions();
+      } else {
+        toast.error(data.message || 'Failed to save adjustment');
+      }
+    } catch {
+      toast.error('Failed to save adjustment');
+    } finally {
+      setAdjustSubmitting(false);
     }
   };
 
@@ -369,12 +434,14 @@ function CommissionManagement() {
           />
         </div>
         <div className="flex bg-gray-100/50 p-1 rounded-lg gap-0.5">
-          {(['all', 'PENDING', 'APPROVED', 'PAID', 'CANCELLED'] as const).map(s => {
+          {(['all', 'PENDING', 'APPROVED', 'PAYOUT_PENDING', 'PAID', 'FAILED', 'CANCELLED'] as const).map(s => {
             const activeColors: Record<string, string> = {
               all: 'bg-white text-gray-700 shadow-sm',
               PENDING: 'bg-white text-amber-600 shadow-sm',
               APPROVED: 'bg-white text-blue-600 shadow-sm',
+              PAYOUT_PENDING: 'bg-white text-indigo-600 shadow-sm',
               PAID: 'bg-white text-emerald-600 shadow-sm',
+              FAILED: 'bg-white text-red-600 shadow-sm',
               CANCELLED: 'bg-white text-red-600 shadow-sm',
             };
             return (
@@ -397,6 +464,10 @@ function CommissionManagement() {
         <Button variant="outline" size="sm" onClick={fetchCommissions} className="gap-1.5">
           <RefreshCw className="h-4 w-4" />
           Refresh
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => window.open('/api/affiliate/payouts/export', '_blank')} className="gap-1.5">
+          <Download className="h-4 w-4" />
+          Export CSV
         </Button>
       </div>
 
@@ -507,35 +578,50 @@ function CommissionManagement() {
                               <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                             ) : (
                               <>
-                                {c.status === 'PENDING' && (
-                                  <>
-                                    <button
-                                      onClick={() => updateCommissionStatus(c.id, 'APPROVED')}
-                                      className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
-                                      title="Approve this commission"
-                                    >
-                                      <Check className="h-3 w-3" /> Approve
-                                    </button>
-                                    <button
-                                      onClick={() => updateCommissionStatus(c.id, 'CANCELLED')}
-                                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
-                                      title="Cancel this commission"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </button>
-                                  </>
-                                )}
+                                {c.status === 'PENDING' && (() => {
+                                  const inHold = c.holdUntil && new Date(c.holdUntil) > new Date();
+                                  return (
+                                    <>
+                                      <button
+                                        onClick={() => !inHold && updateCommissionStatus(c.id, 'APPROVED')}
+                                        disabled={!!inHold}
+                                        className={cn(
+                                          'flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors',
+                                          inHold
+                                            ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                                            : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                        )}
+                                        title={inHold ? `In hold window until ${formatDate(c.holdUntil!)}` : 'Approve this commission'}
+                                      >
+                                        <Check className="h-3 w-3" /> {inHold ? `Holds until ${formatDate(c.holdUntil!)}` : 'Approve'}
+                                      </button>
+                                      <button
+                                        onClick={() => updateCommissionStatus(c.id, 'CANCELLED')}
+                                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
+                                        title="Cancel this commission"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </>
+                                  );
+                                })()}
                                 {c.status === 'APPROVED' && (
-                                  <button
-                                    onClick={() => updateCommissionStatus(c.id, 'PAID')}
-                                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                                    title="Mark as paid"
-                                  >
-                                    <DollarSign className="h-3 w-3" /> Mark Paid
-                                  </button>
+                                  <span className="text-[10px] text-blue-500">Queued for weekly payout run</span>
+                                )}
+                                {c.status === 'PAYOUT_PENDING' && (
+                                  <span className="text-[10px] text-indigo-500">Transfer sent, awaiting confirmation</span>
                                 )}
                                 {c.status === 'PAID' && (
                                   <span className="text-[10px] text-gray-400">Completed</span>
+                                )}
+                                {c.status === 'FAILED' && (
+                                  <button
+                                    onClick={() => retryPayout(c.id)}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
+                                    title="Retry this payout"
+                                  >
+                                    <RefreshCw className="h-3 w-3" /> Retry Payout
+                                  </button>
                                 )}
                                 {c.status === 'CANCELLED' && (
                                   <button
@@ -545,6 +631,23 @@ function CommissionManagement() {
                                   >
                                     <RefreshCw className="h-3 w-3" /> Restore
                                   </button>
+                                )}
+                                {!['PAID', 'PAYOUT_PENDING'].includes(c.status) && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button className="p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600" title="Adjust amount">
+                                        <ChevronDown className="h-3.5 w-3.5" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => openAdjustDialog(c, 'EDIT')}>
+                                        Edit amount
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => openAdjustDialog(c, 'BONUS')}>
+                                        Add bonus
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 )}
                               </>
                             )}
@@ -561,6 +664,60 @@ function CommissionManagement() {
         <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent rounded-r-xl" />
       </div>
       )}
+
+      {/* ── Amount Edit / Bonus Dialog ── */}
+      <Dialog open={!!adjustTarget} onOpenChange={(open) => !open && setAdjustTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{adjustMode === 'EDIT' ? 'Edit Commission Amount' : 'Add Bonus'}</DialogTitle>
+          </DialogHeader>
+          {adjustTarget && (
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-muted-foreground">
+                {adjustTarget.user?.name || adjustTarget.user?.email} — {adjustTarget.lead?.name || adjustTarget.clientName}
+                <br />
+                Current amount: <span className="font-semibold text-gray-700">{formatCurrency(adjustTarget.commissionAmt)}</span>
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {adjustMode === 'EDIT' ? 'New amount ($)' : 'Bonus amount ($)'}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={adjustValue}
+                  onChange={(e) => setAdjustValue(e.target.value)}
+                  placeholder={adjustMode === 'EDIT' ? adjustTarget.commissionAmt : '0.00'}
+                />
+                {adjustMode === 'BONUS' && adjustValue && !isNaN(parseFloat(adjustValue)) && (
+                  <p className="text-xs text-muted-foreground">
+                    New total: {formatCurrency(parseFloat(adjustTarget.commissionAmt) + parseFloat(adjustValue))}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reason (optional, logged for audit)</label>
+                <Textarea
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="e.g. partial refund adjustment, closing spiff…"
+                  rows={2}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setAdjustTarget(null)} disabled={adjustSubmitting}>
+                  Cancel
+                </Button>
+                <Button onClick={submitAdjustment} disabled={adjustSubmitting}>
+                  {adjustSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  {adjustMode === 'EDIT' ? 'Save Amount' : 'Add Bonus'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

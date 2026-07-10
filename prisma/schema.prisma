@@ -34,6 +34,9 @@ model User {
   slackUserId             String?
   accounts                Account[]
   affiliateCommissions    AffiliateCommission[]
+  commissionAdjustments   CommissionAdjustment[]
+  commissionPayouts       CommissionPayout[]
+  payoutProfile           SalesRepPayoutProfile?
   auditLogs               AuditLog[]
   bids                    Bid[]
   bonuses                 Bonus[]
@@ -1276,19 +1279,105 @@ model AffiliateCommission {
   commissionRate Decimal   @default(0.15) @db.Decimal(5, 4)
   commissionAmt  Decimal   @db.Decimal(12, 2)
   month          DateTime
+  // status: PENDING -> HOLDING -> APPROVED -> PAYOUT_PENDING -> PAID / FAILED
   status         String    @default("PENDING")
+  currency       String    @default("usd")
+  holdUntil      DateTime?
+  payoutId       String?
   paidAt         DateTime?
   approvedAt     DateTime?
   approvedBy     Int?
   notes          String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  lead           SalesLead @relation(fields: [leadId], references: [id])
-  user           User      @relation(fields: [salesUserId], references: [id])
+  lead           SalesLead        @relation(fields: [leadId], references: [id])
+  user           User             @relation(fields: [salesUserId], references: [id])
+  payout         CommissionPayout? @relation(fields: [payoutId], references: [id])
+  adjustments    CommissionAdjustment[]
 
   @@index([salesUserId])
   @@index([month])
   @@index([status])
+  @@index([payoutId])
+}
+
+model SalesRepPayoutProfile {
+  id                      String    @id @default(cuid())
+  userId                  Int       @unique
+  stripeConnectAccountId  String?   @unique
+  // onboardingStatus: NOT_STARTED -> IN_PROGRESS -> COMPLETE
+  onboardingStatus        String    @default("NOT_STARTED")
+  payoutsEnabled          Boolean   @default(false)
+  taxFormType             String? // W9 | W8BEN
+  taxFormCollectedAt      DateTime?
+  country                 String?
+  currency                String    @default("usd")
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  user                    User      @relation(fields: [userId], references: [id])
+
+  @@index([stripeConnectAccountId])
+}
+
+model CommissionAdjustment {
+  id             String              @id @default(cuid())
+  commissionId   String
+  editedById     Int
+  // adjustmentType: EDIT | BONUS
+  adjustmentType String
+  previousAmount Decimal             @db.Decimal(12, 2)
+  newAmount      Decimal             @db.Decimal(12, 2)
+  reason         String?
+  createdAt      DateTime            @default(now())
+  commission     AffiliateCommission @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+  editedBy       User                @relation(fields: [editedById], references: [id])
+
+  @@index([commissionId])
+}
+
+model CommissionPayout {
+  id               String    @id @default(cuid())
+  batchId          String?
+  salesUserId      Int
+  stripeTransferId String?   @unique
+  amount           Decimal   @db.Decimal(12, 2)
+  currency         String    @default("usd")
+  // status: PENDING -> SENT -> PAID / FAILED
+  status           String    @default("PENDING")
+  failureReason    String?
+  idempotencyKey   String    @unique
+  sentAt           DateTime?
+  paidAt           DateTime?
+  failedAt         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  batch            PayoutBatchRun?      @relation(fields: [batchId], references: [id])
+  user             User                 @relation(fields: [salesUserId], references: [id])
+  commissions      AffiliateCommission[]
+
+  @@index([salesUserId])
+  @@index([status])
+  @@index([batchId])
+}
+
+model PayoutBatchRun {
+  id           String    @id @default(cuid())
+  runDate      DateTime  @default(now())
+  // status: RUNNING -> COMPLETED / FAILED
+  status       String    @default("RUNNING")
+  totalAmount  Decimal   @default(0) @db.Decimal(12, 2)
+  totalPayouts Int       @default(0)
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+  payouts      CommissionPayout[]
+}
+
+model PayoutConfig {
+  id                    String   @id @default(cuid())
+  minimumThresholdCents Int      @default(2500)
+  holdWindowDays        Int      @default(14)
+  updatedAt             DateTime @updatedAt
+  updatedById           Int?
 }
 
 model EditorClientPermission {

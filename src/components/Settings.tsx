@@ -9,6 +9,7 @@ import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { ScrollArea } from './ui/scroll-area';
 import { User, Bell, Shield, Palette, Mail, Phone, Globe, Moon, Sun, Monitor, Save, Eye, EyeOff, Loader, Edit2, MessageSquare, Link, Unlink, Send } from 'lucide-react';
+import { PayoutSetupCard } from './sales/PayoutSetupCard';
 
 interface SettingsProps {
   currentRole: string;
@@ -491,6 +492,9 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
             </CardContent>
           </Card>
         );
+      case 'sales':
+      case 'sales_manager':
+        return <PayoutSetupCard />;
       default:
         return null;
     }
