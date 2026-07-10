@@ -73,7 +73,7 @@ const nextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://www.loom.com https://vercel.live",
               "style-src 'self' 'unsafe-inline' https://unpkg.com",
-              "img-src 'self' data: blob: https://*.s3.amazonaws.com https://*.amazonaws.com https://ui-avatars.com https://res.cloudinary.com https://*.cloudflarestorage.com",
+              "img-src 'self' data: blob: https://*.s3.amazonaws.com https://*.amazonaws.com https://ui-avatars.com https://res.cloudinary.com https://*.cloudflarestorage.com https://img.youtube.com https://i.ytimg.com https://yt3.ggpht.com https://yt3.googleusercontent.com",
               "media-src 'self' blob: https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://*.cloudflarestorage.com",
               "connect-src 'self' https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://unpkg.com https://*.cloudflarestorage.com",
               "frame-src 'self' blob: https://drive.google.com https://docs.google.com https://www.youtube.com https://*.s3.amazonaws.com https://*.cloudflarestorage.com",
