@@ -252,6 +252,93 @@ const COMMISSION_STATUS_STYLES: Record<string, { bg: string; text: string; borde
 
 // ─── Commission Management Sub-Component ──────────────────────────────────────
 
+interface TaxFormRep {
+  id: number;
+  name: string | null;
+  email: string;
+  taxFormSubmitted: boolean;
+  taxFormType: string | null;
+  taxFormSubmittedAt: string | null;
+  hasDocument: boolean;
+}
+
+function TaxComplianceList() {
+  const [reps, setReps] = useState<TaxFormRep[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
+  const fetchReps = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/admin/payouts/tax-forms', { credentials: 'include' });
+      const data = await res.json();
+      if (data.ok) setReps(data.reps);
+      else toast.error(data.message || 'Failed to load tax form status');
+    } catch {
+      toast.error('Failed to load tax form status');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchReps(); }, [fetchReps]);
+
+  const handleDownload = async (repId: number) => {
+    setDownloadingId(repId);
+    try {
+      const res = await fetch(`/api/admin/payouts/tax-forms/${repId}`, { credentials: 'include' });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.message || 'No tax form on file');
+      window.open(data.url, '_blank');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to get download link');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <div className="rounded-[14px] border border-gray-200 bg-white p-5 space-y-3">
+      <h3 className="text-sm font-bold text-gray-700">Tax Form Compliance (W-9)</h3>
+      <div className="divide-y divide-gray-100">
+        {reps.map((rep) => (
+          <div key={rep.id} className="flex items-center justify-between py-2.5">
+            <div>
+              <p className="text-sm font-medium text-gray-800">{rep.name || rep.email}</p>
+              <p className="text-xs text-gray-500">{rep.email}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {rep.taxFormSubmitted ? (
+                <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                  {rep.taxFormType || 'W9'} on file
+                  {rep.taxFormSubmittedAt && ` · ${new Date(rep.taxFormSubmittedAt).toLocaleDateString()}`}
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Not submitted</Badge>
+              )}
+              {rep.hasDocument && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={downloadingId === rep.id}
+                  onClick={() => handleDownload(rep.id)}
+                >
+                  Download
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+        {reps.length === 0 && (
+          <p className="text-sm text-gray-400 py-2">No sales reps found.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CommissionManagement() {
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [summary, setSummary] = useState<CommissionSummary>({ totalEarned: 0, totalPending: 0, totalApproved: 0, thisMonth: 0, commissionRate: 0.15 });
@@ -969,7 +1056,10 @@ export function SalesManagementTab() {
       {view === 'personal' ? (
         <SalesDashboard />
       ) : view === 'commissions' ? (
-        <CommissionManagement />
+        <div className="space-y-5">
+          <TaxComplianceList />
+          <CommissionManagement />
+        </div>
       ) : view === 'permissions' ? (
         <SalesManagerPermissionsPanel />
       ) : (

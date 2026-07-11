@@ -1310,6 +1310,7 @@ model SalesRepPayoutProfile {
   payoutsEnabled          Boolean   @default(false)
   taxFormType             String? // W9 | W8BEN
   taxFormCollectedAt      DateTime?
+  taxFormS3Key            String?
   country                 String?
   currency                String    @default("usd")
   createdAt               DateTime  @default(now())

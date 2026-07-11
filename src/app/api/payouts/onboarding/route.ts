@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
       country: profile?.country ?? null,
       currency: profile?.currency ?? null,
       taxFormType: profile?.taxFormType ?? null,
+      taxFormSubmitted: !!profile?.taxFormCollectedAt,
     },
   });
 }
@@ -43,6 +44,13 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const existing = await prisma.salesRepPayoutProfile.findUnique({ where: { userId: user.id } });
+
+  if (!existing?.taxFormCollectedAt) {
+    return NextResponse.json(
+      { success: false, error: 'Submit your W-9 tax form before setting up payouts' },
+      { status: 400 }
+    );
+  }
 
   const country = existing?.country || body.country;
   if (!country) {
