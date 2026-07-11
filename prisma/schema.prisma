@@ -1311,6 +1311,7 @@ model SalesRepPayoutProfile {
   taxFormType             String? // W9 | W8BEN
   taxFormCollectedAt      DateTime?
   taxFormS3Key            String?
+  commissionRate          Decimal?  @db.Decimal(5, 4) // overrides the 0.15 platform default when set
   country                 String?
   currency                String    @default("usd")
   createdAt               DateTime  @default(now())

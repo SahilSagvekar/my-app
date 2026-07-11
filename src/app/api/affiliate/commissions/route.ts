@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
-import { getPayoutConfig } from '@/lib/payout-config';
+import { getPayoutConfig, getCommissionRateForUser } from '@/lib/payout-config';
 
 function getTokenFromCookies(req: Request) {
     const cookieHeader = req.headers.get('cookie');
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
 
         if (existing) {
             // Update the existing commission if deal value changed
-            const commissionAmt = parseFloat(dealValue) * 0.15;
+            const commissionAmt = parseFloat(dealValue) * Number(existing.commissionRate);
             const updated = await (prisma as any).affiliateCommission.update({
                 where: { leadId },
                 data: {
@@ -134,7 +134,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: true, commission: updated, action: 'updated' });
         }
 
-        const commissionAmt = parseFloat(dealValue) * 0.15;
+        const commissionRate = await getCommissionRateForUser(decoded.userId);
+        const commissionAmt = parseFloat(dealValue) * commissionRate;
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -149,7 +150,7 @@ export async function POST(req: NextRequest) {
                 leadId,
                 clientName: clientName || '',
                 dealValue: parseFloat(dealValue),
-                commissionRate: 0.15,
+                commissionRate,
                 commissionAmt,
                 month: monthStart,
                 status: 'PENDING',

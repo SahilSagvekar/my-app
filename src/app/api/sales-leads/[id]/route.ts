@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
+import { getCommissionRateForUser } from '@/lib/payout-config';
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get('cookie');
@@ -82,7 +83,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           where: { leadId: lead.id },
         });
         if (!existingCommission) {
-          const commissionAmt = dealValue * 0.15;
+          const commissionRate = await getCommissionRateForUser(decoded.userId);
+          const commissionAmt = dealValue * commissionRate;
           const now = new Date();
           const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
           await (prisma as any).affiliateCommission.create({
@@ -91,7 +93,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               leadId: lead.id,
               clientName: lead.company || lead.name || '',
               dealValue,
-              commissionRate: 0.15,
+              commissionRate,
               commissionAmt,
               month: monthStart,
               status: 'PENDING',

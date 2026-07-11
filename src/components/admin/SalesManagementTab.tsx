@@ -260,12 +260,18 @@ interface TaxFormRep {
   taxFormType: string | null;
   taxFormSubmittedAt: string | null;
   hasDocument: boolean;
+  commissionRate: number;
 }
 
 function TaxComplianceList() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [reps, setReps] = useState<TaxFormRep[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [editingRateId, setEditingRateId] = useState<number | null>(null);
+  const [rateInput, setRateInput] = useState('');
+  const [savingRateId, setSavingRateId] = useState<number | null>(null);
 
   const fetchReps = useCallback(async () => {
     try {
@@ -297,11 +303,42 @@ function TaxComplianceList() {
     }
   };
 
+  const startEditRate = (rep: TaxFormRep) => {
+    setEditingRateId(rep.id);
+    setRateInput(String(rep.commissionRate * 100));
+  };
+
+  const saveRate = async (repId: number) => {
+    const pct = parseFloat(rateInput);
+    if (isNaN(pct) || pct <= 0 || pct > 100) {
+      toast.error('Enter a percentage between 0 and 100');
+      return;
+    }
+    setSavingRateId(repId);
+    try {
+      const res = await fetch(`/api/admin/payouts/commission-rate/${repId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rate: pct / 100 }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.message || 'Failed to update rate');
+      toast.success('Commission rate updated');
+      setEditingRateId(null);
+      fetchReps();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update rate');
+    } finally {
+      setSavingRateId(null);
+    }
+  };
+
   if (loading) return null;
 
   return (
     <div className="rounded-[14px] border border-gray-200 bg-white p-5 space-y-3">
-      <h3 className="text-sm font-bold text-gray-700">Tax Form Compliance (W-9)</h3>
+      <h3 className="text-sm font-bold text-gray-700">Tax Form Compliance (W-9) &amp; Commission Rate</h3>
       <div className="divide-y divide-gray-100">
         {reps.map((rep) => (
           <div key={rep.id} className="flex items-center justify-between py-2.5">
@@ -310,6 +347,35 @@ function TaxComplianceList() {
               <p className="text-xs text-gray-500">{rep.email}</p>
             </div>
             <div className="flex items-center gap-3">
+              {isAdmin && editingRateId === rep.id ? (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    className="w-16 h-8 text-sm"
+                    min={0}
+                    max={100}
+                  />
+                  <span className="text-xs text-gray-500">%</span>
+                  <Button size="sm" disabled={savingRateId === rep.id} onClick={() => saveRate(rep.id)}>
+                    Save
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingRateId(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Badge
+                  className={cn(
+                    'bg-blue-100 text-blue-700 hover:bg-blue-100',
+                    isAdmin && 'cursor-pointer'
+                  )}
+                  onClick={() => isAdmin && startEditRate(rep)}
+                >
+                  {(rep.commissionRate * 100).toFixed(1)}% cut
+                </Badge>
+              )}
               {rep.taxFormSubmitted ? (
                 <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                   {rep.taxFormType || 'W9'} on file

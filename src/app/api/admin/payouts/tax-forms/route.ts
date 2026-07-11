@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
+import { DEFAULT_COMMISSION_RATE } from '@/lib/payout-config';
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get('cookie');
@@ -43,7 +44,12 @@ export async function GET(req: NextRequest) {
         name: true,
         email: true,
         payoutProfile: {
-          select: { taxFormType: true, taxFormCollectedAt: true, taxFormS3Key: true },
+          select: {
+            taxFormType: true,
+            taxFormCollectedAt: true,
+            taxFormS3Key: true,
+            commissionRate: true,
+          },
         },
       },
       orderBy: { name: 'asc' },
@@ -57,6 +63,10 @@ export async function GET(req: NextRequest) {
       taxFormType: r.payoutProfile?.taxFormType ?? null,
       taxFormSubmittedAt: r.payoutProfile?.taxFormCollectedAt ?? null,
       hasDocument: !!r.payoutProfile?.taxFormS3Key,
+      commissionRate:
+        r.payoutProfile?.commissionRate != null
+          ? Number(r.payoutProfile.commissionRate)
+          : DEFAULT_COMMISSION_RATE,
     }));
 
     return NextResponse.json({ ok: true, reps: data });
