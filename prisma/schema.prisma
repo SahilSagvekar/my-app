@@ -1376,7 +1376,7 @@ model PayoutBatchRun {
 model PayoutConfig {
   id                    String   @id @default(cuid())
   minimumThresholdCents Int      @default(2500)
-  holdWindowDays        Int      @default(14)
+  holdWindowDays        Int      @default(5)
   updatedAt             DateTime @updatedAt
   updatedById           Int?
 }

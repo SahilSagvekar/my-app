@@ -7,6 +7,6 @@ export async function getPayoutConfig() {
   if (existing) return existing;
 
   return prisma.payoutConfig.create({
-    data: { minimumThresholdCents: 2500, holdWindowDays: 14 },
+    data: { minimumThresholdCents: 2500, holdWindowDays: 5 },
   });
 }

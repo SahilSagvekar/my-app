@@ -56,6 +56,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             }, { status: 400 });
         }
 
+        // Never approve a payout for a deal the client hasn't actually paid on.
+        if (status === 'APPROVED') {
+            const lead = await prisma.salesLead.findUnique({
+                where: { id: existing.leadId },
+                select: { convertedToClientId: true },
+            });
+            if (!lead?.convertedToClientId) {
+                return NextResponse.json({
+                    ok: false,
+                    message: 'This lead has not been converted to a client yet — no invoice to confirm payment against',
+                }, { status: 400 });
+            }
+            const paidInvoice = await prisma.invoice.findFirst({
+                where: { status: 'PAID', stripeCustomer: { clientId: lead.convertedToClientId } },
+            });
+            if (!paidInvoice) {
+                return NextResponse.json({
+                    ok: false,
+                    message: 'Client has not paid an invoice yet — cannot approve commission until payment is received',
+                }, { status: 400 });
+            }
+        }
+
         // Amount edit / bonus addition — both write an audit row before touching
         // the commission amount, per the dev doc's audit trail requirement.
         const adjustments: { commissionId: string; editedById: number; adjustmentType: string; previousAmount: any; newAmount: any; reason: string | null }[] = [];
