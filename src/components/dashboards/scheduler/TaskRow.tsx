@@ -36,6 +36,7 @@ import { SchedulerTask, PlatformKey } from './types';
 import { PLATFORMS } from './icons';
 import { formatPostingTimes } from './utils';
 import { LinkedSfTasks } from '../../tasks/LinkedSfTasks';
+import { TagPicker } from '../../workflow/TagPicker';
 
 interface TaskRowProps {
     task: SchedulerTask;
@@ -54,6 +55,7 @@ interface TaskRowProps {
     onCopyTitle: (title: any) => void;
     onToggleTrial: (isTrial: boolean) => void;
     onUpdatePostingDate: (date: string) => void;
+    onTagsChange: (tags: string[]) => void;
     getFileUrl: (file: any) => string;
 }
 
@@ -74,6 +76,7 @@ export function TaskRow({
     onCopyTitle,
     onToggleTrial,
     onUpdatePostingDate,
+    onTagsChange,
     getFileUrl,
 }: TaskRowProps) {
     const videoFiles = task.files.filter(f => f.mimeType?.startsWith('video/'));
@@ -144,6 +147,13 @@ export function TaskRow({
                                 TRIAL
                             </span>
                         )}
+                    </div>
+                    <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                        <TagPicker
+                            taskId={task.id}
+                            tags={(task.tags || []).map(t => t.name)}
+                            onChange={onTagsChange}
+                        />
                     </div>
                 </td>
 

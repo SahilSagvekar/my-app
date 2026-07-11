@@ -11,6 +11,8 @@ export function normalizeDeliverableType(type: string | null | undefined): strin
   if (t === 'hard posts / graphic images' || t === 'hard posts' || t === 'hp') return 'HP';
   if (t === 'snapchat episodes' || t === 'sep') return 'SEP';
   if (t === 'beta short form' || t === 'bsf') return 'BSF';
+  if (t === 'stories' || t === 'st') return 'ST';
+  if (t === 'text post' || t === 'tp') return 'TP';
   return type.toUpperCase().replace(/\s+/g, '');
 }
 

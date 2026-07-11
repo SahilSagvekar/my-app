@@ -54,6 +54,7 @@ export interface SchedulerTask {
     isSponsored?: boolean;
     isTrial?: boolean;
     deliverableType?: string | null;
+    tags?: { id: string; name: string }[];
 }
 
 export interface ClientDeliverable {

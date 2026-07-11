@@ -360,6 +360,8 @@ export function FolderRenameTool() {
                 ['HP', 'Hard Posts'],
                 ['SEP', 'Snapchat Episodes'],
                 ['BSF', 'Beta Short Form'],
+                ['ST', 'Stories'],
+                ['TP', 'Text Post'],
               ].map(([code, full]) => (
                 <div key={code} className="flex items-center gap-1 bg-muted/50 rounded px-2 py-1">
                   <span className="text-xs font-mono font-bold text-blue-700">{code}</span>

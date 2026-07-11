@@ -216,6 +216,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     HP: "Hard Posts",
     SEP: "Snapchat Episodes",
     BSF: "Beta Short Form",
+    ST: "Stories",
+    TP: "Text Post",
   };
 
   // ─── FEATURE 3: Global Search ───
@@ -307,7 +309,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       for (const child of folder.children) {
         if (child.type === 'folder') {
           // Task folder names: "CompanyName_MM-DD-YYYY_SF3" or just contain short codes
-          const knownCodes = ['SF', 'LF', 'SQF', 'THUMB', 'HP', 'SEP', 'BSF', 'T'];
+          const knownCodes = ['SF', 'LF', 'SQF', 'THUMB', 'HP', 'SEP', 'BSF', 'T', 'ST', 'TP'];
           for (const code of knownCodes) {
             // Match code in folder name: look for _CODE followed by digit or end
             const pattern = new RegExp(`_${code}\\d*$|_${code}\\d*[^A-Z]`);

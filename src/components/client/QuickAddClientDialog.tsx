@@ -242,8 +242,8 @@ export function QuickAddClientDialog({ trigger, onClientCreated }: QuickAddClien
               {formData.clientReviewRequired === 'yes' && (
                 <div className="mt-2 space-y-1.5 rounded-md border border-gray-200 bg-gray-50 p-3">
                   <p className="text-xs font-medium text-gray-600 mb-2">Review which deliverable types?</p>
-                  {['SF', 'LF', 'SQF', 'BSF', 'HP', 'SEP'].map((type) => {
-                    const labels: Record<string, string> = { SF: 'Short Form (SF)', LF: 'Long Form (LF)', SQF: 'Square Form (SQF)', BSF: 'Beta Short Form (BSF)', HP: 'Hard Posts (HP)', SEP: 'Snapchat Episodes (SEP)' };
+                  {['SF', 'LF', 'SQF', 'BSF', 'HP', 'SEP', 'ST', 'TP'].map((type) => {
+                    const labels: Record<string, string> = { SF: 'Short Form (SF)', LF: 'Long Form (LF)', SQF: 'Square Form (SQF)', BSF: 'Beta Short Form (BSF)', HP: 'Hard Posts (HP)', SEP: 'Snapchat Episodes (SEP)', ST: 'Stories (ST)', TP: 'Text Post (TP)' };
                     const checked = formData.clientReviewDeliverableTypes.includes(type);
                     return (
                       <label key={type} className="flex items-center gap-2 cursor-pointer">

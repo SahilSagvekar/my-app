@@ -171,6 +171,8 @@ export async function PATCH(
         "hard posts / graphic images": "HP",
         "snapchat episodes": "SEP",
         "beta short form": "BSF",
+        "stories": "ST",
+        "text post": "TP",
       };
       const rawDeliverableType: string =
         task.monthlyDeliverable?.type ||

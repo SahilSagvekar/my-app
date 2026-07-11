@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Calendar, Users, Package } from 'lucide-react';
+import { Search, Calendar, Users, Package, Tag as TagIcon } from 'lucide-react';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import {
@@ -27,6 +27,9 @@ interface FilterBarProps {
     uniqueDeliverables: string[];
     sponsoredOnly: boolean;
     setSponsoredOnly: (val: boolean) => void;
+    tagFilter: string;
+    setTagFilter: (val: string) => void;
+    availableTags: string[];
 }
 
 export function FilterBar({
@@ -44,6 +47,9 @@ export function FilterBar({
     uniqueDeliverables,
     sponsoredOnly,
     setSponsoredOnly,
+    tagFilter,
+    setTagFilter,
+    availableTags,
 }: FilterBarProps) {
     return (
         <div className="flex flex-wrap items-center gap-4 bg-white border rounded-lg p-3 shadow-sm">
@@ -138,6 +144,25 @@ export function FilterBar({
                         <SelectItem value="all">All Types</SelectItem>
                         {uniqueDeliverables.map((type) => (
                             <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* Tag Filter */}
+            <div className="flex items-center gap-2 border-l pl-4">
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                    <TagIcon className="h-3.5 w-3.5" />
+                    Tag:
+                </span>
+                <Select value={tagFilter} onValueChange={setTagFilter}>
+                    <SelectTrigger className="h-9 w-[130px] text-xs">
+                        <SelectValue placeholder="All Tags" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Tags</SelectItem>
+                        {availableTags.map((tag) => (
+                            <SelectItem key={tag} value={tag}>{tag}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>

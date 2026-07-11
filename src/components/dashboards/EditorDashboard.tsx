@@ -1247,6 +1247,15 @@ export function EditorDashboard() {
     useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/tags', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => { if (data.ok) setAvailableTags(data.tags.map((t: any) => t.name)); })
+      .catch(() => {});
+  }, []);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [draggingTask, setDraggingTask] = useState<WorkflowTask | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
@@ -1567,8 +1576,14 @@ export function EditorDashboard() {
       );
     }
 
+    if (tagFilter !== "all") {
+      result = result.filter((task: any) =>
+        (task.tags || []).some((t: any) => t.name === tagFilter)
+      );
+    }
+
     return result;
-  }, [weeklyVisibleTasks, deliverableTypeFilter, clientFilter]);
+  }, [weeklyVisibleTasks, deliverableTypeFilter, clientFilter, tagFilter]);
 
   // 🔥 Calculate hidden task count for UI feedback
   const hiddenTaskCount = useMemo(() => {
@@ -2054,6 +2069,20 @@ export function EditorDashboard() {
                 {availableMonths.map((month) => (
                   <SelectItem key={month} value={month}>
                     {month}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={tagFilter} onValueChange={setTagFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="All Tags" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Tags</SelectItem>
+                {availableTags.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    {tag}
                   </SelectItem>
                 ))}
               </SelectContent>

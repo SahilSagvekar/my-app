@@ -48,6 +48,9 @@ export function SchedulerSpreadsheetView() {
         deliverableFilter,
         handleDeliverableFilterChange,
         setDeliverableFilter,
+        tagFilter,
+        setTagFilter,
+        availableTags,
         sponsoredOnly,
         setSponsoredOnly,
         uniqueClients,
@@ -82,6 +85,7 @@ export function SchedulerSpreadsheetView() {
         deleteSocialLink,
         getFileUrl,
         updatePostingDate,
+        updateTaskTags,
         sortColumn,
         sortDirection,
         displayTasks
@@ -170,6 +174,9 @@ export function SchedulerSpreadsheetView() {
                 uniqueDeliverables={uniqueDeliverables}
                 sponsoredOnly={sponsoredOnly}
                 setSponsoredOnly={setSponsoredOnly}
+                tagFilter={tagFilter}
+                setTagFilter={setTagFilter}
+                availableTags={availableTags}
             />
 
             {/* Spreadsheet Table */}
@@ -286,6 +293,7 @@ export function SchedulerSpreadsheetView() {
                                         }}
                                         onMarkScheduled={() => markAsScheduled(task.id)}
                                         onMarkPending={() => markAsPending(task.id)}
+                                        onTagsChange={(tags) => updateTaskTags(task.id, tags)}
                                         onSendBack={() => {
                                             setSendBackTask(task);
                                             setSendBackFeedback('');

@@ -93,7 +93,9 @@ type DeliverableType =
   | "Tiles"
   | "Hard Posts / Graphic Images"
   | "Snapchat Episodes"
-  | "Beta Short Form";
+  | "Beta Short Form"
+  | "Stories"
+  | "Text Post";
 
 type PostingSchedule = "weekly" | "bi-weekly" | "monthly" | "custom" | "one-off";
 
@@ -2169,7 +2171,7 @@ export function ClientManagement() {
                         </p>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        {(["SF", "LF", "SQF", "BSF", "HP", "SEP"] as const).map((type) => {
+                        {(["SF", "LF", "SQF", "BSF", "HP", "SEP", "ST", "TP"] as const).map((type) => {
                           const labels: Record<string, string> = {
                             SF: "Short Form (SF)",
                             LF: "Long Form (LF)",
@@ -2177,6 +2179,8 @@ export function ClientManagement() {
                             BSF: "Beta Short Form (BSF)",
                             HP: "Hard Posts (HP)",
                             SEP: "Snapchat Episodes (SEP)",
+                            ST: "Stories (ST)",
+                            TP: "Text Post (TP)",
                           };
                           const currentTypes: string[] = (selectedClient as any).clientReviewDeliverableTypes ?? [];
                           const checked = currentTypes.includes(type);
@@ -2812,7 +2816,7 @@ export function ClientManagement() {
                   {newClient.clientReviewRequired === "yes" && (
                     <div className="mt-2 space-y-1.5 rounded-md border border-gray-200 bg-gray-50 p-3">
                       <p className="text-xs font-medium text-gray-600 mb-2">Review which deliverable types?</p>
-                      {(["SF", "LF", "SQF", "BSF", "HP", "SEP"] as const).map((type) => {
+                      {(["SF", "LF", "SQF", "BSF", "HP", "SEP", "ST", "TP"] as const).map((type) => {
                         const labels: Record<string, string> = {
                           SF: "Short Form (SF)",
                           LF: "Long Form (LF)",
@@ -3577,6 +3581,12 @@ export function ClientManagement() {
                     </SelectItem>
                     <SelectItem value="Beta Short Form">
                       Beta Short Form (BSF)
+                    </SelectItem>
+                    <SelectItem value="Stories">
+                      Stories (ST)
+                    </SelectItem>
+                    <SelectItem value="Text Post">
+                      Text Post (TP)
                     </SelectItem>
                   </SelectContent>
                 </Select>

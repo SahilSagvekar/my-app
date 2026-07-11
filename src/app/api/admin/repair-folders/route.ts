@@ -19,6 +19,8 @@ function getShortCode(type: string): string {
   if (n === 'hard posts / graphic images') return 'HP';
   if (n === 'snapchat episodes')        return 'SEP';
   if (n === 'beta short form')          return 'BSF';
+  if (n === 'stories')                  return 'ST';
+  if (n === 'text post')                return 'TP';
   return type.replace(/\s+/g, '');
 }
 

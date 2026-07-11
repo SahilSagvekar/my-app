@@ -36,6 +36,7 @@ import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
+import { TextPostReviewModal } from '../client/TextPostReviewModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ShareDialog } from '../review/ShareDialog';
 import { Checkbox } from '../ui/checkbox';
@@ -202,6 +203,7 @@ export function ClientDashboard() {
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
+  const [showTextPostReview, setShowTextPostReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted'>('pending');
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
@@ -912,11 +914,21 @@ export function ClientDashboard() {
     return type.includes('hard post') || type.includes('graphic image');
   };
 
+  const isTextPostTask = (task: ClientTask) => {
+    const type = ((task as any).deliverableType || (task as any).taskType || '').toLowerCase();
+    return type.includes('text post');
+  };
+
   const handleTaskClick = (task: ClientTask) => {
     setSelectedTask(task);
     setPostingTitles(task.postingTitles || []);
     setPostingDescriptions(task.postingDescriptions || []);
     setPostingTags(task.postingTags || []);
+
+    if (isTextPostTask(task)) {
+      setShowTextPostReview(true);
+      return;
+    }
 
     // Hard post tasks → skip file selector, open ThumbnailReviewModal with images
     if (isHardPostTask(task)) {
@@ -1546,6 +1558,21 @@ export function ClientDashboard() {
               onPostingTagsChange={setPostingTags}
             />
           )}
+
+        {selectedTask && isTextPostTask(selectedTask) && (
+          <TextPostReviewModal
+            open={showTextPostReview}
+            onOpenChange={(open: boolean) => {
+              setShowTextPostReview(open);
+              if (!open) setSelectedTask(null);
+            }}
+            taskId={selectedTask.id}
+            taskTitle={selectedTask.title}
+            textContent={(selectedTask as any).textContent || ''}
+            onApprove={() => handleThumbnailApprove(null as any)}
+            onRequestRevisions={(items) => handleThumbnailRequestRevisions(null as any, items)}
+          />
+        )}
 
         <ShareDialog
           open={showShareDialog}

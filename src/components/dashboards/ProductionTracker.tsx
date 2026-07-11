@@ -229,6 +229,8 @@ const SHORT_TYPE: Record<string, string> = {
   'Hard Posts / Graphic Images': 'HP',
   'Snapchat Episodes': 'SNAP',
   'Beta Short Form': 'BSF',
+  'Stories': 'ST',
+  'Text Post': 'TP',
 };
 
 const STATUS_FILTER_OPTIONS: {

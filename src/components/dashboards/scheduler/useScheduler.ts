@@ -14,6 +14,8 @@ export function useScheduler() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [clientFilter, setClientFilter] = useState('all');
     const [deliverableFilter, setDeliverableFilter] = useState('all');
+    const [tagFilter, setTagFilter] = useState('all');
+    const [availableTags, setAvailableTags] = useState<string[]>([]);
     const [sponsoredOnly, setSponsoredOnly] = useState(false);
     const [allClients, setAllClients] = useState<any[]>([]);
     const [uniqueDeliverables, setUniqueDeliverables] = useState<string[]>([]);
@@ -48,6 +50,14 @@ export function useScheduler() {
         }
     }, []);
 
+    const fetchTags = useCallback(async () => {
+        try {
+            const res = await fetch('/api/tags', { credentials: 'include' });
+            const data = await res.json();
+            if (data.ok) setAvailableTags(data.tags.map((t: any) => t.name));
+        } catch (error) {}
+    }, []);
+
     const loadTasks = useCallback(async (page = 1, append = false) => {
         setLoading(true);
         try {
@@ -57,7 +67,8 @@ export function useScheduler() {
                 dateRange,
                 status: statusFilter,
                 clientId: clientFilter,
-                deliverableType: deliverableFilter
+                deliverableType: deliverableFilter,
+                tag: tagFilter,
             });
 
             const res = await fetch(`/api/schedular/tasks?${params}`, { cache: 'no-store' });
@@ -81,9 +92,10 @@ export function useScheduler() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, dateRange, statusFilter, clientFilter, deliverableFilter]);
+    }, [debouncedSearch, dateRange, statusFilter, clientFilter, deliverableFilter, tagFilter]);
 
     useEffect(() => { fetchMetadata(); }, [fetchMetadata]);
+    useEffect(() => { fetchTags(); }, [fetchTags]);
     useEffect(() => { loadTasks(); }, [loadTasks]);
 
     const handleSort = (column: string) => {
@@ -284,6 +296,12 @@ export function useScheduler() {
         toast.success('Copied to clipboard!');
     };
 
+    const updateTaskTags = (taskId: string, tagNames: string[]) => {
+        setTasks(prev => prev.map(t => t.id === taskId
+            ? { ...t, tags: tagNames.map(name => ({ id: name, name })) }
+            : t));
+    };
+
     const toggleTrial = async (taskId: string, isTrial: boolean) => {
         try {
             await fetch(`/api/tasks/${taskId}`, {
@@ -342,6 +360,7 @@ export function useScheduler() {
         handleClientFilterChange: (v: string) => { setClientFilter(v); setCurrentPage(1); },
         deliverableFilter, setDeliverableFilter,
         handleDeliverableFilterChange: (v: string) => { setDeliverableFilter(v); setCurrentPage(1); },
+        tagFilter, setTagFilter: (v: string) => { setTagFilter(v); setCurrentPage(1); }, availableTags,
         sponsoredOnly, setSponsoredOnly,
         uniqueClients: uniqueClientsFormatted, uniqueDeliverables,
         hasMore, totalTasks, currentPage, expandedRows, selectedRows, setSelectedRows,
@@ -349,7 +368,7 @@ export function useScheduler() {
         linkUrl, setLinkUrl, linkPostedAt, setLinkPostedAt, submittingLink,
         loadTasks, handleSort, toggleRow, markAsScheduled, markAsPending, bulkMarkAsScheduled,
         toggleTrial, downloadFile, copyTitle, saveLink, deleteSocialLink, getFileUrl,
-        updatePostingDate,
+        updatePostingDate, updateTaskTags,
         sortColumn, sortDirection, displayTasks
     };
 }

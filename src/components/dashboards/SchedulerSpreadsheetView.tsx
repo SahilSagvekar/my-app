@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
 import { useDebounce } from '@/hooks/useDebounce';
+import { TagPicker } from '../workflow/TagPicker';
 
 const TikTokIcon = ({ className }: { className?: string }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -102,6 +103,7 @@ interface SchedulerTask {
     titlingStatus?: string;
     isSponsored?: boolean;
     deliverableType?: string | null;
+    tags?: { id: string; name: string }[];
 }
 
 interface ClientDeliverable {
@@ -154,6 +156,8 @@ export function SchedulerSpreadsheetView() {
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'scheduled'>('all');
     const [clientFilter, setClientFilter] = useState<string>('all');
     const [deliverableFilter, setDeliverableFilter] = useState<string>('all');
+    const [tagFilter, setTagFilter] = useState<string>('all');
+    const [availableTags, setAvailableTags] = useState<string[]>([]);
     const [dateRange, setDateRange] = useState<string>('30d');
     const [allClients, setAllClients] = useState<{ id: string; name: string; companyName?: string }[]>([]);
     const [allDeliverables, setAllDeliverables] = useState<string[]>([]);
@@ -185,7 +189,13 @@ export function SchedulerSpreadsheetView() {
     const [isSendingBack, setIsSendingBack] = useState(false);
 
     useEffect(() => { fetchMetadata(); }, []);
-    useEffect(() => { loadTasks(1, false); }, [debouncedSearchTerm, statusFilter, clientFilter, dateRange, deliverableFilter]);
+    useEffect(() => {
+        fetch('/api/tags', { credentials: 'include' })
+            .then((res) => res.json())
+            .then((data) => { if (data.ok) setAvailableTags(data.tags.map((t: any) => t.name)); })
+            .catch(() => {});
+    }, []);
+    useEffect(() => { loadTasks(1, false); }, [debouncedSearchTerm, statusFilter, clientFilter, dateRange, deliverableFilter, tagFilter]);
 
     async function fetchMetadata() {
         try {
@@ -203,6 +213,7 @@ export function SchedulerSpreadsheetView() {
                 page: pageNum.toString(), limit: pageSize.toString(),
                 search: debouncedSearchTerm, status: statusFilter,
                 clientId: clientFilter, deliverableType: deliverableFilter, dateRange,
+                tag: tagFilter,
             });
             const res = await fetch(`/api/schedular/tasks?${queryParams.toString()}`, { cache: "no-store" });
             const data = await res.json();
@@ -250,6 +261,7 @@ export function SchedulerSpreadsheetView() {
                     titlingStatus: t.titlingStatus || 'NONE',
                     isSponsored: t.isSponsored || false,
                     deliverableType: t.deliverableType ?? null,
+                    tags: t.tags || [],
                     editor: t.editor,
                 };
             });
@@ -580,6 +592,18 @@ export function SchedulerSpreadsheetView() {
                         </SelectContent>
                     </Select>
                 </div>
+                <div className="flex items-center gap-2 border-l pl-4">
+                    <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                        Tag:
+                    </span>
+                    <Select value={tagFilter} onValueChange={setTagFilter}>
+                        <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="All Tags" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Tags</SelectItem>
+                            {availableTags.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
 
             {/* Client Deliverables */}
@@ -771,6 +795,17 @@ export function SchedulerSpreadsheetView() {
                                                   TRIAL
                                                 </span>
                                               )}
+                                            </div>
+                                            <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                                              <TagPicker
+                                                taskId={task.id}
+                                                tags={(task.tags || []).map(t => t.name)}
+                                                onChange={(next) => {
+                                                  setTasks(prev => prev.map(t => t.id === task.id
+                                                    ? { ...t, tags: next.map(name => ({ id: name, name })) }
+                                                    : t));
+                                                }}
+                                              />
                                             </div>
                                           </td>
 

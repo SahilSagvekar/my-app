@@ -31,6 +31,8 @@ const SHORT_CODE_MAP: Record<string, string> = {
   HP:    'Hard Posts',
   SEP:   'Snapchat Episodes',
   BSF:   'Beta Short Form',
+  ST:    'Stories',
+  TP:    'Text Post',
 };
 
 const SHORT_CODES = new Set(Object.keys(SHORT_CODE_MAP));

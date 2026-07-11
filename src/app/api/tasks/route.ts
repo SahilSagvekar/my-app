@@ -39,6 +39,8 @@ function getDeliverableShortCode(type: string) {
   if (normalized === "hard posts / graphic images") return "HP";
   if (normalized === "snapchat episodes") return "SEP";
   if (normalized === "beta short form") return "BSF";
+  if (normalized === "stories") return "ST";
+  if (normalized === "text post") return "TP";
   return type.replace(/\s+/g, "");
 }
 
@@ -367,6 +369,8 @@ const { searchParams } = new URL(req.url);
           feedback: true,
           shootDetail: true,
           deliverableType: true,
+          textContent: true,
+          tags: true,
           monthlyDeliverableId: true,
           monthlyDeliverable: true,
           oneOffDeliverableId: true,

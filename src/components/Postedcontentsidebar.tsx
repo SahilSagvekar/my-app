@@ -105,6 +105,8 @@ const DELIVERABLE_TYPES = [
   "Hard Posts / Graphic Images",
   "Snapchat Episodes",
   "Beta Short Form",
+  "Stories",
+  "Text Post",
 ];
 
 interface SocialMediaLink {
@@ -134,6 +136,8 @@ const normalizeDeliverableType = (type: string | undefined | null): string => {
   if (lower === "hp" || lower === "hard_post") return "Hard Posts / Graphic Images";
   if (lower === "sep" || lower === "snapchat_episode") return "Snapchat Episodes";
   if (lower === "bsf" || lower === "beta_short_form") return "Beta Short Form";
+  if (lower === "st" || lower === "stories") return "Stories";
+  if (lower === "tp" || lower === "text_post") return "Text Post";
   return t;
 };
 

@@ -30,6 +30,7 @@ import {
   DialogFooter, DialogHeader, DialogTitle,
 } from '../ui/dialog';
 import { Label } from '../ui/label';
+import { TagPicker } from '../workflow/TagPicker';
 
 // ─────────────────────────────────────────
 // Types
@@ -58,12 +59,14 @@ interface Task {
   monthlyDeliverable: { id: string; type: string } | null;
   oneOffDeliverable: { id: string; type: string } | null;
   monthFolder: string | null;
+  tags?: { id: string; name: string }[];
 }
 
 interface FilterState {
   editor: string; qc: string; scheduler: string; videographer: string;
   client: string; status: string; deliverableType: string; month: string;
   search: string; dueDateFrom: Date | undefined; dueDateTo: Date | undefined;
+  tag: string;
 }
 
 interface TeamMember { id: number; name: string; role: string; }
@@ -134,8 +137,15 @@ export function TaskManagementTab() {
   const [filters, setFilters] = useState<FilterState>({
     editor: 'all', qc: 'all', scheduler: 'all', videographer: 'all',
     client: 'all', status: 'all', deliverableType: 'all', month: 'all',
-    search: '', dueDateFrom: undefined, dueDateTo: undefined,
+    search: '', dueDateFrom: undefined, dueDateTo: undefined, tag: 'all',
   });
+  const [allTags, setAllTags] = useState<string[]>([]);
+  useEffect(() => {
+    fetch('/api/tags', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => { if (data.ok) setAllTags(data.tags.map((t: any) => t.name)); })
+      .catch(() => {});
+  }, []);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -149,6 +159,7 @@ export function TaskManagementTab() {
   // ── Edit / delete dialogs ─────────────
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editForm, setEditForm] = useState({ status: '', assignedTo: '', qc_specialist: '', scheduler: '', videographer: '', priority: '', dueDate: '' });
+  const [editTags, setEditTags] = useState<string[]>([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [bulkEditForm, setBulkEditForm] = useState({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' });
   const [saving, setSaving] = useState(false);
@@ -176,6 +187,7 @@ export function TaskManagementTab() {
     if (filters.status !== 'all') p.set('status', filters.status);
     if (filters.deliverableType !== 'all') p.set('deliverableType', filters.deliverableType);
     if (filters.month !== 'all') p.set('month', filters.month);
+    if (filters.tag !== 'all') p.set('tag', filters.tag);
     if (debouncedSearch) p.set('search', debouncedSearch);
     if (filters.dueDateFrom) p.set('dueDateFrom', filters.dueDateFrom.toISOString());
     if (filters.dueDateTo) p.set('dueDateTo', filters.dueDateTo.toISOString());
@@ -241,7 +253,7 @@ export function TaskManagementTab() {
 
   // ── Filter helpers ─────────────────────
   const clearFilters = () => {
-    setFilters({ editor: 'all', qc: 'all', scheduler: 'all', videographer: 'all', client: 'all', status: 'all', deliverableType: 'all', month: 'all', search: '', dueDateFrom: undefined, dueDateTo: undefined });
+    setFilters({ editor: 'all', qc: 'all', scheduler: 'all', videographer: 'all', client: 'all', status: 'all', deliverableType: 'all', month: 'all', search: '', dueDateFrom: undefined, dueDateTo: undefined, tag: 'all' });
     setDebouncedSearch('');
     setPage(1);
   };
@@ -249,7 +261,7 @@ export function TaskManagementTab() {
   const activeFilterCount = [
     filters.editor !== 'all', filters.qc !== 'all', filters.scheduler !== 'all',
     filters.videographer !== 'all', filters.client !== 'all', filters.status !== 'all',
-    filters.deliverableType !== 'all', filters.month !== 'all',
+    filters.deliverableType !== 'all', filters.month !== 'all', filters.tag !== 'all',
     !!debouncedSearch, !!filters.dueDateFrom || !!filters.dueDateTo,
   ].filter(Boolean).length;
 
@@ -278,6 +290,7 @@ export function TaskManagementTab() {
       priority: task.priority || 'none',
       dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
     });
+    setEditTags((task.tags || []).map(t => t.name));
   }
 
   async function handleSaveEdit() {
@@ -535,6 +548,17 @@ export function TaskManagementTab() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Tag</label>
+                  <Select value={filters.tag} onValueChange={v => { setFilters(f => ({ ...f, tag: v })); setPage(1); }}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="All Tags" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tags</SelectItem>
+                      {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* <div className="flex items-end gap-4">
@@ -699,6 +723,12 @@ export function TaskManagementTab() {
               <Label>Due Date</Label>
               <Input type="date" value={editForm.dueDate} onChange={e => setEditForm(f => ({ ...f, dueDate: e.target.value }))} />
             </div>
+            {editingTask && (
+              <div className="grid gap-2">
+                <Label>Tags</Label>
+                <TagPicker taskId={editingTask.id} tags={editTags} onChange={setEditTags} />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingTask(null)}>Cancel</Button>

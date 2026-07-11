@@ -29,6 +29,7 @@ export async function GET(req: Request) {
     const status = url.searchParams.get("status");
     const clientId = url.searchParams.get("clientId");
     const deliverableType = url.searchParams.get("deliverableType");
+    const tag = url.searchParams.get("tag");
     const dateRange = url.searchParams.get("dateRange");
     const includeTitling = url.searchParams.get("includeTitling") === "true";
 
@@ -82,6 +83,10 @@ export async function GET(req: Request) {
       ];
     }
 
+    if (tag && tag !== "all") {
+      where.tags = { some: { name: tag } };
+    }
+
     if (dateRange && dateRange !== "all") {
       const now = new Date();
       let startDate = new Date();
@@ -131,6 +136,7 @@ export async function GET(req: Request) {
           },
           monthlyDeliverable: true,
           oneOffDeliverable: true,
+          tags: true,
           ...(includeTitling && {
             titlingJob: {
               select: {
@@ -213,6 +219,7 @@ export async function GET(req: Request) {
           })(),
           isSponsored: sponsoredMap.get(t.id) ?? false,
           deliverableType: t.deliverableType ?? null,
+          tags: (t as any).tags || [],
           priority: t.priority,
           client: t.client,
           files: filesWithUrls,

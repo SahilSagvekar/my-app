@@ -253,6 +253,7 @@ export async function GET(req: NextRequest) {
         const createdFrom = searchParams.get("createdFrom");
         const createdTo = searchParams.get("createdTo");
         const month = searchParams.get("month");
+        const tag = searchParams.get("tag");
 
         // Build where clause with AND logic
         const where: any = {};
@@ -275,6 +276,11 @@ export async function GET(req: NextRequest) {
         // Month filter
         if (month && month !== 'all') {
             where.monthFolder = month;
+        }
+
+        // Tag filter
+        if (tag && tag !== 'all') {
+            where.tags = { some: { name: tag } };
         }
 
         // Text search on title and description
@@ -424,6 +430,7 @@ export async function GET(req: NextRequest) {
                     monthFolder: true,
                     isExtra: true,
                     extraSequence: true,
+                    tags: { select: { id: true, name: true } },
                 },
             }),
             prisma.task.count({ where }),

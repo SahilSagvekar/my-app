@@ -14,6 +14,8 @@ import {
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
+import { TextPostReviewModal } from '../client/TextPostReviewModal';
+import { TagPicker } from '../workflow/TagPicker';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { useAuth } from '../auth/AuthContext';
 import { TaskGuidelinesButton } from './TaskGuidelinesButton';
@@ -234,10 +236,21 @@ export function QCDashboard() {
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showFilePreview, setShowFilePreview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
+  const [showTextPostReview, setShowTextPostReview] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
   const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [selectedTaskTags, setSelectedTaskTags] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/tags', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => { if (data.ok) setAvailableTags(data.tags.map((t: any) => t.name)); })
+      .catch(() => {});
+  }, []);
 
   // 🔥 Share states
   const [shareLink, setShareLink] = useState("");
@@ -761,6 +774,11 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
     return type.includes('hard post') || type.includes('graphic image');
   };
 
+  const isTextPostTask = (task: EnhancedWorkflowTask) => {
+    const type = ((task as any).deliverableType || task.taskType || '').toLowerCase();
+    return type.includes('text post');
+  };
+
   const handleTaskClick = (task: EnhancedWorkflowTask) => {
     if (selectionMode && isViewingAsOther) {
       toggleTaskSelection(task.id);
@@ -770,7 +788,13 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
     setQcPostingTitles((task as any).postingTitles || []);
     setQcPostingDescriptions((task as any).postingDescriptions || []);
     setQcPostingTags((task as any).postingTags || []);
+    setSelectedTaskTags(((task as any).tags || []).map((t: any) => t.name));
     setExpandedFileGroups(new Set());
+
+    if (isTextPostTask(task)) {
+      setShowTextPostReview(true);
+      return;
+    }
 
     // Hard post tasks → open ThumbnailReviewModal directly with sequential images
     if (isHardPostTask(task)) {
@@ -1023,16 +1047,18 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
     return qcTasks.filter(task => {
       const matchType = deliverableTypeFilter === "all" || (task as any).deliverableType === deliverableTypeFilter;
       const matchClient = clientFilter === "all" || task.clientId === clientFilter;
-      return matchType && matchClient;
+      const matchTag = tagFilter === "all" || ((task as any).tags || []).some((t: any) => t.name === tagFilter);
+      return matchType && matchClient && matchTag;
     });
-  }, [qcTasks, deliverableTypeFilter, clientFilter]);
+  }, [qcTasks, deliverableTypeFilter, clientFilter, tagFilter]);
 
   const clearAllFilters = () => {
     setDeliverableTypeFilter("all");
     setClientFilter("all");
+    setTagFilter("all");
   };
 
-  const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all";
+  const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all" || tagFilter !== "all";
   const pendingReviews = filteredTasks.length;
   const totalPending = qcTasks.length;
 
@@ -1084,6 +1110,20 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
                   {availableClients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={tagFilter} onValueChange={setTagFilter}>
+                <SelectTrigger className="h-9 w-[160px] text-xs">
+                  <SelectValue placeholder="All Tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tags</SelectItem>
+                  {availableTags.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1400,6 +1440,12 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
                 </DialogTitle>
               </DialogHeader>
 
+              <TagPicker
+                taskId={selectedTask.id}
+                tags={selectedTaskTags}
+                onChange={setSelectedTaskTags}
+              />
+
               <div className="overflow-y-auto max-h-[65vh] pr-2">
                 {selectedTask.files && selectedTask.files.length > 0 ? (
                   <div className="border rounded-lg overflow-hidden divide-y">
@@ -1641,6 +1687,24 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
             onPostingTitlesChange={setQcPostingTitles}
             onPostingDescriptionsChange={setQcPostingDescriptions}
             onPostingTagsChange={setQcPostingTags}
+          />
+        )}
+
+        {selectedTask && isTextPostTask(selectedTask) && (
+          <TextPostReviewModal
+            open={showTextPostReview}
+            onOpenChange={(open: boolean) => {
+              setShowTextPostReview(open);
+              if (!open) {
+                setSelectedTask(null);
+                setQcPostingTitles([]); setQcPostingDescriptions([]); setQcPostingTags([]);
+              }
+            }}
+            taskId={selectedTask.id}
+            taskTitle={selectedTask.title}
+            textContent={(selectedTask as any).textContent || ''}
+            onApprove={() => handleThumbnailApprove(null as any)}
+            onRequestRevisions={(items) => handleThumbnailRequestRevisions(null as any, items)}
           />
         )}
 

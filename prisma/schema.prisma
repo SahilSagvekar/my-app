@@ -151,6 +151,8 @@ model Task {
   monthFolder          String?
   outputFolderId       String?
   deliverableType      String?
+  textContent          String?
+  tags                 Tag[]
   hasCovers            Boolean               @default(false)
   hasMainFile          Boolean               @default(false)
   hasMusicLicense      Boolean               @default(false)
@@ -1380,6 +1382,13 @@ model PayoutConfig {
   holdWindowDays        Int      @default(5)
   updatedAt             DateTime @updatedAt
   updatedById           Int?
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  tasks     Task[]
 }
 
 model EditorClientPermission {

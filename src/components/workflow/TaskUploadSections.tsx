@@ -5,6 +5,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { Textarea } from "../ui/textarea";
+import { TagPicker } from "./TagPicker";
 import { FileUploadDialog } from "./FileUploadDialog-Resumable";
 import {
   CheckCircle,
@@ -82,13 +84,22 @@ export function TaskUploadSections({
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [showHistory, setShowHistory] = useState<Record<string, boolean>>({});
   const [showFeedback, setShowFeedback] = useState<Record<string, boolean>>({});
+  const [textContent, setTextContent] = useState(task.textContent || "");
+  const [savingText, setSavingText] = useState(false);
+  const [taskTags, setTaskTags] = useState<string[]>((task.tags || []).map((t: any) => t.name));
 
   const isHardPostDeliverable = (deliverableType: string) => {
     const t = (deliverableType || '').toLowerCase();
     return t.includes('hard post') || t.includes('graphic image');
   };
 
+  const isTextPostDeliverable = (deliverableType: string) => {
+    return (deliverableType || '').toLowerCase().includes('text post');
+  };
+
   const getUploadSections = (deliverableType: string): UploadSection[] => {
+    if (isTextPostDeliverable(deliverableType)) return [];
+
     const mainSection: UploadSection = {
       folderType: "main",
       label: isHardPostDeliverable(deliverableType) ? "Images (PNG / JPG)" : "Main Task File",
@@ -106,6 +117,7 @@ export function TaskUploadSections({
     switch (deliverableType) {
       case "Short Form Videos":
       case "Beta Short Form":
+      case "Stories":
         return [
           {
             folderType: "music-license",
@@ -211,6 +223,28 @@ export function TaskUploadSections({
     return sections.filter((s) => s.required).every((s) => s.uploaded);
   };
 
+  const canSubmitToQC = () =>
+    isTextPostDeliverable(task.deliverableType)
+      ? textContent.trim().length > 0
+      : allRequiredFilesUploaded();
+
+  const handleSaveTextContent = async () => {
+    setSavingText(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/text-content`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ textContent }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+    } catch (error) {
+      console.error("Failed to save text content:", error);
+      alert("Failed to save text post. Try again.");
+    } finally {
+      setSavingText(false);
+    }
+  };
+
   // Toggle history visibility
   const toggleHistory = (folderType: string) => {
     setShowHistory((prev: Record<string, boolean>) => ({
@@ -264,7 +298,8 @@ export function TaskUploadSections({
 
   // Submit to QC handler
   const handleSubmitToQC = async () => {
-    if (!allRequiredFilesUploaded()) return;
+    if (!canSubmitToQC()) return;
+    if (isTextPostDeliverable(task.deliverableType)) await handleSaveTextContent();
 
     // 🔥 Run feedback acknowledgement gate before allowing submission
     if (onBeforeSubmitToQC && !onBeforeSubmitToQC()) return;
@@ -312,6 +347,30 @@ export function TaskUploadSections({
 
   return (
     <div className="space-y-1.5">
+
+      <div className="p-2">
+        <TagPicker taskId={task.id} tags={taskTags} onChange={setTaskTags} />
+      </div>
+
+      {isTextPostDeliverable(task.deliverableType) && (
+        <Card className={textContent.trim() ? "border-green-500 bg-green-50/30" : "border-amber-200"}>
+          <CardContent className="p-3 space-y-2">
+            <h3 className="text-sm font-medium">
+              Post Copy
+              <span className="text-red-500 ml-0.5">*</span>
+            </h3>
+            <Textarea
+              value={textContent}
+              onChange={(e) => setTextContent(e.target.value)}
+              onBlur={handleSaveTextContent}
+              placeholder="Write the text post copy here..."
+              rows={6}
+              className="text-sm"
+            />
+            {savingText && <p className="text-xs text-gray-500">Saving...</p>}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Enhanced Accordion Upload Sections with inline file info */}
       {sections.map((section) => {
@@ -431,7 +490,7 @@ export function TaskUploadSections({
       {/* Compact Submit to QC Button */}
       <Button
         onClick={handleSubmitToQC}
-        disabled={!allRequiredFilesUploaded() || submitting}
+        disabled={!canSubmitToQC() || submitting}
         className="w-full"
         size="sm"
       >
