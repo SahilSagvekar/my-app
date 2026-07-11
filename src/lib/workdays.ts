@@ -1,6 +1,6 @@
 // lib/workdays.ts
 
-// inclusive date range, Sunday always off,
+// inclusive date range, Sunday always off
 // Saturday depends on worksOnSaturday flag
 export function countWorkingDaysBetween(
   start: Date,
