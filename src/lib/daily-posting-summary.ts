@@ -30,7 +30,10 @@ export async function getDailyTargetSummary(): Promise<DailyTargetSummary> {
   const { start: dayStart, end: dayEnd } = getESTDate();
 
   const dailyTargets = await prisma.postingTarget.findMany({
-    where: { frequency: 'daily' },
+    where: {
+      frequency: 'daily',
+      NOT: { platform: { equals: 'snapchat', mode: 'insensitive' } },
+    },
     include: { client: { select: { id: true, name: true, companyName: true } } },
   });
 

@@ -14,9 +14,6 @@ interface PlatformData {
   hp?: number;
   lf?: number;
   lfPer?: string;
-  sep?: number;
-  sepPer?: string;
-  tiles?: boolean;
   thumb?: boolean;
   note?: string;
 }
@@ -35,7 +32,6 @@ const STATIC_POSTING_DATA: ClientData[] = [
       { name: 'FB Page', sf: 4, bsf: 1, sqf: 1 },
       { name: 'TT', sf: 4, bsf: 1 },
       { name: 'YT', sf: 4, bsf: 1 },
-      { name: 'Snapchat', sep: 3, sepPer: 'week', tiles: true },
     ]
   },
   {
@@ -45,7 +41,6 @@ const STATIC_POSTING_DATA: ClientData[] = [
       { name: 'FB TV', sf: 4, sqf: 2, bsf: 1, lf: 1, lfPer: 'week', note: 'every Sunday' },
       { name: 'YT', sf: 4, bsf: 1 },
       { name: 'TT', sf: 4, bsf: 1 },
-      { name: 'Snapchat', sep: 3, sepPer: 'week', tiles: true },
     ]
   },
   {
@@ -61,7 +56,6 @@ const STATIC_POSTING_DATA: ClientData[] = [
       { name: 'IG (Trials)', sf: 4, bsf: 1 },
       { name: 'YT', sf: 4, bsf: 1 },
       { name: 'TT', sf: 4, bsf: 1 },
-      { name: 'Snapchat', sep: 2, sepPer: 'week', tiles: true },
     ]
   },
   {
@@ -196,19 +190,6 @@ async function main() {
           },
         });
       }
-      if (platform.sep) {
-        targets.push({
-          clientId: client.id,
-          platform: platform.name,
-          deliverableType: 'SEP',
-          count: platform.sep,
-          frequency: platform.sepPer === 'week' ? 'weekly' : 'daily',
-          extras: {
-            ...(platform.tiles ? { tiles: true } : {}),
-          },
-        });
-      }
-
       if (targets.length > 0) {
         await prisma.postingTarget.createMany({ data: targets });
         totalCreated += targets.length;

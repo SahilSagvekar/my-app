@@ -34,12 +34,6 @@ const LinkedinIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const SnapchatIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-    <path d="M12.2 2c3.34 0 5.18 2.38 5.48 5.46.08.78.04 1.59-.01 2.37-.03.49.28.67.72.8.31.1.64.16.95.27.4.14.56.42.42.78-.14.37-.47.45-.84.4-.37-.05-.73-.15-1.1-.16-.5-.01-.9.2-1.23.56-.57.62-1.22 1.15-2.03 1.47-.48.19-.97.18-1.45-.02-.78-.32-1.42-.84-1.97-1.45-.33-.37-.73-.58-1.23-.57-.38.01-.74.11-1.11.16-.36.05-.69-.03-.83-.4-.14-.36.02-.64.42-.78.31-.11.64-.17.95-.27.44-.13.75-.31.72-.8-.05-.78-.09-1.59-.01-2.37C10.02 4.38 11.86 2 15.2 2h-3z" />
-  </svg>
-);
-
 type PlatformIcon = React.ComponentType<{ className?: string }>;
 
 export const PLATFORM_CONFIG: Record<string, { icon: PlatformIcon | null; color: string; bgColor: string }> = {
@@ -56,7 +50,6 @@ export const PLATFORM_CONFIG: Record<string, { icon: PlatformIcon | null; color:
   'facebook': { icon: FacebookIcon, color: 'text-blue-600', bgColor: 'bg-blue-50' },
   'li': { icon: LinkedinIcon, color: 'text-blue-700', bgColor: 'bg-blue-50' },
   'linkedin': { icon: LinkedinIcon, color: 'text-blue-700', bgColor: 'bg-blue-50' },
-  'snapchat': { icon: SnapchatIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-50' },
 };
 
 export const DELIVERABLE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -65,7 +58,6 @@ export const DELIVERABLE_COLORS: Record<string, { bg: string; text: string }> = 
   'SQF': { bg: 'bg-emerald-100', text: 'text-emerald-700' },
   'HP': { bg: 'bg-indigo-100', text: 'text-indigo-700' },
   'LF': { bg: 'bg-blue-100', text: 'text-blue-700' },
-  'SEP': { bg: 'bg-yellow-100', text: 'text-yellow-700' },
 };
 
 export const getPlatformConfig = (platformName: string) => {

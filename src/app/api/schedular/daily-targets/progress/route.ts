@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
     const dayOfWeek = getESTDayOfWeek(dateParam);
     const isSunday = dayOfWeek === 0;
 
-    // Fetch all posting targets
-    const targetWhere: any = {};
+    // Fetch all posting targets — Snapchat is no longer tracked, exclude it entirely
+    const targetWhere: any = { NOT: { platform: { equals: 'snapchat', mode: 'insensitive' } } };
     if (clientIdFilter) targetWhere.clientId = clientIdFilter;
 
     const allTargets = await prisma.postingTarget.findMany({

@@ -9,7 +9,6 @@ export function normalizeDeliverableType(type: string | null | undefined): strin
   if (t === 'thumbnails' || t === 'thumb') return 'THUMB';
   if (t === 'tiles' || t === 't') return 'T';
   if (t === 'hard posts / graphic images' || t === 'hard posts' || t === 'hp') return 'HP';
-  if (t === 'snapchat episodes' || t === 'sep') return 'SEP';
   if (t === 'beta short form' || t === 'bsf') return 'BSF';
   if (t === 'stories' || t === 'st') return 'ST';
   if (t === 'text post' || t === 'tp') return 'TP';
@@ -26,7 +25,6 @@ export function normalizePlatformForMatch(postedPlatform: string): string[] {
     'youtube': ['YT', 'YouTube', 'yt', 'youtube'],
     'linkedin': ['LI', 'LinkedIn', 'li', 'linkedin'],
     'twitter': ['Twitter', 'X', 'twitter', 'x'],
-    'snapchat': ['Snapchat', 'snapchat'],
   };
   return map[p] || [postedPlatform];
 }
@@ -40,6 +38,5 @@ export function targetPlatformToPostedPlatform(targetPlatform: string): string {
   if (p === 'yt' || p.includes('youtube')) return 'youtube';
   if (p === 'li' || p.includes('linkedin')) return 'linkedin';
   if (p.includes('twitter') || p === 'x') return 'twitter';
-  if (p.includes('snapchat')) return 'snapchat';
   return p;
 }
