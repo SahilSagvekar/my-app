@@ -904,30 +904,24 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             task.status !== "in_progress" && (
               <div className="mb-2">
                 <div className="space-y-0.5">
-                  {task.files.slice(0, 1).map((file: TaskFile) => (
+                  {(showFiles ? task.files : task.files.slice(0, 3)).map((file: TaskFile) => (
                     <FilePreviewCard
                       key={file.id}
                       file={file}
                       onView={() => onPreview(file)}
                     />
                   ))}
-                  {task.files.length > 1 && (
-                    <details className="group">
-                      <summary className="text-[10px] text-primary hover:underline cursor-pointer list-none">
-                        +{task.files.length - 1} more
-                      </summary>
-                      <div className="mt-0.5 space-y-0.5">
-                        {task.files.slice(1).map((file: TaskFile) => (
-                          <FilePreviewCard
-                            key={file.id}
-                            file={file}
-                            onView={() => onPreview(file)}
-                          />
-                        ))}
-                      </div>
-                    </details>
-                  )}
                 </div>
+                {task.files.length > 3 && (
+                  <button
+                    className="mt-1 text-[10px] text-primary hover:underline cursor-pointer flex items-center gap-0.5"
+                    onClick={(e) => { e.stopPropagation(); setShowFiles(v => !v); }}
+                  >
+                    {showFiles
+                      ? "Show less"
+                      : `+${task.files.length - 3} more files`}
+                  </button>
+                )}
               </div>
             )}
 
