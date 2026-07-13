@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
+import { deleteFromS3 } from "@/lib/s3";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -96,6 +97,54 @@ export async function PATCH(
       }
     }
 
+    // 🗑️ Delete rejected/superseded main-video files now that the task is live.
+    // There's no per-file "approved" flag in the schema — QC approval only lives on
+    // Task.qcResult. The only per-file signal is TaskFeedback: a file with an
+    // unresolved "needs_revision" row against it is the one that got rejected.
+    // A file is safe to delete if it's either a superseded version (isActive:false)
+    // or still-active but carrying unresolved reject feedback (e.g. one of several
+    // candidate cuts that QC turned down while approving another).
+    let deletedVersionCount = 0;
+    try {
+      const mainFiles = await prisma.file.findMany({
+        where: { taskId: id, folderType: "main" },
+        select: { id: true, s3Key: true, isActive: true },
+      });
+
+      const rejectedFeedback = await prisma.taskFeedback.findMany({
+        where: {
+          taskId: id,
+          folderType: "main",
+          fileId: { not: null },
+          status: "needs_revision",
+          resolvedAt: null,
+        },
+        select: { fileId: true },
+      });
+      const rejectedFileIds = new Set(rejectedFeedback.map((f) => f.fileId));
+
+      const staleFiles = mainFiles.filter((f) => !f.isActive || rejectedFileIds.has(f.id));
+
+      if (staleFiles.length > 0) {
+        const staleIds = staleFiles.map((f) => f.id);
+
+        // Detach any feedback pointing at these files instead of losing the feedback history.
+        await prisma.taskFeedback.updateMany({
+          where: { fileId: { in: staleIds } },
+          data: { fileId: null },
+        });
+
+        await Promise.allSettled(
+          staleFiles.filter((f) => f.s3Key).map((f) => deleteFromS3(f.s3Key!))
+        );
+
+        await prisma.file.deleteMany({ where: { id: { in: staleIds } } });
+        deletedVersionCount = staleFiles.length;
+      }
+    } catch (cleanupErr) {
+      console.error("Failed to delete rejected file versions on scheduling:", cleanupErr);
+    }
+
     // 📝 Audit log for scheduling
     await createAuditLog({
       userId: userId,
@@ -111,6 +160,7 @@ export async function PATCH(
         role: role,
         postedAt: postedAt || new Date().toISOString(),
         notes: notes || null,
+        deletedPastVersions: deletedVersionCount,
       },
     });
 
