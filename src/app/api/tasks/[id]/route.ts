@@ -58,6 +58,7 @@ export async function GET(
             name: true,
           },
         },
+        tags: true,
       },
     });
 
