@@ -11,6 +11,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (user.role === 'client') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const { id: lfTaskId } = await params;
 
@@ -42,6 +45,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (user.role === 'client') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const { id: lfTaskId } = await params;
     const { sfTaskId } = await req.json();
@@ -72,6 +78,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (user.role === 'client') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const { id: lfTaskId } = await params;
     const { sfTaskId } = await req.json();

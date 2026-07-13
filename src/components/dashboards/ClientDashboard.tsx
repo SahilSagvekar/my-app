@@ -50,7 +50,6 @@ import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
 import { useClientTasks } from '../../lib/hooks/useClientTasks';
 import { ClientTaskCard } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
-import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 
 interface TaskFile {
   id: string;
@@ -1388,17 +1387,9 @@ export function ClientDashboard() {
                   </div>
                 )}
 
-                {/* Linked SF Tasks — visible for LF content */}
-                {(selectedTask.monthlyDeliverable?.type?.toUpperCase().includes('LF') ||
-                  selectedTask.monthlyDeliverable?.type?.toLowerCase().includes('long')) && (
-                  <div className="mt-4 pt-4 border-t">
-                    <LinkedSfTasks
-                      lfTaskId={selectedTask.id}
-                      clientId={selectedTask.clientId}
-                      canEdit={false}
-                    />
-                  </div>
-                )}
+                {/* Linked SF Tasks intentionally hidden from clients — internal QC status
+                    and staff names shouldn't be client-visible. See LinkedSfTasks usage
+                    in SchedulerSpreadsheetView.tsx / TaskRow.tsx for the internal-facing view. */}
               </div>
             </DialogContent>
           </Dialog>
