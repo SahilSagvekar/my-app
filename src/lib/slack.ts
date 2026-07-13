@@ -35,7 +35,8 @@ export type SlackChannel =
   | "e8app"
   | "attendance"
   | "editors"
-  | "tdbs_guests";
+  | "tdbs_guests"
+  | "sales";
 
 // ---------------------------------------------------------------------------
 // Channel Configuration (from environment variables)
@@ -85,6 +86,8 @@ const CHANNEL_CONFIG: Record<SlackChannel, () => string[]> = {
   // TDBS Guests channel
   tdbs_guests: () =>
     getWebhookGroup("SLACK_TDBS_GUESTS_CHANNEL_WEBHOOK_URL"),
+  // Sales channel (portfolio gate-form leads, etc.)
+  sales: () => getWebhookGroup("SLACK_SALES_CHANNEL_WEBHOOK_URL"),
 };
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/auth-helpers';
+import { sendToChannel } from '@/lib/slack';
 
 function requireLeadsAccess(req: NextRequest) {
     const user = getUserFromToken(req);
@@ -47,6 +48,16 @@ export async function POST(req: NextRequest) {
                 serviceNeeded: `${serviceNeeded} | IP: ${ip}`,
             },
         });
+
+        sendToChannel('sales', {
+            type: 'portfolio_lead',
+            message:
+                `📋 *New Portfolio Lead*\n` +
+                `*Name:* ${firstName.trim()} ${lastName.trim()}\n` +
+                `*Email:* ${email.trim().toLowerCase()}\n` +
+                `*Phone:* ${phone.trim()}\n` +
+                `*Service Needed:* ${serviceNeeded}`,
+        }).catch((err) => console.error('[POST /api/portfolio/leads] Slack notify failed', err));
 
         return NextResponse.json({ ok: true, lead });
     } catch (err) {

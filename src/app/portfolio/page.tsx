@@ -40,12 +40,12 @@ interface Category {
 
 /* ───────────────────────── constants ───────────────────────────── */
 const SERVICE_OPTIONS = [
+    'All Services',
+    'Videography',
+    'Video Editing',
+    'Build a Show',
     'Social Media Management',
-    'Short-Form Video (Reels / TikTok)',
-    'Brand Story Video',
-    'Product & Service Showcase',
-    'Social Media Ads',
-    'Full Content Package',
+    'Multiple Services',
     'Other',
 ];
 
