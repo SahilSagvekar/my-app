@@ -76,6 +76,7 @@ model User {
   linkedClient            Client?                  @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
   securityPin             UserSecurityPin?
   twoFactorAuth           UserTwoFactorAuth?
+  folderStatusUpdates     FolderStatus[]
 
   @@index([email])
   @@index([role])
@@ -368,6 +369,7 @@ model Client {
   linkedUsers                  User[]                    @relation("LinkedClientUsers")
   youtubeChannel               YouTubeChannel?
   youtubeSnapshots             YouTubeSnapshot[]
+  folderStatuses               FolderStatus[]
 
   @@index([status])
 }
@@ -543,6 +545,22 @@ model Payroll {
   paidAt          DateTime?
   hidden          Boolean       @default(false)
   employee        User          @relation(fields: [employeeId], references: [id])
+}
+
+model FolderStatus {
+  id          String   @id @default(cuid())
+  clientId    String
+  s3KeyPrefix String
+  status      String
+  updatedById Int?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  updatedBy   User?    @relation(fields: [updatedById], references: [id])
+
+  @@unique([clientId, s3KeyPrefix])
+  @@index([clientId])
 }
 
 model AuditLog {

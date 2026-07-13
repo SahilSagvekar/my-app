@@ -206,6 +206,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [deliverableTypes, setDeliverableTypes] = useState<string[]>([]);
   const [selectedDeliverableFilter, setSelectedDeliverableFilter] = useState<string>("all");
 
+  // ─── Folder status (In Progress / Completed) ──────────────────────────────
+  const [folderStatuses, setFolderStatuses] = useState<Record<string, { status: string; updatedByName: string | null }>>({});
+
   // Short code to display name mapping
   const SHORT_CODE_LABELS: Record<string, string> = {
     SF: "Short Form",
@@ -295,6 +298,55 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         .catch(console.error);
     }
   }, [role, effectiveClientId]);
+
+  // ─── Fetch folder statuses for the current client ─────────────────────────
+  const loadFolderStatuses = useCallback(() => {
+    if (!effectiveClientId) {
+      setFolderStatuses({});
+      return;
+    }
+    fetch(`/api/drive/folder-status?clientId=${effectiveClientId}`)
+      .then(res => res.ok ? res.json() : { statuses: {} })
+      .then(data => setFolderStatuses(data.statuses || {}))
+      .catch(() => setFolderStatuses({}));
+  }, [effectiveClientId]);
+
+  useEffect(() => {
+    loadFolderStatuses();
+  }, [loadFolderStatuses]);
+
+  const updateFolderStatus = async (item: DriveItem, status: "IN_PROGRESS" | "COMPLETED" | null) => {
+    if (!effectiveClientId) return;
+    const s3KeyPrefix = getS3Key(item);
+    const previous = folderStatuses[s3KeyPrefix];
+
+    // Optimistic update
+    setFolderStatuses(prev => {
+      const next = { ...prev };
+      if (status === null) delete next[s3KeyPrefix];
+      else next[s3KeyPrefix] = { status, updatedByName: user?.name || null };
+      return next;
+    });
+
+    try {
+      const res = await fetch("/api/drive/folder-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: effectiveClientId, s3KeyPrefix, status }),
+      });
+      if (!res.ok) throw new Error("Failed to update folder status");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update folder status");
+      // Revert on failure
+      setFolderStatuses(prev => {
+        const next = { ...prev };
+        if (previous) next[s3KeyPrefix] = previous;
+        else delete next[s3KeyPrefix];
+        return next;
+      });
+    }
+  };
 
   // ─── FEATURE 1: Extract deliverable types from output folder names ───
   // Runs whenever driveStructure or currentFolder changes
@@ -700,6 +752,36 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     const pathParts = breadcrumb.map((b) => b.name).filter((name) => name !== "Root");
     pathParts.push(item.name);
     return pathParts.join("/");
+  };
+
+  // ─── Folder status pill (In Progress / Completed / Not Set) ───────────────
+  const renderFolderStatusPill = (item: DriveItem) => {
+    const current = folderStatuses[item.s3Key || getS3Key(item)]?.status || "NOT_SET";
+    return (
+      <Select
+        value={current}
+        onValueChange={(value) =>
+          updateFolderStatus(item, value === "NOT_SET" ? null : (value as "IN_PROGRESS" | "COMPLETED"))
+        }
+      >
+        <SelectTrigger
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            "h-6 px-2 text-[10px] sm:text-xs w-auto min-w-0 gap-1 border-0",
+            current === "IN_PROGRESS" && "bg-amber-100 text-amber-800",
+            current === "COMPLETED" && "bg-green-100 text-green-800",
+            current === "NOT_SET" && "bg-muted text-muted-foreground"
+          )}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent onClick={(e) => e.stopPropagation()}>
+          <SelectItem value="NOT_SET">Not Set</SelectItem>
+          <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+          <SelectItem value="COMPLETED">Completed</SelectItem>
+        </SelectContent>
+      </Select>
+    );
   };
 
   // Handle Delete Click
@@ -2114,6 +2196,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         {item.name}
                       </p>
 
+                      {item.type === "folder" && (
+                        <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                          {renderFolderStatusPill(item)}
+                        </div>
+                      )}
+
                       {item.type === "file" && (
                         <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                           {item.size && formatBytes(item.size)}
@@ -2265,13 +2353,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       </div>
 
                       {/* Name */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.name}</p>
-                        {/* Size shown inline on mobile since the column is hidden */}
-                        {item.type === "file" && (
-                          <p className="text-[11px] text-muted-foreground sm:hidden">
-                            {item.size && formatBytes(item.size)}
-                          </p>
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          {/* Size shown inline on mobile since the column is hidden */}
+                          {item.type === "file" && (
+                            <p className="text-[11px] text-muted-foreground sm:hidden">
+                              {item.size && formatBytes(item.size)}
+                            </p>
+                          )}
+                        </div>
+                        {item.type === "folder" && (
+                          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {renderFolderStatusPill(item)}
+                          </div>
                         )}
                       </div>
 
