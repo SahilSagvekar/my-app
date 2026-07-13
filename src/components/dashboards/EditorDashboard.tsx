@@ -330,6 +330,7 @@ interface WorkflowTask {
   clientName?: string; // 🔥 Added client name for filtering
   isOneOff?: boolean; // 🔥 Added for visibility logic
   isSponsored?: boolean;
+  tags?: { id: string; name: string }[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1337,6 +1338,7 @@ export function EditorDashboard() {
             monthlyDeliverableId: t.monthlyDeliverableId || null,
             monthlyQuantity: t.monthlyDeliverable?.quantity || t.oneOffDeliverable?.quantity || 4, // Default to 4 if not set
             files: t.files || [],
+            tags: t.tags || [],
             qcNotes: t.qcNotes || null,
             rejectionReason: t.rejectionReason || null,
             feedback: t.feedback || null,
