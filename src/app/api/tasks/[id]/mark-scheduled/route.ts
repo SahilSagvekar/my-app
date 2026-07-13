@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
+import { invalidatePostedContentCache } from "@/lib/redis";
 import { deleteFromS3 } from "@/lib/s3";
 
 function getTokenFromCookies(req: Request) {
@@ -93,6 +94,7 @@ export async function PATCH(
               taskId: id,
             })),
           });
+          await invalidatePostedContentCache(existingTask.clientId);
         }
       }
     }

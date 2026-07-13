@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
+import { invalidatePostedContentCache } from '@/lib/redis';
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -97,6 +98,7 @@ export async function POST(
             taskId: id,
           },
         });
+        await invalidatePostedContentCache(task.clientId);
         console.log(`✅ PostedContent created for task ${id}, platform ${platform}`);
       } catch (err) {
         console.error('Failed to save to PostedContent:', err);

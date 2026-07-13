@@ -47,3 +47,15 @@ export async function invalidateTaskCache(userId: number) {
     console.warn('[Redis] invalidateTaskCache error:', e);
   }
 }
+
+export async function invalidatePostedContentCache(clientId: string) {
+  if (!redis) return;
+  try {
+    const keys = await redis.keys(`posted-content:${clientId}:*`);
+    if (keys.length > 0) {
+      await redis.del(...keys);
+    }
+  } catch (e) {
+    console.warn('[Redis] invalidatePostedContentCache error:', e);
+  }
+}

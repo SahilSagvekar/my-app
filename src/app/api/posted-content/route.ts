@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyToken } from "@/lib/auth";
 import { getCurrentUser2 } from "@/lib/auth";
-import { cached } from "@/lib/redis";
+import { cached, invalidatePostedContentCache } from "@/lib/redis";
 
 // GET - Fetch posted content for a client
 export async function GET(req: NextRequest) {
@@ -169,6 +169,8 @@ export async function POST(req: NextRequest) {
         taskId,
       },
     });
+
+    await invalidatePostedContentCache(clientId);
 
     return NextResponse.json(content, { status: 201 });
   } catch (err: any) {
