@@ -27,6 +27,7 @@ import {
   Target,
   History,
   PlayCircle,
+  UserPlus,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -48,6 +49,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
+    { id: 'hiring', label: 'Editor Hiring', icon: UserPlus },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },

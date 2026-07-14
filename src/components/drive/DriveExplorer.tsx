@@ -754,6 +754,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return pathParts.join("/");
   };
 
+  // ─── Folder status marking is restricted to folders living inside the
+  // client's "raw-footage" tree, no matter how deeply nested. We check the
+  // item's ancestor path segments (not the item's own name, and not a raw
+  // substring match) so a client folder literally named e.g.
+  // "raw-footage-notes" doesn't get falsely included, and the raw-footage
+  // root folder itself is excluded (only its descendants qualify).
+  const isInsideRawFootage = (item: DriveItem): boolean => {
+    const key = item.s3Key || getS3Key(item);
+    const parts = key.split("/").filter(Boolean);
+    const ancestors = parts.slice(0, -1); // exclude the item's own name
+    return ancestors.includes("raw-footage");
+  };
+
   // ─── Folder status pill (In Progress / Completed / Not Set) ───────────────
   const renderFolderStatusPill = (item: DriveItem) => {
     const current = folderStatuses[item.s3Key || getS3Key(item)]?.status || "NOT_SET";
@@ -2196,7 +2209,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         {item.name}
                       </p>
 
-                      {item.type === "folder" && (
+                      {item.type === "folder" && isInsideRawFootage(item) && (
                         <div className="mt-1" onClick={(e) => e.stopPropagation()}>
                           {renderFolderStatusPill(item)}
                         </div>
@@ -2363,7 +2376,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             </p>
                           )}
                         </div>
-                        {item.type === "folder" && (
+                        {item.type === "folder" && isInsideRawFootage(item) && (
                           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                             {renderFolderStatusPill(item)}
                           </div>
