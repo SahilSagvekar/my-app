@@ -24,11 +24,19 @@ export async function GET(
                 url: true,
                 s3Key: true,
                 name: true,
+                deletedFromCloud: true,
             },
         });
 
         if (!file) {
             return NextResponse.json({ error: 'File not found' }, { status: 404 });
+        }
+
+        if (file.deletedFromCloud) {
+            return NextResponse.json(
+                { error: 'This file has been archived to NAS and removed from cloud storage. Contact an admin to restore it.' },
+                { status: 410 }
+            );
         }
 
         // Get the S3 key

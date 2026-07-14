@@ -28,6 +28,10 @@ export async function GET(
             return new NextResponse('File not found', { status: 404 });
         }
 
+        if (file.deletedFromCloud) {
+            return new NextResponse('This file has been archived to NAS and removed from cloud storage. Contact an admin to restore it.', { status: 410 });
+        }
+
         // 3. Handle Range Requests (Crucial for video scrubbing/streaming)
         const range = request.headers.get('range');
         const s3Client = getS3();

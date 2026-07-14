@@ -449,6 +449,8 @@ model File {
   archivedToNas      Boolean        @default(false)
   nasArchivedAt      DateTime?
   nasPath            String?
+  deletedFromCloud   Boolean        @default(false)
+  deletedFromCloudAt DateTime?
   proxyUrl           String?
   optimizationError  String?
   optimizationStatus String         @default("NONE")

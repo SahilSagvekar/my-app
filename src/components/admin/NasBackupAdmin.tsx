@@ -4,11 +4,30 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   HardDrive, CheckCircle, XCircle, Clock, RefreshCw,
   Server, Database, AlertTriangle, Wifi, WifiOff,
-  FolderSync, Archive, Shield,
+  FolderSync, Archive, Shield, Eye, Trash2,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner';
+
+interface SweepSummary {
+  dryRun: boolean;
+  clientId: string | null;
+  cutoffMonthFolder: string;
+  eligibleCount: number;
+  deletedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  bytesFreed: number;
+  monthsSwept: string[];
+}
+
+interface ClientOption {
+  id: string;
+  name: string;
+  companyName: string | null;
+}
 
 interface SyncLog {
   id: string;
@@ -97,6 +116,11 @@ export function NasBackupAdmin() {
   const [stats, setStats] = useState<BackupStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [sweeping, setSweeping] = useState(false);
+  const [preview, setPreview] = useState<SweepSummary | null>(null);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [sweepClientId, setSweepClientId] = useState<string>('all');
 
   const load = useCallback(async () => {
     try {
@@ -123,6 +147,52 @@ export function NasBackupAdmin() {
     const interval = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [load]);
+
+  useEffect(() => {
+    fetch('/api/clients', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => setClients((data.clients || []).map((c: any) => ({ id: c.id, name: c.name, companyName: c.companyName }))))
+      .catch(() => {/* dropdown just stays empty — not critical */});
+  }, []);
+
+  const runSweep = useCallback(async (dryRun: boolean) => {
+    const setBusy = dryRun ? setPreviewing : setSweeping;
+    setBusy(true);
+    try {
+      const clientId = sweepClientId === 'all' ? null : sweepClientId;
+      const res = await fetch('/api/cron/s3-to-nas', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun, clientId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Sweep failed');
+
+      if (dryRun) {
+        setPreview(data.summary);
+      } else {
+        setPreview(null);
+        await load();
+      }
+      toast.success(dryRun ? 'Preview ready' : 'Sweep complete', { description: data.message });
+    } catch (err: any) {
+      toast.error(dryRun ? 'Preview failed' : 'Sweep failed', { description: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }, [load, sweepClientId]);
+
+  const handleRunSweep = useCallback(() => {
+    const monthLabel = preview?.cutoffMonthFolder ? ` (everything before ${preview.cutoffMonthFolder})` : '';
+    const clientLabel = sweepClientId === 'all'
+      ? 'ALL clients'
+      : clients.find(c => c.id === sweepClientId)?.companyName || clients.find(c => c.id === sweepClientId)?.name || 'this client';
+    const confirmed = window.confirm(
+      `This permanently deletes output-folder files from Cloudflare R2 for ${clientLabel}${monthLabel} once they're verified present on the NAS. This cannot be undone. Continue?`
+    );
+    if (confirmed) runSweep(false);
+  }, [preview, runSweep, sweepClientId, clients]);
 
   const lastSync = stats?.lastSync;
   const isHealthy = lastSync?.status === 'success';
@@ -243,6 +313,70 @@ export function NasBackupAdmin() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Monthly output-folder sweep */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-gray-500" />
+                Output Folder Sweep
+              </h3>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">
+              Runs automatically on the 1st of every month at 4 AM EST. Deletes output-folder files
+              from R2 once older than 2 months — but only after verifying the file is actually present
+              on the NAS mount. Raw footage is never touched.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <Select value={sweepClientId} onValueChange={setSweepClientId}>
+                <SelectTrigger className="w-56 h-8 text-xs">
+                  <SelectValue placeholder="All clients" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All clients</SelectItem>
+                  {clients.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={() => runSweep(true)} disabled={previewing || sweeping}>
+                <Eye className={`h-3.5 w-3.5 ${previewing ? 'animate-pulse' : ''}`} />
+                {previewing ? 'Previewing…' : 'Preview Sweep'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={handleRunSweep}
+                disabled={sweeping || previewing}
+              >
+                <Trash2 className={`h-3.5 w-3.5 ${sweeping ? 'animate-pulse' : ''}`} />
+                {sweeping ? 'Sweeping…' : 'Run Sweep Now'}
+              </Button>
+            </div>
+
+            {preview && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-zinc-50 border border-zinc-200 rounded-lg p-4">
+                <div>
+                  <div className="text-zinc-500">Cutoff</div>
+                  <div className="font-semibold text-zinc-800">Before {preview.cutoffMonthFolder}</div>
+                </div>
+                <div>
+                  <div className="text-zinc-500">Would delete</div>
+                  <div className="font-semibold text-zinc-800">{preview.deletedCount} file(s)</div>
+                </div>
+                <div>
+                  <div className="text-zinc-500">Not confirmed on NAS</div>
+                  <div className="font-semibold text-amber-600">{preview.skippedCount} file(s)</div>
+                </div>
+                <div>
+                  <div className="text-zinc-500">Would free</div>
+                  <div className="font-semibold text-zinc-800">{formatBytes(preview.bytesFreed)}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sync history */}
