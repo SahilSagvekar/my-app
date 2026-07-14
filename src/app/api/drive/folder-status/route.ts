@@ -6,6 +6,16 @@ import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 
 const VALID_STATUSES = ["IN_PROGRESS", "COMPLETED"];
 
+// Folder status marking is restricted to folders inside the client's
+// "raw-footage" tree, at any depth. Mirrors the check in DriveExplorer.tsx —
+// checks ancestor path segments (excluding the folder's own name), not a
+// raw substring match, and excludes the raw-footage root folder itself.
+function isInsideRawFootage(s3KeyPrefix: string): boolean {
+  const parts = s3KeyPrefix.split("/").filter(Boolean);
+  const ancestors = parts.slice(0, -1);
+  return ancestors.includes("raw-footage");
+}
+
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
@@ -65,6 +75,9 @@ export async function PATCH(req: Request) {
     }
     if (status !== null && !VALID_STATUSES.includes(status)) {
       return NextResponse.json({ message: `status must be one of ${VALID_STATUSES.join(", ")} or null` }, { status: 400 });
+    }
+    if (status !== null && !isInsideRawFootage(s3KeyPrefix)) {
+      return NextResponse.json({ message: "Folder status can only be set on folders inside raw-footage" }, { status: 400 });
     }
 
     const existing = await prisma.folderStatus.findUnique({
