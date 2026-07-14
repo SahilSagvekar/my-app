@@ -1,8 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Youtube, Facebook, TrendingUp } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { Youtube, Facebook, TrendingUp } from "lucide-react";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselPrevious,
+  CarouselNext,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 
 interface JourneyStep {
   src: string;
@@ -39,6 +47,7 @@ const CLIENTS: JourneyClient[] = [
 
 export function BeforeAfterJourney() {
   const [activeClientId, setActiveClientId] = useState(CLIENTS[0].id);
+  const [api, setApi] = useState<CarouselApi>();
   const [step, setStep] = useState(0);
 
   const activeClient = useMemo(
@@ -48,18 +57,22 @@ export function BeforeAfterJourney() {
 
   function selectClient(id: string) {
     setActiveClientId(id);
-    setStep(0);
   }
 
-  function prevStep() {
-    setStep((s) => (s - 1 + activeClient.images.length) % activeClient.images.length);
-  }
+  // Keep the dot indicators + step count in sync with embla's own state
+  useEffect(() => {
+    if (!api) return;
+    const onSelect = () => setStep(api.selectedScrollSnap());
+    onSelect();
+    api.on("select", onSelect);
+    api.on("reInit", onSelect);
+    return () => {
+      api.off("select", onSelect);
+      api.off("reInit", onSelect);
+    };
+  }, [api]);
 
-  function nextStep() {
-    setStep((s) => (s + 1) % activeClient.images.length);
-  }
-
-  const current = activeClient.images[step];
+  const scrollTo = useCallback((i: number) => api?.scrollTo(i), [api]);
 
   return (
     <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-white">
@@ -105,51 +118,36 @@ export function BeforeAfterJourney() {
         </div>
 
         {/* Slider */}
-        <div className="relative">
-          <div className="relative aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl bg-black/5">
-            <ImageWithFallback
-              key={current.src}
-              src={current.src}
-              alt={`${activeClient.label} — ${current.caption}`}
-              className="w-full h-full object-cover"
-            />
-
-            {/* Caption */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/70 via-black/20 to-transparent">
-              <div className="flex items-center justify-between">
-                <span className="text-white font-semibold text-sm sm:text-base">
-                  {current.caption}
-                </span>
-                <span className="text-white/70 text-xs sm:text-sm">
-                  {step + 1} / {activeClient.images.length}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Arrows */}
-          <button
-            onClick={prevStep}
-            aria-label="Previous"
-            className="absolute left-2 sm:-left-5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white border border-black/10 shadow-md flex items-center justify-center text-black hover:bg-black/5 active:scale-95 transition-all"
-          >
-            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-          <button
-            onClick={nextStep}
-            aria-label="Next"
-            className="absolute right-2 sm:-right-5 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white border border-black/10 shadow-md flex items-center justify-center text-black hover:bg-black/5 active:scale-95 transition-all"
-          >
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        </div>
+        <Carousel key={activeClientId} setApi={setApi} opts={{ align: "start" }} className="relative px-1 sm:px-6">
+          <CarouselContent>
+            {activeClient.images.map((img, i) => (
+              <CarouselItem key={img.caption}>
+                <div className="relative aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl bg-black/5">
+                  <ImageWithFallback
+                    src={img.src}
+                    alt={`${activeClient.label} — ${img.caption}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/70 via-black/20 to-transparent">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white font-semibold text-sm sm:text-base">{img.caption}</span>
+                      <span className="text-white/70 text-xs sm:text-sm">{i + 1} / {activeClient.images.length}</span>
+                    </div>
+                  </div>
+                </div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <CarouselPrevious className="left-2 sm:left-0 w-9 h-9 sm:w-10 sm:h-10 bg-white border-black/10 shadow-md text-black hover:bg-black/5" />
+          <CarouselNext className="right-2 sm:right-0 w-9 h-9 sm:w-10 sm:h-10 bg-white border-black/10 shadow-md text-black hover:bg-black/5" />
+        </Carousel>
 
         {/* Dots */}
         <div className="flex items-center justify-center gap-2 mt-5 sm:mt-6">
           {activeClient.images.map((img, i) => (
             <button
               key={img.caption}
-              onClick={() => setStep(i)}
+              onClick={() => scrollTo(i)}
               aria-label={`Go to ${img.caption}`}
               className={`transition-all rounded-full ${
                 i === step ? "w-6 h-2 bg-black" : "w-2 h-2 bg-black/15 hover:bg-black/30"
